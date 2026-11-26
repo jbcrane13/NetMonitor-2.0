@@ -42,7 +42,8 @@ struct NetmonitorApp: App {
         let modelConfiguration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: Self.isUITesting,
-            allowsSave: true
+            allowsSave: true,
+            cloudKitDatabase: .none
         )
 
         do {
@@ -51,7 +52,7 @@ struct NetmonitorApp: App {
                     try ModelContainer(for: schema, configurations: [modelConfiguration])
                 },
                 fallbackStore: {
-                    let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                    let fallback = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
                     return try ModelContainer(for: schema, configurations: [fallback])
                 }
             )
@@ -69,6 +70,8 @@ struct NetmonitorApp: App {
         _environment = State(initialValue: .live())
         // Background work writes through this container's main context (#582).
         AppModelStore.container = Self.persistenceOutcome.store
+        // Device groups made consistent, and serial notes lines moved into the field (#561, #594).
+        DeviceStoreMaintenance.runAtLaunch(on: Self.persistenceOutcome.store)
         guard !Self.isUITesting else {
             // Before any view loads, so the dashboard's first brief sees the seeded events.
             UITestBootstrap.seedEventsIfNeeded()
@@ -105,7 +108,13 @@ struct NetmonitorApp: App {
             // network the phone has left (#589).
             currentNetworkProfileID: { CurrentNetwork.detected()?.id },
             clock: UITestBootstrap.scanClock ?? Date.init,
-            onSaved: { [presence] in presence.refresh() }
+            onSaved: { [presence, sharedModelContainer] networks, devices in
+                presence.refresh()
+                // The dashboard count and the widget, from the saved devices this scan updated (#594).
+                SavedDeviceSummaryModel.shared.publish(
+                    savedScan: devices, networks: networks, in: sharedModelContainer.mainContext, presence: presence.snapshot
+                )
+            }
         )
         updater.start()
         deviceRecordUpdater = updater
@@ -146,6 +155,7 @@ struct NetmonitorApp: App {
                     UITestBootstrap.seedTimelineDeviceIfNeeded(in: sharedModelContainer.mainContext)
                     UITestBootstrap.seedRuleDevicesIfNeeded(in: sharedModelContainer.mainContext)
                     UITestBootstrap.seedPastDeviceIfNeeded(in: sharedModelContainer.mainContext)
+                    UITestBootstrap.seedDeviceGroupIfNeeded(in: sharedModelContainer.mainContext)
                     // Ask your network (#452)
                     UITestBootstrap.seedAskIfNeeded(in: sharedModelContainer.mainContext)
                     if UITestBootstrap.recordsEvents {

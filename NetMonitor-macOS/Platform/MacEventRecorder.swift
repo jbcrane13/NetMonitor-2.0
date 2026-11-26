@@ -4,8 +4,9 @@ import NetMonitorCore
 /// The one place the Mac writes network events (#491 D7): devices joining, leaving and coming
 /// back, completed scans, connectivity changes and gateway changes, each with its network's ID.
 ///
-/// Device names come from the network's rows (`MacRuleAlerts.row` → `displayName`), the same
-/// lookup the alerts use; an unmatched device keeps the name the scan saw.
+/// Device names come from the network's rows (`MacRuleAlerts.row`, then the device it is an
+/// interface of, #594), the same lookup the alerts use; an unmatched device keeps the name the
+/// scan saw.
 ///
 /// **Flap guard:** each device logs at most one left and one joined per `flapWindow`. Events are
 /// written at once with their real time; later ones in the same direction are dropped. When the
@@ -196,7 +197,10 @@ private struct DeviceEntry {
         }
         let (ip, mac) = (device.ip, device.mac)
         let row = MacRuleAlerts.row(ip: ip, mac: mac, in: devices)
-        let label = row?.displayName ?? device.name.flatMap { $0.isEmpty ? nil : $0 } ?? ip
+        // Named by the device the row is an interface of (#594); the event keeps the row's ID,
+        // which resolves to the device.
+        let name = row.map { MacRuleAlerts.device(of: $0).displayName }
+        let label = name ?? device.name.flatMap { $0.isEmpty ? nil : $0 } ?? ip
         title = "\(prefix): \(label)"
         details = label == ip ? nil : ip
         deviceID = row?.id

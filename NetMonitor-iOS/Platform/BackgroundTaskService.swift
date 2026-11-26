@@ -406,7 +406,8 @@ final class BackgroundTaskService {
         let diff = ScanSchedulerService.shared.computeDiff(current: devices)
         Self.logger.info("Scan diff: \(diff.newDevices.count) new, \(diff.removedDevices.count) removed")
 
-        await notifyScanChanges(diff, wordBodies: !taskCancelled)
+        let names = AppModelStore.sharedContainer().map { GroupedDeviceNames.byAddress(network: network?.id, in: ModelContext($0)) } ?? [:]
+        await notifyScanChanges(diff, wordBodies: !taskCancelled, groupNames: names)
     }
 
 }
@@ -423,11 +424,36 @@ extension BackgroundTaskService {
             Self.logger.error("Failed to open the store to save scanned devices")
             return
         }
+        Self.reconcileAndPublish(devices, scanDate: scanDate, network: network, in: container)
+    }
+
+    /// Reconciles a background scan, then, once it saved, publishes each scanned network's
+    /// saved-device summary and so the widget (#594), as the foreground updater's `onSaved` does.
+    /// Returns whether the scan saved.
+    @discardableResult
+    static func reconcileAndPublish(
+        _ devices: [DiscoveredDevice],
+        scanDate: Date,
+        network: UUID?,
+        in container: ModelContainer,
+        history: ScanHistory = ScanHistory(),
+        summaries: SavedDeviceSummaryModel = .shared,
+        defaults: UserDefaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard,
+        reloadWidget: Bool = true,
+        now: Date = Date()
+    ) -> Bool {
         // Its own context on the app's container: a failed save rolls back only this scan, never
         // device detail's unsaved edits in the main context.
-        DeviceRecordUpdater.reconcile(
-            devices, scanDate: scanDate, network: network, with: ScanReconciler(context: ModelContext(container)), now: Date()
+        let context = ModelContext(container)
+        let reconciler = ScanReconciler(context: context, history: history)
+        guard DeviceRecordUpdater.reconcile(devices, scanDate: scanDate, network: network, with: reconciler, now: now) else {
+            return false
+        }
+        summaries.publish(
+            savedScan: devices, networks: Set(devices.compactMap { $0.networkProfileID ?? network }), in: context,
+            presence: history.presenceSnapshot(now: now), defaults: defaults, reloadWidget: reloadWidget
         )
+        return true
     }
 }
 
@@ -451,8 +477,9 @@ extension BackgroundTaskService {
     }
 
     /// Alerts for a scheduled scan's new and missing devices, with the user's toggles applied.
-    /// The UI-test notification demo calls this too.
-    func notifyScanChanges(_ diff: ScanDiff, wordBodies: Bool = true) async {
+    /// The UI-test notification demo calls this too. `groupNames` names an interface of a saved
+    /// device of several by its device (#594, `GroupedDeviceNames`); still one alert per address.
+    func notifyScanChanges(_ diff: ScanDiff, wordBodies: Bool = true, groupNames: [String: String] = [:]) async {
         let notifyNew     = (UserDefaults.standard.object(forKey: "scheduledScan_notifyNew") as? Bool) ?? true
         let notifyMissing = (UserDefaults.standard.object(forKey: "scheduledScan_notifyMissing") as? Bool) ?? true
 
@@ -460,7 +487,7 @@ extension BackgroundTaskService {
         if notifyNew, notifications.isNewDeviceAlertEnabled {
             alerts += diff.newDevices.map { device in
                 let event = NotificationEvent.newDevice(
-                    NotificationDevice(name: device.displayName, ipAddress: device.ipAddress, maker: device.maker)
+                    NotificationDevice(name: groupNames[device.ipAddress] ?? device.displayName, ipAddress: device.ipAddress, maker: device.maker)
                 )
                 return (event, { [notifications] body in
                     notifications.notifyNewDevice(ipAddress: device.ipAddress, hostname: device.hostname, generatedBody: body)
@@ -469,8 +496,9 @@ extension BackgroundTaskService {
         }
         if notifyMissing, notifications.isTargetDownAlertEnabled {
             alerts += diff.removedDevices.map { device in
-                (.targetDown(name: device.displayName, host: device.ipAddress), { [notifications] body in
-                    notifications.notifyTargetDown(name: device.displayName, host: device.ipAddress, generatedBody: body)
+                let name = groupNames[device.ipAddress] ?? device.displayName
+                return (.targetDown(name: name, host: device.ipAddress), { [notifications] body in
+                    notifications.notifyTargetDown(name: name, host: device.ipAddress, generatedBody: body)
                 })
             }
         }
@@ -484,12 +512,8 @@ extension BackgroundTaskService {
     private func checkMonitoringTargets() async {
         let checkStartTime = Date()
 
-        // Create a new ModelContainer for background context with full schema
-        let schema = AppModelStore.schema
-        guard let modelContainer = try? ModelContainer(
-            for: schema,
-            configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)]
-        ) else {
+        // The app's own container (or the one kept fallback), never a second one over the same file.
+        guard let modelContainer = AppModelStore.sharedContainer() else {
             Self.logger.error("Failed to create ModelContainer for background task")
             return
         }

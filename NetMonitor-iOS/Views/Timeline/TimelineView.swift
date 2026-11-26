@@ -8,15 +8,10 @@ struct TimelineView: View {
     @State private var isConfirmingClear = false
     /// Set once the list has scrolled to `focusDay`, so later changes don't scroll it back.
     @State private var hasFocused = false
-    /// Summaries name devices through their saved rows and compare speed tests (#453).
-    @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
+    /// Summaries name devices through their saved rows (read when asked, #594) and compare speed
+    /// tests (#453).
+    @Environment(\.modelContext) private var modelContext
     @Query(Self.speedTestsDescriptor) private var speedTests: [SpeedTestResult]
-
-    private static var savedDevicesDescriptor: FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>()
-        descriptor.fetchLimit = 500
-        return descriptor
-    }
 
     private static var speedTestsDescriptor: FetchDescriptor<SpeedTestResult> {
         var descriptor = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\SpeedTestResult.timestamp, order: .reverse)])
@@ -167,7 +162,9 @@ struct TimelineView: View {
             // Hidden where the on-device model is unavailable, and while a summary is on its way.
             if viewModel.canSummarize, viewModel.summary(for: label) != .loading {
                 Button {
-                    Task { await viewModel.summarize(label, savedDevices: savedDevices, speedTests: speedTests) }
+                    // The most recent devices of every network, each with every member (#594).
+                    let saved = (try? DeviceGroups.recentDevices(in: .allNetworks, limit: 500, in: modelContext))?.flatMap(\.members) ?? []
+                    Task { await viewModel.summarize(label, savedDevices: saved, speedTests: speedTests) }
                 } label: {
                     Label("Summarize", systemImage: "sparkles")
                         .font(.caption.weight(.semibold))

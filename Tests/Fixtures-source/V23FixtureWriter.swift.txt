@@ -1,0 +1,65 @@
+// Writes the v2.3 (macOS SchemaV3) and current iOS fixture stores with the live models at fa252116,
+// before #594 PR1 changes them. Synthetic rows only.
+import Foundation
+import NetMonitorCore
+import NetworkScanKit
+import SwiftData
+
+enum MacV3: VersionedSchema {
+    static let versionIdentifier = Schema.Version(3, 0, 0)
+    static var models: [any PersistentModel.Type] { [NetworkTarget.self, TargetMeasurement.self, LocalDevice.self, SessionRecord.self, ConnectivityRecord.self] }
+}
+enum OnlyV3: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] { [MacV3.self] }
+    static var stages: [MigrationStage] { [] }
+}
+let base = Date(timeIntervalSince1970: 1_790_000_000)
+let profile = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+
+func devices(_ ctx: ModelContext) {
+    let studio = LocalDevice(id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!, ipAddress: "192.168.1.20", macAddress: "00:11:22:33:44:55",
+        hostname: "Studio", vendor: "Apple", deviceType: .computer, customName: "Studio", isGateway: false, supportsWakeOnLan: true,
+        notes: "Desk machine\nSerial: C02XYZ123\nSerial: C02XYZ123", resolvedHostname: "studio.lan", openPorts: [22, 445],
+        discoveredServices: ["_ssh._tcp"], networkProfileID: profile)
+    studio.modelName = "Mac16,10"; studio.modelSource = "bonjour"; studio.makerSource = "userConfirmed"; studio.manufacturer = "Apple"
+    studio.friendlyName = "Studio Display Mac"; studio.friendlyNameSource = "upnp"; studio.lastLatency = 3.5
+    studio.firstSeen = base; studio.lastSeen = base.addingTimeInterval(3600); studio.status = .online
+    let printer = LocalDevice(id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!, ipAddress: "192.168.1.30", macAddress: "",
+        hostname: nil, deviceType: .printer, status: .offline, notes: "Serial: ", networkProfileID: profile)
+    printer.firstSeen = base; printer.lastSeen = base
+    let tv = LocalDevice(id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!, ipAddress: "192.168.1.40", macAddress: "AA:BB:CC:00:11:22",
+        hostname: "living-room.local", deviceType: .unknown, status: .cached, notes: "Serial: A1\nSerial: B2", networkProfileID: nil)
+    tv.firstSeen = base; tv.lastSeen = base.addingTimeInterval(60)
+    [studio, printer, tv].forEach(ctx.insert)
+}
+func checkpoint(_ url: URL) {
+    let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+    p.arguments = [url.path, "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode=DELETE;"]; try! p.run(); p.waitUntilExit()
+}
+let out = URL(fileURLWithPath: CommandLine.arguments[1])
+try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+do { // macOS
+    let url = out.appendingPathComponent("v2.3-default.store")
+    let schema = Schema(versionedSchema: MacV3.self)
+    let c = try ModelContainer(for: schema, migrationPlan: OnlyV3.self, configurations: [ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)])
+    let ctx = ModelContext(c)
+    devices(ctx)
+    let target = NetworkTarget(id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!, name: "Gateway", host: "192.168.1.1", targetProtocol: .icmp, createdAt: base)
+    ctx.insert(target)
+    let m = TargetMeasurement(id: UUID(uuidString: "66666666-6666-6666-6666-666666666666")!, timestamp: base, latency: 4.5, isReachable: true); ctx.insert(m); m.target = target
+    ctx.insert(SessionRecord(id: UUID(uuidString: "77777777-7777-7777-7777-777777777777")!, startedAt: base))
+    ctx.insert(ConnectivityRecord(id: UUID(uuidString: "88888888-8888-8888-8888-888888888888")!, profileID: profile, timestamp: base, isOnline: true, latencyMs: 12))
+    try ctx.save(); checkpoint(url); print("wrote", url.lastPathComponent)
+}
+do { // iOS (unversioned, the app's AppModelStore.schema at fa252116)
+    let url = out.appendingPathComponent("ios-v2.3-default.store")
+    let schema = Schema([PairedMac.self, LocalDevice.self, MonitoringTarget.self, ToolResult.self, SpeedTestResult.self])
+    let c = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+    let ctx = ModelContext(c)
+    devices(ctx)
+    ctx.insert(PairedMac(id: UUID(uuidString: "99999999-9999-9999-9999-999999999999")!, name: "Office Mac", hostname: "office.local", lastConnected: base))
+    ctx.insert(MonitoringTarget(id: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!, name: "Router", host: "192.168.1.1"))
+    ctx.insert(ToolResult(id: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!, toolType: .ping, target: "192.168.1.1", duration: 1, success: true, summary: "4 ms"))
+    ctx.insert(SpeedTestResult(id: UUID(uuidString: "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC")!, downloadSpeed: 100, uploadSpeed: 20, latency: 9))
+    try ctx.save(); checkpoint(url); print("wrote", url.lastPathComponent)
+}

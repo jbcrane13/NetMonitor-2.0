@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import NetMonitorCore
 import NetworkScanKit
 
@@ -7,6 +8,8 @@ struct NetworkMapView: View {
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @State private var sortOrder: DeviceSortOrder = .ip
     @State private var isAddNetworkSheetPresented = false
+    /// Saved rows that are one device's interfaces: the map shows that device once (#594).
+    @Query(filter: #Predicate<LocalDevice> { $0.deviceGroupID != nil }) private var groupedRows: [LocalDevice]
 
     init(env: AppEnvironment) {
         _viewModel = State(initialValue: NetworkMapViewModel(
@@ -17,7 +20,7 @@ struct NetworkMapView: View {
     }
 
     private var sortedDevices: [DiscoveredDevice] {
-        let devices = viewModel.discoveredDevices
+        let devices = viewModel.nodes
         switch sortOrder {
         case .ip:
             return devices.sorted { $0.ipAddress.ipSortKey < $1.ipAddress.ipSortKey }
@@ -46,6 +49,9 @@ struct NetworkMapView: View {
         NavigationStack {
             // The presence model refreshes after each saved scan and every minute (#583).
             mapContent(staleNote: viewModel.notCheckedRecentlyNote(presenceModel?.snapshot ?? DevicePresenceModel.noScans))
+        }
+        .onChange(of: groupedRows.map(\.id), initial: true) {
+            viewModel.showGroups(groupedRows)
         }
     }
 

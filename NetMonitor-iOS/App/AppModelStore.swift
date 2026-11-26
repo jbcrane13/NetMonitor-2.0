@@ -26,7 +26,9 @@ enum AppModelStore {
 
     /// The app's container, or one opened (once) and kept when the app's isn't there yet.
     static func sharedContainer(
-        open: () throws -> ModelContainer = { try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema)]) }
+        open: () throws -> ModelContainer = {
+            try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, cloudKitDatabase: .none)])
+        }
     ) -> ModelContainer? {
         if let container {
             return container

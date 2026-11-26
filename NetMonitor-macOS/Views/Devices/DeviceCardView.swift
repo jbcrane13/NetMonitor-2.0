@@ -3,8 +3,10 @@ import NetMonitorCore
 
 // MARK: - Device Card View (Consumer Mode)
 
+/// One device (#594: a row, or a group of interfaces): the primary's name, type and maker, the
+/// current member's address, latency and sparkline, and the best member's presence.
 struct DeviceCardView: View {
-    let device: LocalDevice
+    let device: DeviceProjection
     let isSelected: Bool
 
     @Environment(\.colorScheme) private var colorScheme
@@ -19,7 +21,7 @@ struct DeviceCardView: View {
                         .fill(MacTheme.Colors.presenceColor(presence.freshness(of: device)).opacity(0.2))
                         .frame(width: 48, height: 48)
 
-                    Image(systemName: device.deviceType.iconName)
+                    Image(systemName: device.primary.deviceType.iconName)
                         .font(.title3)
                         .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: device)))
                 }
@@ -31,7 +33,7 @@ struct DeviceCardView: View {
                             .font(.headline)
                             .lineLimit(1)
 
-                        if device.isGateway {
+                        if device.members.contains(where: \.isGateway) {
                             Text("Gateway")
                                 .font(.caption2)
                                 .padding(.horizontal, 6)
@@ -48,7 +50,7 @@ struct DeviceCardView: View {
                             .foregroundStyle(MacTheme.Colors.labelSecondary)
                             .monospacedDigit()
 
-                        if let vendor = device.makerLabel {
+                        if let vendor = device.primary.makerLabel {
                             Text("·")
                                 .foregroundStyle(MacTheme.Colors.labelTertiary)
                             Text(vendor)
@@ -80,9 +82,9 @@ struct DeviceCardView: View {
             .padding(12)
 
             // Latency sparkline — shown when 2+ readings exist
-            if device.latencyHistory.count > 1 {
+            if device.current.latencyHistory.count > 1 {
                 MiniSparklineView(
-                    data: device.latencyHistory,
+                    data: device.current.latencyHistory,
                     lineWidth: 1.2,
                     showPulse: true,
                     height: 20,
@@ -137,7 +139,7 @@ struct DeviceCardView: View {
 
 #Preview {
     DeviceCardView(
-        device: LocalDevice(
+        device: DeviceGroups.project([LocalDevice(
             ipAddress: "192.168.1.1",
             macAddress: "AA:BB:CC:DD:EE:FF",
             hostname: "router.local",
@@ -146,7 +148,7 @@ struct DeviceCardView: View {
             status: .online,
             lastLatency: 2.5,
             isGateway: true
-        ),
+        )])[0],
         isSelected: false
     )
     .padding()

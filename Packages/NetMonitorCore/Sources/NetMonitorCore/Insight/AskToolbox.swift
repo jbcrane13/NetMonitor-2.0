@@ -95,7 +95,7 @@ public final class AskToolbox: Sendable {
     public func deviceStatus(_ device: String) -> String {
         run {
             withDevice(device) { device in
-                var text = "\(name(device))\(presence(device)). Last seen \(seen(device)). Address \(device.ipAddress)."
+                var text = "\(name(device))\(presence(device)). Last seen \(seen(device)). Address \(device.addressText)."
                 if let latency = device.lastLatency {
                     text += " Last reply \(Self.milliseconds(latency))."
                 }
@@ -229,7 +229,7 @@ public final class AskToolbox: Sendable {
     /// without one, the one device whose name its title gives ("Device Left: Synology DS920").
     private func device(in event: NetworkEvent) -> AskDevice? {
         if let id = event.deviceID {
-            return snapshot.devices.first { $0.id == id }
+            return snapshot.devices.first { $0.memberIDs.contains(id) }
         }
         let name = event.title.components(separatedBy: ": ").dropFirst().joined(separator: ": ")
         guard event.type == .deviceJoined || event.type == .deviceLeft, !name.isEmpty else { return nil }
@@ -267,7 +267,7 @@ public final class AskToolbox: Sendable {
         if let device = snapshot.devices.first(where: { handles[$0.id] == text }) {
             return [device]
         }
-        let atAddress = snapshot.devices.filter { $0.ipAddress.lowercased() == text }
+        let atAddress = snapshot.devices.filter { $0.addresses.contains { $0.lowercased() == text } }
         if !atAddress.isEmpty {
             return atAddress
         }
@@ -289,7 +289,7 @@ public final class AskToolbox: Sendable {
     private func deviceLine(_ device: AskDevice) -> String {
         let type = device.deviceType == .unknown ? "unknown type" : device.deviceType.rawValue
         return "- id \(handles[device.id] ?? "?"): \(InsightRequest.line(device.displayName, limit: 80)), \(type), "
-            + "\(statusWord(device)), last seen \(seen(device)), address \(device.ipAddress)"
+            + "\(statusWord(device)), last seen \(seen(device)), address \(device.addressText)"
     }
 
     // MARK: - Presence

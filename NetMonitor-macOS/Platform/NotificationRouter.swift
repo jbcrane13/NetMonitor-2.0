@@ -51,14 +51,17 @@ final class NotificationRouter {
     /// Where a route lands in the main window, given the saved devices at its address: the
     /// one on the alert's network, else the only one; with none (a rule can match a monitored
     /// target, or the popover isn't available), the local network's dashboard.
+    ///
+    /// `devices` are saved rows with their groups complete: a device is found by any interface's
+    /// address and counts once (#594), and the ID handed on is its primary row's.
     static func selection(for route: NotificationRoute, devices: [LocalDevice], localNetworkID: UUID?)
         -> (section: SidebarSelection?, device: UUID?) {
         let dashboard: SidebarSelection? = localNetworkID.map { .network($0) }
         guard case let .device(ip, networkID) = route else { return (dashboard, nil) }
-        let atAddress = devices.filter { $0.ipAddress == ip }
-        let device = networkID.flatMap { id in atAddress.first { $0.networkProfileID == id } }
+        let atAddress = DeviceGroups.project(devices).filter { device in device.members.contains { $0.ipAddress == ip } }
+        let device = networkID.flatMap { id in atAddress.first { $0.primary.networkProfileID == id } }
             ?? (atAddress.count == 1 ? atAddress.first : nil)
         guard let device else { return (dashboard, nil) }
-        return (.section(.devices), device.id)
+        return (.section(.devices), device.primary.id)
     }
 }

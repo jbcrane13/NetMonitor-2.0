@@ -64,7 +64,7 @@ struct AppearanceModeTests {
             try container.mainContext.save()
         }
 
-        let schema = Schema(versionedSchema: SchemaV3.self)
+        let schema = Schema(versionedSchema: SchemaV4.self)
         let configuration = ModelConfiguration(schema: schema, url: storeURL, cloudKitDatabase: .none)
         let reopened = try ModelContainer(
             for: schema,

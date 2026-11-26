@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import NetMonitorCore
 
 /// Lists the port forwards the router opened through UPnP (#400). Read-only.
@@ -8,6 +9,8 @@ import NetMonitorCore
 struct PortForwardsToolView: View {
     let env: AppEnvironment
     @State private var state = PortForwardsState()
+    /// Saved rows that are one device's interfaces, named by their device (#594).
+    @Query(filter: #Predicate<LocalDevice> { $0.deviceGroupID != nil }) private var groupedRows: [LocalDevice]
 
     var body: some View {
         ScrollView {
@@ -131,8 +134,10 @@ struct PortForwardsToolView: View {
 
     // MARK: - Loading
 
+    /// Each address's name: a device of several interfaces by its device's name at every address
+    /// (#594), else the scan's.
     private func load() {
-        var names: [String: String] = [:]
+        var names = GroupedDeviceNames.byAddress(groupedRows)
         for device in env.deviceDiscovery.discoveredDevices where names[device.ipAddress] == nil {
             names[device.ipAddress] = device.displayName == device.ipAddress ? nil : device.displayName
         }

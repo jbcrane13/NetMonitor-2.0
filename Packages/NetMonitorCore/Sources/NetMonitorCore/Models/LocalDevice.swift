@@ -40,6 +40,26 @@ public final class LocalDevice {
     /// The name the device or the UniFi console gives it. Before `SchemaV3` it was written
     /// into `hostname`; now it's kept apart and ranked (UniFi > UPnP).
     public var friendlyName: String?
+    /// The serial number and its ``IdentitySource`` raw value (#561), through ``identity``. Stored
+    /// since macOS `SchemaV4`; before, label capture kept it as a `Serial:` notes line
+    /// (`SerialNotesMigration` moves those).
+    public var serialNumber: String?
+    public var serialSource: String?
+
+    // MARK: Device groups (#594, design v3.1): rows that are one device's interfaces. Written only
+    // by `DeviceGroupWriter`; read through `DeviceGroups`. All nil for a device of one row.
+
+    /// The group this row is a member of: its own UUID, minted when the group forms, never reused.
+    public var deviceGroupID: UUID?
+    /// The member row whose name, notes and rules are the device's; the same on every member.
+    public var groupPrimaryID: UUID?
+    /// How this row joined its group: a ``DeviceGroupSource`` raw value.
+    public var groupSource: String?
+    /// Rows the user said aren't the same device as this one.
+    public var notSameAsIDs: [UUID]?
+    /// The last strong Bonjour host name this row's address answered for, and when (#594).
+    public var bonjourHost: String?
+    public var bonjourHostSeenAt: Date?
 
     /// In-memory buffer of recent latency readings for sparkline display.
     /// Not persisted — resets each session. Capped at 20 samples.
@@ -99,13 +119,14 @@ public final class LocalDevice {
         [hostname, friendlyName].compactMap { $0 }.first { !$0.isEmpty }
     }
 
-    /// The stored maker, model and friendly name with their sources (ADR-022).
+    /// The stored maker, model, friendly name and serial with their sources (ADR-022, #561).
     public var identity: DeviceIdentity {
         get {
             DeviceIdentity(
                 maker: IdentityValue(manufacturer, source: makerSource.flatMap(IdentitySource.init(rawValue:))),
                 model: IdentityValue(modelName, source: modelSource.flatMap(IdentitySource.init(rawValue:))),
-                friendlyName: IdentityValue(friendlyName, source: friendlyNameSource.flatMap(IdentitySource.init(rawValue:)))
+                friendlyName: IdentityValue(friendlyName, source: friendlyNameSource.flatMap(IdentitySource.init(rawValue:))),
+                serial: IdentityValue(serialNumber, source: serialSource.flatMap(IdentitySource.init(rawValue:)))
             )
         }
         set {
@@ -115,6 +136,8 @@ public final class LocalDevice {
             modelSource = newValue.model?.source?.rawValue
             friendlyName = newValue.friendlyName?.value
             friendlyNameSource = newValue.friendlyName?.source?.rawValue
+            serialNumber = newValue.serial?.value
+            serialSource = newValue.serial?.source?.rawValue
         }
     }
 

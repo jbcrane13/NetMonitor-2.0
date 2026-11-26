@@ -44,8 +44,9 @@ final class ChangeBriefViewModel {
     /// Asks the model about the last day's changes when the digest differs from the last one.
     /// - Parameters:
     ///   - scanned: the dashboard's devices; cached ones did not answer the last scan.
-    ///   - saved: every saved device. Only those of the network being shown (or of none) name
-    ///     devices and count as found or missing.
+    ///   - saved: every saved device, complete groups. Only those of the network being shown (or
+    ///     of none) name devices and count as found or missing, a group of interfaces as one
+    ///     device found when any member's address answered (#594).
     ///   - networkProfileID: the network being shown.
     ///   - speedTests: the most recent saved speed tests; the latest two are enough.
     ///   - presence: past devices (#583), unseen for a week, are not counted as missing.
@@ -67,15 +68,22 @@ final class ChangeBriefViewModel {
         let found = Set(scanned.filter { !$0.isCached }.map(\.ipAddress))
         // Saved rows of other networks are neither found nor missing here.
         let network = saved.filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
+        let devices = DeviceGroups.project(network)
+        let isFound = { (device: DeviceProjection) in device.members.contains { found.contains($0.ipAddress) } }
+        // Each saved device found counts once; an answer at an address no saved row has counts too.
+        let savedAddresses = Set(network.map(\.ipAddress))
+        let foundCount = devices.count(where: isFound) + found.subtracting(savedAddresses).count
         let end = now()
         let request = ChangeDigestBuilder.request(
             events: eventService.events(from: end.addingTimeInterval(-Self.window), to: end),
             from: end.addingTimeInterval(-Self.window),
             to: end,
             deviceNames: ChangeDigestBuilder.deviceNames(network),
+            deviceNamesByID: ChangeDigestBuilder.deviceNamesByID(network),
+            deviceKeysByID: ChangeDigestBuilder.deviceKeysByID(network),
             speedTests: speedTests,
             counts: ChangeDigestCounts(
-                found: found.count, notFound: network.count { !found.contains($0.ipAddress) && !presence.isPast($0) }
+                found: foundCount, notFound: devices.count { !isFound($0) && !presence.isPast($0) }
             )
         )
         await state.ask(request, network: networkProfileID)

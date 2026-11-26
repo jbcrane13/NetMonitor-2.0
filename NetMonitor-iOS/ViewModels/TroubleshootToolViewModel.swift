@@ -46,10 +46,15 @@ final class TroubleshootToolViewModel {
 
     /// The saved devices on `networkProfileID`, and those on no network, as the troubleshooter sees them.
     func update(devices: [LocalDevice], networkProfileID: UUID?, latestDownload: Double?) {
-        inputs.devices = devices
-            .filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
-            .map(TroubleshootDevice.init)
+        inputs.devices = Self.devices(devices, networkProfileID: networkProfileID)
         inputs.latestDownload = latestDownload
+    }
+
+    /// The saved rows on `networkProfileID` (and on none) as devices (#594): a group of
+    /// interfaces is one, at its current member's address. Pass complete groups.
+    static func devices(_ rows: [LocalDevice], networkProfileID: UUID?) -> [TroubleshootDevice] {
+        DeviceGroups.project(rows.filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID })
+            .map(TroubleshootDevice.init)
     }
 
     /// The devices a run would offer, for tests.

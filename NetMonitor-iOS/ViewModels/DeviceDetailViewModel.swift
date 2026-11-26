@@ -6,11 +6,19 @@ import NetworkScanKit
 @MainActor
 @Observable
 final class DeviceDetailViewModel {
+    /// The device's primary row (#594): its name, notes, type and rules. For a device of one row,
+    /// that row.
     var device: LocalDevice?
+    /// The device as lists show it: every member, the current one first (``members``).
+    private(set) var projection: DeviceProjection?
+    /// The row detail was opened on from the scan's list, whose address it may probe.
+    private var openedMember: LocalDevice?
     var isLoading: Bool = false
     var error: String?
     var isScanning: Bool = false
     var isDiscovering: Bool = false
+    /// What the last "wake every interface" said (#594).
+    private(set) var wakeResult: String?
     /// Whether the detail shows a maker, model or type the on-device model suggested (#449).
     private(set) var isShowingSuggestion = false
     /// The type the model suggested while the device's type is unknown; written only on accept.
@@ -22,6 +30,9 @@ final class DeviceDetailViewModel {
     private let bonjourService: any BonjourDiscoveryServiceProtocol
     private let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
     private let suggester: DeviceSuggester
+    private let wakeService: any WakeOnLANServiceProtocol
+    /// Stores that name rows by ID; removing an interface re-points them to the device (#594).
+    private let references: [any DeviceReferenceStore]
     /// The reconciled scans, for "seen by the previous scan" in the row match (#596).
     private let scanHistory: ScanHistory
     private var modelContext: ModelContext?
@@ -34,7 +45,7 @@ final class DeviceDetailViewModel {
     private enum NameLookup {
         /// The row's own address: detail was opened on it from the scan's list.
         case savedAddress
-        /// Opened by ID (#584): wherever the latest completed scan confirms the row's real MAC,
+        /// Opened by ID (#584): wherever the latest completed scan confirms a member's real MAC,
         /// checked again at every probe, since a newer scan can move the device.
         case confirmedByScan
     }
@@ -50,6 +61,8 @@ final class DeviceDetailViewModel {
         bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService(),
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         suggester: DeviceSuggester = DeviceSuggester(service: UITestFakeDeviceFeed.insightService, store: DeviceSuggestionStore()),
+        wakeService: any WakeOnLANServiceProtocol = WakeOnLANService(),
+        references: [any DeviceReferenceStore] = [NetworkEventService.shared],
         scanHistory: ScanHistory = ScanHistory()
     ) {
         self.macLookupService = macLookupService
@@ -58,6 +71,8 @@ final class DeviceDetailViewModel {
         self.bonjourService = bonjourService
         self.deviceDiscoveryService = deviceDiscoveryService
         self.suggester = suggester
+        self.wakeService = wakeService
+        self.references = references
         self.scanHistory = scanHistory
     }
 
@@ -85,7 +100,7 @@ final class DeviceDetailViewModel {
         let live = Self.liveScan(deviceDiscoveryService)
         let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
         let network = networkID ?? scanned?.networkProfileID
-        device = Self.savedRow(
+        let row = Self.savedRow(
             ipAddress: ipAddress,
             scanned: scanned,
             macAddress: scanned?.macAddress ?? macAddress,
@@ -95,14 +110,17 @@ final class DeviceDetailViewModel {
             previousScan: deviceDiscoveryService.lastScanDate.flatMap { scanHistory.previousReconciled(beforeScan: $0, for: network) },
             in: context
         )
+        openedMember = row
+        // The row is one interface; detail shows its device (#594).
+        showDevice(of: row)
         // The scan knows more than a fresh row: merge its maker, model and friendly name by
         // rank (ADR-022), and fill the MAC-prefix maker, MAC and hostname where the row has
-        // none (#426). The header shows `maker`.
+        // none (#426), into the interface the scan saw. The header shows `maker`.
         defer { startSuggestion() }
-        guard let device, let scanned else {
+        guard let scanned else {
             return
         }
-        Self.adopt(scanned, into: device)
+        Self.adopt(scanned, into: row)
     }
 
     /// Merges what a scan knows into a saved row, as detail does when it opens: maker, model and
@@ -186,15 +204,16 @@ final class DeviceDetailViewModel {
         try? modelContext?.save()
     }
 
-    /// Enrich device data with the MAC-prefix maker and resolved hostname
+    /// Enrich device data with the MAC-prefix maker and resolved hostname, on the probed member
+    /// (else the current one): both describe one interface.
     func enrichDevice(bonjourServices _: [BonjourService]) async {
-        guard let device = device else { return }
+        guard let device = probedMember?.row ?? current else { return }
         isLoading = true
         defer { isLoading = false }
 
         // Extract Sendable values before async work
         let macAddress = device.macAddress
-        let ipAddress = probeAddress
+        let ipAddress = probedMember.flatMap { $0.row === device ? $0.address : nil }
 
         // Look up the MAC-prefix maker (`vendor`, ADR-022); skip without a MAC
         if device.vendor?.isEmpty ?? true, !macAddress.isEmpty {
@@ -240,9 +259,9 @@ final class DeviceDetailViewModel {
         startSuggestion()
     }
 
-    /// Discover Bonjour services at ``probeAddress``.
+    /// Discover Bonjour services at ``probeAddress``; they are saved on the member probed.
     func discoverServices() async {
-        guard let device, let deviceIP = probeAddress else { return }
+        guard let (device, deviceIP) = probedMember else { return }
         isDiscovering = true
         defer { isDiscovering = false }
 
@@ -300,7 +319,7 @@ final class DeviceDetailViewModel {
             }
         }
 
-        guard probeAddress == deviceIP else { return }
+        guard probeAddress == deviceIP, probedMember?.row === device else { return }
         device.discoveredServices = discoveredServiceNames
         startSuggestion()
     }
@@ -395,38 +414,67 @@ final class DeviceDetailViewModel {
 // MARK: - Opening by ID (#584)
 
 extension DeviceDetailViewModel {
-    /// Loads the saved row with `id`, for links that carry `LocalDevice.id` (Ask citations, rule
-    /// targets, Timeline events; #584). Never matches by IP: when DHCP gave the device's address
-    /// to another device, the link still opens this one. The latest scan's identity is merged only
-    /// from the one device that answered the latest scan with the row's real MAC, and DNS is asked
-    /// for a name only at the address that device answered from. A row that no longer exists loads
-    /// nothing.
+    /// Loads the saved device `id` names, for links that carry `LocalDevice.id` (Ask citations,
+    /// rule targets, Timeline events; #584) or a device's own ID from a list (a group's, #594).
+    /// Never matches by IP: when DHCP gave the device's address to another device, the link still
+    /// opens this one. The latest scan's identity is merged into a member only from the one device
+    /// that answered the latest scan with that member's real MAC, and DNS is asked for a name only
+    /// at the address that device answered from. A row that no longer exists loads nothing.
     func loadDevice(id: UUID, context: ModelContext) {
         suggestionTask?.cancel()
         suggestionTask = nil
         suggestionFingerprint = nil
         modelContext = context
-        var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
-        descriptor.fetchLimit = 1
-        device = (try? context.fetch(descriptor))?.first
+        openedMember = nil
+        showDevice(of: Self.row(named: id, in: context))
         // No address is probed unless the latest completed scan confirms the device is there:
         // DHCP may have given the saved address to another device.
         nameLookup = .confirmedByScan
         defer { startSuggestion() }
-        if let device, let scanned = confirmedSighting(of: device) {
-            Self.adopt(scanned, into: device)
+        for member in members {
+            if let scanned = confirmedSighting(of: member) {
+                Self.adopt(scanned, into: member)
+            }
         }
     }
 
+    /// The row with `id`, else a member of the group with that ID.
+    static func row(named id: UUID, in context: ModelContext) -> LocalDevice? {
+        var byRow = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
+        byRow.fetchLimit = 1
+        if let row = (try? context.fetch(byRow))?.first {
+            return row
+        }
+        let group: UUID? = id
+        var byGroup = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.deviceGroupID == group })
+        byGroup.fetchLimit = 1
+        return (try? context.fetch(byGroup))?.first
+    }
+
     /// The address DNS, the port scan and service discovery may probe for the loaded device, and
-    /// write what they find onto its row: where it was opened from the list, or, opened by ID,
-    /// where the latest scan confirmed its real MAC. Nil when that can't be established (DHCP may
-    /// have given the saved address to another device); the views disable those actions then.
+    /// write what they find onto that member's row: where it was opened from the list, or, opened
+    /// by ID, where the latest scan confirmed a member's real MAC (the current member first). Nil
+    /// when that can't be established (DHCP may have given the saved address to another device);
+    /// the views disable those actions then.
     var probeAddress: String? {
-        guard let device else { return nil }
-        return switch nameLookup {
-        case .savedAddress: device.ipAddress
-        case .confirmedByScan: confirmedSighting(of: device)?.ipAddress
+        probedMember?.address
+    }
+
+    /// The member ``probeAddress`` belongs to; probes write to its row (#594: ports and services
+    /// stay on the interface they were measured on).
+    var probedMember: (row: LocalDevice, address: String)? {
+        guard device != nil else { return nil }
+        switch nameLookup {
+        case .savedAddress:
+            guard let row = openedMember ?? current else { return nil }
+            return (row, row.ipAddress)
+        case .confirmedByScan:
+            for member in members {
+                if let sighting = confirmedSighting(of: member) {
+                    return (member, sighting.ipAddress)
+                }
+            }
+            return nil
         }
     }
 
@@ -447,7 +495,7 @@ extension DeviceDetailViewModel {
 
     /// Scan common ports on the device, at ``probeAddress``.
     func scanPorts() async {
-        guard let device, let address = probeAddress else { return }
+        guard let (device, address) = probedMember else { return }
         isScanning = true
         defer { isScanning = false }
 
@@ -458,7 +506,7 @@ extension DeviceDetailViewModel {
         }
 
         // A newer scan may have moved the device meanwhile: those ports are another device's.
-        guard probeAddress == address else { return }
+        guard probeAddress == address, probedMember?.row === device else { return }
         device.openPorts = openPorts.sorted()
         startSuggestion()
     }
@@ -535,5 +583,61 @@ extension DeviceDetailViewModel {
         let row = LocalDevice(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress ?? "", networkProfileID: networkID)
         context.insert(row)
         return row
+    }
+}
+
+// MARK: - Showing and changing a device's interfaces (#594)
+
+extension DeviceDetailViewModel {
+    /// Shows the device `row` is an interface of: its primary as ``device``, and every member,
+    /// fetched in this context (`DeviceGroups.device(of:in:)`).
+    func showDevice(of row: LocalDevice?) {
+        guard let row else {
+            device = nil
+            projection = nil
+            return
+        }
+        let shown = modelContext.flatMap { try? DeviceGroups.device(of: row, in: $0) } ?? DeviceGroups.project([row]).first
+        projection = shown
+        device = shown?.primary ?? row
+    }
+
+    /// "Remove this interface": deletes the member's row through `DeviceGroupWriter`, which works in
+    /// its own context and re-points the row's references (Timeline entries) to the device. The
+    /// device stays open on the members that remain, read again from the store (a group left with
+    /// one becomes that row). Edits waiting here are saved first, so the writer sees them.
+    func removeInterface(_ member: LocalDevice) {
+        guard let modelContext, let projection, projection.isGroup,
+              let survivor = projection.members.first(where: { $0.id != member.id })?.id
+        else { return }
+        suggestionTask?.cancel()
+        saveContext()
+        if openedMember === member {
+            openedMember = nil
+            nameLookup = .confirmedByScan
+        }
+        do {
+            try DeviceGroupWriter(context: modelContext, references: references).removeInterface(member.id)
+        } catch {
+            self.error = "The interface couldn't be removed. Try again."
+            return
+        }
+        showDevice(of: Self.row(named: survivor, in: modelContext))
+        startSuggestion()
+    }
+
+    /// Wake on LAN to every member's real MAC (#594): any interface may be the one that wakes it.
+    /// Returns how many packets were sent.
+    @discardableResult
+    func wakeAllInterfaces() async -> Int {
+        guard let projection else { return 0 }
+        var sent = 0
+        for mac in projection.realMACs where await wakeService.wake(macAddress: mac, broadcastAddress: "255.255.255.255", port: 9) {
+            sent += 1
+        }
+        wakeResult = sent == projection.realMACs.count
+            ? "Wake packet sent to \(sent) \(sent == 1 ? "interface" : "interfaces")"
+            : "Wake packet sent to \(sent) of \(projection.realMACs.count) interfaces"
+        return sent
     }
 }

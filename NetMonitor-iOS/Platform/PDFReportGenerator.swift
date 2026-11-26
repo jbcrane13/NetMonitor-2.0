@@ -43,6 +43,10 @@ public enum PDFReportGenerator {
     ///   - executiveSummary: when given, an Executive Summary page comes first;
     ///     without it the report has no such page.
     /// - Returns: PDF data, or nil if rendering fails.
+    ///
+    /// `devices` are saved rows, complete groups: the report lists one row per device (#594), a
+    /// group of interfaces at its current member's address, projected before past devices are left
+    /// out.
     public static func generateNetworkReport(
         devices: [LocalDevice],
         toolResults: [ToolResult],
@@ -51,8 +55,9 @@ public enum PDFReportGenerator {
         executiveSummary: ExecutiveSummary? = nil
     ) -> Data? {
         // Past devices (unseen for a week, #583) are counted, not listed.
-        let past = devices.filter { presence.isPast($0) }
-        let devices = devices.filter { !presence.isPast($0) }
+        let projected = DeviceGroups.project(devices)
+        let past = projected.filter { presence.isPast($0) }
+        let devices = projected.filter { !presence.isPast($0) }
         let bounds = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
         let renderer = UIGraphicsPDFRenderer(bounds: bounds)
 
@@ -159,7 +164,7 @@ public enum PDFReportGenerator {
     // MARK: - Summary Section
 
     private static func drawSummary(
-        devices: [LocalDevice], pastCount: Int, presence: PresenceSnapshot, speedTests: [SpeedTestResult], y: CGFloat
+        devices: [DeviceProjection], pastCount: Int, presence: PresenceSnapshot, speedTests: [SpeedTestResult], y: CGFloat
     ) -> CGFloat {
         var cursor = drawSectionTitle("Summary", y: y)
 
@@ -188,12 +193,12 @@ public enum PDFReportGenerator {
     // MARK: - Devices Section
 
     private static func drawDevices(
-        devices: [LocalDevice], pastCount: Int, presence: PresenceSnapshot, ctx: UIGraphicsPDFRendererContext, y: CGFloat
+        devices: [DeviceProjection], pastCount: Int, presence: PresenceSnapshot, ctx: UIGraphicsPDFRendererContext, y: CGFloat
     ) -> CGFloat {
         var cursor = pageBreakIfNeeded(y: y, ctx: ctx)
         let rows = devices.sorted { $0.lastSeen > $1.lastSeen }.prefix(35)
         cursor = drawSectionTitle("Discovered Devices (\(countLabel(shown: rows.count, total: devices.count)))", y: cursor)
-        cursor = drawNote(statusAsOf(devices, presence: presence), y: cursor)
+        cursor = drawNote(statusAsOf(devices.flatMap(\.members), presence: presence), y: cursor)
         cursor = drawRow(cols: ["IP Address", "Name", "Type", "Status", "Last Seen"], y: cursor, header: true)
 
         for device in rows {
@@ -201,7 +206,7 @@ public enum PDFReportGenerator {
             cursor = drawRow(cols: [
                 device.ipAddress,
                 device.displayName,
-                device.deviceType.displayName,
+                device.primary.deviceType.displayName,
                 presence.freshness(of: device).label,
                 PresenceFreshness.relativeText(since: device.lastSeen, now: presence.now)
             ], y: cursor, header: false)

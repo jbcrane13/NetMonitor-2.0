@@ -138,8 +138,40 @@ public final class NetworkEventService: NetworkEventServiceProtocol, @unchecked 
         legacyDefaults?.removeObject(forKey: Self.legacyDefaultsKey)
     }
 
+    /// Events about the row `removed` are about the row `device` from now on (#594: an interface
+    /// removed from a device that keeps others), so the Timeline still names the device. Saved at
+    /// once.
+    public func repoint(from removed: UUID, to device: UUID) {
+        let changed = lock.withLock {
+            var changed = false
+            for index in _events.indices where _events[index].deviceID == removed {
+                _events[index] = _events[index].withDeviceID(device)
+                changed = true
+            }
+            if changed {
+                store?.scheduleWrite(_events)
+            }
+            return changed
+        }
+        if changed {
+            flush()
+        }
+    }
+
     /// Writes any change still waiting for the debounce, and returns when it is saved.
     public func flush() {
         store?.flush()
+    }
+}
+
+extension NetworkEventService: DeviceReferenceStore {}
+
+private extension NetworkEvent {
+    /// The same event about another device row (#594).
+    func withDeviceID(_ deviceID: UUID?) -> NetworkEvent {
+        NetworkEvent(
+            id: id, type: type, timestamp: timestamp, title: title, details: details, severity: severity,
+            deviceID: deviceID, networkProfileID: networkProfileID
+        )
     }
 }

@@ -3,10 +3,11 @@ import NetMonitorCore
 import NetworkScanKit
 import SwiftData
 
-/// The devices the iPhone's device list and dashboard card show (#583): the network's saved rows,
-/// each with its `PresenceFreshness` and last-seen time, plus the live scan's devices not saved yet
-/// ("Found in this scan"), so a scan in progress, or a stopped one, still shows what it found.
-/// Sorted and filtered by presence; past devices left out unless shown.
+/// The devices the iPhone's device list and dashboard card show (#583): the network's saved
+/// devices, each with its `PresenceFreshness` and last-seen time, plus the live scan's devices not
+/// saved yet ("Found in this scan"), so a scan in progress, or a stopped one, still shows what it
+/// found. Sorted and filtered by presence; past devices left out unless shown. A group of rows that
+/// are one device's interfaces is one entry (#594): projected first, then filtered and sorted.
 @MainActor
 struct SavedDeviceList {
     /// How the list sorts; online first for `.status`, then not checked recently, then offline.
@@ -19,8 +20,8 @@ struct SavedDeviceList {
 
     /// A row of the list.
     enum Entry: Identifiable {
-        /// A saved device, shown with its presence.
-        case saved(LocalDevice)
+        /// A saved device (a row, or a group of interfaces), shown with its presence.
+        case saved(DeviceProjection)
         /// A device a scan found that has no saved row yet: online only while that sighting is recent.
         case found(DiscoveredDevice)
 
@@ -38,8 +39,9 @@ struct SavedDeviceList {
             }
         }
 
-        /// Where tapping the row goes: a saved row by its `LocalDevice.id` (#584), so an address
-        /// DHCP gave another device never opens the wrong one; a found device by its address.
+        /// Where tapping the row goes: a saved device by its ID (#584; a group's own ID, #594), so
+        /// an address DHCP gave another device never opens the wrong one; a found device by its
+        /// address.
         var destination: AppDestination {
             switch self {
             case .saved(let device): .savedDevice(id: device.id)
@@ -62,37 +64,34 @@ struct SavedDeviceList {
     let presence: PresenceSnapshot
 
     /// - Parameters:
-    ///   - saved: saved rows; those of `network` (or of none) are listed.
+    ///   - saved: saved rows, complete groups (``recentRows(network:in:)``); those of `network`
+    ///     (or of none) are listed, one entry per device.
     ///   - live: the scan's devices, during or after it; those matching a saved row (by MAC, else
-    ///     address) are that row, the rest are listed as found in this scan.
+    ///     address) are that row's device, the rest are listed as found in this scan.
     init(saved: [LocalDevice], live: [DiscoveredDevice] = [], network: UUID?, sort: Sort, showPast: Bool, presence: PresenceSnapshot) {
         let rows = saved.filter { $0.networkProfileID == network || $0.networkProfileID == nil }
         self.presence = presence
         let found = live.filter { device in
             (device.networkProfileID == network || device.networkProfileID == nil) && !rows.contains { Self.matches($0, device) }
         }
-        let shown = DeviceList.rows(rows, filter: DeviceListFilter(showPast: showPast), presence: presence, sort: .ipAddress, ascending: true)
+        let shown = DeviceList.devices(rows, filter: DeviceListFilter(showPast: showPast), presence: presence, sort: .ipAddress, ascending: true)
         pastCount = DeviceList.pastCount(rows, filter: DeviceListFilter(), presence: presence)
         entries = Self.sorted(shown.map(Entry.saved) + found.map(Entry.found), by: sort, presence: presence)
     }
 
-    /// The saved rows the list reads: the network's and those saved without one, most recently seen
-    /// first, at most `fetchLimit`.
-    static func fetchDescriptor(network: UUID?) -> FetchDescriptor<LocalDevice> {
-        var descriptor: FetchDescriptor<LocalDevice>
-        if let network {
-            descriptor = FetchDescriptor(predicate: #Predicate { $0.networkProfileID == network || $0.networkProfileID == nil })
-        } else {
-            descriptor = FetchDescriptor(predicate: #Predicate { $0.networkProfileID == nil })
-        }
-        descriptor.sortBy = [SortDescriptor(\.lastSeen, order: .reverse)]
-        descriptor.fetchLimit = fetchLimit
-        return descriptor
+    /// The saved devices the list reads (#594): the network's `fetchLimit` most recently seen
+    /// devices plus those saved before rows had a network, each paged by device by Core
+    /// (`DeviceGroups.recentDevices`), as complete groups, most recent first, at most `fetchLimit`
+    /// devices.
+    static func recentRows(network: UUID?, in context: ModelContext) -> [LocalDevice] {
+        let scopes: [DeviceScope] = (network.map { [.network($0)] } ?? []) + [.withoutNetwork]
+        let devices = scopes.flatMap { (try? DeviceGroups.recentDevices(in: $0, limit: fetchLimit, in: context)) ?? [] }
+        return devices.sorted { $0.lastSeen > $1.lastSeen }.prefix(fetchLimit).flatMap(\.members)
     }
 
     static let fetchLimit = 500
 
-    /// Rows online now, counting devices found by a recent scan.
+    /// Devices online now, counting devices found by a recent scan.
     var onlineCount: Int {
         entries.count { Self.freshness($0, presence).isOnline }
     }
@@ -109,8 +108,8 @@ struct SavedDeviceList {
         return "\(PresenceFreshness.notCheckedRecently.label) · found \(PresenceFreshness.relativeText(since: device.discoveredAt, now: presence.now))"
     }
 
-    /// The last latency, only while the device is online: an old one is no news.
-    func latencyText(_ device: LocalDevice) -> String? {
+    /// The current member's last latency, only while the device is online: an old one is no news.
+    func latencyText(_ device: DeviceProjection) -> String? {
         guard let latency = presence.currentLatency(device) else { return nil }
         return latency < 1 ? "<1 ms" : "\(Int(latency.rounded())) ms"
     }
@@ -152,5 +151,20 @@ struct SavedDeviceList {
         case .found(let device):
             PresenceFreshness.isRecent(device.discoveredAt, now: presence.now, policy: presence.policy) ? device.latency ?? .infinity : .infinity
         }
+    }
+}
+
+/// The saved rows a list shows (#594), read through ``SavedDeviceList/recentRows(network:in:)``,
+/// which pages by device; a `@Query` can't. Refreshed when the list appears and after every save.
+@MainActor
+@Observable
+final class SavedDeviceRows {
+    private(set) var rows: [LocalDevice] = []
+    /// False until the first read, so a list doesn't flash "No Devices Found".
+    private(set) var isLoaded = false
+
+    func refresh(network: UUID?, in context: ModelContext) {
+        rows = SavedDeviceList.recentRows(network: network, in: context)
+        isLoaded = true
     }
 }

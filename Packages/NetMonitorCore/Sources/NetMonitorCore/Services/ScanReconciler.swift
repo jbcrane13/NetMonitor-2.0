@@ -234,7 +234,7 @@ public struct ScanReconciler {
                 }
                 continue
             }
-            Self.fill(row, from: device)
+            Self.fill(row, from: device, now: now)
             if let latency = device.latency {
                 row.updateLatency(latency)
                 latencies[row.id] = latency
@@ -262,8 +262,9 @@ public struct ScanReconciler {
         return (answered, latencies)
     }
 
-    /// What an answering device tells its row: address, names, MAC, identity, ports.
-    private static func fill(_ row: LocalDevice, from device: DiscoveredDevice) {
+    /// What an answering device tells its row: address, names, MAC, identity, ports, and its
+    /// Bonjour host (#594).
+    private static func fill(_ row: LocalDevice, from device: DiscoveredDevice, now: Date) {
         row.ipAddress = device.ipAddress
         if let hostname = device.hostname, !hostname.isEmpty {
             row.hostname = hostname
@@ -279,6 +280,17 @@ public struct ScanReconciler {
         if let ports = device.openPorts, !ports.isEmpty {
             row.openPorts = Set(row.openPorts ?? []).union(ports).sorted()
         }
+        recordBonjourHost(on: row, from: device.bonjourClaims, now: now)
+    }
+
+    /// Design v3.1 §8: exactly one strong host this scan is stored, with the time, replacing any
+    /// other. No claim keeps what the row had, without advancing its time; conflicting strong
+    /// claims write nothing.
+    static func recordBonjourHost(on row: LocalDevice, from claims: [HostClaim], now: Date) {
+        let strong = Set(claims.map(\.host).filter { !BonjourHostName.isGeneric($0, maker: row.maker, model: row.modelName) })
+        guard strong.count == 1, let host = strong.first else { return }
+        row.bonjourHost = host
+        row.bonjourHostSeenAt = now
     }
 
     /// The one row saved without a network that has this device's real MAC; none when several do.

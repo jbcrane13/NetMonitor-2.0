@@ -164,7 +164,7 @@ struct AskToolViewModelTests {
     }
 
     @Test func theIntentAnswersWithTheSamePipelineAndSaysHowFresh() async {
-        let device = AskDevice(printer(network: nil))
+        let device = AskDevice(DeviceGroups.project([printer(network: nil)])[0])
         let text = await intent(devices: [device], lastScan: Date(), isScanning: false)
         #expect(text.hasPrefix("Office Printer is a printer. Office Printer: Offline. Device status as of the scan less than a minute ago ("))
         let unscanned = await intent(devices: [device], lastScan: nil, isScanning: false)
@@ -174,7 +174,8 @@ struct AskToolViewModelTests {
 
     @Test func theIntentNamesTheCandidatesInsteadOfAPicker() async {
         let other = LocalDevice(ipAddress: "192.168.77.31", macAddress: "AA:00:00:00:00:31", deviceType: .printer, customName: "Den Printer")
-        let text = await intent(devices: [AskDevice(printer(network: nil)), AskDevice(other)], lastScan: nil, isScanning: false)
+        let devices = [AskDevice(DeviceGroups.project([printer(network: nil)])[0]), AskDevice(DeviceGroups.project([other])[0])]
+        let text = await intent(devices: devices, lastScan: nil, isScanning: false)
         #expect(text == "Which one do you mean: Office Printer and Den Printer? Ask again with its name.")
     }
 

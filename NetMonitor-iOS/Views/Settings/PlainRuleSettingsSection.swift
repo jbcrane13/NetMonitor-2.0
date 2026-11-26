@@ -67,7 +67,10 @@ struct PlainRuleSettingsSection: View {
 
     private func parse() {
         let networkID = env?.currentNetworkProfileID()
-        let devices = (try? modelContext.fetch(RuleDevice.candidates(network: networkID))) ?? []
+        // The most recent devices, each with every member (#594).
+        let scope = DeviceScope.network(networkID, else: .allNetworks)
+        let devices = ((try? DeviceGroups.recentDevices(in: scope, limit: RuleDevice.candidateLimit, in: modelContext)) ?? [])
+            .flatMap(\.members)
         Task {
             await viewModel.submit(
                 devices: devices,

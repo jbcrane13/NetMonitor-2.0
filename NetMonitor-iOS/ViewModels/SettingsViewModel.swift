@@ -167,11 +167,18 @@ final class SettingsViewModel {
         isClearingCache = true
         clearCacheSuccess = false
 
+        // Devices first, through the one writer that deletes device rows (#594). It saves on its
+        // own and rolls back on failure, so nothing else is pending in the context yet.
+        do {
+            try DeviceGroupWriter(context: modelContext).deleteAll()
+        } catch {
+            Logger.app.error("Failed to delete saved devices: \(error)")
+        }
+
         // SwiftData deletions stay on MainActor — modelContext is MainActor-bound.
         let modelTypes: [any PersistentModel.Type] = [
             ToolResult.self,
             SpeedTestResult.self,
-            LocalDevice.self,
             MonitoringTarget.self,
             PairedMac.self
         ]

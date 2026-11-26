@@ -78,36 +78,9 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         guard !Task.isCancelled else { return }
         await onProgress(0.0)
 
-        // Adaptive Bonjour collection: poll for services and exit early
-        // when no new services arrive for stableExitThreshold.
-        let clock = ContinuousClock()
-        let startInstant = clock.now
-        var lastNewServiceInstant = clock.now
-        var lastServiceCount = 0
-        let pollInterval: Duration = .milliseconds(500)
-
-        while true {
-            try? await Task.sleep(for: pollInterval)
-            guard !Task.isCancelled else {
-                await stopProvider?()
-                return
-            }
-
-            let elapsed = clock.now - startInstant
-            if elapsed >= discoveryWaitDuration {
-                break
-            }
-
-            let services = await serviceProvider()
-            let currentCount = services.count
-            if currentCount > lastServiceCount {
-                lastServiceCount = currentCount
-                lastNewServiceInstant = clock.now
-            } else if elapsed >= .seconds(2),
-                      clock.now - lastNewServiceInstant >= stableExitThreshold {
-                // No new services for stableExitThreshold after at least 2s total
-                break
-            }
+        guard await waitForServices() else {
+            await stopProvider?()
+            return
         }
 
         await onProgress(0.3)
@@ -143,11 +116,9 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
                 subnetFilter: context.subnetFilter,
                 resolver: resolver,
                 addressResolver: addressResolver
-            ) { device in
+            ) { found in
                 resolved += 1
-                if let device {
-                    devices.append(device)
-                }
+                devices += found
                 await onProgress(0.3 + 0.6 * Double(resolved) / Double(max(total, 1)))
             }
         } onCancel: {
@@ -193,16 +164,49 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         await onProgress(1.0)
     }
 
+    /// Adaptive Bonjour collection: polls for services and returns once no new ones arrived for
+    /// `stableExitThreshold` (after at least 2 s) or `discoveryWaitDuration` passed. False when
+    /// cancelled.
+    private func waitForServices() async -> Bool {
+        let clock = ContinuousClock()
+        let startInstant = clock.now
+        var lastNewServiceInstant = clock.now
+        var lastServiceCount = 0
+        let pollInterval: Duration = .milliseconds(500)
+
+        while true {
+            try? await Task.sleep(for: pollInterval)
+            guard !Task.isCancelled else { return false }
+
+            let elapsed = clock.now - startInstant
+            if elapsed >= discoveryWaitDuration {
+                break
+            }
+
+            let services = await serviceProvider()
+            let currentCount = services.count
+            if currentCount > lastServiceCount {
+                lastServiceCount = currentCount
+                lastNewServiceInstant = clock.now
+            } else if elapsed >= .seconds(2),
+                      clock.now - lastNewServiceInstant >= stableExitThreshold {
+                // No new services for stableExitThreshold after at least 2s total
+                break
+            }
+        }
+        return true
+    }
+
     private func resolveAll(
         _ services: [BonjourServiceInfo],
         modelsByName: [String: String],
         subnetFilter: @escaping @Sendable (String) -> Bool,
         resolver: @escaping Resolver,
         addressResolver: @escaping @Sendable (String) async -> [String],
-        onResult: (DiscoveredDevice?) async -> Void
+        onResult: ([DiscoveredDevice]) async -> Void
     ) async {
         await forEachBounded(services, limit: maxResolveConcurrency, operation: { service in
-            await Self.makeBonjourDevice(
+            await Self.makeBonjourDevices(
                 from: service,
                 modelsByName: modelsByName,
                 subnetFilter: subnetFilter,
@@ -214,14 +218,16 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
 
     // MARK: - Resolution helpers
 
-    static func makeBonjourDevice(
+    /// One device per in-subnet address the service's host resolves to (a Mac on Ethernet and
+    /// Wi-Fi answers on both), each with the host as a ``HostClaim`` when it is an mDNS name (#594).
+    static func makeBonjourDevices(
         from service: BonjourServiceInfo,
         modelsByName: [String: String],
         subnetFilter: @Sendable (String) -> Bool,
         resolver: Resolver,
         addressResolver: @Sendable (String) async -> [String]
-    ) async -> DiscoveredDevice? {
-        guard !Task.isCancelled, let resolution = await resolver(service) else { return nil }
+    ) async -> [DiscoveredDevice] {
+        guard !Task.isCancelled, let resolution = await resolver(service) else { return [] }
 
         let host = resolution.hostTarget
         let normalizedHost = host.split(separator: "%", maxSplits: 1).first.map(String.init) ?? host
@@ -232,9 +238,10 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
             candidateIPs = await addressResolver(normalizedHost)
         }
 
-        guard let matchedIP = candidateIPs.first(where: { subnetFilter($0) }) else {
-            return nil
-        }
+        var seen = Set<String>()
+        let matchedIPs = candidateIPs.filter { subnetFilter($0) && seen.insert($0).inserted }
+        guard !matchedIPs.isEmpty else { return [] }
+        let claimedHost = BonjourHostName.normalized(normalizedHost)
 
         let model = BonjourTXT.model(serviceType: service.type, txt: service.txtRecord)
             ?? BonjourTXT.model(serviceType: service.type, txt: resolution.txtRecord)
@@ -242,19 +249,22 @@ public struct BonjourScanPhase: ScanPhase, Sendable {
         let maker = BonjourTXT.vendor(txt: service.txtRecord.merging(resolution.txtRecord) { browse, _ in browse },
                                       model: model)
 
-        return DiscoveredDevice(
-            ipAddress: matchedIP,
-            hostname: service.name,
-            vendor: nil,
-            macAddress: nil,
-            latency: nil,
-            discoveredAt: Date(),
-            source: .bonjour,
-            identity: DeviceIdentity(
-                maker: IdentityValue(maker, source: .bonjour),
-                model: IdentityValue(model, source: .bonjour)
+        return matchedIPs.map { address in
+            DiscoveredDevice(
+                ipAddress: address,
+                hostname: service.name,
+                vendor: nil,
+                macAddress: nil,
+                latency: nil,
+                discoveredAt: Date(),
+                source: .bonjour,
+                identity: DeviceIdentity(
+                    maker: IdentityValue(maker, source: .bonjour),
+                    model: IdentityValue(model, source: .bonjour)
+                ),
+                bonjourClaims: claimedHost.map { [HostClaim(host: $0, service: service.name, address: address)] } ?? []
             )
-        )
+        }
     }
 
     /// Models named by any service's TXT record, keyed by service name. Apple devices

@@ -1,7 +1,7 @@
 import Foundation
 
 /// A saved device as "Ask your network" sees it (#452), read through the identity seam and keyed
-/// by `LocalDevice.id`.
+/// by `LocalDevice.id` (a group's primary's, #594; any member's ID finds it).
 public struct AskDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiable {
     public let id: UUID
     public let displayName: String
@@ -14,10 +14,15 @@ public struct AskDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiabl
     /// This session's latency samples, oldest first (`LocalDevice.latencyHistory`). Only replies
     /// are recorded, so a lost ping leaves no sample.
     public let latencyHistory: [Double]
+    /// Every interface's address, the current one (`ipAddress`) first (#594).
+    public let addresses: [String]
+    /// Every member row's ID: events and citations may name any of them (#594).
+    public let memberIDs: [UUID]
 
     public init(
         id: UUID, displayName: String, deviceType: DeviceType, maker: String?, ipAddress: String,
-        status: DeviceStatus, lastSeen: Date, lastLatency: Double?, latencyHistory: [Double]
+        status: DeviceStatus, lastSeen: Date, lastLatency: Double?, latencyHistory: [Double],
+        addresses: [String]? = nil, memberIDs: [UUID]? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -28,15 +33,28 @@ public struct AskDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiabl
         self.lastSeen = lastSeen
         self.lastLatency = lastLatency
         self.latencyHistory = latencyHistory
+        self.addresses = addresses ?? [ipAddress]
+        self.memberIDs = memberIDs ?? [id]
     }
 
-    /// A saved device as Ask sees it. The maker leaves out model suggestions.
-    public init(_ device: LocalDevice) {
+    /// A saved device as Ask sees it (#594: a device, not a row): the primary's identity, the
+    /// current member's address, latency and samples, the best member's saved status and the
+    /// latest last seen. The maker leaves out model suggestions.
+    public init(_ device: DeviceProjection) {
+        let primary = device.primary, current = device.current
+        let statuses = device.members.map(\.status)
+        let status: DeviceStatus = statuses.contains(.online) ? .online : statuses.contains(.cached) ? .cached : primary.status
         self.init(
-            id: device.id, displayName: device.displayName, deviceType: device.deviceType,
-            maker: device.makerExcludingSuggestions, ipAddress: device.ipAddress, status: device.status,
-            lastSeen: device.lastSeen, lastLatency: device.lastLatency, latencyHistory: device.latencyHistory
+            id: primary.id, displayName: device.displayName, deviceType: primary.deviceType,
+            maker: primary.makerExcludingSuggestions, ipAddress: current.ipAddress, status: status,
+            lastSeen: device.lastSeen, lastLatency: current.lastLatency, latencyHistory: current.latencyHistory,
+            addresses: device.members.map(\.ipAddress), memberIDs: device.members.map(\.id)
         )
+    }
+
+    /// "192.168.1.10", or "192.168.1.10 and 192.168.1.40" for a device with two interfaces.
+    public var addressText: String {
+        ListFormatter.localizedString(byJoining: addresses)
     }
 }
 
@@ -89,11 +107,12 @@ public struct AskSnapshot: Sendable {
         }
     }
 
-    /// The saved rows Ask reads for `network`: its own and those saved before rows had one. The
-    /// one place the apps and the Siri intent filter devices by network.
+    /// The saved devices Ask reads for `network`: its own and those saved before rows had one, each
+    /// group of interfaces one device (#594). The one place the apps and the Siri intent filter
+    /// devices by network. Pass complete groups.
     @MainActor
     public static func devices(_ rows: [LocalDevice], on network: UUID?) -> [AskDevice] {
-        rows.filter { $0.networkProfileID == nil || $0.networkProfileID == network }.map(AskDevice.init)
+        DeviceGroups.project(rows.filter { $0.networkProfileID == nil || $0.networkProfileID == network }).map(AskDevice.init)
     }
 
     /// - Parameter networkProfileID: keeps the events of this network and those written before

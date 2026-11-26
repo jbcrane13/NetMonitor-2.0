@@ -4,11 +4,16 @@ import SwiftData
 
 /// SwiftData migration plan for the NetMonitor macOS app.
 ///
-/// The current persisted schema is `SchemaV3` (`App/SchemaV3.swift`). `SchemaV1` and
-/// `SchemaV2` are frozen copies of earlier schemas:
+/// The current persisted schema is `SchemaV4` (`App/SchemaV4.swift`). `SchemaV1`, `SchemaV2`
+/// and `SchemaV3` are frozen copies of earlier schemas:
 /// - V1 → V2 adds the optional `LocalDevice.modelName` (#409), a lightweight migration.
 /// - V2 → V3 adds the identity sources and `friendlyName` (ADR-022, #462), then rebuilds
 ///   `vendor` from the MAC prefix (``rebuildVendors(in:)``).
+/// - V3 → V4 adds the optional serial and device-group fields (#561, #594), a lightweight
+///   migration. Serial notes lines move later, after launch (`SerialNotesMigration`).
+///
+/// A stage's callback works on its *destination* version's frozen models, never the live ones,
+/// which describe a later version (#594 review).
 ///
 /// When the next versioned schema lands: freeze the live models into a nested copy of the
 /// current version (as SchemaV1 and SchemaV2 are), add the new schema to `schemas`, and add
@@ -20,13 +25,14 @@ import SwiftData
 /// changes such as renamed or removed properties).
 enum NetMonitorMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [SchemaV1.self, SchemaV2.self, SchemaV3.self]
+        [SchemaV1.self, SchemaV2.self, SchemaV3.self, SchemaV4.self]
     }
 
     static var stages: [MigrationStage] {
         [
             .lightweight(fromVersion: SchemaV1.self, toVersion: SchemaV2.self),
-            .custom(fromVersion: SchemaV2.self, toVersion: SchemaV3.self, willMigrate: nil, didMigrate: rebuildVendors(in:))
+            .custom(fromVersion: SchemaV2.self, toVersion: SchemaV3.self, willMigrate: nil, didMigrate: rebuildVendors(in:)),
+            .lightweight(fromVersion: SchemaV3.self, toVersion: SchemaV4.self)
         ]
     }
 
@@ -39,7 +45,7 @@ enum NetMonitorMigrationPlan: SchemaMigrationPlan {
     ///   `manufacturer` without a source, the lowest rank, so the device keeps a maker until
     ///   a scan finds a better one.
     static func rebuildVendors(in context: ModelContext) throws {
-        for device in try context.fetch(FetchDescriptor<LocalDevice>()) {
+        for device in try context.fetch(FetchDescriptor<SchemaV3.LocalDevice>()) {
             let macPrefixMaker = MACVendorLookupService.offlineVendor(macAddress: device.macAddress)
             guard let vendor = device.vendor, !vendor.isEmpty else {
                 device.vendor = macPrefixMaker

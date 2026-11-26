@@ -324,6 +324,7 @@ targets:
     sources:
       - path: Tests/NetMonitor-macOSTests
       - path: Packages/NetMonitorCore/Tests/NetMonitorCoreTests/Helpers/MockInsightService.swift
+      - path: Tests/Shared/StoreDump.swift
     settings:
       base:
         DEVELOPMENT_TEAM: 32XZRDTGK3
@@ -340,6 +341,7 @@ targets:
     sources:
       - path: Tests/NetMonitor-iOSTests
       - path: Packages/NetMonitorCore/Tests/NetMonitorCoreTests/Helpers/MockInsightService.swift
+      - path: Tests/Shared/StoreDump.swift
     settings:
       base:
         DEVELOPMENT_TEAM: 32XZRDTGK3

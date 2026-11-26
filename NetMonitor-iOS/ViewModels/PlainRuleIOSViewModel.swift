@@ -56,7 +56,8 @@ final class PlainRuleIOSViewModel {
     var isAvailable: Bool { composer.isAvailable }
 
     /// - Parameters:
-    ///   - devices: the saved rows.
+    ///   - devices: the saved rows, complete groups (`DeviceGroups.recentDevices`): a group of
+    ///     interfaces is one candidate, named by its primary's ID (#594).
     ///   - scan: the latest scan's devices. One with no saved row can be named too (#571); a
     ///     target draft for it saves its row, through device detail's matching, so the rule keeps
     ///     a stable `LocalDevice.id`.
@@ -79,10 +80,12 @@ final class PlainRuleIOSViewModel {
         self.context = context
         scannedOnly = [:]
         let matched = Self.match(scan, to: devices)
-        var candidates = devices.map { row in
-            var device = RuleDevice(row)
-            // The last scan's open ports win over ports a row saved earlier (#572).
-            if let ports = matched.byRow[row.id]?.openPorts, !ports.isEmpty {
+        var candidates = DeviceGroups.project(devices).map { projection in
+            var device = RuleDevice(projection)
+            // The last scan's open ports win over ports a row saved earlier (#572). Only ports
+            // measured at the candidate's address (the current member's) count: another
+            // interface's ports say nothing about this one, so with none the port probe runs (#594).
+            if let ports = matched.byRow[projection.current.id]?.openPorts, !ports.isEmpty {
                 device.openPorts = ports
             }
             return device

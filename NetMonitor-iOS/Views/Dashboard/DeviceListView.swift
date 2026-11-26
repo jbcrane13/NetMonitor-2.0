@@ -17,7 +17,8 @@ struct DeviceListView: View {
     /// The network whose saved rows the list shows (#583): the scan's, else the active one.
     let networkID: UUID?
     let isScanning: Bool
-    @Query private var savedDevices: [LocalDevice]
+    /// The network's saved devices, paged by device (#594).
+    @State private var saved = SavedDeviceRows()
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @State private var sortOrder: SavedDeviceList.Sort = .ip
     /// Past devices (unseen for a week) are hidden each time the list opens, never remembered
@@ -30,17 +31,16 @@ struct DeviceListView: View {
         self.networkProfile = networkProfile
         self.networkID = networkID
         self.isScanning = isScanning
-        _savedDevices = Query(SavedDeviceList.fetchDescriptor(network: networkID))
     }
 
     var body: some View {
         // The presence model refreshes after each saved scan and every minute.
         let list = SavedDeviceList(
-            saved: savedDevices, live: discoveredDevices, network: networkID, sort: sortOrder, showPast: showPastDevices,
+            saved: saved.rows, live: discoveredDevices, network: networkID, sort: sortOrder, showPast: showPastDevices,
             presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
         )
         ScrollView {
-            if list.entries.isEmpty, list.pastCount == 0, !isScanning {
+            if saved.isLoaded, list.entries.isEmpty, list.pastCount == 0, !isScanning {
                 ContentUnavailableView(
                     "No Devices Found",
                     systemImage: "network.slash",
@@ -66,6 +66,7 @@ struct DeviceListView: View {
                 .accessibilityIdentifier("deviceList_button_toggleViewMode")
             }
         }
+        .readsSavedDevices(saved, network: networkID)
         .accessibilityIdentifier("screen_deviceList")
     }
 
@@ -112,7 +113,7 @@ struct DeviceListView: View {
         .padding(.vertical, Theme.Layout.smallCornerRadius)
     }
 
-    private func savedLink(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
+    private func savedLink(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
         NavigationLink(value: SavedDeviceList.Entry.saved(device).destination) {
             if isProMode {
                 savedProModeRow(device, in: list)
@@ -140,10 +141,10 @@ struct DeviceListView: View {
         .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
     }
 
-    private func savedRow(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
+    private func savedRow(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
         GlassCard {
             HStack(spacing: Theme.Layout.itemSpacing) {
-                Image(systemName: device.deviceType.iconName)
+                Image(systemName: device.primary.deviceType.iconName)
                     .foregroundStyle(Theme.Colors.accent)
                     .font(.title2)
                     .frame(width: 40)
@@ -181,7 +182,7 @@ struct DeviceListView: View {
         }
     }
 
-    private func savedProModeRow(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
+    private func savedProModeRow(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
         GlassCard(padding: 10) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
@@ -193,7 +194,7 @@ struct DeviceListView: View {
                     if let latency = list.latencyText(device) {
                         Text(latency)
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(latencyColor(device.lastLatency))
+                            .foregroundStyle(latencyColor(device.current.lastLatency))
                     }
                 }
                 Text(device.displayName)
@@ -393,6 +394,28 @@ struct DeviceListView: View {
         case .ssdp: return Theme.Colors.warning
         case .local: return Theme.Colors.textTertiary
         }
+    }
+}
+
+extension View {
+    /// Reads `saved` for `network` when the view appears or the network changes, and again after
+    /// every store save (a scan, an edit, a removed interface), as a `@Query` would (#594).
+    func readsSavedDevices(_ saved: SavedDeviceRows, network: UUID?) -> some View {
+        modifier(SavedDevicesReader(saved: saved, network: network))
+    }
+}
+
+private struct SavedDevicesReader: ViewModifier {
+    let saved: SavedDeviceRows
+    let network: UUID?
+    @Environment(\.modelContext) private var modelContext
+
+    func body(content: Content) -> some View {
+        content
+            .task(id: network) { saved.refresh(network: network, in: modelContext) }
+            .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave).receive(on: RunLoop.main)) { _ in
+                saved.refresh(network: network, in: modelContext)
+            }
     }
 }
 

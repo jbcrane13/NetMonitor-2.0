@@ -13,15 +13,8 @@ struct AskToolView: View {
     /// The cited device's `LocalDevice.id`: detail opens the saved row, not whatever answers at its address now.
     @State private var openDevice: UUID?
     @State private var openEvent: AskAnswer.EventCitation?
-    @Query(AskToolView.devicesDescriptor) private var devices: [LocalDevice]
+    @Environment(\.modelContext) private var modelContext
     private let env: AppEnvironment
-
-    /// The rows Ask reads: the most recently seen first, capped.
-    static var devicesDescriptor: FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>(sortBy: [SortDescriptor(\.lastSeen, order: .reverse)])
-        descriptor.fetchLimit = AskIntentRunner.deviceLimit
-        return descriptor
-    }
 
     init(env: AppEnvironment) {
         self.env = env
@@ -29,6 +22,13 @@ struct AskToolView: View {
     }
 
     private var state: AskState { viewModel.state }
+
+    /// The devices Ask reads: every network's most recent, paged by device, each with every member
+    /// (#594); the snapshot keeps the current network's when a question is asked.
+    private func readDevices() {
+        let devices = (try? DeviceGroups.recentDevices(in: .allNetworks, limit: AskIntentRunner.deviceLimit, in: modelContext)) ?? []
+        viewModel.update(devices: devices.flatMap(\.members))
+    }
 
     var body: some View {
         ScrollView {
@@ -45,9 +45,10 @@ struct AskToolView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .accessibilityIdentifier("screen_ask")
-        // A rename or a scan changes what the tools read.
-        .task(id: devices.map(\.displayName) + devices.map(\.ipAddress)) {
-            viewModel.update(devices: devices)
+        // A rename or a scan changes what the tools read: read again after every save.
+        .task { readDevices() }
+        .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave).receive(on: RunLoop.main)) { _ in
+            readDevices()
         }
         .navigationDestination(item: $openDevice) { id in
             DeviceDetailView(deviceID: id)

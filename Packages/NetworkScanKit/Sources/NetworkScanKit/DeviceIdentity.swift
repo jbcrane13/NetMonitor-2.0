@@ -20,7 +20,7 @@ public enum IdentitySource: String, Codable, Sendable, CaseIterable {
     case userConfirmed
 
     public enum Field: Sendable {
-        case maker, model, friendlyName
+        case maker, model, friendlyName, serial
     }
 
     /// Higher wins. A value without a source (saved before sources were stored) ranks 0,
@@ -31,6 +31,7 @@ public enum IdentitySource: String, Codable, Sendable, CaseIterable {
     ///   MAC-prefix maker > hostname guess > model suggestion. The MAC prefix names whoever
     ///   made the network chip.
     /// - Friendly name: UniFi > UPnP. Neither a suggestion nor a confirmation names a device.
+    /// - Serial (#561): user-confirmed (a label photo) > UPnP > anything else.
     public func rank(for field: Field) -> Int {
         switch (field, self) {
         case (_, .modelSuggestion): -1
@@ -42,6 +43,7 @@ public enum IdentitySource: String, Codable, Sendable, CaseIterable {
         case (.maker, .bonjour), (.maker, .unifi), (.maker, .upnp): 3
         case (.maker, .macPrefix): 2
         case (.friendlyName, .unifi): 2
+        case (.serial, .upnp): 2
         default: 1
         }
     }
@@ -69,7 +71,7 @@ public struct IdentityValue: Equatable, Codable, Sendable {
     }
 }
 
-/// A device's maker, model and friendly name with their sources (ADR-022). Every merge
+/// A device's maker, model, friendly name and serial number with their sources (ADR-022, #561). Every merge
 /// (inside a scan, across scans, into a saved device) goes through ``merging(_:)``.
 ///
 /// `maker` is the maker the device announced or a guess; the MAC-prefix maker is kept apart
@@ -78,11 +80,16 @@ public struct DeviceIdentity: Equatable, Sendable {
     public var maker: IdentityValue?
     public var model: IdentityValue?
     public var friendlyName: IdentityValue?
+    /// The serial number (#561). Scans don't report one yet; the user confirms it from a label.
+    public var serial: IdentityValue?
 
-    public init(maker: IdentityValue? = nil, model: IdentityValue? = nil, friendlyName: IdentityValue? = nil) {
+    public init(
+        maker: IdentityValue? = nil, model: IdentityValue? = nil, friendlyName: IdentityValue? = nil, serial: IdentityValue? = nil
+    ) {
         self.maker = maker
         self.model = model
         self.friendlyName = friendlyName
+        self.serial = serial
     }
 
     /// Each field takes `newer`'s value when it ranks at least as high as the current one,
@@ -91,7 +98,8 @@ public struct DeviceIdentity: Equatable, Sendable {
         DeviceIdentity(
             maker: Self.winner(maker, newer.maker, .maker),
             model: Self.winner(model, newer.model, .model),
-            friendlyName: Self.winner(friendlyName, newer.friendlyName, .friendlyName)
+            friendlyName: Self.winner(friendlyName, newer.friendlyName, .friendlyName),
+            serial: Self.winner(serial, newer.serial, .serial)
         )
     }
 
@@ -101,7 +109,7 @@ public struct DeviceIdentity: Equatable, Sendable {
         func keep(_ value: IdentityValue?) -> IdentityValue? {
             value?.source == .modelSuggestion ? nil : value
         }
-        return DeviceIdentity(maker: keep(maker), model: keep(model), friendlyName: keep(friendlyName))
+        return DeviceIdentity(maker: keep(maker), model: keep(model), friendlyName: keep(friendlyName), serial: keep(serial))
     }
 
     /// The maker to show: ``maker`` or the MAC-prefix maker, whichever ranks higher. A MAC

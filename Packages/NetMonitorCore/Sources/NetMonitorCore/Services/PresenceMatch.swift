@@ -142,7 +142,8 @@ public enum PresenceMatch {
 
     /// One observation per real MAC, in scan order: the one that answered, else the first. A MAC
     /// seen at two addresses (the ARP cache still lists the old one) is one device, at the address
-    /// it answered from. Observations without a real MAC are all kept.
+    /// it answered from. The kept observation carries every collapsed one's Bonjour claims, so no
+    /// evidence (or conflict) is lost (#594). Observations without a real MAC are all kept.
     public static func onePerMAC(_ scan: [DiscoveredDevice]) -> [DiscoveredDevice] {
         var indexByMAC: [String: Int] = [:]
         var kept: [DiscoveredDevice] = []
@@ -152,9 +153,11 @@ public enum PresenceMatch {
                 continue
             }
             if let index = indexByMAC[mac] {
+                let claims = kept[index].bonjourClaims + device.bonjourClaims.filter { !kept[index].bonjourClaims.contains($0) }
                 if kept[index].isCached, !device.isCached {
                     kept[index] = device
                 }
+                kept[index] = kept[index].withBonjourClaims(claims)
             } else {
                 indexByMAC[mac] = kept.count
                 kept.append(device)

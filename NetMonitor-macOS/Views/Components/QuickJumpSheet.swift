@@ -21,16 +21,25 @@ struct QuickJumpSheet: View {
     @State private var searchText: String = ""
     @FocusState private var isFocused: Bool
 
-    private var filteredDevices: [LocalDevice] {
-        guard !searchText.isEmpty else {
+    private var filteredDevices: [DeviceProjection] {
+        // `devices` (the query) only triggers the refresh; devices are paged by device (#594).
+        devices.isEmpty ? [] : Self.results(LocalDeviceQueries.recentDevices(in: .allNetworks, in: modelContext), search: searchText)
+    }
+
+    /// The first 8 devices matching `search` (#594: one entry per device, searched across every
+    /// interface's name, address, maker and hostname).
+    static func results(_ devices: [DeviceProjection], search: String) -> [DeviceProjection] {
+        guard !search.isEmpty else {
             return Array(devices.prefix(8))
         }
-        let query = searchText.lowercased()
+        let query = search.lowercased()
         return devices.filter { device in
-            device.displayName.lowercased().contains(query) ||
-            device.ipAddress.lowercased().contains(query) ||
-            (device.maker?.lowercased().contains(query) ?? false) ||
-            (device.hostname?.lowercased().contains(query) ?? false)
+            device.displayName.lowercased().contains(query) || device.members.contains { member in
+                member.displayName.lowercased().contains(query) ||
+                    member.ipAddress.lowercased().contains(query) ||
+                    (member.maker?.lowercased().contains(query) ?? false) ||
+                    (member.hostname?.lowercased().contains(query) ?? false)
+            }
         }
         .prefix(8)
         .map { $0 }
@@ -115,7 +124,7 @@ struct QuickJumpSheet: View {
         }
     }
 
-    private func quickJumpRow(device: LocalDevice) -> some View {
+    private func quickJumpRow(device: DeviceProjection) -> some View {
         Button {
             navigateToDevice(device)
         } label: {
@@ -125,7 +134,7 @@ struct QuickJumpSheet: View {
                         .fill(MacTheme.Colors.presenceColor(presence.freshness(of: device)).opacity(0.2))
                         .frame(width: 28, height: 28)
 
-                    Image(systemName: device.deviceType.iconName)
+                    Image(systemName: device.primary.deviceType.iconName)
                         .font(.system(size: 12))
                         .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: device)))
                 }
@@ -141,7 +150,7 @@ struct QuickJumpSheet: View {
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(MacTheme.Colors.labelSecondary)
 
-                        if let maker = device.maker {
+                        if let maker = device.primary.maker {
                             Text("·")
                                 .foregroundStyle(MacTheme.Colors.labelTertiary)
                             Text(maker)
@@ -168,7 +177,7 @@ struct QuickJumpSheet: View {
         .accessibilityIdentifier("quickJump_row_\(device.id)")
     }
 
-    private func navigateToDevice(_ device: LocalDevice) {
+    private func navigateToDevice(_ device: DeviceProjection) {
         // Navigate to the Devices section — the device detail can be reached from there
         selection = .section(.devices)
         isPresented = false

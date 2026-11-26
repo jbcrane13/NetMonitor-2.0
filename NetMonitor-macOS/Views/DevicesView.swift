@@ -5,6 +5,7 @@ import NetMonitorCore
 import SwiftData
 import AppKit
 import Darwin
+import os
 
 struct DevicesView: View {
     var isSheet: Bool = false
@@ -12,9 +13,12 @@ struct DevicesView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Environment(\.dismiss) private var dismiss
+    /// The network's saved rows, every group complete (#594); lists show `filteredDevices`.
     @State private var devices: [LocalDevice] = []
 
-    @State private var selectedDevice: LocalDevice?
+    /// The selected device's ID: a group's ID or a row's, resolved through `DeviceGroupResolver`
+    /// so the detail stays on the device when its primary changes (#594).
+    @State private var selectedDeviceID: UUID?
     @State private var searchText: String = ""
     @State private var filterOnlineOnly: Bool = false
     /// Past devices (unseen for a week, #583) are hidden at every launch, never remembered hidden:
@@ -32,8 +36,8 @@ struct DevicesView: View {
     @State private var selectedProDevice: LocalDevice?
 
     // Context menu action state
-    @State private var deviceToPing: LocalDevice?
-    @State private var deviceToScan: LocalDevice?
+    @State private var deviceToPing: DeviceProjection?
+    @State private var deviceToScan: DeviceProjection?
 
     // MARK: - View Mode
 
@@ -49,8 +53,9 @@ struct DevicesView: View {
         }
     }
 
-    var filteredDevices: [LocalDevice] {
-        DeviceList.rows(
+    /// One entry per device (#594): rows projected, then searched, filtered and sorted.
+    var filteredDevices: [DeviceProjection] {
+        DeviceList.devices(
             devices,
             filter: DeviceListFilter(search: searchText, onlineOnly: filterOnlineOnly, showPast: showPastDevices),
             presence: presence,
@@ -64,6 +69,11 @@ struct DevicesView: View {
         DeviceList.pastCount(
             devices, filter: DeviceListFilter(search: searchText, onlineOnly: filterOnlineOnly), presence: presence
         )
+    }
+
+    /// The selected device, as the list shows it.
+    private var selectedDevice: DeviceProjection? {
+        selectedDeviceID.flatMap { Self.device(for: $0, among: devices, in: modelContext) }
     }
 
     private var selectedNetwork: NetworkProfile? {
@@ -96,10 +106,15 @@ struct DevicesView: View {
 
                     // Detail pane
                     if let device = selectedDevice {
-                        DeviceDetailView(device: device)
-                            // A new device starts with fresh edit state, so a draft can't be
-                            // saved onto a device an alert selected (#478).
-                            .id(device.id)
+                        DeviceDetailView(device: device.primary) { remaining in
+                            // Removing an interface can change the primary or end the group.
+                            selectedDeviceID = remaining
+                        }
+                        // A new device starts with fresh edit state, so a draft can't be
+                        // saved onto a device an alert selected (#478). So does a new primary
+                        // (#594): after Remove this interface, a draft of the removed row's name
+                        // or notes must not be saved onto the interface that takes its place.
+                        .id([device.id, device.primary.id])
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ContentUnavailableView(
@@ -119,7 +134,7 @@ struct DevicesView: View {
                 .frame(minWidth: 700, minHeight: 500)
         }
         .sheet(item: $deviceToPing) { device in
-            DevicePingSheet(device: device, isPresented: Binding(
+            DevicePingSheet(device: device.current, name: device.displayName, isPresented: Binding(
                 get: { deviceToPing != nil },
                 set: {
                     if !$0 {
@@ -129,7 +144,7 @@ struct DevicesView: View {
             ))
         }
         .sheet(item: $deviceToScan) { device in
-            DevicePortScanSheet(device: device, isPresented: Binding(
+            DevicePortScanSheet(device: device.current, name: device.displayName, isPresented: Binding(
                 get: { deviceToScan != nil },
                 set: {
                     if !$0 {
@@ -159,6 +174,17 @@ struct DevicesView: View {
         .onChange(of: NotificationRouter.shared.deviceToSelect, initial: true) { _, id in
             selectPendingDevice(id)
         }
+        // An interface about to be removed (#594) leaves the list before it is deleted, so no
+        // row draws a deleted model; the list reloads once the deletion is saved.
+        .onReceive(NotificationCenter.default.publisher(for: InterfaceRemoval.willRemove)) { note in
+            devices.removeAll { $0.id == note.object as? UUID }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: InterfaceRemoval.didFail)) { _ in
+            reloadDevices()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in
+            reloadDevices()
+        }
         .onChange(of: coordinator?.isScanning) { _, isScanning in
             if isScanning == false {
                 reloadDevices()
@@ -166,26 +192,49 @@ struct DevicesView: View {
         }
     }
 
-    /// Selects the device an alert's View Details asked for (#478), on its own network.
+    /// Selects the device an alert's View Details asked for (#478), on its own network. `id` may
+    /// name any interface's row; the device it belongs to is selected (#594).
     private func selectPendingDevice(_ id: UUID?) {
         guard let id else { return }
         NotificationRouter.shared.deviceToSelect = nil
         let descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
-        guard let device = try? modelContext.fetch(descriptor).first else { return }
-        if let network = device.networkProfileID, network != activeProfileID {
+        guard let row = try? modelContext.fetch(descriptor).first else { return }
+        if let network = row.networkProfileID, network != activeProfileID {
             selectedNetworkID = network
         }
         reloadDevices()
-        let row = devices.first { $0.id == id } ?? device
+        let rows = devices.contains { $0.id == id } ? devices : devices + [row]
+        let device = DeviceGroupResolver(rows: LocalDeviceQueries.completed(rows, in: modelContext)).device(for: id)
         if viewMode == .pro {
-            selectedProDevice = row
+            selectedProDevice = device?.primary ?? row
         } else {
-            selectedDevice = row
+            selectedDeviceID = device?.id ?? id
         }
     }
 
+    /// The device `id` names (a group's ID or any interface's row ID): from the list's rows, else
+    /// from the store, so an alert's View Details opens a device the list's fetch left out (#615
+    /// review).
+    static func device(for id: UUID, among rows: [LocalDevice], in context: ModelContext) -> DeviceProjection? {
+        if let listed = DeviceGroupResolver(rows: rows).device(for: id) {
+            return listed
+        }
+        if let row = try? context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })).first {
+            return try? DeviceGroups.device(of: row, in: context)
+        }
+        let members = (try? DeviceGroups.members(ofGroups: [id], in: context)) ?? []
+        return DeviceGroups.project(members).first
+    }
+
+    /// The rows the list reads: the active network's, or with none, rows saved without a network
+    /// (as before #594), never every network's.
+    static func scope(_ activeProfileID: UUID?) -> DeviceScope {
+        .network(activeProfileID, else: .withoutNetwork)
+    }
+
     private func reloadDevices() {
-        devices = (try? modelContext.fetch(LocalDeviceQueries.forProfile(activeProfileID))) ?? []
+        // The 500 most recent devices, paged by device, each with all its interfaces (#594).
+        devices = LocalDeviceQueries.recentDevices(in: Self.scope(activeProfileID), in: modelContext).flatMap(\.members)
     }
 
     // MARK: - Device List
@@ -217,12 +266,13 @@ struct DevicesView: View {
     // MARK: - Consumer Mode List (Card-based)
 
     private var consumerModeList: some View {
-        ScrollView {
+        let selectedID = selectedDevice?.id
+        return ScrollView {
             LazyVStack(spacing: 8) {
                 ForEach(filteredDevices) { device in
-                    DeviceCardView(device: device, isSelected: selectedDevice?.id == device.id)
+                    DeviceCardView(device: device, isSelected: selectedID == device.id)
                         .onTapGesture {
-                            selectedDevice = device
+                            selectedDeviceID = device.id
                         }
                         .accessibilityIdentifier("devices_card_\(device.ipAddress)")
                         .contextMenu { deviceContextMenu(for: device) }
@@ -263,9 +313,9 @@ struct DevicesView: View {
 
                 // Data rows
                 ForEach(filteredDevices) { device in
-                    ProModeRowView(device: device, isSelected: selectedProDevice?.id == device.id)
+                    ProModeRowView(device: device, isSelected: selectedProDevice.map { device.contains($0.id) } ?? false)
                         .onTapGesture {
-                            selectedProDevice = device
+                            selectedProDevice = device.primary
                         }
                         .accessibilityIdentifier("devices_row_pro\(device.ipAddress)")
                         .contextMenu { deviceContextMenu(for: device) }
@@ -530,31 +580,35 @@ struct DevicesView: View {
 
     // MARK: - Actions
 
+    /// Deletes every listed device, each with all its interfaces (#594).
     private func clearDevices() {
-        selectedDevice = nil
+        selectedDeviceID = nil
         coordinator?.cancelSuggestions()
-        for device in filteredDevices {
-            modelContext.delete(device)
+        do {
+            try DeviceGroupWriter(context: modelContext).deleteDevices(filteredDevices.map(\.id))
+        } catch {
+            Logger.data.error("Failed to clear devices: \(error)")
         }
-        try? modelContext.save()
+        reloadDevices()
     }
 
     // MARK: - Context Menu
 
     @ViewBuilder
-    private func deviceContextMenu(for device: LocalDevice) -> some View {
+    private func deviceContextMenu(for device: DeviceProjection) -> some View {
+        // Actions use the current interface; Wake on LAN goes to every interface's MAC (#594).
         Button {
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(device.ipAddress, forType: .string)
+            NSPasteboard.general.setString(device.current.ipAddress, forType: .string)
         } label: {
             Label("Copy IP Address", systemImage: "doc.on.doc")
         }
         .accessibilityIdentifier("devices_menu_copyIP")
 
-        if !device.macAddress.isEmpty {
+        if !device.current.macAddress.isEmpty {
             Button {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(device.macAddress, forType: .string)
+                NSPasteboard.general.setString(device.current.macAddress, forType: .string)
             } label: {
                 Label("Copy MAC Address", systemImage: "doc.on.doc")
             }
@@ -577,7 +631,7 @@ struct DevicesView: View {
         }
         .accessibilityIdentifier("devices_menu_portScan")
 
-        if !device.macAddress.isEmpty {
+        if !device.realMACs.isEmpty {
             Button {
                 Task {
                     await wolAction.wake(device: device)
@@ -592,11 +646,19 @@ struct DevicesView: View {
 
         Button(role: .destructive) {
             if selectedDevice?.id == device.id {
-                selectedDevice = nil
+                selectedDeviceID = nil
+            }
+            if let selectedProDevice, device.contains(selectedProDevice.id) {
+                self.selectedProDevice = nil
             }
             coordinator?.cancelSuggestions()
-            modelContext.delete(device)
-            try? modelContext.save()
+            // Every interface of the device goes (#594).
+            do {
+                try DeviceGroupWriter(context: modelContext).deleteDevice(device.id)
+            } catch {
+                Logger.data.error("Failed to remove device: \(error)")
+            }
+            reloadDevices()
         } label: {
             Label("Remove Device", systemImage: "trash")
         }
@@ -607,7 +669,10 @@ struct DevicesView: View {
 // MARK: - Helper Sheet Views
 
 struct DevicePingSheet: View {
+    /// The interface to run against (a device's current member, #594).
     let device: LocalDevice
+    /// The device's name, when it isn't the row's (a group's primary's).
+    var name: String?
     @Binding var isPresented: Bool
 
     @State private var pingResults: [String] = []
@@ -618,7 +683,7 @@ struct DevicePingSheet: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Label("Ping \(device.displayName)", systemImage: "waveform.path")
+                Label("Ping \(name ?? device.displayName)", systemImage: "waveform.path")
                     .font(.headline)
                 Spacer()
                 Button {
@@ -758,7 +823,10 @@ struct DevicePingSheet: View {
 }
 
 struct DevicePortScanSheet: View {
+    /// The interface to run against (a device's current member, #594).
     let device: LocalDevice
+    /// The device's name, when it isn't the row's (a group's primary's).
+    var name: String?
     @Binding var isPresented: Bool
 
     @State private var portScanResults: [(port: Int, name: String, isOpen: Bool)] = []
@@ -770,7 +838,7 @@ struct DevicePortScanSheet: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Label("Port Scan \(device.displayName)", systemImage: "network")
+                Label("Port Scan \(name ?? device.displayName)", systemImage: "network")
                     .font(.headline)
                 Spacer()
                 Button {

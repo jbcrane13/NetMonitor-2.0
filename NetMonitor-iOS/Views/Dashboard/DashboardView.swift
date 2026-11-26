@@ -11,7 +11,7 @@ struct DashboardView: View {
     @State private var lastHealthRefresh: Date?
     @State private var changeBrief = ChangeBriefViewModel.dashboard
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
-    @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
+    @Environment(\.modelContext) private var modelContext
     @Query(Self.recentSpeedTestsDescriptor) private var recentSpeedTests: [SpeedTestResult]
     // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
@@ -122,12 +122,6 @@ struct DashboardView: View {
 
     // MARK: - Since-yesterday brief (#453)
 
-    private static var savedDevicesDescriptor: FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>()
-        descriptor.fetchLimit = 500
-        return descriptor
-    }
-
     /// The brief compares the latest test with the one before it.
     private static var recentSpeedTestsDescriptor: FetchDescriptor<SpeedTestResult> {
         var descriptor = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\SpeedTestResult.timestamp, order: .reverse)])
@@ -138,7 +132,8 @@ struct DashboardView: View {
     private func refreshChangeBrief() async {
         await changeBrief.refresh(
             scanned: viewModel.discoveredDevices,
-            saved: savedDevices,
+            // The network's most recent devices, each with every member, read when asked (#594).
+            saved: SavedDeviceList.recentRows(network: viewModel.activeNetwork?.id, in: modelContext),
             networkProfileID: viewModel.activeNetwork?.id,
             speedTests: recentSpeedTests,
             presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans,
@@ -720,13 +715,13 @@ private struct DeviceListRoute: Hashable {}
 struct LocalDevicesCard: View {
     @Bindable var viewModel: DashboardViewModel
     /// The network's saved rows (#583), with their presence, plus the scan's devices not saved yet.
-    @Query private var savedDevices: [LocalDevice]
+    /// The network's saved devices, paged by device (#594).
+    @State private var saved = SavedDeviceRows()
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
-        _savedDevices = Query(SavedDeviceList.fetchDescriptor(network: viewModel.deviceNetworkID))
     }
 
     /// Show all devices on iPad, cap at 5 on iPhone
@@ -736,7 +731,8 @@ struct LocalDevicesCard: View {
 
     var body: some View {
         let list = SavedDeviceList(
-            saved: savedDevices, live: viewModel.discoveredDevices, network: viewModel.deviceNetworkID, sort: .status, showPast: false,
+            saved: saved.rows, live: viewModel.discoveredDevices,
+            network: viewModel.deviceNetworkID, sort: .status, showPast: false,
             presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
         )
         NavigationLink(value: DeviceListRoute()) {
@@ -744,6 +740,7 @@ struct LocalDevicesCard: View {
         }
         .buttonStyle(PlainButtonStyle())
         .frame(maxHeight: sizeClass == .regular ? .infinity : nil)
+        .readsSavedDevices(saved, network: viewModel.deviceNetworkID)
         .accessibilityIdentifier("dashboard_link_devices")
         .accessibilityValue("\(list.onlineCount) online, \(list.entries.count) devices")
     }
@@ -815,10 +812,11 @@ struct LocalDevicesCard: View {
     }
 }
 
-/// A saved row on the dashboard card (#583): its presence dot, the latency only while online, else
-/// its state, and always how long ago it was last seen.
+/// A saved device on the dashboard card (#583): its presence dot, the latency only while online,
+/// else its state, and always how long ago it was last seen. A group of interfaces is one row
+/// (#594): the primary's name and icon, the current member's address.
 struct SavedDeviceRow: View {
-    let device: LocalDevice
+    let device: DeviceProjection
     let list: SavedDeviceList
 
     var body: some View {
@@ -833,7 +831,7 @@ struct SavedDeviceRow: View {
                             .stroke(Theme.Colors.divider, lineWidth: 1)
                     )
 
-                Image(systemName: device.deviceType.iconName)
+                Image(systemName: device.primary.deviceType.iconName)
                     .font(.system(size: 16))
                     .foregroundStyle(Theme.Colors.accent)
             }

@@ -55,12 +55,14 @@ final class AskToolViewModel {
     /// Whether Tools shows the Ask card: only with the on-device model.
     static var isAvailable: Bool { model.isAvailable }
 
+    /// - Parameter devices: the saved rows, complete groups (#594).
     func update(devices: [LocalDevice]) {
         inputs.devices = devices
     }
 
-    /// The saved row a citation links to, by `LocalDevice.id`: still the same device after a rename.
+    /// The saved device a citation links to, by `LocalDevice.id` (any member's, #594): its
+    /// primary row, still the same device after a rename.
     func device(for citation: AskAnswer.DeviceCitation) -> LocalDevice? {
-        inputs.devices.first { $0.id == citation.id }
+        DeviceGroupResolver(rows: inputs.devices).device(for: citation.id)?.primary
     }
 }

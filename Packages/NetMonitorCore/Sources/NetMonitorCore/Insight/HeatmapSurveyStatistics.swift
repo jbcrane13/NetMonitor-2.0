@@ -175,11 +175,14 @@ public struct HeatmapSurveyStatistics: Sendable, Equatable {
 
     // MARK: - Access points
 
-    /// Display names of `devices` by normalized MAC, for naming access points.
+    /// Display names of `devices` by every member's normalized MAC, for naming access points; an
+    /// interface is named by its device (#594).
     public static func accessPointNames(_ devices: [LocalDevice]) -> [String: String] {
-        devices.reduce(into: [:]) { names, device in
-            guard let mac = DeviceMatcher.normalizedMAC(device.macAddress) else { return }
-            names[mac] = device.displayName
+        DeviceGroups.project(devices).reduce(into: [:]) { names, device in
+            for member in device.members {
+                guard let mac = DeviceMatcher.normalizedMAC(member.macAddress) else { continue }
+                names[mac] = device.displayName
+            }
         }
     }
 

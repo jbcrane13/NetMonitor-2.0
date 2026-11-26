@@ -59,12 +59,13 @@ enum AskIntentRunner {
         return ([answer.shownText] + statuses + [answer.freshness].compactMap(\.self)).joined(separator: " ")
     }
 
-    /// Most rows the intent reads: the most recently seen first.
+    /// Most devices the intent reads: the most recently seen first.
     static let deviceLimit = 500
 
     /// The saved devices on `network` and those on none, most recently seen first, read through the
     /// app's own container (#582), never a second one over the same file. Copied out while the
-    /// container is alive.
+    /// container is alive. Paged by device (`SavedDeviceList.recentRows`), so a device of several
+    /// interfaces counts once toward ``deviceLimit`` (#594).
     static func savedDevices(on network: UUID?) -> [AskDevice] {
         guard let container = AppModelStore.sharedContainer() else {
             return []
@@ -73,12 +74,6 @@ enum AskIntentRunner {
     }
 
     static func savedDevices(on network: UUID?, in context: ModelContext) -> [AskDevice] {
-        var descriptor = FetchDescriptor<LocalDevice>(
-            predicate: #Predicate { $0.networkProfileID == nil || $0.networkProfileID == network },
-            sortBy: [SortDescriptor(\.lastSeen, order: .reverse)]
-        )
-        descriptor.fetchLimit = deviceLimit
-        let rows = (try? context.fetch(descriptor)) ?? []
-        return AskSnapshot.devices(rows, on: network)
+        Array(AskSnapshot.devices(SavedDeviceList.recentRows(network: network, in: context), on: network).prefix(deviceLimit))
     }
 }

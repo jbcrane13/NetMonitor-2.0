@@ -493,6 +493,50 @@ extension UITestBootstrap {
     }
 }
 
+// MARK: - A device with two interfaces (#594)
+
+extension UITestBootstrap {
+    /// The device `UITEST_SEED_DEVICE_GROUP=1` saves: its primary's address and name, and its other
+    /// interface, which is the UI-test scan's uitest-device-3; the primary has a serial. Fixture values only.
+    static let groupDevice = (
+        name: "UITest Studio Mac", primaryIP: "192.168.1.60", primaryNotes: "Wired port in the studio",
+        memberIP: "192.168.1.13", memberNotes: "Wi-Fi interface", serial: "UITESTSERIAL594"
+    )
+
+    /// With `UITEST_SEED_DEVICE_GROUP=1` (Debug builds): one device on the UI-test network with two
+    /// interfaces, grouped through `DeviceGroupWriter`. The primary (192.168.1.60, named, with notes)
+    /// is offline and isn't in the UI-test scan; the other interface is uitest-device-3's address and
+    /// MAC, so a scan finds only it. Never twice.
+    static func seedDeviceGroupIfNeeded(in context: ModelContext) {
+        #if DEBUG
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SEED_DEVICE_GROUP"] == "1",
+              !((try? context.fetch(FetchDescriptor<LocalDevice>()))?.contains { $0.ipAddress == groupDevice.primaryIP } ?? false)
+        else { return }
+        let primary = LocalDevice(
+            ipAddress: groupDevice.primaryIP, macAddress: "02:00:00:94:00:60", hostname: "uitest-studio-wired",
+            deviceType: .computer, customName: groupDevice.name, status: .offline, notes: groupDevice.primaryNotes,
+            networkProfileID: networkProfileID
+        )
+        primary.lastSeen = scanClockStart.addingTimeInterval(-3600)
+        primary.serialNumber = groupDevice.serial
+        primary.serialSource = IdentitySource.userConfirmed.rawValue
+        let member = LocalDevice(
+            ipAddress: groupDevice.memberIP, macAddress: "AA:BB:CC:DD:EE:03", hostname: "uitest-device-3",
+            status: .offline, notes: groupDevice.memberNotes, networkProfileID: networkProfileID
+        )
+        member.lastSeen = scanClockStart.addingTimeInterval(-7200)
+        context.insert(primary)
+        context.insert(member)
+        do {
+            try context.save()
+            try DeviceGroupWriter(context: context).group([primary.id, member.id], primary: primary.id, source: .user)
+        } catch {
+            Logger.data.error("UI-test device group seed failed to save: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+    }
+}
+
 // MARK: - Saved devices follow scans (#582)
 
 extension UITestBootstrap {

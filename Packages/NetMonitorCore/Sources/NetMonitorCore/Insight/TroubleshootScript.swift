@@ -117,15 +117,17 @@ public struct TroubleshootDevice: DevicePhraseMatchable, Sendable, Equatable, Id
         self.openPorts = openPorts
     }
 
-    /// A saved device as the troubleshooter sees it. The maker leaves out model suggestions.
-    public init(_ device: LocalDevice) {
+    /// A saved device as the troubleshooter sees it (#594): the primary's identity, the current
+    /// member's address and that member's open ports, which were measured there. The maker leaves
+    /// out model suggestions.
+    public init(_ device: DeviceProjection) {
         self.init(
-            id: device.id,
+            id: device.primary.id,
             displayName: device.displayName,
-            deviceType: device.deviceType,
-            maker: device.makerExcludingSuggestions,
-            ipAddress: device.ipAddress,
-            openPorts: device.openPorts ?? []
+            deviceType: device.primary.deviceType,
+            maker: device.primary.makerExcludingSuggestions,
+            ipAddress: device.current.ipAddress,
+            openPorts: device.current.openPorts ?? []
         )
     }
 }

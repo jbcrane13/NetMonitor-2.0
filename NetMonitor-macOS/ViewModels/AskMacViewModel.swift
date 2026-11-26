@@ -60,8 +60,9 @@ final class AskMacViewModel {
     }
 
     /// The saved row a citation links to, by `LocalDevice.id`: still the same device after a rename.
+    /// The citation may name any interface; the device's primary row opens (#594).
     func device(for citation: AskAnswer.DeviceCitation) -> LocalDevice? {
-        inputs.devices.first { $0.id == citation.id }
+        DeviceGroupResolver(rows: inputs.devices).device(for: citation.id)?.primary
     }
 
     #if DEBUG

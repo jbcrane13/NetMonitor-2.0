@@ -50,30 +50,55 @@ final class PlainRuleMacViewModel {
     }
 
     /// Whether `target` checks `device`: a linked target checks the device it is linked to,
-    /// whatever its address; an unlinked one checks whichever device has its address.
+    /// whatever its address; an unlinked one checks whichever device has its address. Any of a
+    /// device's interfaces counts (#594).
     private func checks(_ target: NetworkTarget, _ device: RuleDevice) -> Bool {
-        Self.checks(target, deviceID: device.id, address: device.ipAddress, linkedDevice: targetLinks[target.id])
+        Self.checks(
+            target, deviceID: device.id, address: device.ipAddress, linkedDevice: targetLinks[target.id],
+            memberIDs: device.memberIDs, addresses: device.addresses
+        )
     }
 
-    static func checks(_ target: NetworkTarget, deviceID: UUID, address: String?, linkedDevice: UUID?) -> Bool {
-        linkedDevice.map { $0 == deviceID } ?? (target.host == address)
+    static func checks(
+        _ target: NetworkTarget, deviceID: UUID, address: String?, linkedDevice: UUID?,
+        memberIDs: Set<UUID> = [], addresses: Set<String> = []
+    ) -> Bool {
+        if let linkedDevice {
+            return linkedDevice == deviceID || memberIDs.contains(linkedDevice)
+        }
+        return target.host == address || addresses.contains(target.host)
     }
 
     /// Whether an enabled target checks the device, by the same rule as the draft: the rule
     /// editor's warning uses it too.
     static func isMonitored(
-        deviceID: UUID, address: String?, targets: [NetworkTarget], linkedDevice: (UUID) -> UUID?
+        deviceID: UUID, address: String?, targets: [NetworkTarget], linkedDevice: (UUID) -> UUID?,
+        memberIDs: Set<UUID> = [], addresses: Set<String> = []
     ) -> Bool {
-        targets.contains { $0.isEnabled && checks($0, deviceID: deviceID, address: address, linkedDevice: linkedDevice($0.id)) }
+        targets.contains {
+            $0.isEnabled && checks(
+                $0, deviceID: deviceID, address: address, linkedDevice: linkedDevice($0.id), memberIDs: memberIDs, addresses: addresses
+            )
+        }
     }
 
     private func disabledTarget(for device: RuleDevice) -> NetworkTarget? {
         targets.first { !$0.isEnabled && checks($0, device) }
     }
 
-    /// - Parameter linkedDevice: the device a rule linked a target to (`AlertRuleStore.device(forTarget:)`).
+    /// `submit(candidates:)` for saved rows (complete groups): one candidate per device (#594).
     func submit(
         devices: [LocalDevice], targets: [NetworkTarget], isScanning: Bool, linkedDevice: (UUID) -> UUID? = { _ in nil }
+    ) async {
+        let candidates = DeviceGroups.project(devices).map(RuleDevice.init)
+        await submit(candidates: candidates, targets: targets, isScanning: isScanning, linkedDevice: linkedDevice)
+    }
+
+    /// - Parameters:
+    ///   - candidates: the devices the rule can name (`RuleDevice.candidates(network:in:)`).
+    ///   - linkedDevice: the device a rule linked a target to (`AlertRuleStore.device(forTarget:)`).
+    func submit(
+        candidates: [RuleDevice], targets: [NetworkTarget], isScanning: Bool, linkedDevice: (UUID) -> UUID? = { _ in nil }
     ) async {
         draft = nil
         self.targets = targets
@@ -82,7 +107,6 @@ final class PlainRuleMacViewModel {
         let enabled = targets.filter(\.isEnabled)
         targetIntervals = Dictionary(targets.filter { !$0.isEnabled }.map { ($0.host, $0.checkInterval) }) { first, _ in first }
             .merging(Dictionary(enabled.map { ($0.host, $0.checkInterval) }, uniquingKeysWith: min)) { _, enabled in enabled }
-        let candidates = devices.map(RuleDevice.init)
         // The addresses of devices an enabled target checks: a linked target counts only for its
         // own device, an unlinked one for the device at its address.
         let monitored = candidates.filter { device in enabled.contains { checks($0, device) } }

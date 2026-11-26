@@ -10,9 +10,12 @@ import NetMonitorCore
 import SwiftData
 
 struct WakeOnLanToolView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(LocalDeviceQueries.withMACAddress()) private var devices: [LocalDevice]
 
     @State private var selectedDeviceID: UUID?
+    /// The picked device's real MACs, every interface's (#594).
+    @State private var pickedMACs: [String] = []
     @State private var macAddress = ""
     @State private var broadcastAddress = "255.255.255.255"
     @State private var isSending = false
@@ -22,9 +25,20 @@ struct WakeOnLanToolView: View {
 
     private let wakeService = WakeOnLANService()
 
-    // periphery:ignore
-    private var selectedDevice: LocalDevice? {
-        devices.first { $0.id == selectedDeviceID }
+    /// One entry per device with a MAC on any interface (#594), paged by device. `devices` (the
+    /// query) only triggers the refresh.
+    private var pickerDevices: [DeviceProjection] {
+        guard !devices.isEmpty else { return [] }
+        return LocalDeviceQueries.recentDevices(in: .allNetworks, in: modelContext).filter { device in
+            device.members.contains { !$0.macAddress.isEmpty }
+        }
+    }
+
+    /// The MACs a send goes to: every interface's when the field still holds one of the picked
+    /// device's MACs, else just the field's.
+    static func macsToWake(field: String, picked: [String]) -> [String] {
+        guard picked.count > 1, let mac = DeviceMatcher.normalizedMAC(field), picked.contains(mac) else { return [field] }
+        return picked
     }
 
     var body: some View {
@@ -57,7 +71,7 @@ struct WakeOnLanToolView: View {
 
                     Divider()
 
-                    ForEach(devices) { device in
+                    ForEach(pickerDevices) { device in
                         Text(device.displayName)
                             .tag(device.id as UUID?)
                     }
@@ -67,8 +81,11 @@ struct WakeOnLanToolView: View {
                 .accessibilityIdentifier("wol_picker_device")
                 .onChange(of: selectedDeviceID) { _, newValue in
                     if let deviceID = newValue,
-                       let device = devices.first(where: { $0.id == deviceID }) {
-                        macAddress = device.macAddress
+                       let device = pickerDevices.first(where: { $0.id == deviceID }) {
+                        macAddress = device.realMACs.first ?? device.current.macAddress
+                        pickedMACs = device.realMACs
+                    } else {
+                        pickedMACs = []
                     }
                 }
             }
@@ -161,10 +178,19 @@ struct WakeOnLanToolView: View {
         resultMessage = nil
         isError = false
 
+        let targets = Self.macsToWake(field: macAddress, picked: pickedMACs)
         wakeTask = Task {
-            let success = await wakeService.wake(macAddress: macAddress, broadcastAddress: broadcastAddress, port: 9)
+            var sent = 0
+            for mac in targets {
+                let delivered = await wakeService.wake(macAddress: mac, broadcastAddress: broadcastAddress, port: 9)
+                sent += delivered ? 1 : 0
+            }
+            let success = sent > 0
             await MainActor.run {
-                if success {
+                if success, targets.count > 1 {
+                    resultMessage = "Magic packets sent to \(sent) of \(targets.count) interfaces"
+                    isError = false
+                } else if success {
                     resultMessage = "Magic packet sent successfully to \(macAddress)"
                     isError = false
                 } else {

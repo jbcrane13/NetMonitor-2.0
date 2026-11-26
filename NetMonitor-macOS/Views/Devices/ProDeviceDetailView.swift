@@ -2,17 +2,29 @@ import Foundation
 import SwiftUI
 import SwiftData
 import NetMonitorCore
+import os
 
+/// The Pro device detail (#594): `device` is the device's primary row; the view finds the other
+/// interfaces itself (see `DeviceDetailView`).
 struct ProDeviceDetailView: View {
     @Bindable var device: LocalDevice
+    /// The rows of `device`'s group (or `device` alone), read live.
+    @Query private var groupRows: [LocalDevice]
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.presence) private var presence
+    @Environment(AlertRuleStore.self) private var ruleStore: AlertRuleStore?
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
 
     @State private var isEditing = false
     @State private var editedName: String = ""
     @State private var editedNotes: String = ""
+    @State private var editedMemberNotes: [UUID: String] = [:]
+    /// Why the last edit couldn't be saved; shown in an alert.
+    @State private var saveError: String?
+    /// The shown row, removed as an interface: deleted once the sheet has closed, so the sheet
+    /// never draws a deleted row.
+    @State private var removalOnClose: UUID?
     @State private var selectedDeviceType: DeviceType = .unknown
 
     @State private var showPingSheet = false
@@ -28,6 +40,13 @@ struct ProDeviceDetailView: View {
     @State private var isLoadingVendor = false
     @State private var isLoadingHostname = false
 
+    init(device: LocalDevice) {
+        _device = Bindable(device)
+        _groupRows = DeviceGroupMembers.query(for: device)
+    }
+
+    var projection: DeviceProjection { DeviceGroupMembers.projection(of: device, rows: groupRows) }
+
     // MARK: - Body
 
     var body: some View {
@@ -42,8 +61,14 @@ struct ProDeviceDetailView: View {
                     // Risks first, where they are seen without scrolling (#454).
                     securitySection
                     detailColumns
+                    if projection.isGroup {
+                        DeviceInterfacesCard(device: projection, onRemove: removeInterface)
+                    }
                     portsAndServicesSection
-                    notesSection
+                    DeviceNotesCard(
+                        device: projection, row: device, isEditing: isEditing,
+                        editedNotes: $editedNotes, editedMemberNotes: $editedMemberNotes
+                    )
                 }
                 .padding(20)
             }
@@ -52,11 +77,18 @@ struct ProDeviceDetailView: View {
         .macThemedBackground()
         .task { await loadData() }
         .wakeOnLanAlert(wolAction)
+        .saveErrorAlert($saveError)
         .sheet(isPresented: $showPingSheet) {
-            DevicePingSheet(device: device, isPresented: $showPingSheet)
+            DevicePingSheet(device: projection.current, name: device.displayName, isPresented: $showPingSheet)
         }
         .sheet(isPresented: $showPortScanSheet) {
-            DevicePortScanSheet(device: device, isPresented: $showPortScanSheet)
+            DevicePortScanSheet(device: projection.current, name: device.displayName, isPresented: $showPortScanSheet)
+        }
+        .onDisappear {
+            if let removalOnClose {
+                // The sheet is gone; a failure is logged and the list reloads (`didFail`).
+                InterfaceRemoval.remove(removalOnClose, in: modelContext, ruleStore: ruleStore)
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen_deviceDetail")
@@ -112,10 +144,11 @@ private extension ProDeviceDetailView {
                 }
                 .accessibilityIdentifier("deviceDetail_button_portScan")
 
-                if device.supportsWakeOnLan && !device.macAddress.isEmpty {
+                // Every interface's MAC (#594).
+                if projection.members.contains(where: \.supportsWakeOnLan) && !projection.realMACs.isEmpty {
                     Button {
                         Task<Void, Never> {
-                            await wolAction.wake(device: device)
+                            await wolAction.wake(device: projection)
                         }
                     } label: {
                         Label("Wake", systemImage: "power")
@@ -155,12 +188,12 @@ private extension ProDeviceDetailView {
         HStack(spacing: 16) {
             ZStack {
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(MacTheme.Colors.presenceColor(presence.freshness(of: device)).opacity(0.12))
+                    .fill(MacTheme.Colors.presenceColor(presence.freshness(of: projection)).opacity(0.12))
                     .frame(width: 64, height: 64)
 
                 Image(systemName: device.deviceType.iconName)
                     .font(.system(size: 28))
-                    .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: device)))
+                    .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: projection)))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -188,10 +221,10 @@ private extension ProDeviceDetailView {
                 }
 
                 HStack(spacing: 8) {
-                    PresenceStatusLabel(device: device, font: .subheadline)
+                    PresenceStatusLabel(device: projection, font: .subheadline)
                         .accessibilityIdentifier("deviceDetail_label_presence")
 
-                    if let latency = presence.currentLatency(device) {
+                    if let latency = presence.currentLatency(projection) {
                         Text("·")
                             .foregroundStyle(MacTheme.Colors.labelTertiary)
                         Text(latencyText(latency))
@@ -221,7 +254,7 @@ private extension ProDeviceDetailView {
             Spacer()
 
             // Latency stats cluster (top-right): only while the device is online (#583).
-            if presence.currentLatency(device) != nil {
+            if presence.currentLatency(projection) != nil {
                 latencyCluster
             }
         }
@@ -232,7 +265,7 @@ private extension ProDeviceDetailView {
     // MARK: - Latency Cluster (compact)
 
     var latencyCluster: some View {
-        let currentLatency = presence.currentLatency(device)
+        let currentLatency = presence.currentLatency(projection)
         let minLatency = latencyHistory.min()
         let maxLatency = latencyHistory.max()
         let avgLatency = latencyHistory.isEmpty ? nil : latencyHistory.reduce(0, +) / Double(latencyHistory.count)
@@ -275,8 +308,12 @@ private extension ProDeviceDetailView {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader("Network", icon: "network", loading: isLoadingHostname)
 
-            detailRow("IP Address", device.ipAddress, mono: true, copyable: true)
-            detailRow("MAC Address", device.macAddress.isEmpty ? "—" : device.formattedMacAddress, mono: true, copyable: !device.macAddress.isEmpty)
+            // The current interface's (#594); Interfaces lists the others.
+            let current = projection.current
+            detailRow("IP Address", current.ipAddress, mono: true, copyable: true)
+            detailRow(
+                "MAC Address", current.macAddress.isEmpty ? "—" : current.formattedMacAddress, mono: true, copyable: !current.macAddress.isEmpty
+            )
 
             if let hostname = device.hostname, !hostname.isEmpty {
                 detailRow("Hostname", hostname, mono: true)
@@ -293,10 +330,17 @@ private extension ProDeviceDetailView {
                 }
             }
 
+            // The device's serial lives on its primary (#561).
+            if let serial = device.shownSerial {
+                detailRow("Serial", serial, mono: true, copyable: true)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("deviceDetail_label_serial")
+            }
+
             Divider().padding(.vertical, 2)
 
             detailRow("First Seen", device.firstSeen.formatted(date: .abbreviated, time: .shortened))
-            detailRow("Last Seen", device.lastSeen.formatted(date: .abbreviated, time: .shortened))
+            detailRow("Last Seen", projection.lastSeen.formatted(date: .abbreviated, time: .shortened))
             detailRow("Since Last", timeSinceLastSeen)
         }
         .padding(14)
@@ -359,7 +403,8 @@ private extension ProDeviceDetailView {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeader("Ports & Services", icon: "server.rack", loading: isLoadingPorts)
 
-            if let ports = device.openPorts, !ports.isEmpty {
+            // The current interface's; Interfaces lists each interface's own (#594).
+            if let ports = projection.current.openPorts, !ports.isEmpty {
                 HStack(spacing: 6) {
                     ForEach(ports.sorted(), id: \.self) { port in
                         Text("\(port)")
@@ -406,10 +451,11 @@ private extension ProDeviceDetailView {
 
     // MARK: - Security (#454)
 
-    /// This device's security-readout findings, computed from its current row; nothing when it has none.
+    /// This device's security-readout findings, computed from its rows (every interface's, #594);
+    /// nothing when it has none.
     @ViewBuilder
     var securitySection: some View {
-        let findings = SecurityRuleTable.findings(for: [device])
+        let findings = SecurityRuleTable.findings(for: projection.members)
         if !findings.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 sectionHeader("Security", icon: "exclamationmark.shield")
@@ -424,35 +470,6 @@ private extension ProDeviceDetailView {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("deviceDetail_section_security")
         }
-    }
-
-    // MARK: - Notes
-
-    var notesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            sectionHeader("Notes", icon: "note.text")
-
-            if isEditing {
-                TextEditor(text: $editedNotes)
-                    .frame(minHeight: 80)
-                    .scrollContentBackground(.hidden)
-                    .background(Color.primary.opacity(0.03))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .accessibilityIdentifier("deviceDetail_textfield_notes")
-            } else if let notes = device.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(.body)
-                    .foregroundStyle(MacTheme.Colors.textSecondary)
-            } else {
-                Text("No notes — click Edit to add")
-                    .foregroundStyle(MacTheme.Colors.labelTertiary)
-                    .italic()
-                    .font(.subheadline)
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
     }
 
     // MARK: - Reusable Components
@@ -498,7 +515,7 @@ private extension ProDeviceDetailView {
     }
 
     var timeSinceLastSeen: String {
-        PresenceFreshness.relativeText(since: device.lastSeen, now: presence.now)
+        presence.relativeLastSeen(projection)
     }
 
     var totalTimeTracked: String {
@@ -515,20 +532,40 @@ private extension ProDeviceDetailView {
     func startEditing() {
         editedName = device.customName ?? ""
         editedNotes = device.notes ?? ""
+        editedMemberNotes = DeviceNotesCard.memberDrafts(projection, row: device)
         selectedDeviceType = device.deviceType
     }
 
     func saveChanges() {
-        device.customName = editedName.isEmpty ? nil : editedName
-        device.notes = editedNotes.isEmpty ? nil : editedNotes
-        device.deviceType = selectedDeviceType
-        try? modelContext.save()
+        let edits = DeviceDetailEdits(name: editedName, notes: editedNotes, type: selectedDeviceType, memberNotes: editedMemberNotes)
+        editedMemberNotes = [:]
+        do {
+            try edits.commit(to: device, device: projection, in: modelContext)
+        } catch {
+            Logger.data.error("Failed to save device changes: \(error)")
+            saveError = error.localizedDescription
+        }
     }
 
+    /// Remove this interface (#594). Removing the row the sheet shows closes the sheet first, and
+    /// the row goes once it has closed.
+    func removeInterface(_ member: LocalDevice) async throws {
+        coordinator?.cancelSuggestions()
+        if member === device {
+            removalOnClose = member.id
+            dismiss()
+        } else {
+            try await InterfaceRemoval.remove(member.id, in: modelContext, ruleStore: ruleStore).value
+        }
+    }
+
+    /// Enrichment measures the current interface (#594) and saves on its row: a port or a latency
+    /// belongs to the interface it was measured on.
     func loadData() async {
+        let currentMember = projection.current
         // Seed immediately from persisted model so UI is never blank on open
-        bonjourServices = device.discoveredServices ?? []
-        latencyHistory = device.lastLatency.map { [$0] } ?? []
+        bonjourServices = currentMember.discoveredServices ?? []
+        latencyHistory = currentMember.lastLatency.map { [$0] } ?? []
 
         // Run all enrichment in parallel
         async let _ = enrichLatency()
@@ -541,53 +578,57 @@ private extension ProDeviceDetailView {
     // MARK: - Live Enrichment
 
     private func enrichLatency() async {
+        let currentMember = projection.current
         isLoadingLatency = true
         defer { isLoadingLatency = false }
 
         let pingService = ShellPingService()
-        guard let result = try? await pingService.ping(host: device.ipAddress, count: 5, timeout: 3),
+        guard let result = try? await pingService.ping(host: currentMember.ipAddress, count: 5, timeout: 3),
               result.isReachable else { return }
 
         let samples = [result.minLatency, result.avgLatency, result.maxLatency]
             .filter { $0 > 0 }
         latencyHistory = samples
 
-        device.updateLatency(result.avgLatency)
+        currentMember.updateLatency(result.avgLatency)
         try? modelContext.save()
     }
 
     private func enrichVendor() async {
-        guard !device.macAddress.isEmpty,
-              device.vendor == nil || device.vendor?.isEmpty == true else { return }
+        let currentMember = projection.current
+        guard !currentMember.macAddress.isEmpty,
+              currentMember.vendor == nil || currentMember.vendor?.isEmpty == true else { return }
         isLoadingVendor = true
         defer { isLoadingVendor = false }
 
         let service = MACVendorLookupService()
-        if let vendor = await service.lookupVendorEnhanced(macAddress: device.macAddress) {
-            device.vendor = vendor
+        if let vendor = await service.lookupVendorEnhanced(macAddress: currentMember.macAddress) {
+            currentMember.vendor = vendor
             try? modelContext.save()
         }
     }
 
     private func enrichHostname() async {
-        guard device.hostname == nil || device.hostname?.isEmpty == true else { return }
+        let currentMember = projection.current
+        guard currentMember.hostname == nil || currentMember.hostname?.isEmpty == true else { return }
         isLoadingHostname = true
         defer { isLoadingHostname = false }
 
         let resolver = ShellDeviceNameResolver()
-        if let name = await resolver.resolveName(for: device.ipAddress) {
-            device.hostname = name
+        if let name = await resolver.resolveName(for: currentMember.ipAddress) {
+            currentMember.hostname = name
             try? modelContext.save()
         }
     }
 
     private func enrichPorts() async {
-        guard device.openPorts == nil || device.openPorts?.isEmpty == true else { return }
+        let currentMember = projection.current
+        guard currentMember.openPorts == nil || currentMember.openPorts?.isEmpty == true else { return }
         isLoadingPorts = true
         defer { isLoadingPorts = false }
 
         let commonPorts = [22, 53, 80, 443, 445, 548, 631, 3389, 5900, 8080, 8443, 8008, 9100, 32400, 62078]
-        let ip = device.ipAddress
+        let ip = currentMember.ipAddress
 
         let found: [Int] = await Task.detached {
             let scanner = PortScannerService()
@@ -599,17 +640,18 @@ private extension ProDeviceDetailView {
         }.value
 
         if !found.isEmpty {
-            device.openPorts = found
+            currentMember.openPorts = found
             try? modelContext.save()
         }
     }
 
     private func enrichBonjourServices() async {
+        let currentMember = projection.current
         guard let bonjourScanner = coordinator?.bonjourScanner else { return }
 
-        let targetIP = device.ipAddress
-        let targetHostname = device.hostname ?? device.resolvedHostname ?? ""
-        var found = Set(device.discoveredServices ?? [])
+        let targetIP = currentMember.ipAddress
+        let targetHostname = currentMember.hostname ?? currentMember.resolvedHostname ?? ""
+        var found = Set(currentMember.discoveredServices ?? [])
 
         let stream = await bonjourScanner.discoveryStream(serviceType: nil)
         let browseTask = Task {
@@ -632,7 +674,7 @@ private extension ProDeviceDetailView {
         let services = found.sorted()
         if !services.isEmpty {
             bonjourServices = services
-            device.discoveredServices = services
+            currentMember.discoveredServices = services
             try? modelContext.save()
         }
     }
