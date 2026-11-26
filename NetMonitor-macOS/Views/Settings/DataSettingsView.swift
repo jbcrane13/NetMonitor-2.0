@@ -103,7 +103,8 @@ struct DataSettingsView: View {
         do {
             try modelContext.delete(model: TargetMeasurement.self)
             try modelContext.delete(model: NetworkTarget.self)
-            try modelContext.delete(model: LocalDevice.self)
+            // Device rows are deleted only through the group writer (#594).
+            try DeviceGroupWriter(context: modelContext).deleteAll()
             try modelContext.delete(model: SessionRecord.self)
             try modelContext.save()
             // The deleted targets' device links go with them (#450).

@@ -10,6 +10,7 @@ struct NetworkDevicesPanel: View {
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
     @Environment(\.presence) private var presence
+    @Environment(\.modelContext) private var modelContext
     @Query private var devices: [LocalDevice]
 
     init(networkProfileID: UUID?) {
@@ -53,9 +54,11 @@ struct NetworkDevicesPanel: View {
         return .startScan
     }
 
-    private var filteredDevices: [LocalDevice] {
-        DeviceList.rows(
-            devices,
+    /// One entry per device (#594): the capped fetch with every group completed, projected, then
+    /// searched and sorted.
+    private var filteredDevices: [DeviceProjection] {
+        DeviceList.devices(
+            LocalDeviceQueries.completed(devices, in: modelContext),
             // Past devices stay in the Devices view, behind "Show past devices" (#583).
             filter: DeviceListFilter(search: searchText),
             presence: presence,
@@ -202,10 +205,10 @@ struct NetworkDevicesPanel: View {
                 ScrollView {
                     LazyVStack(spacing: 1) {
                         ForEach(filteredDevices) { device in
-                            DevicePanelRow(device: device, isSelected: selectedDevice?.id == device.id)
+                            DevicePanelRow(device: device, isSelected: selectedDevice.map { device.contains($0.id) } ?? false)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    selectedDevice = selectedDevice?.id == device.id ? nil : device
+                                    selectedDevice = selectedDevice.map { device.contains($0.id) } == true ? nil : device.primary
                                 }
                                 .accessibilityIdentifier("networkDevicesPanel_row_\(device.ipAddress)")
                         }
@@ -263,7 +266,9 @@ extension DeviceSortOrder {
 // MARK: - Device Panel Row
 
 private struct DevicePanelRow: View {
-    let device: LocalDevice
+    /// One device (#594): the primary's name, type and maker; the current member's address, MAC
+    /// and latency; every member's open ports; the best member's presence.
+    let device: DeviceProjection
     let isSelected: Bool
 
     @State private var isHovering = false
@@ -278,7 +283,7 @@ private struct DevicePanelRow: View {
             .shadow(color: presence.freshness(of: device).isOnline ? MacTheme.Colors.success.opacity(0.6) : .clear, radius: 3)
 
             // Device icon
-            Image(systemName: device.deviceType.iconName)
+            Image(systemName: device.primary.deviceType.iconName)
                 .font(.system(size: 12))
                 .foregroundStyle(MacTheme.Colors.labelSecondary)
                 .frame(width: 16)
@@ -297,14 +302,14 @@ private struct DevicePanelRow: View {
             .frame(minWidth: 120, maxWidth: 200, alignment: .leading)
 
             // Vendor — constrained width
-            Text(device.makerLabel ?? "")
+            Text(device.primary.makerLabel ?? "")
                 .font(.system(size: 10))
                 .foregroundStyle(MacTheme.Colors.labelTertiary)
                 .lineLimit(1)
                 .frame(width: 120, alignment: .leading)
 
             // MAC Address (last 8 chars)
-            Text(device.macAddress.isEmpty ? "" : String(device.macAddress.suffix(8)))
+            Text(device.current.macAddress.isEmpty ? "" : String(device.current.macAddress.suffix(8)))
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(MacTheme.Colors.labelQuaternary)
                 .frame(width: 70, alignment: .leading)
@@ -348,7 +353,7 @@ private struct DevicePanelRow: View {
     }
 
     private var portsText: some View {
-        let ports = device.openPorts ?? []
+        let ports = Set(device.members.flatMap { $0.openPorts ?? [] }).sorted()
         if ports.isEmpty {
             return Text("")
         } else {

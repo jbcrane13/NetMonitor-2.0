@@ -120,7 +120,7 @@ struct NetworkDetailView: View {
     private func refreshHealth() async {
         let connection = try? await NetworkInfoService().getCurrentConnection()
         let isWiFi = connection?.connectionType == .wifi
-        let deviceCount = deviceDiscovery.flatMap { $0.lastScanTime == nil ? nil : $0.discoveredDevices.count }
+        let deviceCount = deviceDiscovery.flatMap { $0.lastScanTime == nil ? nil : $0.projectedDevices.count }
         await healthViewModel.refresh(
             gatewayIP: profile.gatewayIP.isEmpty ? nil : profile.gatewayIP,
             localInputs: HealthCheckInputs(

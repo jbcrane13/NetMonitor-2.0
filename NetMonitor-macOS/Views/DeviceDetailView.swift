@@ -5,9 +5,16 @@ import NetMonitorCore
 import Darwin
 import os
 
+/// A device's detail (#594): `device` is the device's primary row, where its name, notes, type and
+/// rules live. The view finds the device's other interfaces itself and shows them in Interfaces.
 struct DeviceDetailView: View {
     @Bindable var device: LocalDevice
     var isSheet: Bool = false
+    /// Called after Remove this interface, with a remaining member's row ID, so the list can
+    /// reselect the device (whose primary may have changed).
+    var onInterfaceRemoved: (UUID?) -> Void = { _ in }
+    /// The rows of `device`'s group (or `device` alone): the members, read live.
+    @Query private var groupRows: [LocalDevice]
     @Environment(\.modelContext) private var modelContext
     @Environment(DeviceDiscoveryCoordinator.self) private var discoveryCoordinator: DeviceDiscoveryCoordinator?
     @Environment(\.appAccentColor) private var accentColor
@@ -18,6 +25,8 @@ struct DeviceDetailView: View {
     @State private var isEditing = false
     @State private var editedName: String = ""
     @State private var editedNotes: String = ""
+    /// Drafts of the other members' notes, by row ID, while editing.
+    @State private var editedMemberNotes: [UUID: String] = [:]
     @State private var selectedDeviceType: DeviceType = .unknown
     @State private var wolAction = WakeOnLanAction()
 
@@ -34,16 +43,34 @@ struct DeviceDetailView: View {
     // Bonjour services discovered for this device (loaded from cache)
     @State private var bonjourServices: [String] = []
 
+    init(device: LocalDevice, isSheet: Bool = false, onInterfaceRemoved: @escaping (UUID?) -> Void = { _ in }) {
+        _device = Bindable(device)
+        self.isSheet = isSheet
+        self.onInterfaceRemoved = onInterfaceRemoved
+        _groupRows = DeviceGroupMembers.query(for: device)
+    }
+
+    /// The device as lists show it: `device` and every other member of its group.
+    private var projection: DeviceProjection {
+        DeviceGroupMembers.projection(of: device, rows: groupRows)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
                 headerCard
                 quickActionBar
                 networkInfoCard
+                if projection.isGroup {
+                    DeviceInterfacesCard(device: projection, onRemove: removeInterface)
+                }
                 manufacturerSection
                 timelineSection
                 servicesSection
-                notesCard
+                DeviceNotesCard(
+                    device: projection, row: device, isEditing: isEditing,
+                    editedNotes: $editedNotes, editedMemberNotes: $editedMemberNotes
+                )
                 actionsSection
             }
             .padding()
@@ -74,7 +101,7 @@ struct DeviceDetailView: View {
                 .accessibilityIdentifier("deviceDetail_button_edit")
             }
         }
-        .task {
+        .task(id: projection.members.map(\.ipAddress)) {
             await loadBonjourServices()
         }
         .wakeOnLanAlert(wolAction)
@@ -97,12 +124,12 @@ struct DeviceDetailView: View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(MacTheme.Colors.presenceColor(presence.freshness(of: device)).opacity(0.2))
+                    .fill(MacTheme.Colors.presenceColor(presence.freshness(of: projection)).opacity(0.2))
                     .frame(width: 64, height: 64)
 
                 Image(systemName: device.deviceType.iconName)
                     .font(.title)
-                    .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: device)))
+                    .foregroundStyle(MacTheme.Colors.presenceColor(presence.freshness(of: projection)))
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -116,7 +143,7 @@ struct DeviceDetailView: View {
                         .fontWeight(.semibold)
                 }
 
-                PresenceStatusLabel(device: device, font: .subheadline)
+                PresenceStatusLabel(device: projection, font: .subheadline)
                     .accessibilityIdentifier("deviceDetail_label_presence")
 
                 if let maker = device.maker {
@@ -164,12 +191,12 @@ struct DeviceDetailView: View {
             )
             .accessibilityIdentifier("deviceDetail_button_qaPortScan")
 
-            if !device.macAddress.isEmpty {
+            if !projection.realMACs.isEmpty {
                 quickActionIcon(
                     title: "Wake",
                     systemImage: "power",
                     color: MacTheme.Colors.success,
-                    action: { Task { await wolAction.wake(device: device) } }
+                    action: { Task { await wolAction.wake(device: projection) } }
                 )
                 .accessibilityIdentifier("deviceDetail_button_qaWake")
             }
@@ -180,7 +207,7 @@ struct DeviceDetailView: View {
                 color: .secondary,
                 action: {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(device.ipAddress, forType: .string)
+                    NSPasteboard.general.setString(projection.current.ipAddress, forType: .string)
                 }
             )
             .accessibilityIdentifier("deviceDetail_button_qaCopyIP")
@@ -234,13 +261,14 @@ struct DeviceDetailView: View {
 
             Divider()
 
-            infoRow(label: "IP Address", value: device.ipAddress, monospace: true)
+            // The current interface's (#594); Interfaces lists the others.
+            infoRow(label: "IP Address", value: projection.current.ipAddress, monospace: true)
 
-            if !device.macAddress.isEmpty {
-                infoRow(label: "MAC Address", value: device.macAddress, monospace: true)
+            if !projection.current.macAddress.isEmpty {
+                infoRow(label: "MAC Address", value: projection.current.macAddress, monospace: true)
             }
 
-            if let hostname = device.hostname {
+            if let hostname = projection.current.hostname ?? device.hostname {
                 infoRow(label: "Hostname", value: hostname, monospace: true)
             }
         }
@@ -321,12 +349,12 @@ struct DeviceDetailView: View {
 
             infoRow(
                 label: "First Seen",
-                value: device.firstSeen.formatted(date: .abbreviated, time: .shortened)
+                value: firstSeen.formatted(date: .abbreviated, time: .shortened)
             )
 
             infoRow(
                 label: "Last Seen",
-                value: device.lastSeen.formatted(date: .abbreviated, time: .shortened)
+                value: projection.lastSeen.formatted(date: .abbreviated, time: .shortened)
             )
 
             infoRow(label: "Time Since Last Seen", value: timeSinceLastSeen)
@@ -365,39 +393,6 @@ struct DeviceDetailView: View {
         .accessibilityIdentifier("deviceDetail_card_services")
     }
 
-    // MARK: - Notes Card
-
-    private var notesCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Notes", systemImage: "note.text")
-                .font(.headline)
-
-            Divider()
-
-            if isEditing {
-                TextEditor(text: $editedNotes)
-                    .frame(minHeight: 80)
-                    .scrollContentBackground(.hidden)
-                    .background(MacTheme.Colors.chartSurfaceShallow)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .accessibilityIdentifier("deviceDetail_textfield_notes")
-            } else {
-                if let notes = device.notes, !notes.isEmpty {
-                    Text(notes)
-                        .font(.body)
-                        .foregroundStyle(MacTheme.Colors.textSecondary)
-                } else {
-                    Text("No notes")
-                        .font(.body)
-                        .foregroundStyle(MacTheme.Colors.labelTertiary)
-                        .italic()
-                }
-            }
-        }
-        .macGlassCard(cornerRadius: MacTheme.Layout.cardCornerRadius)
-        .accessibilityIdentifier("deviceDetail_card_notes")
-    }
-
     // MARK: - Actions Section
 
     private var actionsSection: some View {
@@ -422,13 +417,13 @@ struct DeviceDetailView: View {
                 )
                 .accessibilityIdentifier("deviceDetail_button_portScan")
 
-                if !device.macAddress.isEmpty {
+                if !projection.realMACs.isEmpty {
                     actionButton(
                         title: "Wake",
                         systemImage: "power",
                         action: {
                             Task {
-                                await wolAction.wake(device: device)
+                                await wolAction.wake(device: projection)
                             }
                         }
                     )
@@ -474,11 +469,16 @@ struct DeviceDetailView: View {
     // MARK: - Computed Properties
 
     private var timeSinceLastSeen: String {
-        PresenceFreshness.relativeText(since: device.lastSeen, now: presence.now)
+        presence.relativeLastSeen(projection)
+    }
+
+    /// The earliest of the members'.
+    private var firstSeen: Date {
+        projection.members.map(\.firstSeen).min() ?? device.firstSeen
     }
 
     private var totalTimeTracked: String {
-        let interval = Date().timeIntervalSince(device.firstSeen)
+        let interval = Date().timeIntervalSince(firstSeen)
         if interval < 3600 {
             return "\(Int(interval / 60)) minutes"
         }
@@ -493,6 +493,7 @@ struct DeviceDetailView: View {
     private func startEditing() {
         editedName = device.customName ?? ""
         editedNotes = device.notes ?? ""
+        editedMemberNotes = DeviceNotesCard.memberDrafts(projection, row: device)
         selectedDeviceType = device.deviceType
     }
 
@@ -500,6 +501,8 @@ struct DeviceDetailView: View {
         device.customName = editedName.isEmpty ? nil : editedName
         device.notes = editedNotes.isEmpty ? nil : editedNotes
         device.deviceType = selectedDeviceType
+        DeviceNotesCard.save(editedMemberNotes, to: projection)
+        editedMemberNotes = [:]
         do {
             try modelContext.save()
         } catch {
@@ -511,8 +514,10 @@ struct DeviceDetailView: View {
         // Get cached Bonjour services from the last discovery scan
         guard let discoveryCoordinator else { return }
         let cachedServices = await discoveryCoordinator.bonjourScanner.discoveredServices
+        // Services answer by address; any interface's are the device's (#594).
+        let addresses = Set(projection.members.map(\.ipAddress))
         let deviceServices = cachedServices.filter { service in
-            service.addresses.contains(device.ipAddress)
+            service.addresses.contains(where: addresses.contains)
         }
 
         // Update bonjourServices with the service types found
@@ -527,7 +532,7 @@ struct DeviceDetailView: View {
 
     private func addToTargets() {
         // Check for existing target with same host
-        let ipAddress = device.ipAddress
+        let ipAddress = projection.current.ipAddress
         let descriptor = FetchDescriptor<NetworkTarget>(
             predicate: #Predicate<NetworkTarget> { target in
                 target.host == ipAddress
@@ -539,7 +544,7 @@ struct DeviceDetailView: View {
 
             if !existingTargets.isEmpty {
                 // Target already exists
-                addToTargetsMessage = "A monitoring target for \(device.ipAddress) already exists."
+                addToTargetsMessage = "A monitoring target for \(ipAddress) already exists."
                 showAddToTargetsAlert = true
                 return
             }
@@ -547,7 +552,7 @@ struct DeviceDetailView: View {
             // Create new target
             let target = NetworkTarget(
                 name: device.displayName,
-                host: device.ipAddress,
+                host: ipAddress,
                 port: nil,
                 targetProtocol: .icmp,
                 // Settings › Monitoring › Timing, like Add Target (#445).
@@ -569,14 +574,30 @@ struct DeviceDetailView: View {
         }
     }
 
+    // MARK: - Interfaces (#594)
+
+    /// Remove this interface: deletes the member's row through `DeviceGroupWriter`. The group
+    /// keeps its ID; a removed primary passes to the next member.
+    private func removeInterface(_ member: LocalDevice) {
+        let remaining = projection.members.first { $0.id != member.id }?.id
+        discoveryCoordinator?.cancelSuggestions()
+        do {
+            try DeviceGroupWriter(context: modelContext).removeInterface(member.id)
+        } catch {
+            Logger.data.error("Failed to remove interface: \(error)")
+            return
+        }
+        onInterfaceRemoved(remaining)
+    }
+
     // MARK: - Sheet Views
 
     private var pingSheetView: some View {
-        DevicePingSheet(device: device, isPresented: $showPingSheet)
+        DevicePingSheet(device: projection.current, name: device.displayName, isPresented: $showPingSheet)
     }
 
     private var portScanSheetView: some View {
-        DevicePortScanSheet(device: device, isPresented: $showPortScanSheet)
+        DevicePortScanSheet(device: projection.current, name: device.displayName, isPresented: $showPortScanSheet)
     }
 }
 

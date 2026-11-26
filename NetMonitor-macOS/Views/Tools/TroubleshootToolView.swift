@@ -42,7 +42,7 @@ struct TroubleshootToolView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen_troubleshoot")
         .task(id: InputsKey(
-            devices: devices.map(TroubleshootDevice.init),
+            devices: DeviceGroups.project(devices).map(TroubleshootDevice.init),
             networkProfileID: networkProfileID,
             isScanning: coordinator?.isScanning ?? false
         )) {

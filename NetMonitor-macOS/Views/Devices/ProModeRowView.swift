@@ -3,8 +3,10 @@ import NetMonitorCore
 
 // MARK: - Pro Mode Row View
 
+/// One device in the Pro table (#594: a row, or a group of interfaces): the primary's name, type
+/// and maker; the current member's address, MAC and latency; every member's open ports.
 struct ProModeRowView: View {
-    let device: LocalDevice
+    let device: DeviceProjection
     let isSelected: Bool
 
     @Environment(\.presence) private var presence
@@ -33,10 +35,10 @@ struct ProModeRowView: View {
 
             // Device Type
             HStack(spacing: 4) {
-                Image(systemName: device.deviceType.iconName)
+                Image(systemName: device.primary.deviceType.iconName)
                     .font(.system(size: 11))
                     .foregroundStyle(MacTheme.Colors.textSecondary)
-                Text(device.deviceType.displayName)
+                Text(device.primary.deviceType.displayName)
                     .font(.system(size: 11))
                     .foregroundStyle(MacTheme.Colors.textTertiary)
                     .lineLimit(1)
@@ -50,19 +52,19 @@ struct ProModeRowView: View {
 
             // Name
             Text(device.displayName)
-                .fontWeight(device.customName != nil ? .semibold : .regular)
+                .fontWeight(device.primary.customName != nil ? .semibold : .regular)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(width: Self.nameWidth, alignment: .leading)
 
             // Vendor
-            Text(device.makerLabel ?? "")
+            Text(device.primary.makerLabel ?? "")
                 .foregroundStyle(MacTheme.Colors.textSecondary)
                 .lineLimit(1)
                 .frame(width: Self.vendorWidth, alignment: .leading)
 
             // MAC Address (last 8 chars)
-            Text(device.macAddress.isEmpty ? "" : String(device.macAddress.suffix(8)))
+            Text(device.current.macAddress.isEmpty ? "" : String(device.current.macAddress.suffix(8)))
                 .fontDesign(.monospaced)
                 .foregroundStyle(MacTheme.Colors.textTertiary)
                 .frame(width: Self.macWidth, alignment: .leading)
@@ -94,7 +96,7 @@ struct ProModeRowView: View {
 
     @ViewBuilder
     private var portsView: some View {
-        let ports = device.openPorts ?? []
+        let ports = Set(device.members.flatMap { $0.openPorts ?? [] }).sorted()
         if ports.isEmpty {
             Text("")
         } else {
@@ -126,10 +128,14 @@ struct ProModeRowView: View {
     }
 }
 
+private func previewDevice(_ row: LocalDevice) -> DeviceProjection {
+    DeviceGroups.project([row])[0]
+}
+
 #Preview {
     VStack(spacing: 0) {
         ProModeRowView(
-            device: LocalDevice(
+            device: previewDevice(LocalDevice(
                 ipAddress: "192.168.1.1",
                 macAddress: "AA:BB:CC:DD:EE:FF",
                 hostname: "router.local",
@@ -140,12 +146,12 @@ struct ProModeRowView: View {
                 isGateway: true,
                 openPorts: [22, 80, 443],
                 discoveredServices: ["SSH", "HTTP"]
-            ),
+            )),
             isSelected: false
         )
         Divider()
         ProModeRowView(
-            device: LocalDevice(
+            device: previewDevice(LocalDevice(
                 ipAddress: "192.168.1.42",
                 macAddress: "11:22:33:44:55:66",
                 hostname: "MacBook-Pro.local",
@@ -153,17 +159,17 @@ struct ProModeRowView: View {
                 deviceType: .laptop,
                 status: .online,
                 lastLatency: 45.0
-            ),
+            )),
             isSelected: true
         )
         Divider()
         ProModeRowView(
-            device: LocalDevice(
+            device: previewDevice(LocalDevice(
                 ipAddress: "192.168.1.200",
                 macAddress: "",
                 deviceType: .unknown,
                 status: .offline
-            ),
+            )),
             isSelected: false
         )
     }

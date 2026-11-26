@@ -71,13 +71,17 @@ final class AlertRuleStore {
         defaults.removeObject(forKey: Self.targetDevicesKey)
     }
 
-    /// Keeps only links whose target and device still exist and whose device a rule still names,
-    /// so the links can't go stale against SwiftData. Run at launch.
-    func pruneLinks(targets: Set<UUID>, devices: Set<UUID>) {
+    /// Keeps only links whose target and device row still exist and whose device a rule still
+    /// names, so the links can't go stale against SwiftData. Run at launch.
+    ///
+    /// A rule names one row of a device, and a link may name another of its interfaces (#594):
+    /// `sameDevice` gives every member row ID of a row's device, and a rule naming any of them keeps
+    /// the link.
+    func pruneLinks(targets: Set<UUID>, devices: Set<UUID>, sameDevice: (UUID) -> Set<UUID> = { [$0] }) {
         let named = Set(rules.compactMap(\.conditions.deviceID))
         setLinks(targetDevices().filter { target, device in
             guard let target = UUID(uuidString: target), let device = UUID(uuidString: device) else { return false }
-            return targets.contains(target) && devices.contains(device) && named.contains(device)
+            return targets.contains(target) && devices.contains(device) && !sameDevice(device).union([device]).isDisjoint(with: named)
         })
     }
 
@@ -87,7 +91,10 @@ final class AlertRuleStore {
               let targets = try? context.fetch(FetchDescriptor<NetworkTarget>()),
               let devices = try? context.fetch(FetchDescriptor<LocalDevice>())
         else { return }
-        pruneLinks(targets: Set(targets.map(\.id)), devices: Set(devices.map(\.id)))
+        let resolver = DeviceGroupResolver(rows: devices)
+        pruneLinks(targets: Set(targets.map(\.id)), devices: Set(devices.map(\.id))) { id in
+            resolver.device(for: id)?.memberIDs ?? [id]
+        }
     }
 
     private func targetDevices() -> [String: String] {
@@ -195,11 +202,14 @@ final class MacRuleAlerts {
     /// The address a linked target's device answers at now, when that isn't `host`. A check of
     /// `host` was then of an address that may be another device's: the session drops it and
     /// moves the target there.
+    /// A device of several interfaces (#594) answers at any of them, so a check of any member's
+    /// address is the device's; it moves to the current interface's address otherwise.
     func movedHost(forTarget targetID: UUID, checkedAt host: String) -> String? {
         guard let linked = store.device(forTarget: targetID),
-              let row = currentDevices().devices.first(where: { $0.id == linked }), row.ipAddress != host
+              let device = DeviceGroupResolver(rows: currentDevices().devices).device(for: linked),
+              !device.members.contains(where: { $0.ipAddress == host })
         else { return nil }
-        return row.ipAddress
+        return device.ipAddress
     }
 
     /// From one monitored-target check. A target a rule linked to a device is that device while
@@ -210,41 +220,51 @@ final class MacRuleAlerts {
             return
         }
         guard movedHost(forTarget: result.targetID, checkedAt: result.host) == nil else { return }
-        let (devices, networkID) = currentDevices()
+        let (rows, networkID) = currentDevices()
+        // Devices, not rows (#594): a device is every interface's row.
+        let resolver = DeviceGroupResolver(rows: rows)
         var linked = store.device(forTarget: result.targetID)
         let row: LocalDevice?
-        if let device = linked {
+        if let linkedID = linked {
             // While the device is offline, another device that took its address answers this
             // target. The device is still down, so its outage carries on; the answers aren't its.
             // Only a recent scan says so (#583): on a network not checked recently the saved
             // statuses are old, so the answers count as the device's, as with any target.
             let presence = presence()
-            let taken = devices.contains { $0.id != device && $0.ipAddress == result.host && presence.freshness(of: $0) == .online }
-            if taken, let offline = devices.first(where: { $0.id == device && presence.freshness(of: $0) == .offline }) {
-                fire([AlertRuleEvent(kind: .stillOffline, subject: subject(for: offline, result: result, networkID: networkID))])
+            let device = resolver.device(for: linkedID)
+            let taken = resolver.devices.contains { other in
+                !other.contains(linkedID)
+                    && other.members.contains { $0.ipAddress == result.host && presence.freshness(of: $0) == .online }
+            }
+            if taken, let device, presence.freshness(of: device) == .offline {
+                fire([AlertRuleEvent(kind: .stillOffline, subject: subject(for: device, linked: linkedID, result: result, networkID: networkID))])
                 return
             }
             // On another network the device has no row here, so the check isn't known to be its.
-            row = devices.first { $0.id == device }
+            row = device.flatMap { device in device.members.first { $0.id == linkedID } }
             if row == nil {
                 linked = nil
             }
         } else {
-            row = devices.first {
+            row = rows.first {
                 $0.ipAddress == result.host
                     || ($0.hostname?.caseInsensitiveCompare(result.host) == .orderedSame)
             }
         }
-        let subject = AlertRuleSubject(
+        let device = row.flatMap { resolver.device(for: $0.id) }
+        var subject = AlertRuleSubject(
             name: result.name,
             ipAddress: result.host,
             macAddress: row.flatMap { $0.macAddress.isEmpty ? nil : $0.macAddress },
-            deviceType: row?.deviceType,
-            maker: row?.makerExcludingSuggestions,
+            deviceType: (device?.primary ?? row)?.deviceType,
+            maker: (device?.primary ?? row)?.makerExcludingSuggestions,
             networkID: row == nil ? nil : networkID,
             deviceID: linked ?? row?.id,
             monitoredTargetID: result.targetID
         )
+        if let device, let row {
+            subject.setDevice(device, row: row)
+        }
         var events: [AlertRuleEvent] = []
         if result.wentDown {
             events.append(AlertRuleEvent(kind: .wentOffline, subject: subject))
@@ -261,17 +281,21 @@ final class MacRuleAlerts {
         fire(events)
     }
 
-    private func subject(for device: LocalDevice, result: TargetCheckOutcome, networkID: UUID?) -> AlertRuleSubject {
-        AlertRuleSubject(
+    /// The linked device's subject: its name, type and maker; the linked row's MAC and ID.
+    private func subject(for device: DeviceProjection, linked: UUID, result: TargetCheckOutcome, networkID: UUID?) -> AlertRuleSubject {
+        let row = device.members.first { $0.id == linked } ?? device.primary
+        var subject = AlertRuleSubject(
             name: device.displayName,
             ipAddress: result.host,
-            macAddress: device.macAddress.isEmpty ? nil : device.macAddress,
-            deviceType: device.deviceType,
-            maker: device.makerExcludingSuggestions,
+            macAddress: row.macAddress.isEmpty ? nil : row.macAddress,
+            deviceType: device.primary.deviceType,
+            maker: device.primary.makerExcludingSuggestions,
             networkID: networkID,
-            deviceID: device.id,
+            deviceID: row.id,
             monitoredTargetID: result.targetID
         )
+        subject.setDevice(device, row: row)
+        return subject
     }
 
     /// Monitoring stopped: targets go unchecked from here, so their duration timers start over
@@ -311,19 +335,33 @@ final class MacRuleAlerts {
         _ ip: String, _ mac: String?, _ name: String?, _ devices: [LocalDevice], _ networkID: UUID?
     ) -> AlertRuleSubject {
         let row = Self.row(ip: ip, mac: mac, in: devices)
-        return AlertRuleSubject(
-            name: row?.displayName ?? name,
+        // The row is one interface; the name, type and maker are its device's (#594).
+        let device = row.flatMap { Self.device(of: $0, in: devices) }
+        let identity = device?.primary ?? row
+        var subject = AlertRuleSubject(
+            name: device?.displayName ?? row?.displayName ?? name,
             ipAddress: ip,
             macAddress: mac,
-            deviceType: row?.deviceType,
-            maker: row?.makerExcludingSuggestions,
+            deviceType: identity?.deviceType,
+            maker: identity?.makerExcludingSuggestions,
             networkID: networkID,
             deviceID: row?.id
         )
+        if let device, let row {
+            subject.setDevice(device, row: row)
+        }
+        return subject
+    }
+
+    /// The device `row` is an interface of, among `devices` (complete groups, #594).
+    static func device(of row: LocalDevice, in devices: [LocalDevice]) -> DeviceProjection? {
+        guard row.deviceGroupID != nil else { return DeviceGroups.project([row]).first }
+        return DeviceGroups.project(devices.filter { $0.deviceGroupID == row.deviceGroupID }).first { $0.contains(row.id) }
     }
 
     /// The network's row for an event's device, for display. A MAC identifies the row
-    /// exactly; the IP is only a fallback for an event without one.
+    /// exactly; the IP is only a fallback for an event without one. The row is one interface:
+    /// `device(of:in:)` gives the device it belongs to (#594).
     static func row(ip: String, mac: String?, in devices: [LocalDevice]) -> LocalDevice? {
         if let mac, !mac.isEmpty {
             devices.first { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }

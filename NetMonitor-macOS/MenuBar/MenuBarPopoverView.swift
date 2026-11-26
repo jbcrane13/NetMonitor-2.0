@@ -281,12 +281,17 @@ struct MenuBarPopoverView: View {
     // MARK: - Problem Devices
 
     /// Devices that are offline or have high latency, surfaced prominently. Past devices and
-    /// rows whose network wasn't checked recently are no news (#583).
-    private var problemDevices: [LocalDevice] {
-        deviceDiscovery.discoveredDevices.filter { device in
+    /// rows whose network wasn't checked recently are no news (#583). One entry per device: a
+    /// device is offline only when every interface is (#594), and its latency is the current one's.
+    private var problemDevices: [DeviceProjection] {
+        Self.problemDevices(deviceDiscovery.projectedDevices, presence: presence)
+    }
+
+    static func problemDevices(_ devices: [DeviceProjection], presence: PresenceSnapshot) -> [DeviceProjection] {
+        devices.filter { device in
             let freshness = presence.freshness(of: device)
             guard !presence.isPast(device), freshness != .notCheckedRecently else { return false }
-            return freshness == .offline || (device.lastLatency ?? 0) > 100
+            return freshness == .offline || (device.current.lastLatency ?? 0) > 100
         }
         .prefix(3)
         .map { $0 }
@@ -308,7 +313,7 @@ struct MenuBarPopoverView: View {
 
                 ForEach(problemDevices, id: \.id) { device in
                     HStack(spacing: 6) {
-                        Image(systemName: device.deviceType.iconName)
+                        Image(systemName: device.primary.deviceType.iconName)
                             .font(.system(size: 10))
                             .foregroundStyle(presence.freshness(of: device) == .offline ? .red : MacTheme.Colors.warning)
                             .frame(width: 14)
@@ -323,7 +328,7 @@ struct MenuBarPopoverView: View {
                             Text("Offline")
                                 .font(.system(size: 9, weight: .medium))
                                 .foregroundStyle(.red)
-                        } else if let latency = device.lastLatency {
+                        } else if let latency = device.current.lastLatency {
                             Text("\(Int(latency))ms")
                                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                                 .foregroundStyle(MacTheme.Colors.warning)
@@ -514,7 +519,12 @@ struct MenuBarPopoverView: View {
 
     /// Online devices out of the network's current ones (past devices left out, #583).
     private var deviceCountString: String {
-        let current = deviceDiscovery.discoveredDevices.filter { !presence.isPast($0) }
+        Self.deviceCountString(deviceDiscovery.projectedDevices, presence: presence)
+    }
+
+    /// "online/total" over devices, not rows (#594).
+    static func deviceCountString(_ devices: [DeviceProjection], presence: PresenceSnapshot) -> String {
+        let current = devices.filter { !presence.isPast($0) }
         let total = current.count
         if total == 0 {
             return "—"

@@ -47,9 +47,10 @@ struct PresenceDot: View {
 }
 
 /// "Online · Last seen 5 min ago": the state's label and the real last-seen time, as one
-/// VoiceOver element that says both.
+/// VoiceOver element that says both. For a device of several interfaces it is the best member's
+/// state and the latest last seen (#594).
 struct PresenceStatusLabel: View {
-    let device: LocalDevice
+    let device: DeviceProjection
     var font: Font = .caption
     var showsLastSeen = true
 

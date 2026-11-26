@@ -10,18 +10,27 @@ final class WakeOnLanAction {
 
     private let service = WakeOnLANService()
 
-    func wake(device: LocalDevice) async {
-        guard !device.macAddress.isEmpty else {
+    /// Sends a magic packet to every real MAC of the device's interfaces (#594): a device asleep on
+    /// Ethernet may be woken by its Wi-Fi address's packet or the other way round.
+    func wake(device: DeviceProjection) async {
+        let macs = device.realMACs
+        guard !macs.isEmpty else {
             alertMessage = "Cannot wake \(device.displayName): No MAC address"
             showAlert = true
             return
         }
 
-        let success = await service.wake(macAddress: device.macAddress, broadcastAddress: "255.255.255.255", port: 9)
-        if success {
-            alertMessage = "Magic packet sent to \(device.displayName)"
-        } else {
+        var sent = 0
+        for mac in macs {
+            let delivered = await service.wake(macAddress: mac, broadcastAddress: "255.255.255.255", port: 9)
+            sent += delivered ? 1 : 0
+        }
+        if sent == 0 {
             alertMessage = "Failed to wake \(device.displayName)"
+        } else if macs.count > 1 {
+            alertMessage = "Magic packets sent to \(device.displayName) (\(sent) of \(macs.count) interfaces)"
+        } else {
+            alertMessage = "Magic packet sent to \(device.displayName)"
         }
         showAlert = true
     }

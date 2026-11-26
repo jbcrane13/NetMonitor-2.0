@@ -16,18 +16,30 @@ struct SidebarView: View {
     // periphery:ignore
     @Environment(MonitoringSession.self) private var monitoringSession: MonitoringSession?
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.modelContext) private var modelContext
     @Query(LocalDeviceQueries.recents()) private var devices: [LocalDevice]
+
+    /// How many devices each network has (a group lives on one network).
+    static func deviceCounts(_ devices: [DeviceProjection]) -> [UUID: Int] {
+        devices.reduce(into: [:]) { counts, device in
+            if let network = device.primary.networkProfileID {
+                counts[network, default: 0] += 1
+            }
+        }
+    }
 
     private var headerText: Color {
         colorScheme == .dark ? .white : Color(red: 51/255, green: 65/255, blue: 85/255)
     }
 
     var body: some View {
+        // Devices, not rows (#594): a device of several interfaces counts once.
+        let deviceCounts = Self.deviceCounts(LocalDeviceQueries.devices(devices, in: modelContext))
         List(selection: $selection) {
                 Section {
                     ForEach(profileManager.profiles) { profile in
                         let isActive = profileManager.activeProfile?.id == profile.id
-                        let deviceCount = devices.filter { $0.networkProfileID == profile.id }.count
+                        let deviceCount = deviceCounts[profile.id] ?? 0
                         SidebarRow(
                             title: profile.displayName,
                             icon: profile.connectionType.iconName,

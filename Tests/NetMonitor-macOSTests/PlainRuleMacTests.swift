@@ -149,7 +149,7 @@ struct PlainRuleMacTests {
         let model = viewModel()
         model.text = "scan web ports on the printer"
         await model.submit(devices: [nas(), printer], targets: [], isScanning: false)
-        #expect(model.composer.outcome == .portScan(device: RuleDevice(printer), preset: .web))
+        #expect(model.composer.outcome == .portScan(device: RuleDevice(DeviceGroups.project([printer])[0]), preset: .web))
         #expect(model.draft == nil)
     }
 

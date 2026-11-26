@@ -11,6 +11,7 @@ import NetMonitorCore
 
 struct PortForwardsToolView: View {
     @Environment(NetworkProfileManager.self) private var profileManager: NetworkProfileManager?
+    @Environment(\.modelContext) private var modelContext
     @Query(LocalDeviceQueries.recents()) private var devices: [LocalDevice]
     @State private var state = PortForwardsState()
 
@@ -139,10 +140,8 @@ struct PortForwardsToolView: View {
     private func load() {
         // The Mac's own interface, not the last scanned network's (#441).
         let interface = profileManager?.localProfile?.interfaceName ?? "en0"
-        var names: [String: String] = [:]
-        for device in devices where names[device.ipAddress] == nil {
-            names[device.ipAddress] = device.displayName
-        }
+        // Every interface's address names its device (#594).
+        let names = ChangeDigestBuilder.deviceNames(LocalDeviceQueries.completed(devices, in: modelContext))
         state.load(interface: interface, deviceNames: names)
     }
 }
