@@ -115,13 +115,20 @@ struct SavedDevices {
     func row(for device: DiscoveredDevice) -> LocalDevice? {
         rows(for: [device])[device.ipAddress]
     }
+
+    /// The name of the device `row` is an interface of (#594): its group's primary's, else its own.
+    /// Both fetches hold whole networks, so every group is complete.
+    func name(of row: LocalDevice) -> String {
+        DeviceGroupResolver(rows: network + unassigned).device(for: row.id)?.displayName ?? row.displayName
+    }
 }
 
 // MARK: - EventListenerService
 
 /// Observes the network monitor and a device discovery service to log connectivity and
 /// device-change events for the Timeline. Every event carries its network's ID; a device that
-/// matches a saved row is named by its `displayName` and carries the row's ID (#491 D9).
+/// matches a saved row is named by its device's `displayName` (a group's primary's, #594) and
+/// carries the row's ID (#491 D9). Each row still logs its own event; PR2 of #594 gives a group one.
 @MainActor
 final class EventListenerService {
 
@@ -267,22 +274,23 @@ final class EventListenerService {
         let rows = saved?.rows(for: devices) ?? [:]
         for ip in Set(current.keys).subtracting(previous.keys).sorted() {
             if let device = current[ip] {
-                logDevice(device, joined: true, network: network, row: rows[ip])
+                logDevice(device, joined: true, network: network, row: rows[ip], name: rows[ip].flatMap { saved?.name(of: $0) })
             }
         }
         for ip in Set(previous.keys).subtracting(current.keys).sorted() {
             if let device = previous[ip] {
-                logDevice(device, joined: false, network: network, row: saved?.row(for: device))
+                let row = saved?.row(for: device)
+                logDevice(device, joined: false, network: network, row: row, name: row.flatMap { saved?.name(of: $0) })
             }
         }
         knownDevices[network] = current
     }
 
-    /// A joined or left device, named by its saved row when it matches one; otherwise a joined
-    /// device by its hostname or maker and a left one by its IP, as before #491.
-    private func logDevice(_ device: DiscoveredDevice, joined: Bool, network: UUID?, row: LocalDevice?) {
+    /// A joined or left device, named (`name`) by its saved row's device when it matches one;
+    /// otherwise a joined device by its hostname or maker and a left one by its IP, as before #491.
+    private func logDevice(_ device: DiscoveredDevice, joined: Bool, network: UUID?, row: LocalDevice?, name: String?) {
         let ip = device.ipAddress
-        let label = row?.displayName ?? (joined ? device.hostname ?? device.maker ?? ip : ip)
+        let label = name ?? (joined ? device.hostname ?? device.maker ?? ip : ip)
         eventService.log(
             type: joined ? .deviceJoined : .deviceLeft,
             title: "\(joined ? "Device Joined" : "Device Left"): \(label)",

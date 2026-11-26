@@ -31,6 +31,7 @@ enum DataExportService {
     /// Where the on-device model is available it first writes an executive summary from the
     /// app's digest of the same records (#453); when it is unavailable, fails, takes longer
     /// than `summaryTimeout` or states a number not in the digest, the report has no summary page.
+    /// Pass complete groups: both count and list devices, not rows (#594).
     @MainActor
     static func exportFullReportAsPDF(
         devices: [LocalDevice],
@@ -142,12 +143,14 @@ enum DataExportService {
 
     // MARK: - Devices Export
 
+    /// One record per device (#594): a group of interfaces is one, with the primary's identity and
+    /// the current member's address. Pass complete groups.
     static func exportDevices(_ devices: [LocalDevice], format: ExportFormat) -> Data? {
         switch format {
         case .json:
-            return exportDevicesJSON(devices)
+            return exportDevicesJSON(DeviceGroups.project(devices))
         case .csv:
-            return exportDevicesCSV(devices)
+            return exportDevicesCSV(DeviceGroups.project(devices))
         case .pdf:
             return nil
         }
@@ -155,44 +158,73 @@ enum DataExportService {
 
     /// The `hostname` and `vendor` columns keep what they held before friendly names and
     /// announced makers moved to their own fields (ADR-022): the hostname, else the friendly
-    /// name; the MAC-prefix maker, else the announced or guessed maker.
-    private static func exportedHostname(_ device: LocalDevice) -> String {
-        [device.hostname, device.friendlyName].compactMap { $0 }.first { !$0.isEmpty } ?? ""
+    /// name; the MAC-prefix maker, else the announced or guessed maker. The primary's first, then
+    /// the other members'.
+    private static func exportedHostname(_ device: DeviceProjection) -> String {
+        ([device.primary] + device.members).flatMap { [$0.hostname, $0.friendlyName] }.compactMap { $0 }.first { !$0.isEmpty } ?? ""
     }
 
-    private static func exportedVendor(_ device: LocalDevice) -> String {
-        [device.vendor, device.manufacturer].compactMap { $0 }.first { !$0.isEmpty } ?? ""
+    private static func exportedVendor(_ device: DeviceProjection) -> String {
+        ([device.primary] + device.members).flatMap { [$0.vendor, $0.manufacturer] }.compactMap { $0 }.first { !$0.isEmpty } ?? ""
     }
 
-    private static func exportDevicesJSON(_ devices: [LocalDevice]) -> Data? {
-        let items = devices.map { device in
-            [
+    /// The best member's saved status: online, else cached, else the primary's.
+    private static func status(_ device: DeviceProjection) -> DeviceStatus {
+        let statuses = device.members.map(\.status)
+        return statuses.contains(.online) ? .online : statuses.contains(.cached) ? .cached : device.primary.status
+    }
+
+    private static func firstSeen(_ device: DeviceProjection) -> Date {
+        device.members.map(\.firstSeen).min() ?? device.primary.firstSeen
+    }
+
+    private static func exportDevicesJSON(_ devices: [DeviceProjection]) -> Data? {
+        let formatter = ISO8601DateFormatter()
+        let items: [[String: Any]] = devices.map { device in
+            let primary = device.primary, current = device.current
+            var item: [String: Any] = [
                 "id": device.id.uuidString,
-                "ipAddress": device.ipAddress,
-                "macAddress": device.macAddress,
+                "ipAddress": current.ipAddress,
+                "macAddress": current.macAddress,
                 "hostname": exportedHostname(device),
                 "vendor": exportedVendor(device),
-                "deviceType": device.deviceType.rawValue,
-                "customName": device.customName ?? "",
-                "status": device.status.rawValue,
-                "lastLatency": device.lastLatency.map { String($0) } ?? "",
-                "isGateway": String(device.isGateway),
-                "firstSeen": ISO8601DateFormatter().string(from: device.firstSeen),
-                "lastSeen": ISO8601DateFormatter().string(from: device.lastSeen)
+                "deviceType": primary.deviceType.rawValue,
+                "customName": primary.customName ?? "",
+                "status": status(device).rawValue,
+                "lastLatency": current.lastLatency.map { String($0) } ?? "",
+                "isGateway": String(device.members.contains(where: \.isGateway)),
+                "firstSeen": formatter.string(from: firstSeen(device)),
+                "lastSeen": formatter.string(from: device.lastSeen)
             ]
+            // Only a device with several interfaces lists them, so a device of one row exports as before.
+            if device.isGroup {
+                item["interfaces"] = device.members.map { member in
+                    [
+                        "id": member.id.uuidString,
+                        "ipAddress": member.ipAddress,
+                        "macAddress": member.macAddress,
+                        "status": member.status.rawValue,
+                        "lastSeen": formatter.string(from: member.lastSeen)
+                    ]
+                }
+            }
+            return item
         }
         return try? JSONSerialization.data(withJSONObject: items, options: [.prettyPrinted, .sortedKeys])
     }
 
-    private static func exportDevicesCSV(_ devices: [LocalDevice]) -> Data? {
-        var csv = "id,ipAddress,macAddress,hostname,vendor,deviceType,customName,status,lastLatency,isGateway,firstSeen,lastSeen\n"
+    /// One line per device; the last column lists every interface's address, the current first.
+    private static func exportDevicesCSV(_ devices: [DeviceProjection]) -> Data? {
+        var csv = "id,ipAddress,macAddress,hostname,vendor,deviceType,customName,status,lastLatency,isGateway,firstSeen,lastSeen,addresses\n"
         let formatter = ISO8601DateFormatter()
         for device in devices {
-            csv += "\(csvEscape(device.id.uuidString)),\(csvEscape(device.ipAddress)),\(csvEscape(device.macAddress)),"
-            csv += "\(csvEscape(exportedHostname(device))),\(csvEscape(exportedVendor(device))),\(csvEscape(device.deviceType.rawValue)),"
-            csv += "\(csvEscape(device.customName ?? "")),\(csvEscape(device.status.rawValue)),"
-            csv += "\(device.lastLatency.map { String($0) } ?? ""),\(device.isGateway),"
-            csv += "\(csvEscape(formatter.string(from: device.firstSeen))),\(csvEscape(formatter.string(from: device.lastSeen)))\n"
+            let primary = device.primary, current = device.current
+            csv += "\(csvEscape(device.id.uuidString)),\(csvEscape(current.ipAddress)),\(csvEscape(current.macAddress)),"
+            csv += "\(csvEscape(exportedHostname(device))),\(csvEscape(exportedVendor(device))),\(csvEscape(primary.deviceType.rawValue)),"
+            csv += "\(csvEscape(primary.customName ?? "")),\(csvEscape(status(device).rawValue)),"
+            csv += "\(current.lastLatency.map { String($0) } ?? ""),\(device.members.contains(where: \.isGateway)),"
+            csv += "\(csvEscape(formatter.string(from: firstSeen(device)))),\(csvEscape(formatter.string(from: device.lastSeen))),"
+            csv += "\(csvEscape(device.members.map(\.ipAddress).joined(separator: " ")))\n"
         }
         return csv.data(using: .utf8)
     }

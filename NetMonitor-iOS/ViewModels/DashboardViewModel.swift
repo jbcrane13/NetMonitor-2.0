@@ -2,7 +2,6 @@ import Foundation
 import NetMonitorCore
 import SwiftUI
 import NetworkScanKit
-import WidgetKit
 
 @MainActor
 @Observable
@@ -15,6 +14,8 @@ final class DashboardViewModel {
     private let activityLog: ToolActivityLog
     private let userDefaults: UserDefaults
     private let reviewPrompt: ReviewPromptPolicy?
+    /// The saved devices each reconciled scan found, counted as devices (#594).
+    private let deviceSummaries: SavedDeviceSummaryModel
     private var autoRefreshStartedAt: Date?
     private let now: @MainActor () -> Date
     private var lastLoggedGatewayLatency: Double?
@@ -63,6 +64,7 @@ final class DashboardViewModel {
         activityLog: ToolActivityLog = .shared,
         userDefaults: UserDefaults = .standard,
         reviewPrompt: ReviewPromptPolicy? = nil,
+        deviceSummaries: SavedDeviceSummaryModel = .shared,
         now: @escaping @MainActor () -> Date = Date.init
     ) {
         self.networkMonitor = networkMonitor
@@ -76,6 +78,7 @@ final class DashboardViewModel {
         self.activityLog = activityLog
         self.userDefaults = userDefaults
         self.reviewPrompt = reviewPrompt
+        self.deviceSummaries = deviceSummaries
         self.now = now
         self.sessionStartTime = Date()
 
@@ -167,8 +170,10 @@ final class DashboardViewModel {
         discoveredDevices.lazy.compactMap(\.networkProfileID).first ?? activeNetwork?.id
     }
 
+    /// The devices the network's latest reconciled scan found, a device of several interfaces
+    /// once (#594); the scan's own list until a scan of it has been saved.
     var deviceCount: Int {
-        discoveredDevices.count
+        deviceSummaries.count(for: deviceNetworkID) ?? discoveredDevices.count
     }
 
     var lastScanDate: Date? {
@@ -349,16 +354,8 @@ final class DashboardViewModel {
             success: count > 0
         )
 
-        // Update widget with top 3 discovered devices
-        let topDevicesList = scoped.prefix(3).map { device in
-            ["name": device.displayName, "ip": device.ipAddress]
-        }
-        let defaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard
-        if let data = try? JSONSerialization.data(withJSONObject: Array(topDevicesList)) {
-            defaults.set(data, forKey: AppSettings.Keys.widgetTopDevices)
-        }
-        defaults.set(count, forKey: AppSettings.Keys.widgetDeviceCount)
-        WidgetCenter.shared.reloadTimelines(ofKind: "DeviceGlanceWidget")
+        // The widget's count and top three are published once the scan is saved, from the saved
+        // devices (`SavedDeviceSummaryModel`, #594).
 
         reviewPrompt?.recordScanCompleted()
     }

@@ -7,7 +7,10 @@ import UIKit
 /// Reads a device's label from a photo and lets the user review the fields before saving
 /// them to the device (#456). Nothing is saved without Save or Use That Device.
 struct LabelCaptureView: View {
+    /// The device's primary row; its maker, model and serial are saved here (#594).
     let device: LocalDevice
+    /// The interface a new MAC is written to: the device's current member, when it has several.
+    var current: LocalDevice?
     /// Called after a save, so device detail shows what changed.
     var onSaved: () -> Void
 
@@ -36,7 +39,7 @@ struct LabelCaptureView: View {
             .toolbar { toolbar }
         }
         .task {
-            viewModel.configure(device: device, context: modelContext)
+            viewModel.configure(device: device, current: current, context: modelContext)
             await viewModel.start()
         }
         .onChange(of: photoItem) { _, item in

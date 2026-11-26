@@ -108,7 +108,15 @@ struct NetmonitorApp: App {
             // network the phone has left (#589).
             currentNetworkProfileID: { CurrentNetwork.detected()?.id },
             clock: UITestBootstrap.scanClock ?? Date.init,
-            onSaved: { [presence] in presence.refresh() }
+            onSaved: { [presence, sharedModelContainer] networks in
+                presence.refresh()
+                // The dashboard count and the widget, from the saved devices this scan updated (#594).
+                for network in networks {
+                    SavedDeviceSummaryModel.shared.refresh(
+                        network: network, in: sharedModelContainer.mainContext, presence: presence.snapshot
+                    )
+                }
+            }
         )
         updater.start()
         deviceRecordUpdater = updater
@@ -149,6 +157,7 @@ struct NetmonitorApp: App {
                     UITestBootstrap.seedTimelineDeviceIfNeeded(in: sharedModelContainer.mainContext)
                     UITestBootstrap.seedRuleDevicesIfNeeded(in: sharedModelContainer.mainContext)
                     UITestBootstrap.seedPastDeviceIfNeeded(in: sharedModelContainer.mainContext)
+                    UITestBootstrap.seedDeviceGroupIfNeeded(in: sharedModelContainer.mainContext)
                     // Ask your network (#452)
                     UITestBootstrap.seedAskIfNeeded(in: sharedModelContainer.mainContext)
                     if UITestBootstrap.recordsEvents {

@@ -9,13 +9,17 @@ struct DeviceDetailView: View {
         /// (nil when opened without one); `macAddress` is the MAC the list showed, which matters
         /// for a cached result the live scan lacks.
         case scanned(ipAddress: String, networkID: UUID?, macAddress: String?)
-        /// A link that carries `LocalDevice.id` (#584): that row, whatever device has its IP now.
+        /// A link that carries `LocalDevice.id` (#584), or a device's own ID from a list (a group's,
+        /// #594): that device, whatever device has its IP now.
         case saved(id: UUID)
     }
 
     let entry: Entry
-    @State private var viewModel = DeviceDetailViewModel()
+    // Internal, not private: the Interfaces extension (DeviceDetailView+Interfaces.swift) reads them.
+    @State var viewModel = DeviceDetailViewModel()
     @State private var showsLabelCapture = false
+    /// The member "Remove this interface" asked about, while its confirmation is up (#594).
+    @State var removingInterface: LocalDevice?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
@@ -48,13 +52,19 @@ struct DeviceDetailView: View {
 
     var body: some View {
         ScrollView {
-            if let device = viewModel.device {
+            if let device = viewModel.device, let current = viewModel.current {
                 VStack(spacing: Theme.Layout.sectionSpacing) {
                     headerSection(device)
-                    networkInfoSection(device)
-                    servicesAndPortsSection(device)
+                    networkInfoSection(device, current: current)
+                    servicesAndPortsSection(current)
+                    if !viewModel.interfaces.isEmpty {
+                        DeviceInterfacesSection(
+                            interfaces: viewModel.interfaces, primary: device, presence: presence,
+                            onRemove: requestRemoval
+                        )
+                    }
                     statusSection(device)
-                    quickActionsSection(device)
+                    quickActionsSection(current)
                     notesSection(device)
                 }
                 .padding(.horizontal, Theme.Layout.screenPadding)
@@ -127,16 +137,25 @@ struct DeviceDetailView: View {
         }
         .sheet(isPresented: $showsLabelCapture) {
             if let device = viewModel.device {
-                LabelCaptureView(device: device) {
+                LabelCaptureView(device: device, current: viewModel.current) {
                     // The saved values replace what the detail shows, suggestions included.
                     load()
                 }
             }
         }
+        .confirmationDialog(removalTitle, isPresented: isConfirmingRemoval, titleVisibility: .visible, presenting: removingInterface) { member in
+            Button("Remove Interface", role: .destructive) {
+                viewModel.removeInterface(member)
+                removingInterface = nil
+            }
+            .accessibilityIdentifier("deviceDetail_button_confirmRemoveInterface")
+        } message: { member in
+            Text(removalMessage(member))
+        }
         .accessibilityIdentifier("screen_deviceDetail")
     }
 
-    private var presence: PresenceSnapshot {
+    var presence: PresenceSnapshot {
         presenceModel?.snapshot ?? DevicePresenceModel.noScans
     }
 
@@ -156,14 +175,15 @@ struct DeviceDetailView: View {
                 .accessibilityIdentifier("deviceDetail_label_displayName")
 
             // What the saved status means now (#583); the presence model refreshes every minute.
+            // A device of several interfaces is online while any member is (#594).
             HStack(spacing: 8) {
-                PresenceDot(freshness: presence.freshness(of: device))
-                Text(presence.statusText(device))
+                PresenceDot(freshness: freshness)
+                Text(viewModel.projection.map { presence.statusText($0) } ?? presence.statusText(device))
                     .font(.subheadline)
                     .foregroundStyle(Theme.Colors.textSecondary)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(presence.accessibilityText(device))
+            .accessibilityLabel(viewModel.projection.map { presence.accessibilityText($0) } ?? presence.accessibilityText(device))
             .accessibilityIdentifier("deviceDetail_label_status")
 
             if let maker = device.maker {
@@ -179,7 +199,8 @@ struct DeviceDetailView: View {
 
     // MARK: - Network Info Section
 
-    private func networkInfoSection(_ device: LocalDevice) -> some View {
+    /// The device's identity (the primary's) and the current member's address and names.
+    private func networkInfoSection(_ device: LocalDevice, current: LocalDevice) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Network Information")
                 .font(.headline)
@@ -187,18 +208,18 @@ struct DeviceDetailView: View {
                 .accessibilityIdentifier("deviceDetail_label_networkInfoTitle")
 
             VStack(spacing: Theme.Layout.itemSpacing) {
-                infoRow(label: "IP Address", value: device.ipAddress)
+                infoRow(label: "IP Address", value: current.ipAddress)
                     .accessibilityIdentifier("deviceDetail_row_ipAddress")
 
-                infoRow(label: "MAC Address", value: device.formattedMacAddress)
+                infoRow(label: "MAC Address", value: current.formattedMacAddress)
                     .accessibilityIdentifier("deviceDetail_row_macAddress")
 
-                if let hostname = device.hostname {
+                if let hostname = current.hostname {
                     infoRow(label: "Hostname", value: hostname)
                         .accessibilityIdentifier("deviceDetail_row_hostname")
                 }
 
-                if let resolvedHostname = device.resolvedHostname {
+                if let resolvedHostname = current.resolvedHostname {
                     infoRow(label: "Resolved Name", value: resolvedHostname)
                         .accessibilityIdentifier("deviceDetail_row_resolvedHostname")
                 }
@@ -234,6 +255,7 @@ struct DeviceDetailView: View {
 
     // MARK: - Services & Ports Section
 
+    /// The current member's ports and services: they stay on the interface they were found on.
     private func servicesAndPortsSection(_ device: LocalDevice) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Services & Ports")
@@ -401,7 +423,7 @@ extension DeviceDetailView {
                 .accessibilityIdentifier("deviceDetail_label_statusTitle")
 
             VStack(spacing: Theme.Layout.itemSpacing) {
-                if let latency = device.lastLatency {
+                if let latency = viewModel.current?.lastLatency {
                     HStack {
                         Text("Latency")
                             .foregroundStyle(Theme.Colors.textSecondary)
@@ -413,20 +435,20 @@ extension DeviceDetailView {
                                 .fill(Theme.Colors.latencyColor(ms: latency))
                                 .frame(width: 8, height: 8)
 
-                            Text(device.latencyText ?? "")
+                            Text(viewModel.current?.latencyText ?? "")
                                 .foregroundStyle(Theme.Colors.textPrimary)
                         }
                     }
                     .accessibilityIdentifier("deviceDetail_row_latency")
                 }
 
-                infoRow(label: "First Seen", value: device.firstSeen.formatted(date: .abbreviated, time: .shortened))
+                infoRow(label: "First Seen", value: firstSeen.formatted(date: .abbreviated, time: .shortened))
                     .accessibilityIdentifier("deviceDetail_row_firstSeen")
 
-                infoRow(label: "Last Seen", value: device.lastSeen.formatted(date: .abbreviated, time: .shortened))
+                infoRow(label: "Last Seen", value: lastSeen(device).formatted(date: .abbreviated, time: .shortened))
                     .accessibilityIdentifier("deviceDetail_row_lastSeen")
 
-                if device.isGateway {
+                if viewModel.members.contains(where: \.isGateway) {
                     HStack {
                         Text("Gateway")
                             .foregroundStyle(Theme.Colors.textSecondary)
@@ -445,7 +467,7 @@ extension DeviceDetailView {
                     .accessibilityIdentifier("deviceDetail_row_gateway")
                 }
 
-                if device.supportsWakeOnLan {
+                if viewModel.members.contains(where: \.supportsWakeOnLan) {
                     HStack {
                         Text("Wake-on-LAN")
                             .foregroundStyle(Theme.Colors.textSecondary)
@@ -471,6 +493,7 @@ extension DeviceDetailView {
 
     // MARK: - Quick Actions Section
 
+    /// Ping, Port Scan and DNS act on the current member's address (#594).
     private func quickActionsSection(_ device: LocalDevice) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Text("Quick Actions")
@@ -543,11 +566,15 @@ extension DeviceDetailView {
                 }
                 .accessibilityIdentifier("deviceDetail_button_dnsLookup")
 
-                // Wake-on-LAN button (conditional)
-                if device.supportsWakeOnLan {
+                // Wake-on-LAN button (conditional): every interface's MAC for a device of several.
+                if (viewModel.projection?.realMACs.count ?? 0) > 1, viewModel.canWake {
                     Divider().background(Theme.Colors.glassBorder)
 
-                    NavigationLink(value: AppDestination.wakeOnLAN(mac: device.macAddress)) {
+                    wakeAllButton
+                } else if device.supportsWakeOnLan || viewModel.canWake {
+                    Divider().background(Theme.Colors.glassBorder)
+
+                    NavigationLink(value: AppDestination.wakeOnLAN(mac: viewModel.projection?.realMACs.first ?? device.macAddress)) {
                         HStack {
                             Image(systemName: "power")
                                 .foregroundStyle(Theme.Colors.success)
@@ -580,6 +607,14 @@ extension DeviceDetailView {
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .accessibilityIdentifier("deviceDetail_label_notesTitle")
+
+            // With several interfaces, each member's notes say which one they're about (#594).
+            if !viewModel.interfaces.isEmpty {
+                Text(device.ipAddress)
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .accessibilityIdentifier("deviceDetail_label_notesInterface")
+            }
 
             TextEditor(text: Binding(
                 get: { device.notes ?? "" },
@@ -622,25 +657,14 @@ extension DeviceDetailView {
         return """
         NetMonitor Device Report
         Name: \(device.displayName)
-        IP: \(device.ipAddress)
-        MAC: \(device.macAddress.isEmpty ? "—" : device.macAddress)
+        IP: \(viewModel.current?.ipAddress ?? device.ipAddress)
+        MAC: \(currentMAC(device))
         Manufacturer: \(device.maker ?? "Unknown")
         Type: \(device.deviceType.rawValue)
-        Status: \(presence.freshness(of: device).label)
-        First Seen: \(dateFormatter.string(from: device.firstSeen))
-        Last Seen: \(dateFormatter.string(from: device.lastSeen))
+        Status: \(freshness.label)
+        First Seen: \(dateFormatter.string(from: firstSeen))
+        Last Seen: \(dateFormatter.string(from: lastSeen(device)))
         """
-    }
-
-    private func wellKnownServiceName(for port: Int) -> String? {
-        let wellKnownPorts: [Int: String] = [
-            22: "SSH", 53: "DNS", 80: "HTTP", 443: "HTTPS",
-            21: "FTP", 25: "SMTP", 110: "POP3", 143: "IMAP",
-            445: "SMB", 548: "AFP", 631: "IPP", 3389: "RDP",
-            5900: "VNC", 8080: "HTTP Proxy", 8443: "HTTPS Alt",
-            3000: "Dev Server", 5353: "mDNS", 62078: "iSync"
-        ]
-        return wellKnownPorts[port]
     }
 }
 
