@@ -81,7 +81,8 @@ struct DeviceGroupingViewModelTests {
         let model = DeviceGroupingViewModel(toastDuration: .seconds(60))
         let context = ModelContext(store.container)
         let studio = try #require(store.device(store.ethernet))
-        let suggestions = model.suggestions(for: studio, in: context)
+        model.show(studio, in: context)
+        let suggestions = model.suggestions
         #expect(suggestions.map(\.primary.id) == [store.wifi], "Same Bonjour name as studio-wifi: same device?")
         let undo = makeUndoManager()
 
@@ -96,7 +97,7 @@ struct DeviceGroupingViewModelTests {
         #expect(model.selection?.rowID == store.ethernet)
         #expect(undo.canUndo)
         #expect(undo.undoActionName == "Group Devices")
-        #expect(model.suggestions(for: grouped, in: ModelContext(store.container)).isEmpty)
+        #expect(model.suggestions.isEmpty, "Grouped: the banner goes")
 
         undo.undo()
 
@@ -106,6 +107,7 @@ struct DeviceGroupingViewModelTests {
         #expect(model.toast == nil)
         #expect(!undo.canUndo)
         #expect(model.selection?.rowID == store.ethernet)
+        #expect(model.suggestions.map(\.primary.id) == [store.wifi], "Apart again: the banner is back")
     }
 
     @Test func notTheSameDeviceOnASuggestionRemovesItForGood() throws {
@@ -114,12 +116,17 @@ struct DeviceGroupingViewModelTests {
         let studio = try #require(store.device(store.ethernet))
         let wifi = try #require(store.device(store.wifi))
 
+        model.show(studio, in: ModelContext(store.container))
+        #expect(model.suggestions.count == 1)
         model.dismissSuggestion(wifi, for: studio, in: ModelContext(store.container))
 
+        #expect(model.suggestions.isEmpty)
         let reread = try #require(store.device(store.ethernet))
-        #expect(model.suggestions(for: reread, in: ModelContext(store.container)).isEmpty)
+        model.show(reread, in: ModelContext(store.container))
+        #expect(model.suggestions.isEmpty, "It doesn't come back")
         let wifiAgain = try #require(store.device(store.wifi))
-        #expect(model.suggestions(for: wifiAgain, in: ModelContext(store.container)).isEmpty, "Neither side suggests the other")
+        model.show(wifiAgain, in: ModelContext(store.container))
+        #expect(model.suggestions.isEmpty, "Neither side suggests the other")
         #expect(store.row(store.ethernet)?.notSameAsIDs == [store.wifi])
         #expect(store.devices.count == 3)
     }
@@ -132,11 +139,16 @@ struct DeviceGroupingViewModelTests {
         let context = ModelContext(store.container)
         let studio = try #require(store.device(store.ethernet))
 
-        let all = model.candidates(for: studio, search: "", in: context)
-        #expect(all.map(\.primary.id) == [store.wifi, store.printer], "The suggestion, then the rest; never another network's")
-        #expect(model.candidates(for: studio, search: "77.20", in: context).map(\.primary.id) == [store.printer])
-        #expect(model.candidates(for: studio, search: "00:61", in: context).map(\.primary.id) == [store.wifi])
-        #expect(model.candidates(for: studio, search: "cabin", in: context).isEmpty)
+        model.openPicker(for: studio, in: context)
+        #expect(model.candidates.map(\.primary.id) == [store.wifi, store.printer], "The suggestion, then the rest; never another network's")
+        model.search("77.20")
+        #expect(model.candidates.map(\.primary.id) == [store.printer])
+        model.search("00:61")
+        #expect(model.candidates.map(\.primary.id) == [store.wifi])
+        model.search("cabin")
+        #expect(model.candidates.isEmpty)
+        model.closePicker()
+        #expect(model.candidates.isEmpty && model.search.isEmpty)
     }
 
     @Test func groupingDevicesSaidToBeDifferentAsksFirstThenClearsThoseExclusions() throws {
@@ -153,7 +165,7 @@ struct DeviceGroupingViewModelTests {
         #expect(store.row(store.ethernet)?.deviceGroupID == nil, "Nothing changes before the user confirms")
         #expect(model.toast == nil)
 
-        model.confirmOverride()
+        model.confirmOverride(in: ModelContext(store.container))
 
         #expect(model.pendingOverride == nil)
         #expect(store.device(store.ethernet)?.memberIDs == [store.ethernet, store.printer])
@@ -190,7 +202,7 @@ struct DeviceGroupingViewModelTests {
         let model = DeviceGroupingViewModel(toastDuration: .seconds(60))
         let studio = try #require(store.device(store.ethernet))
         let wifiRow = try #require(studio.members.first { $0.id == store.wifi })
-        #expect(DeviceInterfacesCard.groupLabel(for: wifiRow) == "Grouped by Bonjour name")
+        #expect(DeviceGroupingChoices.label(for: wifiRow) == "Grouped by Bonjour name")
         let undo = makeUndoManager()
 
         inGroup(undo) { model.separate(wifiRow, from: studio, in: ModelContext(store.container), undoManager: undo) }
@@ -242,6 +254,9 @@ struct DeviceGroupingViewModelTests {
 
         let anchor = try #require(model.selection?.rowID)
         let primary = try #require(store.device(store.ethernet)?.primary.id)
+        // The shown device is the anchor: it keeps its primary and name, joining another group.
+        #expect(primary == store.ethernet)
+        #expect(store.device(store.ethernet)?.displayName == "Studio Mac")
         #expect(DevicesView.proDetailRow(after: anchor, in: ModelContext(store.container))?.id == primary)
         #expect(store.device(store.ethernet)?.memberIDs == [store.ethernet, store.wifi, store.printer])
 
@@ -259,7 +274,7 @@ struct DeviceGroupingViewModelTests {
         let store = try makeStore()
         try DeviceGroupWriter(container: store.container).group([store.ethernet, store.wifi], primary: store.ethernet, source: .user)
         let studio = try #require(store.device(store.ethernet))
-        #expect(studio.members.allSatisfy { DeviceInterfacesCard.groupLabel(for: $0) == nil })
+        #expect(studio.members.allSatisfy { DeviceGroupingChoices.label(for: $0) == nil })
     }
 
     // MARK: - Automatic, through the Mac's scan
@@ -288,7 +303,7 @@ struct DeviceGroupingViewModelTests {
         let grouped = try #require(store.device(store.ethernet))
         #expect(grouped.memberIDs == [store.ethernet, store.wifi])
         #expect(coordinator.projectedDevices.count == 2, "The Studio Mac and the printer")
-        #expect(grouped.members.allSatisfy { DeviceInterfacesCard.groupLabel(for: $0) == "Grouped by Bonjour name" })
+        #expect(grouped.members.allSatisfy { DeviceGroupingChoices.label(for: $0) == "Grouped by Bonjour name" })
 
         let model = DeviceGroupingViewModel()
         let wifiRow = try #require(grouped.members.first { $0.id == store.wifi })

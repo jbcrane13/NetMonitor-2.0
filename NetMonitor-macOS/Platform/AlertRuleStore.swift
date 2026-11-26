@@ -364,8 +364,7 @@ final class MacRuleAlerts {
             deviceID: row?.id
         )
         if let device, let row {
-            subject.setDevice(device, row: row)
-            subject.onlineInterfaceIDs = []
+            subject.setDevice(device, row: row, interfacePresence: false)
         }
         return subject
     }

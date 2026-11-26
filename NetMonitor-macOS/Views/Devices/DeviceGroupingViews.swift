@@ -3,8 +3,8 @@ import SwiftData
 import SwiftUI
 
 /// Device detail's grouping actions (#594 PR2), shared by both detail views: the suggestion
-/// banner ("Same Bonjour name as X: same device?") and "Same device as…". The logic is
-/// `DeviceGroupingViewModel`'s, from the environment.
+/// banner ("Same Bonjour name as X: same device?") and "Same device as…". The logic and the reads
+/// are `DeviceGroupingViewModel`'s, from the environment; this view only shows its state.
 struct DeviceGroupingSection: View {
     let device: DeviceProjection
 
@@ -16,7 +16,7 @@ struct DeviceGroupingSection: View {
     var body: some View {
         if let grouping {
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(grouping.suggestions(for: device, in: modelContext), id: \.id) { other in
+                ForEach(grouping.suggestions, id: \.id) { other in
                     suggestionBanner(other, grouping)
                 }
                 Button {
@@ -28,6 +28,10 @@ struct DeviceGroupingSection: View {
                 .accessibilityIdentifier("deviceDetail_button_sameDeviceAs")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Read again when the device or its interfaces change (a scan, an action).
+            .task(id: refreshKey) {
+                grouping.show(device, in: modelContext)
+            }
             .sheet(isPresented: $showPicker) {
                 // The detail window's undo manager: the sheet's goes with the sheet.
                 SameDeviceAsSheet(device: device, isPresented: $showPicker, undoManager: undoManager)
@@ -35,23 +39,27 @@ struct DeviceGroupingSection: View {
         }
     }
 
+    private var refreshKey: [String] {
+        [device.id.uuidString] + device.members.map { "\($0.id)/\($0.lastSeen.timeIntervalSince1970)/\($0.bonjourHost ?? "")" }
+    }
+
     private func suggestionBanner(_ other: DeviceProjection, _ grouping: DeviceGroupingViewModel) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "questionmark.circle")
                 .foregroundStyle(MacTheme.Colors.info)
-            Text("Same Bonjour name as \(other.displayName): same device?")
+            Text(DeviceGroupingChoices.suggestion(other.displayName))
                 .font(.callout)
                 .foregroundStyle(MacTheme.Colors.textPrimary)
             Spacer(minLength: 8)
             Button("Not the same device") {
                 grouping.dismissSuggestion(other, for: device, in: modelContext)
             }
-            .accessibilityIdentifier("deviceDetail_button_dismissGroupSuggestion")
+            .accessibilityIdentifier("deviceDetail_button_suggestionNotSameDevice")
             Button("Same device") {
                 grouping.group(device, with: other, in: modelContext, undoManager: undoManager)
             }
             .buttonStyle(.borderedProminent)
-            .accessibilityIdentifier("deviceDetail_button_acceptGroupSuggestion")
+            .accessibilityIdentifier("deviceDetail_button_suggestionSameDevice")
         }
         .controlSize(.small)
         .padding(12)
@@ -70,7 +78,6 @@ struct SameDeviceAsSheet: View {
 
     @Environment(DeviceGroupingViewModel.self) private var grouping: DeviceGroupingViewModel?
     @Environment(\.modelContext) private var modelContext
-    @State private var search = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -79,11 +86,11 @@ struct SameDeviceAsSheet: View {
             Text("Choose the device \(device.displayName) is another interface of.")
                 .font(.callout)
                 .foregroundStyle(MacTheme.Colors.labelSecondary)
-            TextField("Search by name, address or MAC", text: $search)
+            TextField("Search by name, address or MAC", text: Binding(get: { grouping?.search ?? "" }, set: { grouping?.search($0) }))
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("sameDeviceAs_textfield_search")
-            let candidates = grouping?.candidates(for: device, search: search, in: modelContext) ?? []
-            let suggested = Set(grouping?.suggestions(for: device, in: modelContext).map(\.id) ?? [])
+            let candidates = grouping?.candidates ?? []
+            let suggested = Set(grouping?.suggestions.map(\.id) ?? [])
             List(candidates, id: \.id) { other in
                 Button {
                     isPresented = false
@@ -113,6 +120,7 @@ struct SameDeviceAsSheet: View {
             .overlay {
                 if candidates.isEmpty {
                     ContentUnavailableView("No Other Devices", systemImage: "desktopcomputer", description: Text("Nothing on this network matches."))
+                        .accessibilityIdentifier("sameDeviceAs_label_empty")
                 }
             }
             HStack {
@@ -126,14 +134,17 @@ struct SameDeviceAsSheet: View {
         }
         .padding(20)
         .frame(width: 440, height: 420)
+        .onAppear { grouping?.openPicker(for: device, in: modelContext) }
+        .onDisappear { grouping?.closePicker() }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("sameDeviceAs_sheet")
+        .accessibilityIdentifier("screen_sameDeviceAs")
     }
 }
 
 /// The grouping confirmation, error and undo toast on a device detail view (#594 PR2).
 struct DeviceGroupingFeedback: ViewModifier {
     @Environment(DeviceGroupingViewModel.self) private var grouping: DeviceGroupingViewModel?
+    @Environment(\.modelContext) private var modelContext
 
     func body(content: Content) -> some View {
         content
@@ -150,7 +161,7 @@ struct DeviceGroupingFeedback: ViewModifier {
             }
             .animation(.easeOut(duration: 0.2), value: grouping?.toast)
             .confirmationDialog(
-                DeviceGroupingViewModel.overrideQuestion,
+                DeviceGroupingChoices.overrideQuestion,
                 isPresented: Binding(
                     get: { grouping?.pendingOverride != nil },
                     set: {
@@ -161,12 +172,13 @@ struct DeviceGroupingFeedback: ViewModifier {
                 )
             ) {
                 Button("Group Them Anyway") {
-                    grouping?.confirmOverride()
+                    grouping?.confirmOverride(in: modelContext)
                 }
                 .accessibilityIdentifier("deviceDetail_button_confirmGroupOverride")
                 Button("Cancel", role: .cancel) {
                     grouping?.cancelOverride()
                 }
+                .accessibilityIdentifier("deviceDetail_button_cancelGroupOverride")
             } message: {
                 Text(grouping?.pendingOverride.map { "\($0.otherName) was marked as a different device." } ?? "")
             }
@@ -202,19 +214,19 @@ struct DeviceGroupToastView: View {
             Text(toast.message)
                 .font(.callout)
                 .foregroundStyle(MacTheme.Colors.textPrimary)
-                .accessibilityIdentifier("deviceDetail_toast_message")
+                .accessibilityIdentifier("deviceDetail_label_toastMessage")
             if toast.canUndo {
                 Button("Undo", action: onUndo)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    .accessibilityIdentifier("deviceDetail_button_undoGroup")
+                    .accessibilityIdentifier("deviceDetail_button_undo")
             }
             Button(action: onClose) {
                 Image(systemName: "xmark")
             }
             .buttonStyle(.borderless)
             .accessibilityLabel("Close")
-            .accessibilityIdentifier("deviceDetail_button_closeToast")
+            .accessibilityIdentifier("deviceDetail_button_dismissToast")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
