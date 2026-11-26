@@ -293,14 +293,14 @@ Sent by the macOS app with discovered local network devices.
 | `devices` | Array&lt;DeviceInfo&gt; | List of discovered devices |
 | `network` | InventoryNetwork? | Since `inventory.v1` (#585): the network the list covers and how old its latest scan is. Absent from older Macs |
 
-**InventoryNetwork Object** (#585):
+**InventoryNetwork Object** (#585). An `inventory.v1` Mac always sends it, so the phone knows such a Mac by the list alone:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `subnet` | String | The network in CIDR (`192.168.1.0/24`), as `NetworkProfile.subnetCIDR` writes it |
-| `gatewayIP` | String? | The network's gateway |
+| `subnet` | String? | The network in CIDR (`192.168.1.0/24`), as `NetworkProfile.subnetCIDR` writes it; nil when the Mac has no network, and then the phone shows nothing from the list |
+| `gatewayIP` | String? | The Mac's **routed** gateway on that network (the default route, when it is inside the subnet), never the profile's first-host guess; nil when the route lookup fails |
 | `name` | String? | The network's name on the Mac; the phone shows it only when the Mac is on another network |
-| `scanAge` | Number? | Seconds between the Mac's latest scan of the network and sending this list, on the Mac's clock; nil when it has none |
+| `scanAge` | Number? | Seconds between the Mac's latest scan of the network and sending this list, on the Mac's clock; nil when it has none. A negative, non-finite or longer-than-10-years age is rejected, never clamped |
 
 **DeviceInfo Object:**
 
@@ -332,7 +332,21 @@ Sent by the macOS app with discovered local network devices.
 | `scanAge` | Number? | Seconds between that scan and sending this list, on the Mac's clock (#619) |
 | `isPrimary` | Boolean? | Whether this is the device's primary interface, the one `hostname` names (#619). The phone names only that member's sighting |
 
-**The Mac's inventory (#585).** A Mac that lists `inventory.v1` in its heartbeat sends this list to every paired, authorised phone after each completed scan, and in reply to `refreshDevices`; the phone sends `refreshDevices` once per link when it first sees the capability. While the link is up, the list covers the phone's network (same `subnet`) and the Mac's scan, placed on the phone's clock as `receivedAt - scanAge`, is within the grace interval, the phone shows the list as the Mac's: each device's state "from your Mac", its own sightings as "Seen by this iPhone at …", and devices only the Mac knows (shown, never saved). It matches its devices to the Mac's by a shared real MAC, else looks them up by address; a lookup never creates or changes a device. From such a Mac the phone adds no sightings to its own scans. When the link drops, the list is for another network, or the Mac's scan is old, the phone shows its own data.
+**The Mac's inventory (#585).** A Mac that lists `inventory.v1` in its heartbeat sends this list to every paired, authorised phone after each completed scan, and in reply to `refreshDevices`; the phone sends `refreshDevices` once per link when it first sees the capability. The Mac keeps the list under the frame cap: at most 1,000 devices, most recently seen first, trimmed further until the frame fits 7/8 of 1 MiB. A phone that rejects a frame ends the link, so the stream never desyncs and the inventory ends with it.
+
+The phone reads a list that carries `network` as an inventory Mac's, whatever its heartbeat said yet. It shows the list as the Mac's only while all of these hold, and otherwise shows its own data:
+- the link is up and the list arrived on it;
+- the phone is on a network now (its detected, connected local network), and that is the network being viewed;
+- the list's `subnet` and `gatewayIP` are that network's subnet and the phone's own routed gateway;
+- the link runs over Wi-Fi or Ethernet (not a VPN tunnel, cellular or loopback) to an address inside that subnet or an IPv6 link-local address;
+- the Mac's scan, placed on the phone's clock as `receivedAt - scanAge`, is within the phone's grace interval.
+
+While it holds:
+- A device reads **Online** from the Mac only when it answered the Mac's latest scan, **Offline** when the Mac has it offline, and otherwise (missed that scan, inside the Mac's own grace) **Not checked recently**, always with "from your Mac".
+- "Seen by this iPhone at …" shows only for devices the phone's own latest scan saw, with that scan's time.
+- Devices only the Mac knows are listed and never saved. The Mac's maker and model show where the phone has none, never saved.
+- The phone matches its devices to the Mac's by the `PresenceMatch` rule: a real MAC on both sides decides; two different names are two devices; an unknown name matches only a row seen at that address within grace or by the phone's previous scan; a past device only by MAC.
+- The Mac's answers never join the phone's own scan. Each refreshes the presence (status, last seen) of an **existing** row it matches by that rule when the phone reconciles a scan, and never inserts a row or writes a name, maker or address, so a device only the Mac can reach doesn't go offline on the phone.
 
 Without `inventory.v1`, the iPhone counts an interface as a sighting only when it answered the Mac's latest scan and that scan is newer than the phone's own last scan. It places the Mac's scan on its own clock as `receivedAt - scanAge`, so the two clocks are never compared. It never groups interfaces on the Mac's word: grouping needs its own Bonjour evidence. Both directions are compatible: an older phone ignores the new keys, and a newer phone reads a list without them as one address per device.
 
@@ -715,4 +729,4 @@ UnpairPayload             // The phone forgot this Mac (#590)
 | 1.0 | 2026-01-14 | Initial protocol specification |
 | 1.0 | 2026-11-24 | Optional heartbeat `capabilities`; `insightRequest` / `insightResponse` behind `insight.v1` (#457). Wire version unchanged. |
 | 2 | 2026-11-25 | TLS 1.3 with mutually pinned identities; pairing by QR or typed code with a comparison code; `serverHello`, `pairRequest`, `pairChallenge`, `pairResult`, `unpair`; TXT `pv` and `mac` (#590). |
-| 2 | 2026-11-26 | `inventory.v1`: optional `deviceList.network`, `DeviceInfo.lastSeenAge`, `lastChangedAge` and `identity`; the Mac pushes the list after each scan (#585, #427). Wire version unchanged. |
+| 2 | 2026-11-26 | `inventory.v1`: optional `deviceList.network` (always sent by such a Mac, with its routed gateway), `DeviceInfo.lastSeenAge`, `lastChangedAge` and `identity`; the Mac pushes the list after each scan, capped to one frame (#585, #427). Wire version unchanged. |

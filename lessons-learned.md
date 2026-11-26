@@ -189,3 +189,7 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **Rows inside the dashboard card's `NavigationLink` aren't exposed to XCUITest.** Assert on the link's own value (`dashboard_link_devices`). An element screenshot of a card under the tab bar comes out black: swipe it clear first.
 - **Opening found-device detail inserts a row.** A device the app must show but never save (the Mac's) gets no destination.
 - **Make a fixture's two sources disagree.** With the Mac and the phone both saying Online, a fallback test can't tell a frozen Mac state from the phone's own.
+- **Keep another source's sightings out of the scan list (#585 review).** Merged into the accumulator, the Mac's answers became "Found in this scan" rows that detail saves on open, and `ScanAccumulator.merged` keeps the first entry's fields, so a stale phone ARP entry plus a Mac answer read as a confirmed phone sighting. A separate refresh-only input to the reconciler (`macSightings`) keeps the phone's scan its own.
+- **A profile's `gatewayIP` proves nothing about which network you are on:** both apps set it to the subnet's first host. Compare routed gateways (`NetworkUtilities.detectRoutedGateway()`, nil when the route lookup fails, never a guess).
+- **Read a capability from the payload when you can.** Deciding "inventory Mac" from the heartbeat raced the first list; the list's own `network` field settles it, so the Mac always sends it.
+- **The phone's frame decoder clears its buffer on an oversize frame and then desyncs.** End the link on any rejected frame.
