@@ -8,13 +8,15 @@ import os
 /// on), and Remove this interface. Used by both device detail views.
 struct DeviceInterfacesCard: View {
     let device: DeviceProjection
-    /// Deletes the member; called after the user confirmed when it holds user content.
-    let onRemove: (LocalDevice) -> Void
+    /// Deletes the member; called after the user confirmed when it holds user content or a rule
+    /// or target names it. A thrown error is shown.
+    let onRemove: @MainActor (LocalDevice) async throws -> Void
 
     @Environment(\.presence) private var presence
-    @Environment(\.modelContext) private var modelContext
     @Environment(AlertRuleStore.self) private var ruleStore: AlertRuleStore?
+    @Query private var targets: [NetworkTarget]
     @State private var pendingRemoval: LocalDevice?
+    @State private var removalError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -43,12 +45,35 @@ struct DeviceInterfacesCard: View {
             presenting: pendingRemoval
         ) { member in
             Button("Remove Interface", role: .destructive) {
-                onRemove(member)
+                remove(member)
             }
             .accessibilityIdentifier("deviceDetail_button_confirmRemoveInterface")
             Button("Cancel", role: .cancel) {}
         } message: { member in
-            Text(Self.removalMessage(for: member, references: references(to: member)))
+            Text(DeviceGroups.removalMessage(for: member, references: references(to: member)))
+        }
+        .alert(
+            "Couldn't Remove the Interface",
+            isPresented: Binding(get: { removalError != nil }, set: {
+                if !$0 {
+                    removalError = nil
+                }
+            })
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(removalError ?? "")
+        }
+    }
+
+    private func remove(_ member: LocalDevice) {
+        let address = member.ipAddress
+        Task {
+            do {
+                try await onRemove(member)
+            } catch {
+                removalError = "\(address) wasn't removed: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -89,7 +114,7 @@ struct DeviceInterfacesCard: View {
                 if DeviceGroups.hasUserContent(member) || !references(to: member).isEmpty {
                     pendingRemoval = member
                 } else {
-                    onRemove(member)
+                    remove(member)
                 }
             } label: {
                 Label("Remove this interface", systemImage: "minus.circle")
@@ -110,22 +135,7 @@ struct DeviceInterfacesCard: View {
 
     /// The rules and monitoring targets that name the member's row (v3.1 §1).
     private func references(to member: LocalDevice) -> [String] {
-        InterfaceRemoval.references(to: member.id, rules: ruleStore?.rules ?? [], in: modelContext) { ruleStore?.device(forTarget: $0) }
-    }
-
-    /// The confirmation's text: "This deletes 192.168.77.61 with its custom name and its notes. The
-    /// rule ‘Studio down’ names this interface and won't find it after." The user-content wording is
-    /// Core's (`DeviceGroups.userContent(of:)`), shared with iOS.
-    static func removalMessage(for member: LocalDevice, references: [String]) -> String {
-        let content = DeviceGroups.userContent(of: member)
-        var text = "This deletes \(member.ipAddress)"
-        text += content.isEmpty ? "." : " with " + ListFormatter.localizedString(byJoining: content) + "."
-        if !references.isEmpty {
-            let named = ListFormatter.localizedString(byJoining: references)
-            let verb = references.count == 1 ? "names" : "name"
-            text += " " + named.prefix(1).uppercased() + named.dropFirst() + " \(verb) this interface and won't find it after."
-        }
-        return text
+        ruleStore?.references(to: member.id, targets: targets) ?? []
     }
 }
 
@@ -152,32 +162,29 @@ enum DeviceGroupMembers {
 }
 
 /// Remove this interface (#594), in two steps so no view draws a deleted row: lists holding rows
-/// drop it first (`willRemove`), and the row is deleted through `DeviceGroupWriter` on the next
-/// turn of the main run loop, once they have redrawn.
+/// drop it first (`willRemove`), and the row is deleted through `DeviceGroupWriter` after the main
+/// actor has yielded, once they have redrawn. The writer re-points the row's rules, target links
+/// and Timeline entries to the device's primary.
 enum InterfaceRemoval {
     /// Posted with the row's ID (`object`) before it is deleted.
     static let willRemove = Notification.Name("netmonitor.deviceInterfaceWillBeRemoved")
+    /// Posted with the row's ID when the deletion failed, so lists that dropped it reload.
+    static let didFail = Notification.Name("netmonitor.deviceInterfaceRemovalFailed")
 
-    /// "the rule ‘Studio down’", "the monitoring target ‘Studio’": each rule whose device is the row
-    /// and each target a rule linked to it.
+    /// Removes the row; the task's error is the writer's.
     @MainActor
-    static func references(
-        to rowID: UUID, rules: [AlertRule], in context: ModelContext, linkedDevice: (UUID) -> UUID?
-    ) -> [String] {
-        let ruleNames = rules.filter { $0.conditions.deviceID == rowID }.map { "the rule ‘\($0.name)’" }
-        let targets = (try? context.fetch(FetchDescriptor<NetworkTarget>())) ?? []
-        let targetNames = targets.filter { linkedDevice($0.id) == rowID }.map { "the monitoring target ‘\($0.name)’" }
-        return ruleNames + targetNames
-    }
-
-    @MainActor
-    static func remove(_ rowID: UUID, in context: ModelContext) {
+    @discardableResult
+    static func remove(_ rowID: UUID, in context: ModelContext, ruleStore: AlertRuleStore?) -> Task<Void, any Error> {
         NotificationCenter.default.post(name: willRemove, object: rowID)
-        DispatchQueue.main.async {
+        let references: [any DeviceReferenceStore] = (ruleStore.map { [$0] } ?? []) + [NetworkEventService.shared]
+        return Task { @MainActor in
+            await Task.yield()
             do {
-                try DeviceGroupWriter(context: context).removeInterface(rowID)
+                try DeviceGroupWriter(context: context, references: references).removeInterface(rowID)
             } catch {
                 Logger.data.error("Failed to remove interface: \(error)")
+                NotificationCenter.default.post(name: didFail, object: rowID)
+                throw error
             }
         }
     }

@@ -141,7 +141,7 @@ struct PortForwardsToolView: View {
         // The Mac's own interface, not the last scanned network's (#441).
         let interface = profileManager?.localProfile?.interfaceName ?? "en0"
         // Every interface's address names its device (#594).
-        let names = ChangeDigestBuilder.deviceNames(LocalDeviceQueries.completed(devices, in: modelContext))
+        let names = ChangeDigestBuilder.deviceNames(LocalDeviceQueries.recentDevices(network: nil, in: modelContext).flatMap(\.members))
         state.load(interface: interface, deviceNames: names)
     }
 }

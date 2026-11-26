@@ -58,9 +58,10 @@ enum LocalDeviceQueries {
         (try? DeviceGroups.completingGroups(rows, in: context)) ?? rows
     }
 
-    /// The devices of `rows`: groups completed from `context`, projected (one entry per device),
-    /// then capped at `limit` devices.
-    static func devices(_ rows: [LocalDevice], in context: ModelContext, limit: Int = defaultLimit) -> [DeviceProjection] {
-        Array(DeviceGroups.project(completed(rows, in: context)).prefix(limit))
+    /// The `limit` most recently seen devices on `network` (every network's when nil), each with
+    /// all its interfaces: Core's `DeviceGroups.recentDevices`, which pages by device, not row. The
+    /// capped readers (lists, pickers, counts) read this; their `@Query` only tells them when to.
+    static func recentDevices(network: UUID?, in context: ModelContext, limit: Int = defaultLimit) -> [DeviceProjection] {
+        (try? DeviceGroups.recentDevices(network: network, limit: limit, in: context)) ?? []
     }
 }

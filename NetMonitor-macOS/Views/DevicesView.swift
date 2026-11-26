@@ -179,6 +179,9 @@ struct DevicesView: View {
         .onReceive(NotificationCenter.default.publisher(for: InterfaceRemoval.willRemove)) { note in
             devices.removeAll { $0.id == note.object as? UUID }
         }
+        .onReceive(NotificationCenter.default.publisher(for: InterfaceRemoval.didFail)) { _ in
+            reloadDevices()
+        }
         .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in
             reloadDevices()
         }
@@ -210,8 +213,8 @@ struct DevicesView: View {
     }
 
     private func reloadDevices() {
-        let rows = (try? modelContext.fetch(LocalDeviceQueries.forProfile(activeProfileID))) ?? []
-        devices = LocalDeviceQueries.completed(rows, in: modelContext)
+        // The 500 most recent devices, paged by device, each with all its interfaces (#594).
+        devices = LocalDeviceQueries.recentDevices(network: activeProfileID, in: modelContext).flatMap(\.members)
     }
 
     // MARK: - Device List

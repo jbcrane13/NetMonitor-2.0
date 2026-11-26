@@ -199,7 +199,7 @@ private struct DeviceEntry {
         let row = MacRuleAlerts.row(ip: ip, mac: mac, in: devices)
         // Named by the device the row is an interface of (#594); the event keeps the row's ID,
         // which resolves to the device.
-        let name = row.flatMap { MacRuleAlerts.device(of: $0, in: devices) }?.displayName ?? row?.displayName
+        let name = row.map { MacRuleAlerts.device(of: $0).displayName }
         let label = name ?? device.name.flatMap { $0.isEmpty ? nil : $0 } ?? ip
         title = "\(prefix): \(label)"
         details = label == ip ? nil : ip

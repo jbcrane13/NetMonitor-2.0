@@ -19,6 +19,7 @@ struct DeviceDetailView: View {
     @Environment(DeviceDiscoveryCoordinator.self) private var discoveryCoordinator: DeviceDiscoveryCoordinator?
     @Environment(\.appAccentColor) private var accentColor
     @Environment(\.presence) private var presence
+    @Environment(AlertRuleStore.self) private var ruleStore: AlertRuleStore?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -27,6 +28,8 @@ struct DeviceDetailView: View {
     @State private var editedNotes: String = ""
     /// Drafts of the other members' notes, by row ID, while editing.
     @State private var editedMemberNotes: [UUID: String] = [:]
+    /// Why the last edit couldn't be saved; shown in an alert.
+    @State private var saveError: String?
     @State private var selectedDeviceType: DeviceType = .unknown
     @State private var wolAction = WakeOnLanAction()
 
@@ -105,6 +108,7 @@ struct DeviceDetailView: View {
             await loadBonjourServices()
         }
         .wakeOnLanAlert(wolAction)
+        .saveErrorAlert($saveError)
         .alert("Add to Targets", isPresented: $showAddToTargetsAlert) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -505,15 +509,13 @@ struct DeviceDetailView: View {
     }
 
     private func saveChanges() {
-        device.customName = editedName.isEmpty ? nil : editedName
-        device.notes = editedNotes.isEmpty ? nil : editedNotes
-        device.deviceType = selectedDeviceType
-        DeviceNotesCard.save(editedMemberNotes, to: projection)
+        let edits = DeviceDetailEdits(name: editedName, notes: editedNotes, type: selectedDeviceType, memberNotes: editedMemberNotes)
         editedMemberNotes = [:]
         do {
-            try modelContext.save()
+            try edits.commit(to: device, device: projection, in: modelContext)
         } catch {
             Logger.data.error("Failed to save device changes: \(error)")
+            saveError = error.localizedDescription
         }
     }
 
@@ -585,11 +587,12 @@ struct DeviceDetailView: View {
 
     /// Remove this interface: deletes the member's row through `DeviceGroupWriter`. The group
     /// keeps its ID; a removed primary passes to the next member.
-    private func removeInterface(_ member: LocalDevice) {
+    private func removeInterface(_ member: LocalDevice) async throws {
         let remaining = projection.members.first { $0.id != member.id }?.id
         discoveryCoordinator?.cancelSuggestions()
-        InterfaceRemoval.remove(member.id, in: modelContext)
+        let removal = InterfaceRemoval.remove(member.id, in: modelContext, ruleStore: ruleStore)
         onInterfaceRemoved(remaining)
+        try await removal.value
     }
 
     // MARK: - Sheet Views
