@@ -68,9 +68,7 @@ public enum NetworkUtilities {
         /// Generates host addresses within the network.
         /// For very large subnets, returns a bounded window centered on the interface IP.
         public func hostAddresses(limit: Int, excludingInterface: Bool = true) -> [String] {
-            guard limit > 0 else { return [] }
-            guard networkAddress < broadcastAddress else { return [] }
-            guard broadcastAddress - networkAddress > 1 else { return [] }
+            guard limit > 0, networkAddress < broadcastAddress, broadcastAddress - networkAddress > 1 else { return [] }
 
             let firstHost = networkAddress &+ 1
             let lastHost = broadcastAddress &- 1
@@ -85,7 +83,9 @@ public enum NetworkUtilities {
                 let halfWindow = UInt32(targetCount / 2)
                 rangeStart = localHost > firstHost &+ halfWindow ? localHost &- halfWindow : firstHost
                 let maxStart = lastHost &- UInt32(targetCount - 1)
-                if rangeStart > maxStart { rangeStart = maxStart }
+                if rangeStart > maxStart {
+                    rangeStart = maxStart
+                }
                 rangeEnd = rangeStart &+ UInt32(targetCount - 1)
             }
 
@@ -99,7 +99,9 @@ public enum NetworkUtilities {
                     if !(excludingInterface && current == interfaceAddress) {
                         addresses.append(NetworkUtilities.uint32ToIPv4(current))
                     }
-                    if current == UInt32.max { break }
+                    if current == UInt32.max {
+                        break
+                    }
                     current &+= 1
                 }
             }
@@ -128,8 +130,7 @@ public enum NetworkUtilities {
 
         for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
             let iface = ptr.pointee
-            guard iface.ifa_addr.pointee.sa_family == UInt8(AF_INET) else { continue }
-            guard String(cString: iface.ifa_name) == interface else { continue }
+            guard iface.ifa_addr.pointee.sa_family == UInt8(AF_INET), String(cString: iface.ifa_name) == interface else { continue }
 
             var addr = iface.ifa_addr.pointee
             var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
@@ -152,9 +153,7 @@ public enum NetworkUtilities {
 
         for ptr in sequence(first: firstAddr, next: { $0.pointee.ifa_next }) {
             let iface = ptr.pointee
-            guard iface.ifa_addr.pointee.sa_family == UInt8(AF_INET) else { continue }
-            guard String(cString: iface.ifa_name) == interface else { continue }
-            guard let addrPtr = iface.ifa_addr, let netmaskPtr = iface.ifa_netmask else { continue }
+            guard iface.ifa_addr.pointee.sa_family == UInt8(AF_INET), String(cString: iface.ifa_name) == interface, let addrPtr = iface.ifa_addr, let netmaskPtr = iface.ifa_netmask else { continue }
 
             let address = UnsafeRawPointer(addrPtr).assumingMemoryBound(to: sockaddr_in.self).pointee
             let mask = UnsafeRawPointer(netmaskPtr).assumingMemoryBound(to: sockaddr_in.self).pointee
@@ -185,7 +184,9 @@ public enum NetworkUtilities {
     /// Detects the default gateway IP by reading the BSD routing table via sysctl.
     /// Falls back to a subnet heuristic if the routing table query fails.
     public static func detectDefaultGateway(interface: String = "en0") -> String? {
-        if let gw = detectDefaultGatewayViaSysctl() { return gw }
+        if let gw = detectDefaultGatewayViaSysctl() {
+            return gw
+        }
         // Fallback: derive from subnet (works for most /24 home networks)
         if let network = detectLocalIPv4Network(interface: interface),
            network.broadcastAddress > network.networkAddress {
@@ -193,6 +194,12 @@ public enum NetworkUtilities {
         }
         guard let subnet = detectSubnet(interface: interface) else { return nil }
         return "\(subnet).1"
+    }
+
+    /// The IPv4 default gateway from the routing table only; nil when the lookup fails, never a
+    /// guess from the subnet. For checks that must fail closed (#585: is the Mac on this network).
+    public static func detectRoutedGateway() -> String? {
+        detectDefaultGatewayViaSysctl()
     }
 
     /// Reads the BSD routing table via sysctl and returns the IPv4 default gateway.
@@ -222,7 +229,9 @@ public enum NetworkUtilities {
                 guard let baseAddress = ptr.baseAddress else { return nil }
                 return defaultGateway(fromRouteMessage: UnsafeRawPointer(baseAddress + offset), messageLength: msgLen, headerSize: hdrSize)
             }
-            if let ip = result { return ip }
+            if let ip = result {
+                return ip
+            }
         }
         return nil
     }

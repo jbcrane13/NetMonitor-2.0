@@ -30,15 +30,61 @@ struct CompanionSightingsTests {
         #expect(result.devices.map(\.ipAddress) == ["192.168.7.60"])
     }
 
-    /// #585: a Mac that sends its inventory is shown as the Mac's, never saved, so the phone's own
-    /// scans don't add its devices as sightings: a phone row's last seen stays the phone's own.
-    @Test func aMacThatSendsItsInventoryAddsNoSightings() {
+    /// #585 review 10: a list that carries `network` is an inventory Mac's, whatever the heartbeat
+    /// said yet. It never joins the phone's own scan (that would save its devices); its answers
+    /// refresh existing rows separately (`inventorySightings`).
+    @Test func anInventoryListNeverJoinsThePhonesScanEvenBeforeTheHeartbeat() {
+        let inventory = DeviceListPayload(
+            devices: list.devices, network: InventoryNetwork(subnet: "192.168.7.0/24", gatewayIP: "192.168.7.1", name: nil, scanAge: 10)
+        )
         let result = DeviceDiscoveryService.companionSightings(
-            list: list, receivedAt: now.addingTimeInterval(-30), macConnected: true, now: now,
-            includes: { $0.hasPrefix("192.168.7.") }, profileID: nil, macOffersInventory: true
+            list: inventory, receivedAt: now.addingTimeInterval(-30), macConnected: true, now: now,
+            includes: { $0.hasPrefix("192.168.7.") }, profileID: nil
         )
         #expect(result.devices.isEmpty)
         #expect(!result.fresh)
+    }
+
+    static let profile = NetworkProfile(
+        interfaceName: "en0", ipAddress: "192.168.7.100",
+        network: NetworkUtilities.IPv4Network(networkAddress: 0xC0A80700, broadcastAddress: 0xC0A807FF, interfaceAddress: 0xC0A80764, netmask: 0xFFFFFF00),
+        connectionType: .wifi
+    )
+
+    func inventory(scanAge: TimeInterval = 10, answered: Bool = true) -> DeviceListPayload {
+        let member = MemberInfo(
+            id: UUID(), ipAddress: "192.168.7.60", macAddress: "AA:BB:CC:00:00:60", lastSeen: now, answeredLatestScan: answered,
+            scanTime: now, scanAge: scanAge, isPrimary: true
+        )
+        return DeviceListPayload(
+            devices: [DeviceInfo(ipAddress: "192.168.7.60", macAddress: "AA:BB:CC:00:00:60", hostname: "tv", isOnline: answered, members: [member])],
+            network: InventoryNetwork(subnet: "192.168.7.0/24", gatewayIP: "192.168.7.1", name: nil, scanAge: scanAge)
+        )
+    }
+
+    func inventorySightings(_ list: DeviceListPayload, link: CompanionLinkPath? = CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .wifi),
+                            gateway: String? = "192.168.7.1", ownLastScan: Date? = nil) -> [String] {
+        let availability = MacInventory.availability(
+            list: list, receivedAt: now, connected: true, link: link,
+            phone: PhoneNetwork(profile: Self.profile, gatewayIP: gateway), viewing: Self.profile.id, now: now
+        )
+        return DeviceDiscoveryService.inventorySightings(
+            list: list, availability: availability, receivedAt: now, profileID: Self.profile.id, ownLastScan: ownLastScan
+        ).map(\.ipAddress)
+    }
+
+    @Test func aLiveInventoryGivesItsAnswersAsSightings() {
+        #expect(inventorySightings(inventory()) == ["192.168.7.60"])
+        // Missed the Mac's latest scan: no answer to give.
+        #expect(inventorySightings(inventory(answered: false)).isEmpty)
+        // The Mac's scan is older than the phone's own: no newer answer (#619).
+        #expect(inventorySightings(inventory(scanAge: 60), ownLastScan: now.addingTimeInterval(-30)).isEmpty)
+    }
+
+    @Test func anInventoryThatIsntLiveGivesNothing() {
+        #expect(inventorySightings(inventory(), link: CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .other)).isEmpty)
+        #expect(inventorySightings(inventory(), gateway: "192.168.7.254").isEmpty)
+        #expect(inventorySightings(inventory(scanAge: -1)).isEmpty)
     }
 
     @Test func aListFromADisconnectedMacIsStale() {

@@ -17,6 +17,10 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     public private(set) var lastScanDate: Date?
     /// The last scan that ran to the end, as published with `lastScanDate` (#589).
     public private(set) var completedScanDevices: [DiscoveredDevice] = []
+    /// The Mac's answers for the last completed scan, kept apart from its devices (#585).
+    public private(set) var completedScanMacSightings: [DiscoveredDevice] = []
+    /// The Mac's answers gathered by the running scan, published with it.
+    private var pendingMacSightings: [DiscoveredDevice] = []
 
     // MARK: - Private scan filter / target types
 
@@ -244,7 +248,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             try? await Task.sleep(for: .seconds(1))
         }
         guard !Task.isCancelled else { return }
-        await mergeCompanionDevices(filter: scanTarget.filter, profileID: profileID, macConnected: macStillConnected)
+        await mergeCompanionDevices(filter: scanTarget.filter, profile: profile, macConnected: macStillConnected)
         await identifyDevices(context: context, nameResolver: nameResolver)
         await flushToMainActor(progress: 0.95, profileID: profileID)
 
@@ -265,6 +269,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanProgress = 1.0
         scanPhase = .done
         completedScanDevices = result
+        completedScanMacSightings = pendingMacSightings
         lastScanDate = Date()
     }
 
@@ -380,8 +385,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     /// latest scan, when that scan is newer than `ownLastScan` (this phone's own last scan of the
     /// network); a newly received list is not proof of a new scan. The Mac's scan is placed on this
     /// phone's clock as `receivedAt - scanAge`, never by comparing the two devices' clocks (#619).
-    /// A Mac that sends its inventory (`macOffersInventory`, #585) adds nothing: the phone shows its
-    /// list as the Mac's and never saves devices from it.
+    /// A list that carries `network` is an `inventory.v1` Mac's (#585) and adds nothing to the scan,
+    /// whatever its heartbeat said yet: its answers refresh existing rows apart (`inventorySightings`).
     nonisolated public static func companionSightings(
         list: DeviceListPayload?,
         receivedAt: Date?,
@@ -389,10 +394,9 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         now: Date,
         includes: (String) -> Bool,
         profileID: UUID?,
-        ownLastScan: Date? = nil,
-        macOffersInventory: Bool = false
+        ownLastScan: Date? = nil
     ) -> (devices: [DiscoveredDevice], fresh: Bool) {
-        guard let list, !macOffersInventory else { return ([], false) }
+        guard let list, list.network == nil else { return ([], false) }
         let fresh = macConnected && receivedAt.map { now.timeIntervalSince($0) < companionListFreshness } == true
         func sighting(ipAddress: String, macAddress: String?, of device: DeviceInfo, named: Bool = true) -> DiscoveredDevice {
             DiscoveredDevice(
@@ -433,18 +437,49 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         return (devices, fresh)
     }
 
-    /// Merge devices discovered by the paired Mac into accumulated results, only when its list is
-    /// fresh (`companionSightings`).
-    private func mergeCompanionDevices(filter: ScanFilter, profileID: UUID?, macConnected: Bool) async {
+    /// The paired Mac's devices for this scan: an older Mac's list merged into the scan when fresh
+    /// (`companionSightings`); an inventory Mac's answers kept apart for the reconciler, only while
+    /// its inventory is live for the scanned network (#585).
+    private func mergeCompanionDevices(filter: ScanFilter, profile: NetworkProfile?, macConnected: Bool) async {
+        let list = macConnectionService?.lastDeviceList, receivedAt = macConnectionService?.lastDeviceListReceivedAt
+        let ownLastScan = ScanHistory().lastScanTime(for: profile?.id)
+        pendingMacSightings = []
+        if let list, list.network != nil, let receivedAt, let profile {
+            let availability = MacInventory.availability(
+                list: list, receivedAt: receivedAt, connected: macConnected, link: macConnectionService?.linkPath,
+                phone: PhoneNetwork(profile: profile, gatewayIP: NetworkUtilities.detectRoutedGateway()), viewing: profile.id, now: Date()
+            )
+            pendingMacSightings = Self.inventorySightings(
+                list: list, availability: availability, receivedAt: receivedAt, profileID: profile.id, ownLastScan: ownLastScan
+            )
+            return
+        }
         await Self.mergeCompanion(
             Self.companionSightings(
-                list: macConnectionService?.lastDeviceList, receivedAt: macConnectionService?.lastDeviceListReceivedAt,
-                macConnected: macConnected, now: Date(), includes: { filter.contains(ipAddress: $0) }, profileID: profileID,
-                ownLastScan: ScanHistory().lastScanTime(for: profileID),
-                macOffersInventory: macConnectionService?.macOffersInventory ?? false
+                list: list, receivedAt: receivedAt, macConnected: macConnected, now: Date(), includes: { filter.contains(ipAddress: $0) },
+                profileID: profile?.id, ownLastScan: ownLastScan
             ),
             into: engine.accumulator
         )
+    }
+
+    /// An inventory Mac's answers as sightings (#585): each interface that answered the Mac's latest
+    /// scan, when that scan is newer than the phone's own, only while the inventory is live. They
+    /// refresh existing rows (`ScanReconciler.reconcile(_:macSightings:…)`) and never join the scan.
+    nonisolated public static func inventorySightings(
+        list: DeviceListPayload, availability: MacInventory.Availability, receivedAt: Date, profileID: UUID?, ownLastScan: Date?
+    ) -> [DiscoveredDevice] {
+        guard case .live(let inventory) = availability, ownLastScan.map({ inventory.scanTime > $0 }) ?? true else { return [] }
+        return list.devices.flatMap { device in
+            (device.members ?? []).filter(\.answeredLatestScan).map { member in
+                let isPrimary = member.isPrimary ?? (device.members?.count == 1)
+                return DiscoveredDevice(
+                    ipAddress: member.ipAddress, hostname: isPrimary ? device.hostname : nil, vendor: nil,
+                    macAddress: (member.macAddress ?? "").isEmpty ? nil : member.macAddress, latency: nil, discoveredAt: receivedAt,
+                    source: .macCompanion, networkProfileID: profileID
+                )
+            }
+        }
     }
 
     /// Adds the Mac's devices to a scan as answers when its list is fresh. A stale list adds nothing:
