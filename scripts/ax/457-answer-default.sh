@@ -17,13 +17,23 @@ swiftc -O "${0:A:h}/axdrive.swift" -o "$AX" 2>/dev/null
 # exit path (success, failure, signal).
 DOMAIN=com.netmonitor.NetMonitor
 KEY=netmonitor.companion.answersInsight
+BACKUP=$OUT/457-saved-setting
+# A previous run killed hard (SIGKILL) can't restore; its backup file lets this run do it first.
+if [[ -f $BACKUP ]]; then
+    defaults write $DOMAIN $KEY -bool "$([[ $(<"$BACKUP") == 1 ]] && echo YES || echo NO)"
+    rm -f "$BACKUP"
+fi
 SAVED=$(defaults read $DOMAIN $KEY 2>/dev/null || true)
+[[ -n $SAVED ]] && print -r -- "$SAVED" > "$BACKUP"
 restore() {
+    trap - EXIT INT TERM HUP
     [[ -n ${PID:-} ]] && kill $PID 2>/dev/null || true
     [[ -n $SAVED ]] && defaults write $DOMAIN $KEY -bool "$([[ $SAVED == 1 ]] && echo YES || echo NO)"
+    rm -f "$BACKUP"
     return 0
 }
 trap restore EXIT
+trap 'restore; exit 130' INT TERM HUP
 if [[ -n $SAVED ]]; then echo "saved value $SAVED, restoring on exit"; fi
 defaults delete $DOMAIN $KEY 2>/dev/null || true
 "$APP/Contents/MacOS/NetMonitor-macOS" --uitesting --in-memory-store --reset-history-files > "$OUT/app-457.log" 2>&1 &
