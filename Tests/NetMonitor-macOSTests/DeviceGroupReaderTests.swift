@@ -35,10 +35,11 @@ struct DeviceGroupReaderTests {
     }
 
     /// The group, saved and grouped through the writer: the primary offline since two hours ago,
-    /// the member online now.
-    func makeGroup(network: UUID? = nil, container: ModelContainer? = nil, now: Date = Date()) throws -> Fixture {
-        let container = try container ?? makeContainer()
-        let context = container.mainContext
+    /// the member online now. The writer works in its own context, so the fixture reads the rows
+    /// back in a fresh one.
+    func makeGroup(network: UUID? = nil, now: Date = Date()) throws -> Fixture {
+        let container = try makeContainer()
+        let setup = ModelContext(container)
         let primary = LocalDevice(
             ipAddress: Self.primaryIP, macAddress: Self.primaryMAC, hostname: "studio",
             deviceType: .computer, status: .offline, networkProfileID: network
@@ -53,11 +54,16 @@ struct DeviceGroupReaderTests {
         )
         member.notes = "Wi-Fi when undocked"
         member.lastSeen = now
-        context.insert(primary)
-        context.insert(member)
-        try context.save()
-        try DeviceGroupWriter(context: context).group([primary.id, member.id], primary: primary.id, source: .user)
-        return Fixture(container: container, context: context, primary: primary, member: member)
+        setup.insert(primary)
+        setup.insert(member)
+        try setup.save()
+        try DeviceGroupWriter(container: container).group([primary.id, member.id], primary: primary.id, source: .user)
+        let context = ModelContext(container)
+        return try Fixture(container: container, context: context, primary: row(primary.id, in: context), member: row(member.id, in: context))
+    }
+
+    func row(_ id: UUID, in context: ModelContext) throws -> LocalDevice {
+        try #require(context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })).first)
     }
 
     /// The network (none) was just scanned, so saved statuses are current.
@@ -113,8 +119,12 @@ struct DeviceGroupReaderTests {
         )
         let answer = LocalDiscoveredDevice(ipAddress: Self.memberIP, macAddress: Self.memberMAC, hostname: "studio-wifi")
         coordinator.reconcileScan([answer], profileID: nil)
-        try DeviceGroupWriter(context: fixture.context).removeInterface(fixture.member.id)
+        try DeviceGroupWriter(container: fixture.container).removeInterface(fixture.member.id)
 
+        // The coordinator's rows may still hold the removed interface until its next load; reading
+        // them never touches a deleted row, and the next scan has one device.
+        _ = coordinator.projectedDevices.map(\.displayName)
+        coordinator.reconcileScan([LocalDiscoveredDevice(ipAddress: Self.primaryIP, macAddress: Self.primaryMAC, hostname: "studio")], profileID: nil)
         let devices = coordinator.projectedDevices
         #expect(devices.count == 1)
         #expect(devices.first?.ipAddress == Self.primaryIP)
@@ -134,7 +144,7 @@ struct DeviceGroupReaderTests {
     @Test func sidebarCountsTheGroupOnce() throws {
         let network = UUID()
         let fixture = try makeGroup(network: network)
-        #expect(SidebarView.deviceCounts(LocalDeviceQueries.devices(fixture.rows, in: fixture.context)) == [network: 1])
+        #expect(SidebarView.deviceCounts(LocalDeviceQueries.recentDevices(network: nil, in: fixture.context)) == [network: 1])
     }
 
     @Test func quickJumpFindsTheDeviceByItsOtherInterface() throws {
@@ -163,7 +173,7 @@ struct DeviceGroupReaderTests {
         #expect(rows.count == 500)
         #expect(!rows.contains { $0.id == fixture.primary.id })
 
-        let devices = LocalDeviceQueries.devices(rows, in: fixture.context)
+        let devices = LocalDeviceQueries.recentDevices(network: network, in: fixture.context)
         #expect(devices.count == 500)
         let group = try #require(devices.first { $0.isGroup })
         #expect(group.primary.id == fixture.primary.id)
@@ -171,10 +181,9 @@ struct DeviceGroupReaderTests {
         #expect(group.ipAddress == Self.memberIP)
         #expect(devices.filter { $0.contains(fixture.primary.id) }.count == 1)
 
-        // A search for the primary's address (the row outside the fetch) finds the device.
-        let completed = LocalDeviceQueries.completed(rows, in: fixture.context)
+        // A search for the primary's address (the row outside the first 500) finds the device.
         let searched = DeviceList.devices(
-            completed, filter: DeviceListFilter(search: Self.primaryIP), presence: justScanned, sort: .lastSeen, ascending: false
+            devices.flatMap(\.members), filter: DeviceListFilter(search: Self.primaryIP), presence: justScanned, sort: .lastSeen, ascending: false
         )
         #expect(searched.map(\.displayName) == [Self.name])
         #expect(QuickJumpSheet.results(devices, search: Self.primaryIP).map(\.displayName) == [Self.name])
@@ -182,8 +191,7 @@ struct DeviceGroupReaderTests {
 
     @Test func wakeOnLanToolPicksOneEntryAndSendsToEveryInterface() throws {
         let fixture = try makeGroup()
-        let rows = try fixture.context.fetch(LocalDeviceQueries.withMACAddress())
-        let devices = LocalDeviceQueries.devices(rows, in: fixture.context)
+        let devices = LocalDeviceQueries.recentDevices(network: nil, in: fixture.context)
         #expect(devices.count == 1)
         let device = try #require(devices.first)
         #expect(device.realMACs == [Self.memberMAC, Self.primaryMAC])
@@ -351,36 +359,27 @@ struct DeviceGroupReaderTests {
         #expect(fixture.member.notes == "Wi-Fi in the studio")
         #expect(fixture.primary.notes == "Ethernet behind the desk")
 
-        #expect(DeviceInterfacesCard.removalMessage(for: fixture.member, references: []) == "This deletes \(Self.memberIP) with its notes.")
-        #expect(
-            DeviceInterfacesCard.removalMessage(for: fixture.primary, references: [])
-                == "This deletes \(Self.primaryIP) with its custom name and its notes."
-        )
+        #expect(DeviceGroups.removalMessage(for: fixture.member) == "This deletes \(Self.memberIP) from this device, with its notes.")
     }
 
-    @Test func removingAnInterfaceARuleOrTargetNamesSaysSo() throws {
+    @Test func theRuleStoreNamesTheRulesAndTargetsOnARow() throws {
         let fixture = try makeGroup()
-        let bare = LocalDevice(ipAddress: "192.168.77.62", macAddress: "02:00:00:77:00:62", networkProfileID: nil)
-        fixture.context.insert(bare)
-        let target = NetworkTarget(name: "Studio ping", host: "192.168.77.62", targetProtocol: .icmp)
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        let target = NetworkTarget(name: "Studio ping", host: Self.memberIP, targetProtocol: .icmp)
         let other = NetworkTarget(name: "Router", host: "192.168.77.1", targetProtocol: .icmp)
-        fixture.context.insert(target)
-        fixture.context.insert(other)
-        try fixture.context.save()
-        let rules = [
-            AlertRule(name: "Studio down", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: bare.id)),
-            AlertRule(name: "Printer down", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: UUID()))
-        ]
-        let links = [target.id: bare.id]
+        store.add(AlertRule(name: "Studio down", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: fixture.member.id)))
+        store.add(AlertRule(name: "Printer down", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: UUID())))
+        store.link(target: target.id, to: fixture.member.id)
+        store.link(target: other.id, to: UUID())
 
-        let references = InterfaceRemoval.references(to: bare.id, rules: rules, in: fixture.context) { links[$0] }
+        let references = store.references(to: fixture.member.id, targets: [target, other])
         #expect(references == ["the rule ‘Studio down’", "the monitoring target ‘Studio ping’"])
-        #expect(
-            DeviceInterfacesCard.removalMessage(for: bare, references: references)
-                == "This deletes 192.168.77.62. The rule ‘Studio down’ and the monitoring target ‘Studio ping’ name this interface"
-                + " and won't find it after."
-        )
-        #expect(InterfaceRemoval.references(to: fixture.member.id, rules: rules, in: fixture.context) { links[$0] }.isEmpty)
+        #expect(store.references(to: fixture.primary.id, targets: [target, other]).isEmpty)
+        #expect(DeviceGroups.removalMessage(for: fixture.member, references: references).hasPrefix(
+            "This deletes \(Self.memberIP) from this device, with its notes. The rule ‘Studio down’ and the monitoring target ‘Studio ping’"
+        ))
     }
 
     @Test func theDetailShowsTheSerialOnlyWhenSet() throws {
@@ -394,9 +393,10 @@ struct DeviceGroupReaderTests {
 
     @Test func removingTheOtherInterfaceLeavesOneDevice() throws {
         let fixture = try makeGroup()
-        try DeviceGroupWriter(context: fixture.context).removeInterface(fixture.member.id)
-        let rows = try fixture.context.fetch(FetchDescriptor<LocalDevice>())
-        let device = DeviceGroupMembers.projection(of: fixture.primary, rows: rows)
+        try DeviceGroupWriter(container: fixture.container).removeInterface(fixture.member.id)
+        let fresh = ModelContext(fixture.container)
+        let rows = try fresh.fetch(FetchDescriptor<LocalDevice>())
+        let device = try DeviceGroupMembers.projection(of: row(fixture.primary.id, in: fresh), rows: rows)
         #expect(!device.isGroup)
         #expect(DeviceGroups.project(rows).count == 1)
         #expect(device.displayName == Self.name)
@@ -404,9 +404,133 @@ struct DeviceGroupReaderTests {
 
     // MARK: - Helpers
 
-    private func makeDefaults() throws -> (UserDefaults, String) {
+    func makeDefaults() throws -> (UserDefaults, String) {
         let suite = "DeviceGroupReaderTests.\(UUID().uuidString)"
         return try (#require(UserDefaults(suiteName: suite)), suite)
+    }
+}
+
+// MARK: - Round 2 (#615)
+
+extension DeviceGroupReaderTests {
+    /// Deleting the primary while a rule, a target link, a Timeline entry and an open detail name it:
+    /// the writer moves them to the device's remaining interface (AX run 2 covers the open detail).
+    @Test func removingThePrimaryKeepsItsRuleTargetAndTimelineEntryOnTheDevice() throws {
+        let fixture = try makeGroup()
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        store.add(AlertRule(name: "Studio back", trigger: .cameOnline, conditions: AlertRuleConditions(deviceID: fixture.primary.id)))
+        let target = NetworkTarget(name: "Studio", host: Self.primaryIP, targetProtocol: .icmp)
+        fixture.context.insert(target)
+        try fixture.context.save()
+        store.link(target: target.id, to: fixture.primary.id)
+        let events = NetworkEventService()
+        events.log(NetworkEvent(
+            type: .deviceJoined, timestamp: Date(), title: "Device Joined: \(Self.name)", details: Self.primaryIP,
+            severity: .success, deviceID: fixture.primary.id
+        ))
+
+        try DeviceGroupWriter(container: fixture.container, references: [store, events]).removeInterface(fixture.primary.id)
+
+        let fresh = ModelContext(fixture.container)
+        let rows = try fresh.fetch(FetchDescriptor<LocalDevice>())
+        #expect(rows.map(\.id) == [fixture.member.id])
+        // The rule now names the remaining interface and fires for it.
+        #expect(store.rules.first?.conditions.deviceID == fixture.member.id)
+        let poster = GroupPoster()
+        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
+        alerts.handle(
+            deviceChanges: [.cameOnline(DeviceObservation(ipAddress: Self.memberIP, macAddress: Self.memberMAC, name: "studio-wifi"))],
+            devices: rows, networkID: nil
+        )
+        #expect(poster.requests.map(\.content.title) == ["Studio back"])
+        // The target link survives pruning.
+        store.pruneLinks(in: fresh)
+        #expect(store.device(forTarget: target.id) == fixture.member.id)
+        // The Timeline entry resolves to the device.
+        let entry = try #require(events.events(ofType: .deviceJoined).first)
+        #expect(entry.deviceID.flatMap { DeviceGroupResolver(rows: rows).device(for: $0) }?.primary.id == fixture.member.id)
+    }
+
+    /// 250 two-interface devices among the newest 500 rows: the capped readers still get 500 devices.
+    @Test func cappedReadersPageByDeviceNotRow() throws {
+        let container = try makeContainer()
+        let setup = ModelContext(container)
+        let network = UUID()
+        let now = Date()
+        var pairs: [[UUID]] = []
+        for index in 0 ..< 250 {
+            let rows = (0 ..< 2).map { side in
+                let row = LocalDevice(ipAddress: "10.2.\(index / 100).\(index % 100 * 2 + side)", macAddress: "", networkProfileID: network)
+                row.lastSeen = now.addingTimeInterval(-Double(index))
+                return row
+            }
+            rows.forEach(setup.insert)
+            pairs.append(rows.map(\.id))
+        }
+        for index in 0 ..< 300 {
+            let row = LocalDevice(ipAddress: "10.3.\(index / 200).\(index % 200)", macAddress: "", networkProfileID: network)
+            row.lastSeen = now.addingTimeInterval(-1000 - Double(index))
+            setup.insert(row)
+        }
+        try setup.save()
+        let writer = DeviceGroupWriter(container: container)
+        for pair in pairs {
+            try writer.group(pair, primary: pair[0], source: .user)
+        }
+
+        let context = ModelContext(container)
+        let devices = LocalDeviceQueries.recentDevices(network: network, in: context)
+        #expect(devices.count == 500)
+        #expect(devices.count(where: \.isGroup) == 250)
+        #expect(SidebarView.deviceCounts(LocalDeviceQueries.recentDevices(network: nil, in: context)) == [network: 500])
+    }
+
+    /// A Mac target for a rule is an ICMP check of the current interface: Ethernet's open port 22
+    /// never becomes a Wi-Fi:22 target.
+    @Test func aRulesTargetNeverBorrowsAnotherInterfacesPort() async throws {
+        let fixture = try makeGroup()
+        fixture.primary.deviceType = .storage
+        fixture.primary.customName = "Basement NAS"
+        fixture.primary.openPorts = [22]
+        let device = DeviceGroups.project(fixture.rows)[0]
+        #expect(device.current.id == fixture.member.id)
+        #expect(RuleDevice(device).openPorts.isEmpty, "Only the Wi-Fi interface's ports, and it has none")
+
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = PlainRuleMacViewModel(parser: FixedRuleIntentParser.uiTest, timing: RuleTiming(targetCheckInterval: 30))
+        model.text = "Tell me if the NAS is down for more than five minutes"
+        await model.submit(devices: fixture.rows, targets: [], isScanning: false)
+        model.confirm(store: AlertRuleStore(defaults: defaults), context: fixture.context, session: nil)
+
+        let targets = try fixture.context.fetch(FetchDescriptor<NetworkTarget>())
+        #expect(targets.map(\.host) == [Self.memberIP])
+        #expect(targets.first?.port == nil)
+        #expect(targets.first?.targetProtocol == .icmp)
+    }
+
+    /// A detail edit whose save fails is rolled back and the error reaches the caller.
+    @Test func aFailedDetailSaveRollsBackAndThrows() throws {
+        let fixture = try makeGroup()
+        let device = DeviceGroups.project(fixture.rows)[0]
+        let edits = DeviceDetailEdits(
+            name: "Renamed", notes: "", type: .storage, memberNotes: [fixture.member.id: "Changed"]
+        )
+        struct SaveFailed: Error {}
+
+        #expect(throws: SaveFailed.self) {
+            try edits.commit(to: fixture.primary, device: device, in: fixture.context) { _ in throw SaveFailed() }
+        }
+        #expect(fixture.primary.customName == Self.name)
+        #expect(fixture.primary.notes == "Ethernet behind the desk")
+        #expect(fixture.member.notes == "Wi-Fi when undocked")
+
+        try edits.commit(to: fixture.primary, device: device, in: fixture.context)
+        let fresh = ModelContext(fixture.container)
+        #expect(try row(fixture.primary.id, in: fresh).customName == "Renamed")
+        #expect(try row(fixture.member.id, in: fresh).notes == "Changed")
     }
 }
 

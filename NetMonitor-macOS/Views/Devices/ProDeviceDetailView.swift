@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import SwiftData
 import NetMonitorCore
+import os
 
 /// The Pro device detail (#594): `device` is the device's primary row; the view finds the other
 /// interfaces itself (see `DeviceDetailView`).
@@ -12,12 +13,15 @@ struct ProDeviceDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.presence) private var presence
+    @Environment(AlertRuleStore.self) private var ruleStore: AlertRuleStore?
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
 
     @State private var isEditing = false
     @State private var editedName: String = ""
     @State private var editedNotes: String = ""
     @State private var editedMemberNotes: [UUID: String] = [:]
+    /// Why the last edit couldn't be saved; shown in an alert.
+    @State private var saveError: String?
     /// The shown row, removed as an interface: deleted once the sheet has closed, so the sheet
     /// never draws a deleted row.
     @State private var removalOnClose: UUID?
@@ -73,6 +77,7 @@ struct ProDeviceDetailView: View {
         .macThemedBackground()
         .task { await loadData() }
         .wakeOnLanAlert(wolAction)
+        .saveErrorAlert($saveError)
         .sheet(isPresented: $showPingSheet) {
             DevicePingSheet(device: projection.current, name: device.displayName, isPresented: $showPingSheet)
         }
@@ -81,7 +86,8 @@ struct ProDeviceDetailView: View {
         }
         .onDisappear {
             if let removalOnClose {
-                InterfaceRemoval.remove(removalOnClose, in: modelContext)
+                // The sheet is gone; a failure is logged and the list reloads (`didFail`).
+                InterfaceRemoval.remove(removalOnClose, in: modelContext, ruleStore: ruleStore)
             }
         }
         .accessibilityElement(children: .contain)
@@ -531,23 +537,25 @@ private extension ProDeviceDetailView {
     }
 
     func saveChanges() {
-        device.customName = editedName.isEmpty ? nil : editedName
-        device.notes = editedNotes.isEmpty ? nil : editedNotes
-        device.deviceType = selectedDeviceType
-        DeviceNotesCard.save(editedMemberNotes, to: projection)
+        let edits = DeviceDetailEdits(name: editedName, notes: editedNotes, type: selectedDeviceType, memberNotes: editedMemberNotes)
         editedMemberNotes = [:]
-        try? modelContext.save()
+        do {
+            try edits.commit(to: device, device: projection, in: modelContext)
+        } catch {
+            Logger.data.error("Failed to save device changes: \(error)")
+            saveError = error.localizedDescription
+        }
     }
 
     /// Remove this interface (#594). Removing the row the sheet shows closes the sheet first, and
     /// the row goes once it has closed.
-    func removeInterface(_ member: LocalDevice) {
+    func removeInterface(_ member: LocalDevice) async throws {
         coordinator?.cancelSuggestions()
         if member === device {
             removalOnClose = member.id
             dismiss()
         } else {
-            InterfaceRemoval.remove(member.id, in: modelContext)
+            try await InterfaceRemoval.remove(member.id, in: modelContext, ruleStore: ruleStore).value
         }
     }
 

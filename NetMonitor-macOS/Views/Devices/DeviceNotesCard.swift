@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import NetMonitorCore
 
 /// Device detail's Notes (#594): the row's notes, editable as before, then every other
@@ -104,6 +105,45 @@ struct DeviceNotesCard: View {
             if let draft = drafts[member.id] {
                 member.notes = draft.isEmpty ? nil : draft
             }
+        }
+    }
+}
+
+/// A device detail's edits (#594): the name, notes and type on the row the detail shows (the
+/// primary), and the other interfaces' notes on their own rows.
+struct DeviceDetailEdits {
+    var name: String
+    var notes: String
+    var type: DeviceType
+    var memberNotes: [UUID: String]
+
+    /// Applies the edits and saves once with `save`; on failure `context` is rolled back (the edits
+    /// are undone) and the error rethrown for the detail to show.
+    @MainActor
+    func commit(
+        to row: LocalDevice, device: DeviceProjection, in context: ModelContext,
+        save: (ModelContext) throws -> Void = { try $0.save() }
+    ) throws {
+        try context.commitOrRollback(save: save) {
+            row.customName = name.isEmpty ? nil : name
+            row.notes = notes.isEmpty ? nil : notes
+            row.deviceType = type
+            DeviceNotesCard.save(memberNotes, to: device)
+        }
+    }
+}
+
+extension View {
+    /// The alert a device detail shows when its edits couldn't be saved.
+    func saveErrorAlert(_ message: Binding<String?>) -> some View {
+        alert("Couldn't Save the Changes", isPresented: Binding(get: { message.wrappedValue != nil }, set: {
+            if !$0 {
+                message.wrappedValue = nil
+            }
+        })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(message.wrappedValue ?? "")
         }
     }
 }

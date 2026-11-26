@@ -71,6 +71,16 @@ final class AlertRuleStore {
         defaults.removeObject(forKey: Self.targetDevicesKey)
     }
 
+    /// What names the row `rowID` (#594, v3.1 §1), worded for the removal confirmation: "the rule
+    /// ‘Studio down’" for each rule on the row, "the monitoring target ‘Studio’" for each of
+    /// `targets` linked to it.
+    func references(to rowID: UUID, targets: [NetworkTarget]) -> [String] {
+        let links = targetDevices()
+        let ruleNames = rules.filter { $0.conditions.deviceID == rowID }.map { "the rule ‘\($0.name)’" }
+        let targetNames = targets.filter { links[$0.id.uuidString] == rowID.uuidString }.map { "the monitoring target ‘\($0.name)’" }
+        return ruleNames + targetNames
+    }
+
     /// Keeps only links whose target and device row still exist and whose device a rule still
     /// names, so the links can't go stale against SwiftData. Run at launch.
     ///
@@ -336,7 +346,7 @@ final class MacRuleAlerts {
     ) -> AlertRuleSubject {
         let row = Self.row(ip: ip, mac: mac, in: devices)
         // The row is one interface; the name, type and maker are its device's (#594).
-        let device = row.flatMap { Self.device(of: $0, in: devices) }
+        let device = row.map { Self.device(of: $0) }
         let identity = device?.primary ?? row
         var subject = AlertRuleSubject(
             name: device?.displayName ?? row?.displayName ?? name,
@@ -353,15 +363,15 @@ final class MacRuleAlerts {
         return subject
     }
 
-    /// The device `row` is an interface of, among `devices` (complete groups, #594).
-    static func device(of row: LocalDevice, in devices: [LocalDevice]) -> DeviceProjection? {
-        guard row.deviceGroupID != nil else { return DeviceGroups.project([row]).first }
-        return DeviceGroups.project(devices.filter { $0.deviceGroupID == row.deviceGroupID }).first { $0.contains(row.id) }
+    /// The device `row` is an interface of (#594): Core's `DeviceGroups.device(of:in:)` in the row's
+    /// own context; a row in no context is a device of its own.
+    static func device(of row: LocalDevice) -> DeviceProjection {
+        row.modelContext.flatMap { try? DeviceGroups.device(of: row, in: $0) } ?? DeviceGroups.project([row])[0]
     }
 
     /// The network's row for an event's device, for display. A MAC identifies the row
     /// exactly; the IP is only a fallback for an event without one. The row is one interface:
-    /// `device(of:in:)` gives the device it belongs to (#594).
+    /// `device(of:)` gives the device it belongs to (#594).
     static func row(ip: String, mac: String?, in devices: [LocalDevice]) -> LocalDevice? {
         if let mac, !mac.isEmpty {
             devices.first { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }
@@ -378,5 +388,20 @@ final class MacRuleAlerts {
         case .firstSeen: return "\(name) joined the network for the first time"
         case let .latency(milliseconds): return String(format: "%@ latency is %.0f ms", name, milliseconds)
         }
+    }
+}
+
+// MARK: - References that follow a device (#594)
+
+extension AlertRuleStore: DeviceReferenceStore {
+    /// After Remove this interface: rules and target links naming the removed row name the
+    /// device's primary instead, so they keep following the device's other interfaces.
+    func repoint(from removed: UUID, to device: UUID) {
+        mutate { rules in
+            for index in rules.indices where rules[index].conditions.deviceID == removed {
+                rules[index].conditions.deviceID = device
+            }
+        }
+        setLinks(targetDevices().mapValues { $0 == removed.uuidString ? device.uuidString : $0 })
     }
 }

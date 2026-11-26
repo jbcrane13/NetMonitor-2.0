@@ -54,11 +54,12 @@ struct NetworkDevicesPanel: View {
         return .startScan
     }
 
-    /// One entry per device (#594): the capped fetch with every group completed, projected, then
+    /// One entry per device (#594): the 500 most recent devices (paged by device), projected, then
     /// searched and sorted.
     private var filteredDevices: [DeviceProjection] {
+        // `devices` (the query) only triggers the refresh; the rows are paged by device.
         DeviceList.devices(
-            LocalDeviceQueries.completed(devices, in: modelContext),
+            devices.isEmpty ? [] : LocalDeviceQueries.recentDevices(network: networkProfileID, in: modelContext).flatMap(\.members),
             // Past devices stay in the Devices view, behind "Show past devices" (#583).
             filter: DeviceListFilter(search: searchText),
             presence: presence,

@@ -25,9 +25,13 @@ struct WakeOnLanToolView: View {
 
     private let wakeService = WakeOnLANService()
 
-    /// One entry per device (#594): rows with a MAC, groups completed, projected.
+    /// One entry per device with a MAC on any interface (#594), paged by device. `devices` (the
+    /// query) only triggers the refresh.
     private var pickerDevices: [DeviceProjection] {
-        LocalDeviceQueries.devices(devices, in: modelContext)
+        guard !devices.isEmpty else { return [] }
+        return LocalDeviceQueries.recentDevices(network: nil, in: modelContext).filter { device in
+            device.members.contains { !$0.macAddress.isEmpty }
+        }
     }
 
     /// The MACs a send goes to: every interface's when the field still holds one of the picked
