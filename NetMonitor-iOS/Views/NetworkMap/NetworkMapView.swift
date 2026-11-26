@@ -51,7 +51,7 @@ struct NetworkMapView: View {
             mapContent(staleNote: viewModel.notCheckedRecentlyNote(presenceModel?.snapshot ?? DevicePresenceModel.noScans))
         }
         .onChange(of: groupedRows.map(\.id), initial: true) {
-            viewModel.groupedRows = groupedRows
+            viewModel.showGroups(groupedRows)
         }
     }
 

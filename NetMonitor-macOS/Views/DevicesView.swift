@@ -73,7 +73,7 @@ struct DevicesView: View {
 
     /// The selected device, as the list shows it.
     private var selectedDevice: DeviceProjection? {
-        selectedDeviceID.flatMap { DeviceGroupResolver(rows: devices).device(for: $0) }
+        selectedDeviceID.flatMap { Self.device(for: $0, among: devices, in: modelContext) }
     }
 
     private var selectedNetwork: NetworkProfile? {
@@ -210,6 +210,20 @@ struct DevicesView: View {
         } else {
             selectedDeviceID = device?.id ?? id
         }
+    }
+
+    /// The device `id` names (a group's ID or any interface's row ID): from the list's rows, else
+    /// from the store, so an alert's View Details opens a device the list's fetch left out (#615
+    /// review).
+    static func device(for id: UUID, among rows: [LocalDevice], in context: ModelContext) -> DeviceProjection? {
+        if let listed = DeviceGroupResolver(rows: rows).device(for: id) {
+            return listed
+        }
+        if let row = try? context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })).first {
+            return try? DeviceGroups.device(of: row, in: context)
+        }
+        let members = (try? DeviceGroups.members(ofGroups: [id], in: context)) ?? []
+        return DeviceGroups.project(members).first
     }
 
     /// The rows the list reads: the active network's, or with none, rows saved without a network

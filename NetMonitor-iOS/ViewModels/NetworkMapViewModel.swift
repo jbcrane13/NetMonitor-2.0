@@ -68,8 +68,13 @@ final class NetworkMapViewModel {
     }
 
     /// The saved rows that are in a group (#594), from the view's query: the map shows each such
-    /// device once.
-    var groupedRows: [LocalDevice] = []
+    /// device once. Set through ``showGroups(_:)``.
+    private(set) var groupedRows: [LocalDevice] = []
+
+    /// The view's query of grouped rows changed.
+    func showGroups(_ rows: [LocalDevice]) {
+        groupedRows = rows
+    }
 
     /// The map's nodes: the scan's devices, a saved device of several interfaces once (#594).
     var nodes: [DiscoveredDevice] {

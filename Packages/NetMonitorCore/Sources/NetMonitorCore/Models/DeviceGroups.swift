@@ -323,10 +323,12 @@ public extension PresenceSnapshot {
 
 public extension AlertRuleSubject {
     /// Marks the subject as `row`, one interface of `device` (#594): rules naming any member match
-    /// it, and an outage is one per device.
+    /// it, an outage is one per device, and while another interface is online the device is
+    /// (#615 review).
     mutating func setDevice(_ device: DeviceProjection, row: LocalDevice) {
         deviceID = row.id
         deviceGroupID = device.isGroup ? device.id : nil
         groupMemberIDs = device.isGroup ? device.memberIDs : []
+        anotherInterfaceOnline = device.members.contains { $0.id != row.id && $0.status == .online }
     }
 }

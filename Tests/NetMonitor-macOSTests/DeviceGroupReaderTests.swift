@@ -261,6 +261,10 @@ struct DeviceGroupReaderTests {
         store.add(AlertRule(name: "Studio back", trigger: .cameOnline, conditions: AlertRuleConditions(deviceID: fixture.member.id)))
         let poster = GroupPoster()
         let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
+        // The device was offline: neither interface answered (#615 review: a device is judged by
+        // every interface).
+        fixture.member.status = .offline
+        try fixture.context.save()
 
         alerts.handle(
             deviceChanges: [.cameOnline(DeviceObservation(ipAddress: Self.primaryIP, macAddress: Self.primaryMAC, name: "studio"))],
@@ -550,6 +554,46 @@ extension DeviceGroupReaderTests {
         #expect(DevicesView.scope(nil) == .withoutNetwork)
         #expect(LocalDeviceQueries.recentDevices(in: DevicesView.scope(nil), in: context).map(\.id) == [unassigned.id])
         #expect(LocalDeviceQueries.recentDevices(in: DevicesView.scope(home), in: context).map(\.ipAddress) == ["10.0.0.6"])
+    }
+}
+
+extension DeviceGroupReaderTests {
+    /// #615 review: one interface going offline while the other answers is not the device going
+    /// offline; the last one going offline is.
+    @Test func anInterfaceGoingOfflineWhileAnotherAnswersFiresNoDeviceRule() throws {
+        let fixture = try makeGroup()
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        store.add(AlertRule(name: "Studio down", trigger: .wentOffline, conditions: AlertRuleConditions(deviceID: fixture.primary.id)))
+        let poster = GroupPoster()
+        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
+        let ethernetDown = KnownDevice(
+            macAddress: Self.primaryMAC, ipAddress: Self.primaryIP, name: "studio", firstSeen: Date(), lastSeen: Date(), isOffline: true
+        )
+        alerts.handle(deviceChanges: [.wentOffline(ethernetDown)], devices: fixture.rows, networkID: nil)
+        #expect(poster.requests.isEmpty, "Wi-Fi still answers: the device is online")
+
+        fixture.member.status = .offline
+        try fixture.context.save()
+        let wifiDown = KnownDevice(
+            macAddress: Self.memberMAC, ipAddress: Self.memberIP, name: "studio-wifi", firstSeen: Date(), lastSeen: Date(), isOffline: true
+        )
+        alerts.handle(deviceChanges: [.wentOffline(wifiDown)], devices: fixture.rows, networkID: nil)
+        #expect(poster.requests.count == 1)
+    }
+
+    /// #615 review: View Details from an alert opens a saved device the list's fetch left out
+    /// (outside the 500 most recent, or on another network), by its row's or its group's ID.
+    @Test func anAlertOpensADeviceOutsideTheListFetch() throws {
+        let fixture = try makeGroup()
+        let listed: [LocalDevice] = []
+        let byRow = DevicesView.device(for: fixture.member.id, among: listed, in: fixture.context)
+        #expect(byRow?.displayName == Self.name)
+        #expect(byRow?.members.count == 2)
+        let groupID = try #require(fixture.primary.deviceGroupID)
+        #expect(DevicesView.device(for: groupID, among: listed, in: fixture.context)?.displayName == Self.name)
+        #expect(DevicesView.device(for: UUID(), among: listed, in: fixture.context) == nil)
     }
 }
 

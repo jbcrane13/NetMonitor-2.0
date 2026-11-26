@@ -85,6 +85,9 @@ public struct AlertRuleSubject: Sendable, Equatable {
     /// ID, so a rule naming any member matches and an outage is one per device.
     public var deviceGroupID: UUID?
     public var groupMemberIDs: Set<UUID> = []
+    /// Another interface of the subject's device is online (#615 review): the device is online, so
+    /// this interface going offline, or coming back, is not the device's state changing.
+    public var anotherInterfaceOnline = false
 
     /// The device the subject is, across its interfaces: its group, else its row.
     public var deviceKey: UUID? { deviceGroupID ?? deviceID }
@@ -158,6 +161,21 @@ public struct AlertRuleEvent: Sendable, Equatable {
 // MARK: - Engine
 
 public enum AlertRuleEngine {
+    /// Whether `rule`'s conditions accept `event` (#615 review): a device is judged by every
+    /// interface, so an offline or back-online report of one interface while another is online
+    /// matches no rule. The trigger isn't checked here.
+    public static func conditionsMatch(_ conditions: AlertRuleConditions, _ event: AlertRuleEvent) -> Bool {
+        if event.subject.anotherInterfaceOnline {
+            switch event.kind {
+            case .wentOffline, .stillOffline, .cameOnline:
+                return false
+            case .firstSeen, .latency:
+                break
+            }
+        }
+        return conditionsMatch(conditions, event.subject)
+    }
+
     /// Whether `rule`'s conditions accept `subject`. The trigger isn't checked here.
     public static func conditionsMatch(_ conditions: AlertRuleConditions, _ subject: AlertRuleSubject) -> Bool {
         if let deviceID = conditions.deviceID {
@@ -265,7 +283,7 @@ public struct AlertRuleEvaluator: Sendable {
         }
         for event in events {
             guard let target = event.subject.monitoredTargetID, let device = event.subject.deviceKey else { continue }
-            for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event.subject) {
+            for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event) {
                 targetTimed.insert(TargetTimed(rule: rule.id, device: device, target: target))
             }
         }
@@ -274,7 +292,7 @@ public struct AlertRuleEvaluator: Sendable {
             if event.kind == .cameOnline, let device = event.subject.deviceKey {
                 alertedOutages = alertedOutages.filter { $0.device != device }
             }
-            for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event.subject) {
+            for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event) {
                 if shouldFire(rule, for: event, now: now), isFirstAlertOfOutage(rule, event) {
                     matches.append(Match(rule: rule, event: event))
                 }
