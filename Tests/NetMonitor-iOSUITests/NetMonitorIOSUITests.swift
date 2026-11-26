@@ -24,7 +24,7 @@ class NetMonitorIOSUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5), "App should launch to foreground")
 
         // FUNCTIONAL: verify the dashboard actually renders content after launch
-        let dashboardScreen = app.otherElements["screen_dashboard"]
+        let dashboardScreen = app.byID("screen_dashboard")
         XCTAssertTrue(
             dashboardScreen.waitForExistence(timeout: 8),
             "Dashboard screen should be visible after app launch"
@@ -45,8 +45,8 @@ class NetMonitorIOSUITests: XCTestCase {
             "Settings button should be accessible from the dashboard on launch"
         )
 
-        let connectionStatus = app.otherElements["dashboard_label_connectionStatus"]
-        let healthCard = app.otherElements["dashboard_card_healthScore"]
+        let connectionStatus = app.byID("dashboard_label_connectionStatus")
+        let healthCard = app.byID("dashboard_card_healthScore")
         XCTAssertTrue(
             waitForEither([connectionStatus, healthCard], timeout: 8),
             "Dashboard should display connection status or health score card after launch"
@@ -63,21 +63,21 @@ class NetMonitorIOSUITests: XCTestCase {
         // Map tab
         tabBar.buttons["Map"].tap()
         XCTAssertTrue(
-            app.otherElements["screen_networkMap"].waitForExistence(timeout: 8),
+            app.byID("screen_networkMap").waitForExistence(timeout: 8),
             "Map screen should appear after tapping Map tab"
         )
 
         // Tools tab
         tabBar.buttons["Tools"].tap()
         XCTAssertTrue(
-            app.otherElements["screen_tools"].waitForExistence(timeout: 8),
+            app.byID("screen_tools").waitForExistence(timeout: 8),
             "Tools screen should appear after tapping Tools tab"
         )
 
         // Dashboard tab
         tabBar.buttons["Dashboard"].tap()
         XCTAssertTrue(
-            app.otherElements["screen_dashboard"].waitForExistence(timeout: 8),
+            app.byID("screen_dashboard").waitForExistence(timeout: 8),
             "Dashboard screen should appear after tapping Dashboard tab"
         )
     }

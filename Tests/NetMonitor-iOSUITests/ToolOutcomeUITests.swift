@@ -28,11 +28,21 @@ final class ToolOutcomeUITests: IOSUITestCase {
             "Set Target quick action should show the selected target"
         )
 
-        assertToolInputPrefill(cardID: "tools_card_ping", screenID: "screen_pingTool", inputID: "pingTool_input_host", expected: target)
-        assertToolInputPrefill(cardID: "tools_card_traceroute", screenID: "screen_tracerouteTool", inputID: "tracerouteTool_input_host", expected: target)
-        assertToolInputPrefill(cardID: "tools_card_dns_lookup", screenID: "screen_dnsLookupTool", inputID: "dnsLookup_input_domain", expected: target)
-        assertToolInputPrefill(cardID: "tools_card_port_scanner", screenID: "screen_portScannerTool", inputID: "portScanner_input_host", expected: target)
-        assertToolInputPrefill(cardID: "tools_card_whois", screenID: "screen_whoisTool", inputID: "whois_input_domain", expected: target)
+        assertToolInputPrefill(
+            cardID: "tools_card_ping", screenID: "screen_pingTool", inputID: "pingTool_input_host", expected: target
+        )
+        assertToolInputPrefill(
+            cardID: "tools_card_traceroute", screenID: "screen_tracerouteTool", inputID: "tracerouteTool_input_host", expected: target
+        )
+        assertToolInputPrefill(
+            cardID: "tools_card_dns_lookup", screenID: "screen_dnsLookupTool", inputID: "dnsLookup_input_domain", expected: target
+        )
+        assertToolInputPrefill(
+            cardID: "tools_card_port_scanner", screenID: "screen_portScannerTool", inputID: "portScanner_input_host", expected: target
+        )
+        assertToolInputPrefill(
+            cardID: "tools_card_whois", screenID: "screen_whoisTool", inputID: "whois_input_domain", expected: target
+        )
     }
 
     func testPingValidationRunStopAndClearOutcome() {
@@ -52,7 +62,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
             waitForEither(
                 [
                     app.buttons["Stop Ping"],
-                    app.otherElements["pingTool_section_results"]
+                    app.byID("pingTool_section_results")
                 ],
                 timeout: 15
             ),
@@ -71,7 +81,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
         )
         clearButton.tap()
         XCTAssertTrue(
-            waitForDisappearance(app.otherElements["pingTool_section_results"], timeout: 5),
+            waitForDisappearance(app.byID("pingTool_section_results"), timeout: 5),
             "Results section should be removed after Clear"
         )
 
@@ -97,7 +107,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
             waitForEither(
                 [
                     app.buttons["Stop Trace"],
-                    app.otherElements["tracerouteTool_section_hops"]
+                    app.byID("tracerouteTool_section_hops")
                 ],
                 timeout: 20
             ),
@@ -108,9 +118,9 @@ final class ToolOutcomeUITests: IOSUITestCase {
             runButton.tap()
         }
 
-        if app.otherElements["tracerouteTool_section_hops"].exists {
+        if app.byID("tracerouteTool_section_hops").exists {
             // FUNCTIONAL: verify hops section contains actual hop data
-            let hopsSection = app.otherElements["tracerouteTool_section_hops"]
+            let hopsSection = app.byID("tracerouteTool_section_hops")
             XCTAssertTrue(hopsSection.exists, "Hops section should be visible with results")
 
             let clearButton = requireExists(
@@ -120,7 +130,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
             )
             clearButton.tap()
             XCTAssertTrue(
-                waitForDisappearance(app.otherElements["tracerouteTool_section_hops"], timeout: 5),
+                waitForDisappearance(app.byID("tracerouteTool_section_hops"), timeout: 5),
                 "Traceroute hops should be removed after Clear"
             )
         }
@@ -142,7 +152,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
         XCTAssertTrue(
             waitForEither(
                 [
-                    app.otherElements["portScanner_progress"],
+                    app.byID("portScanner_progress"),
                     app.buttons["Stop Scan"]
                 ],
                 timeout: 10
@@ -156,8 +166,8 @@ final class ToolOutcomeUITests: IOSUITestCase {
         requireExists(runButton, message: "Port scanner run button should remain visible after second tap")
 
         // FUNCTIONAL: after scan completes or stops, results section or progress should be visible
-        let resultsSection = app.otherElements["portScanner_section_results"]
-        let progressIndicator = app.otherElements["portScanner_progress"]
+        let resultsSection = app.byID("portScanner_section_results")
+        let progressIndicator = app.byID("portScanner_progress")
         XCTAssertTrue(
             resultsSection.exists || progressIndicator.exists || runButton.exists,
             "Port scanner should show results, progress, or run button after scan attempt"
@@ -181,8 +191,8 @@ final class ToolOutcomeUITests: IOSUITestCase {
             waitForEither(
                 [
                     app.buttons["Looking up..."],
-                    app.otherElements["dnsLookup_label_error"],
-                    app.otherElements["dnsLookup_section_queryInfo"],
+                    app.byID("dnsLookup_label_error"),
+                    app.byID("dnsLookup_section_queryInfo"),
                     app.buttons["dnsLookup_button_clear"]
                 ],
                 timeout: 20
@@ -191,8 +201,8 @@ final class ToolOutcomeUITests: IOSUITestCase {
         )
 
         // FUNCTIONAL: verify the tool produced a meaningful outcome
-        let hasResults = app.otherElements["dnsLookup_section_queryInfo"].exists
-        let hasError = app.otherElements["dnsLookup_label_error"].exists
+        let hasResults = app.byID("dnsLookup_section_queryInfo").exists
+        let hasError = app.byID("dnsLookup_label_error").exists
         let hasClearButton = app.buttons["dnsLookup_button_clear"].exists
         XCTAssertTrue(
             hasResults || hasError || hasClearButton,
@@ -217,8 +227,8 @@ final class ToolOutcomeUITests: IOSUITestCase {
             waitForEither(
                 [
                     app.buttons["Looking up..."],
-                    app.otherElements["whois_label_error"],
-                    app.otherElements["whois_section_domainInfo"],
+                    app.byID("whois_label_error"),
+                    app.byID("whois_section_domainInfo"),
                     app.buttons["whois_button_clear"]
                 ],
                 timeout: 20
@@ -227,8 +237,8 @@ final class ToolOutcomeUITests: IOSUITestCase {
         )
 
         // FUNCTIONAL: verify the tool produced a meaningful outcome
-        let hasResults = app.otherElements["whois_section_domainInfo"].exists
-        let hasError = app.otherElements["whois_label_error"].exists
+        let hasResults = app.byID("whois_section_domainInfo").exists
+        let hasError = app.byID("whois_label_error").exists
         let hasClearButton = app.buttons["whois_button_clear"].exists
         XCTAssertTrue(
             hasResults || hasError || hasClearButton,
@@ -332,8 +342,8 @@ final class ToolOutcomeUITests: IOSUITestCase {
             waitForEither(
                 [
                     app.staticTexts["Discovering services..."],
-                    app.otherElements["bonjour_section_services"],
-                    app.otherElements["bonjour_label_noServices"]
+                    app.byID("bonjour_section_services"),
+                    app.byID("bonjour_label_noServices")
                 ],
                 timeout: 10
             ),
@@ -344,8 +354,8 @@ final class ToolOutcomeUITests: IOSUITestCase {
         requireExists(runButton, message: "Bonjour run button should remain visible after stopping")
 
         // FUNCTIONAL: verify discovery produced an outcome
-        let hasServices = app.otherElements["bonjour_section_services"].exists
-        let hasNoServices = app.otherElements["bonjour_label_noServices"].exists
+        let hasServices = app.byID("bonjour_section_services").exists
+        let hasNoServices = app.byID("bonjour_label_noServices").exists
         let hasDiscovering = app.staticTexts["Discovering services..."].exists
         XCTAssertTrue(
             hasServices || hasNoServices || hasDiscovering,
@@ -389,8 +399,11 @@ final class ToolOutcomeUITests: IOSUITestCase {
             )
         }
     }
+}
 
-    private func openToolsRoot() {
+// Helpers, kept in an extension so the test class stays within the type-body length limit.
+private extension ToolOutcomeUITests {
+    func openToolsRoot() {
         let toolsTab = requireExists(app.tabBars.buttons["Tools"], message: "Tools tab should exist")
         toolsTab.tap()
         XCTAssertTrue(
@@ -406,7 +419,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
         )
     }
 
-    private func openTool(cardID: String, screenID: String) {
+    func openTool(cardID: String, screenID: String) {
         openToolsRoot()
         let card = ui(cardID)
         scrollToElement(card)
@@ -419,7 +432,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
         )
     }
 
-    private func assertToolInputPrefill(cardID: String, screenID: String, inputID: String, expected: String) {
+    func assertToolInputPrefill(cardID: String, screenID: String, inputID: String, expected: String) {
         openTool(cardID: cardID, screenID: screenID)
         let input = requireExists(
             app.textFields[inputID],
@@ -434,7 +447,7 @@ final class ToolOutcomeUITests: IOSUITestCase {
         navigateBackToTools()
     }
 
-    private func navigateBackToTools() {
+    func navigateBackToTools() {
         let backButton = requireExists(
             app.navigationBars.buttons.firstMatch,
             message: "Back button should be visible to return to Tools"
@@ -453,11 +466,11 @@ final class ToolOutcomeUITests: IOSUITestCase {
         )
     }
 
-    private func ui(_ identifier: String) -> XCUIElement {
-        app.descendants(matching: .any)[identifier]
+    func ui(_ identifier: String) -> XCUIElement {
+        app.byID(identifier)
     }
 
-    private func normalizedFieldValue(_ field: XCUIElement) -> String {
+    func normalizedFieldValue(_ field: XCUIElement) -> String {
         let raw = String(describing: field.value as Any)
         return raw
             .replacingOccurrences(of: "Optional(\"", with: "")
@@ -466,5 +479,4 @@ final class ToolOutcomeUITests: IOSUITestCase {
             .replacingOccurrences(of: ")", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
-
 }

@@ -108,6 +108,13 @@ final class PDFReportGeneratorTests: XCTestCase {
         return (devices, results, [SpeedTestResult(downloadSpeed: 412, uploadSpeed: 38, latency: 14)])
     }
 
+    /// The fixture's network (no profile) was scanned a minute ago, so "Printer" is offline as of
+    /// that scan; with no scan at all the report says nothing about offline devices (#583, #611).
+    private func freshlyScanned() -> PresenceSnapshot {
+        let now = Date()
+        return PresenceSnapshot(lastScans: [nil: now.addingTimeInterval(-60)], now: now)
+    }
+
     func testExecutiveSummaryAddsOnePageWithTheKeyPointsAndText() {
         let summary = PDFReportGenerator.ExecutiveSummary(text: "One of the 2 devices is offline.", keyPoints: ["1 device is offline."])
         let without = PDFReportGenerator.generateNetworkReport(devices: [], toolResults: [], speedTests: [])
@@ -138,7 +145,7 @@ final class PDFReportGeneratorTests: XCTestCase {
         let service = ReportInsightService(isAvailable: false, answer: "1 device is offline.")
         let data = await DataExportService.exportFullReportAsPDF(
             devices: devices, toolResults: results, speedTests: tests, insightService: service,
-            presence: PresenceSnapshot(lastScans: [:], now: Date())
+            presence: freshlyScanned()
         )
         let plain = PDFReportGenerator.generateNetworkReport(devices: devices, toolResults: results, speedTests: tests)
 
@@ -153,7 +160,7 @@ final class PDFReportGeneratorTests: XCTestCase {
         let service = ReportInsightService(isAvailable: true, answer: "One of the 2 devices is offline; the latest download was 412.0 Mbps.")
         let data = await DataExportService.exportFullReportAsPDF(
             devices: devices, toolResults: results, speedTests: tests, insightService: service,
-            presence: PresenceSnapshot(lastScans: [:], now: Date())
+            presence: freshlyScanned()
         )
         let plain = PDFReportGenerator.generateNetworkReport(devices: devices, toolResults: results, speedTests: tests)
 
@@ -172,7 +179,7 @@ final class PDFReportGeneratorTests: XCTestCase {
         let service = ReportInsightService(isAvailable: true, answer: "Three devices are offline.")
         let data = await DataExportService.exportFullReportAsPDF(
             devices: devices, toolResults: results, speedTests: tests, insightService: service,
-            presence: PresenceSnapshot(lastScans: [:], now: Date())
+            presence: freshlyScanned()
         )
         XCTAssertEqual(service.requests.count, 1)
         XCTAssertFalse(text(data).contains("Executive Summary"))

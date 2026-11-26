@@ -5,22 +5,22 @@ final class SpeedTestToolUITests: IOSUITestCase {
 
     private func navigateToSpeedTestTool() {
         app.tabBars.buttons["Tools"].tap()
-        let speedTestCard = app.otherElements["tools_card_speed_test"]
+        let speedTestCard = app.byID("tools_card_speed_test")
         scrollToElement(speedTestCard)
         requireExists(speedTestCard, timeout: 8, message: "Speed test tool card should exist")
         speedTestCard.tap()
-        requireExists(app.otherElements["screen_speedTestTool"], timeout: 8, message: "Speed test tool screen should appear")
+        requireExists(app.byID("screen_speedTestTool"), timeout: 8, message: "Speed test tool screen should appear")
     }
 
     // MARK: - Screen Existence
 
     func testSpeedTestScreenExistsAndShowsControls() throws {
         navigateToSpeedTestTool()
-        let screen = app.otherElements["screen_speedTestTool"]
+        let screen = app.byID("screen_speedTestTool")
         XCTAssertTrue(screen.waitForExistence(timeout: 5), "Speed test screen should exist")
         // FUNCTIONAL: screen should contain gauge and run button
         XCTAssertTrue(
-            app.otherElements["speedTest_label_gauge"].waitForExistence(timeout: 3),
+            app.byID("speedTest_label_gauge").waitForExistence(timeout: 3),
             "Speed test screen should show speed gauge"
         )
         XCTAssertTrue(
@@ -39,7 +39,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
 
     func testSpeedGaugeExistsAndShowsInitialValue() throws {
         navigateToSpeedTestTool()
-        let gauge = app.otherElements["speedTest_label_gauge"]
+        let gauge = app.byID("speedTest_label_gauge")
         XCTAssertTrue(gauge.waitForExistence(timeout: 5), "Speed gauge should exist")
         // FUNCTIONAL: gauge should be visible and have initial state
         XCTAssertTrue(gauge.exists, "Speed gauge should be present before test starts")
@@ -60,7 +60,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
         let runButton = requireExists(app.buttons["speedTest_button_run"], message: "Run button should exist")
         runButton.tap()
 
-        let results = app.otherElements["speedTest_section_results"]
+        let results = app.byID("speedTest_section_results")
         let latencyPhase = app.staticTexts["Testing latency..."]
         let downloadPhase = app.staticTexts["Testing download..."]
         let uploadPhase = app.staticTexts["Testing upload..."]
@@ -94,7 +94,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
 
         runButton.tap()
         // FUNCTIONAL: after stopping, gauge should still be visible
-        requireExists(app.otherElements["speedTest_label_gauge"], message: "Speed gauge should remain visible after stopping")
+        requireExists(app.byID("speedTest_label_gauge"), message: "Speed gauge should remain visible after stopping")
         // FUNCTIONAL: run button should be accessible for restart
         XCTAssertTrue(runButton.exists, "Run button should be accessible after stopping")
     }
@@ -106,10 +106,10 @@ final class SpeedTestToolUITests: IOSUITestCase {
         let runButton = requireExists(app.buttons["speedTest_button_run"], message: "Run button should exist")
         runButton.tap()
 
-        let results = app.otherElements["speedTest_section_results"]
+        let results = app.byID("speedTest_section_results")
         if results.waitForExistence(timeout: 45) {
-            scrollToElement(app.otherElements["speedTest_section_history"])
-            let history = app.otherElements["speedTest_section_history"]
+            scrollToElement(app.byID("speedTest_section_history"))
+            let history = app.byID("speedTest_section_history")
             XCTAssertTrue(
                 history.waitForExistence(timeout: 5) || results.exists,
                 "History section or results should be visible after test completes"
@@ -117,7 +117,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
             // FUNCTIONAL: if history exists, it should contain data
             if history.exists {
                 XCTAssertTrue(
-                    history.staticTexts.count > 0 || app.cells.count > 0,
+                    !history.staticTexts.isEmpty || !app.cells.isEmpty,
                     "History section should contain speed test result data"
                 )
             }
@@ -164,7 +164,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
 
         // FUNCTIONAL: gauge should still display after run/stop cycle
         requireExists(
-            app.otherElements["speedTest_label_gauge"],
+            app.byID("speedTest_label_gauge"),
             timeout: 5,
             message: "Speed gauge should remain visible after run/stop cycle"
         )

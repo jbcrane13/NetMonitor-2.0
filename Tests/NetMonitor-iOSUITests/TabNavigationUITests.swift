@@ -44,7 +44,7 @@ final class TabNavigationUITests: XCTestCase {
         // FUNCTIONAL: tapping Map tab actually changes visible content
         mapTab.tap()
         XCTAssertTrue(
-            app.otherElements["screen_networkMap"].waitForExistence(timeout: 5),
+            app.byID("screen_networkMap").waitForExistence(timeout: 5),
             "Network Map screen should appear after tapping Map tab"
         )
         XCTAssertTrue(mapTab.isSelected, "Map tab should be selected after tapping it")
@@ -59,7 +59,7 @@ final class TabNavigationUITests: XCTestCase {
         // FUNCTIONAL: tapping Tools tab actually changes visible content
         toolsTab.tap()
         XCTAssertTrue(
-            app.otherElements["screen_tools"].waitForExistence(timeout: 5),
+            app.byID("screen_tools").waitForExistence(timeout: 5),
             "Tools screen should appear after tapping Tools tab"
         )
         XCTAssertTrue(toolsTab.isSelected, "Tools tab should be selected after tapping it")
@@ -72,40 +72,40 @@ final class TabNavigationUITests: XCTestCase {
         XCTAssertTrue(dashboardTab.isSelected)
         // FUNCTIONAL: verify dashboard content is actually visible
         XCTAssertTrue(
-            app.otherElements["screen_dashboard"].waitForExistence(timeout: 5),
+            app.byID("screen_dashboard").waitForExistence(timeout: 5),
             "Dashboard screen content should be visible when Dashboard tab is selected"
         )
     }
 
     func testNavigateToMapTab() throws {
         app.tabBars.buttons["Map"].tap()
-        XCTAssertTrue(app.otherElements["screen_networkMap"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.byID("screen_networkMap").waitForExistence(timeout: 5))
     }
 
     func testNavigateToToolsTab() throws {
         app.tabBars.buttons["Tools"].tap()
-        XCTAssertTrue(app.otherElements["screen_tools"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.byID("screen_tools").waitForExistence(timeout: 5))
     }
 
     func testNavigateBackToDashboard() throws {
         app.tabBars.buttons["Tools"].tap()
-        XCTAssertTrue(app.otherElements["screen_tools"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.byID("screen_tools").waitForExistence(timeout: 5))
         app.tabBars.buttons["Dashboard"].tap()
-        XCTAssertTrue(app.otherElements["screen_dashboard"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.byID("screen_dashboard").waitForExistence(timeout: 5))
     }
 
     func testCycleThroughAllTabs() throws {
         // Dashboard -> Map
         app.tabBars.buttons["Map"].tap()
-        XCTAssertTrue(app.otherElements["screen_networkMap"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.byID("screen_networkMap").waitForExistence(timeout: 5))
 
         // Map -> Tools
         app.tabBars.buttons["Tools"].tap()
-        XCTAssertTrue(app.otherElements["screen_tools"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.byID("screen_tools").waitForExistence(timeout: 5))
 
         // Tools -> Dashboard
         app.tabBars.buttons["Dashboard"].tap()
-        XCTAssertTrue(app.otherElements["screen_dashboard"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.byID("screen_dashboard").waitForExistence(timeout: 5))
     }
 
     func testTabBarPersistsAcrossNavigation() throws {
@@ -116,7 +116,7 @@ final class TabNavigationUITests: XCTestCase {
         // Switch to Tools — verify content changes
         app.tabBars.buttons["Tools"].tap()
         XCTAssertTrue(
-            app.otherElements["screen_tools"].waitForExistence(timeout: 5),
+            app.byID("screen_tools").waitForExistence(timeout: 5),
             "Tools screen should be visible after tapping Tools tab"
         )
         XCTAssertTrue(tabBar.exists, "Tab bar should persist after switching to Tools")
@@ -124,7 +124,7 @@ final class TabNavigationUITests: XCTestCase {
         // Switch to Map — verify content changes
         app.tabBars.buttons["Map"].tap()
         XCTAssertTrue(
-            app.otherElements["screen_networkMap"].waitForExistence(timeout: 5),
+            app.byID("screen_networkMap").waitForExistence(timeout: 5),
             "Network Map screen should be visible after tapping Map tab"
         )
         XCTAssertTrue(tabBar.exists, "Tab bar should persist after switching to Map")
@@ -132,7 +132,7 @@ final class TabNavigationUITests: XCTestCase {
         // Switch back to Dashboard — verify content changes
         app.tabBars.buttons["Dashboard"].tap()
         XCTAssertTrue(
-            app.otherElements["screen_dashboard"].waitForExistence(timeout: 5),
+            app.byID("screen_dashboard").waitForExistence(timeout: 5),
             "Dashboard screen should be visible after tapping Dashboard tab"
         )
         XCTAssertTrue(tabBar.exists, "Tab bar should persist after switching back to Dashboard")
@@ -164,9 +164,9 @@ final class TabNavigationUITests: XCTestCase {
     // MARK: - Functional: Each tab shows distinct content
 
     func testEachTabShowsDistinctContent() {
-        let dashboardScreen = app.otherElements["screen_dashboard"]
-        let mapScreen = app.otherElements["screen_networkMap"]
-        let toolsScreen = app.otherElements["screen_tools"]
+        let dashboardScreen = app.byID("screen_dashboard")
+        let mapScreen = app.byID("screen_networkMap")
+        let toolsScreen = app.byID("screen_tools")
 
         // Dashboard — verify dashboard-specific content visible
         XCTAssertTrue(
@@ -205,9 +205,9 @@ final class TabNavigationUITests: XCTestCase {
         timelineTab.tap()
 
         // FUNCTIONAL: verify timeline-specific content appears
-        let timelineScreen = app.otherElements["screen_networkTimeline"]
-        let emptyState = app.otherElements["timeline_label_emptyState"]
-        let eventList = app.otherElements["timeline_list_events"]
+        let timelineScreen = app.byID("screen_networkTimeline")
+        let emptyState = app.byID("timeline_label_emptyState")
+        let eventList = app.byID("timeline_list_events")
 
         XCTAssertTrue(
             timelineScreen.waitForExistence(timeout: 8),

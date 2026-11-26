@@ -5,18 +5,18 @@ final class WakeOnLANToolUITests: IOSUITestCase {
 
     private func navigateToWoLTool() {
         app.tabBars.buttons["Tools"].tap()
-        let wolCard = app.otherElements["tools_card_wake_on_lan"]
+        let wolCard = app.byID("tools_card_wake_on_lan")
         scrollToElement(wolCard)
         requireExists(wolCard, timeout: 8, message: "Wake on LAN tool card should exist")
         wolCard.tap()
-        requireExists(app.otherElements["screen_wolTool"], timeout: 8, message: "Wake on LAN tool screen should appear")
+        requireExists(app.byID("screen_wolTool"), timeout: 8, message: "Wake on LAN tool screen should appear")
     }
 
     // MARK: - Screen Existence
 
     func testWOLScreenExistsAndShowsControls() throws {
         navigateToWoLTool()
-        let screen = app.otherElements["screen_wolTool"]
+        let screen = app.byID("screen_wolTool")
         XCTAssertTrue(screen.waitForExistence(timeout: 5), "Wake on LAN screen should exist")
         // FUNCTIONAL: screen should show MAC input and send button
         XCTAssertTrue(
@@ -67,12 +67,12 @@ final class WakeOnLANToolUITests: IOSUITestCase {
 
     func testInfoCardExistsAndHasContent() throws {
         navigateToWoLTool()
-        scrollToElement(app.otherElements["wol_label_info"])
-        let infoLabel = app.otherElements["wol_label_info"]
+        scrollToElement(app.byID("wol_label_info"))
+        let infoLabel = app.byID("wol_label_info")
         XCTAssertTrue(infoLabel.waitForExistence(timeout: 5), "Info card should exist")
         // FUNCTIONAL: info card should contain descriptive text
         XCTAssertTrue(
-            infoLabel.staticTexts.count > 0,
+            !infoLabel.staticTexts.isEmpty,
             "Info card should contain descriptive text about Wake on LAN"
         )
     }
@@ -111,8 +111,8 @@ final class WakeOnLANToolUITests: IOSUITestCase {
         clearAndTypeText("AA:BB:CC:DD:EE:FF", into: app.textFields["wol_input_mac"])
         app.buttons["wol_button_send"].tap()
 
-        let success = app.otherElements["wol_label_success"]
-        let error = app.otherElements["wol_label_error"]
+        let success = app.byID("wol_label_success")
+        let error = app.byID("wol_label_error")
         let successText = app.staticTexts["Wake packet sent!"]
         let failText = app.staticTexts["Failed to send"]
         XCTAssertTrue(

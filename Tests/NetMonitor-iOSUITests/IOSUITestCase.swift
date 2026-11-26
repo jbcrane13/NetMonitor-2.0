@@ -167,3 +167,19 @@ extension XCUIElement {
         XCTAssertEqual(result, .completed, "\(self) should change value after the tap", file: file, line: line)
     }
 }
+
+extension XCUIApplication {
+    /// An element by accessibility ID, whatever its type, first match. The iOS 27 runtime reports a
+    /// screen as a `CollectionView`, `ScrollView` or `Other` depending on its content, so an
+    /// `otherElements["screen_…"]` lookup misses it (#604); and it stamps a container's ID onto
+    /// children without their own, so a plain `[id]` subscript finds several and fails (#610). The
+    /// container is first in the snapshot.
+    func byID(_ identifier: String) -> XCUIElement {
+        descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+}
+
+extension XCUIElementQuery {
+    /// Lets `!query.isEmpty` replace `query.count > 0`, which SwiftLint's `empty_count` rule rejects.
+    var isEmpty: Bool { !element(boundBy: 0).exists }
+}

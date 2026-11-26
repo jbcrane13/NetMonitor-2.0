@@ -5,7 +5,7 @@ final class WiFiHeatmapToolUITests: IOSUITestCase {
 
     private func navigateToHeatmap() {
         app.tabBars.buttons["Tools"].tap()
-        let card = app.otherElements["tools_card_wifi_heatmap"]
+        let card = app.byID("tools_card_wifi_heatmap")
         scrollToElement(card)
         requireExists(card, timeout: 8, message: "Wi-Fi Heatmap card should exist in tools grid")
         card.tap()
@@ -13,7 +13,7 @@ final class WiFiHeatmapToolUITests: IOSUITestCase {
     }
 
     private func ui(_ id: String) -> XCUIElement {
-        app.descendants(matching: .any)[id]
+        app.byID(id)
     }
 
     // MARK: - Screen & Navigation
