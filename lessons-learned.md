@@ -193,3 +193,8 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **A profile's `gatewayIP` proves nothing about which network you are on:** both apps set it to the subnet's first host. Compare routed gateways (`NetworkUtilities.detectRoutedGateway()`, nil when the route lookup fails, never a guess).
 - **Read a capability from the payload when you can.** Deciding "inventory Mac" from the heartbeat raced the first list; the list's own `network` field settles it, so the Mac always sends it.
 - **The phone's frame decoder clears its buffer on an oversize frame and then desyncs.** End the link on any rejected frame.
+
+## 2026-11-26 — Ask's live tools (#579)
+- **The model restates a live measurement as presence.** It wrote "is answering now with 3 of 3 replies" and "the gateway responded in 2 ms". The filter drops respond/replied/replies sentences. When the app measured something, the fallback is "Here is what the app measured." above the app's own lines, not the stale-scan line.
+- **Live tools change which tool the model picks.** "Why is the internet slow tonight?" now calls networkStatus instead of flakyDevices. Rerun the whole question list after adding a tool.
+- **The macOS sidebar can start collapsed** (the window's saved state), so `sidebar_nav_*` isn't in the AX tree and the View menu has no Show Sidebar item. `axdrive resize 1400 900` and then `clickat main-AppWindow-1 113 26` (the toolbar toggle) opens it. A whole-window capture shows the real WAN, DNS and ISP: capture only with `capture-in`.
