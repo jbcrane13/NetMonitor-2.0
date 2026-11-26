@@ -85,9 +85,10 @@ public struct AlertRuleSubject: Sendable, Equatable {
     /// ID, so a rule naming any member matches and an outage is one per device.
     public var deviceGroupID: UUID?
     public var groupMemberIDs: Set<UUID> = []
-    /// Another interface of the subject's device is online (#615 review): the device is online, so
-    /// this interface going offline, or coming back, is not the device's state changing.
-    public var anotherInterfaceOnline = false
+    /// The device's other interfaces that are online now (#615 review): while any is, the device
+    /// is online, so this interface going offline is not the device going offline, and this one
+    /// coming back is not the device coming back, unless they came back in the same scan.
+    public var onlineInterfaceIDs: Set<UUID> = []
 
     /// The device the subject is, across its interfaces: its group, else its row.
     public var deviceKey: UUID? { deviceGroupID ?? deviceID }
@@ -162,16 +163,24 @@ public struct AlertRuleEvent: Sendable, Equatable {
 
 public enum AlertRuleEngine {
     /// Whether `rule`'s conditions accept `event` (#615 review): a device is judged by every
-    /// interface, so an offline or back-online report of one interface while another is online
-    /// matches no rule. The trigger isn't checked here.
-    public static func conditionsMatch(_ conditions: AlertRuleConditions, _ event: AlertRuleEvent) -> Bool {
-        if event.subject.anotherInterfaceOnline {
-            switch event.kind {
-            case .wentOffline, .stillOffline, .cameOnline:
+    /// interface. An offline report of one interface while another is online matches no rule; nor
+    /// does a back-online report while another interface was already online, one that isn't
+    /// among `backOnline` (the rows reported back online in the same batch). The trigger isn't
+    /// checked here.
+    public static func conditionsMatch(
+        _ conditions: AlertRuleConditions, _ event: AlertRuleEvent, backOnline: Set<UUID> = []
+    ) -> Bool {
+        switch event.kind {
+        case .wentOffline, .stillOffline:
+            if !event.subject.onlineInterfaceIDs.isEmpty {
                 return false
-            case .firstSeen, .latency:
-                break
             }
+        case .cameOnline:
+            if !event.subject.onlineInterfaceIDs.subtracting(backOnline).isEmpty {
+                return false
+            }
+        case .firstSeen, .latency:
+            break
         }
         return conditionsMatch(conditions, event.subject)
     }
@@ -281,18 +290,27 @@ public struct AlertRuleEvaluator: Sendable {
         for target in Set(events.compactMap(\.subject.monitoredTargetID)) {
             targetTimed = targetTimed.filter { $0.target != target }
         }
+        // Rows reported back online in this batch: interfaces of one device coming back together are
+        // the device coming back (#615 review).
+        let backOnline = Set(events.filter { $0.kind == .cameOnline }.compactMap(\.subject.deviceID))
         for event in events {
             guard let target = event.subject.monitoredTargetID, let device = event.subject.deviceKey else { continue }
-            for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event) {
+            for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event, backOnline: backOnline) {
                 targetTimed.insert(TargetTimed(rule: rule.id, device: device, target: target))
             }
         }
         var matches: [Match] = []
+        var recovered = Set<RuleDevice>()
         for event in events {
             if event.kind == .cameOnline, let device = event.subject.deviceKey {
                 alertedOutages = alertedOutages.filter { $0.device != device }
             }
-            for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event) {
+            for rule in rules where rule.isEnabled && AlertRuleEngine.conditionsMatch(rule.conditions, event, backOnline: backOnline) {
+                // One recovery alert per device per batch, however many of its interfaces came back.
+                if event.kind == .cameOnline, let device = event.subject.deviceKey,
+                   !recovered.insert(RuleDevice(rule: rule.id, device: device)).inserted {
+                    continue
+                }
                 if shouldFire(rule, for: event, now: now), isFirstAlertOfOutage(rule, event) {
                     matches.append(Match(rule: rule, event: event))
                 }

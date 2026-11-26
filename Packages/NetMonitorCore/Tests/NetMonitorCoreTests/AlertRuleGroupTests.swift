@@ -49,7 +49,7 @@ struct AlertRuleDevicePresenceTests {
         var subject = AlertRuleSubject(name: "Mac mini", ipAddress: "10.0.0.\(row == primary ? 10 : 40)", deviceID: row)
         subject.deviceGroupID = group
         subject.groupMemberIDs = [primary, wifi]
-        subject.anotherInterfaceOnline = anotherOnline
+        subject.onlineInterfaceIDs = anotherOnline ? [row == primary ? wifi : primary] : []
         return subject
     }
 
@@ -68,6 +68,21 @@ struct AlertRuleDevicePresenceTests {
         var evaluator = AlertRuleEvaluator()
         #expect(evaluator.evaluate([AlertRuleEvent(kind: .cameOnline, subject: subject(wifi, anotherOnline: true))], rules: [rule]).isEmpty)
         #expect(evaluator.evaluate([AlertRuleEvent(kind: .cameOnline, subject: subject(wifi, anotherOnline: false))], rules: [rule]).count == 1)
+    }
+
+    @Test("Both interfaces coming back in one scan is the device coming back: one alert")
+    func simultaneousRecoveryAlertsOnce() {
+        let rule = AlertRule(name: "Mac back", trigger: .cameOnline, conditions: AlertRuleConditions(deviceID: primary))
+        var evaluator = AlertRuleEvaluator()
+        // After the scan both are saved online, so each sees the other online.
+        var wired = subject(primary, anotherOnline: false)
+        wired.onlineInterfaceIDs = [wifi]
+        var wireless = subject(wifi, anotherOnline: false)
+        wireless.onlineInterfaceIDs = [primary]
+        let matches = evaluator.evaluate(
+            [AlertRuleEvent(kind: .cameOnline, subject: wired), AlertRuleEvent(kind: .cameOnline, subject: wireless)], rules: [rule]
+        )
+        #expect(matches.count == 1)
     }
 
     @Test("A device of one row is judged as before")
@@ -98,9 +113,9 @@ struct AlertRuleSubjectGroupTests {
         let device = try #require(DeviceGroups.project([wired, wifi]).first)
         var subject = AlertRuleSubject(name: nil, ipAddress: wired.ipAddress)
         subject.setDevice(device, row: wired)
-        #expect(subject.anotherInterfaceOnline)
+        #expect(subject.onlineInterfaceIDs == [wifi.id])
         var other = AlertRuleSubject(name: nil, ipAddress: wifi.ipAddress)
         other.setDevice(device, row: wifi)
-        #expect(!other.anotherInterfaceOnline, "the only other interface is offline")
+        #expect(other.onlineInterfaceIDs.isEmpty, "the only other interface is offline")
     }
 }

@@ -583,6 +583,25 @@ extension DeviceGroupReaderTests {
         #expect(poster.requests.count == 1)
     }
 
+    /// #615 stop review: both interfaces coming back in one scan is the device coming back, one alert.
+    @Test func bothInterfacesBackInOneScanAlertOnce() throws {
+        let fixture = try makeGroup()
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AlertRuleStore(defaults: defaults)
+        store.add(AlertRule(name: "Studio back", trigger: .cameOnline, conditions: AlertRuleConditions(deviceID: fixture.primary.id)))
+        let poster = GroupPoster()
+        let alerts = MacRuleAlerts(store: store, service: NotificationService(poster: poster, defaults: defaults), defaults: defaults)
+        // The scan saved both interfaces online.
+        fixture.primary.status = .online
+        try fixture.context.save()
+        alerts.handle(deviceChanges: [
+            .cameOnline(DeviceObservation(ipAddress: Self.primaryIP, macAddress: Self.primaryMAC, name: "studio")),
+            .cameOnline(DeviceObservation(ipAddress: Self.memberIP, macAddress: Self.memberMAC, name: "studio-wifi"))
+        ], devices: fixture.rows, networkID: nil)
+        #expect(poster.requests.count == 1)
+    }
+
     /// #615 review: View Details from an alert opens a saved device the list's fetch left out
     /// (outside the 500 most recent, or on another network), by its row's or its group's ID.
     @Test func anAlertOpensADeviceOutsideTheListFetch() throws {

@@ -329,6 +329,6 @@ public extension AlertRuleSubject {
         deviceID = row.id
         deviceGroupID = device.isGroup ? device.id : nil
         groupMemberIDs = device.isGroup ? device.memberIDs : []
-        anotherInterfaceOnline = device.members.contains { $0.id != row.id && $0.status == .online }
+        onlineInterfaceIDs = Set(device.members.filter { $0.id != row.id && $0.status == .online }.map(\.id))
     }
 }
