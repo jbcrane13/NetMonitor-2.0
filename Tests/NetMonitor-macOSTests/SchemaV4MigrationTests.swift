@@ -137,6 +137,24 @@ struct SchemaV4MigrationTests {
         #expect(try ModelContext(outcome.store).fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.serialNumber != nil })).count == 1)
     }
 
+    /// #594 PR2 adds no schema: a store PR1's build wrote (8b0e612f) opens as it is, every value kept.
+    @Test("A store written by PR1 opens with every value and its device group kept")
+    func pr1StoreOpens() throws {
+        let (directory, url) = try copyFixture("v2.4-pr1-default")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let before = try StoreDump(url)
+        let outcome = try MacPersistence.makeOutcome(storeURL: url, inMemory: false)
+        #expect(!outcome.isDegraded, "fell back: \(outcome.recovery?.diagnosticText ?? "")")
+        let rows = try ModelContext(outcome.store).fetch(FetchDescriptor<LocalDevice>())
+        let devices = DeviceGroups.project(rows)
+        #expect(rows.count == 4 && devices.count == 3)
+        let studio = try #require(devices.first { $0.isGroup })
+        #expect(studio.displayName == "Studio" && studio.members.count == 2)
+        #expect(studio.primary.serialNumber == "C02XYZ123")
+        withExtendedLifetime(outcome.store) {}
+        #expect(try StoreDump(url, onlyColumns: before.columns) == before)
+    }
+
     @Test("The V4 schema adds only optional LocalDevice fields to V3")
     func v4AddsOnlyOptionalFields() throws {
         let v3 = try #require(Schema(versionedSchema: SchemaV3.self).entities.first { $0.name == "LocalDevice" })

@@ -69,6 +69,23 @@ struct IOSStoreMigrationTests {
         #expect(byIP["192.168.1.40"]?.notes == "Serial: B2")
     }
 
+    /// #594 PR2 adds no schema: a store PR1's build wrote (8b0e612f) opens as it is, every value kept.
+    @Test("A store written by PR1 opens with every value and its device group kept")
+    func pr1StoreOpens() throws {
+        let fixture = try #require(Bundle(for: IOSFixtureToken.self).url(forResource: "ios-v2.4-pr1-default", withExtension: "store"))
+        let directory = try makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "default.store")
+        try FileManager.default.copyItem(at: fixture, to: url)
+        let before = try StoreDump(url)
+        let container = try openAppStore(at: url)
+        let rows = try ModelContext(container).fetch(FetchDescriptor<LocalDevice>())
+        #expect(DeviceGroups.project(rows).count == 3)
+        #expect(rows.first { $0.ipAddress == "192.168.1.20" }?.serialNumber == "C02XYZ123")
+        withExtendedLifetime(container) {}
+        #expect(try StoreDump(url, onlyColumns: before.columns) == before)
+    }
+
     /// Reconstructions: `LocalDevice` as 2.2 (before `modelName`) and 2.2.3 (before the identity
     /// sources) declared it, the other entities absent. Written in-test, not by the shipped apps.
     @Test("Reconstructed older stores open with the app's schema", arguments: [false, true])

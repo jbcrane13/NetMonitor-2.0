@@ -242,6 +242,7 @@
 		5B787473C223C0FCFF5A148D /* WiFiShortcutSetupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50F4C3C52B75ED936E81CA6E /* WiFiShortcutSetupTests.swift */; };
 		5BA0F5A4D9C7E3031154A0C4 /* WakeOnLANToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E04C865578218E23F28F978 /* WakeOnLANToolView.swift */; };
 		5BFFF742FDB98D59453C5470 /* BackgroundTaskService+Health.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50FDBE93FC4E09ECB21A8F4 /* BackgroundTaskService+Health.swift */; };
+		5C4DC08378E909CBA563CBFC /* ios-v2.4-pr1-default.store in Resources */ = {isa = PBXBuildFile; fileRef = D23672104EFE993CBF6C739B /* ios-v2.4-pr1-default.store */; };
 		5C68461770651750B278F6EC /* PortScannerToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F344E43A65DB15AAD34BEE6D /* PortScannerToolUITests.swift */; };
 		5CBC25455BD53E05AF8525E6 /* MacPairingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18300B34F5E90EE2E552E8E5 /* MacPairingView.swift */; };
 		5D4B058BFA8125C350ADBB50 /* DevicesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E66364D030234E1B45A6BA /* DevicesView.swift */; };
@@ -350,6 +351,7 @@
 		84632F7B0F24000B2F302BDA /* ChangeBriefMacViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B665D8ABF36658786B122CE /* ChangeBriefMacViewModel.swift */; };
 		849083AFF3C77D5E110E71AB /* PlainRuleScannedDeviceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35591FEADCA1BEAA52E7477F /* PlainRuleScannedDeviceUITests.swift */; };
 		851933E4B3A49AAA06EEE4E7 /* HeatmapAdvisorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EF81009C8B1233562A022D /* HeatmapAdvisorViewModelTests.swift */; };
+		858EF0C583EA42BFCF536E9F /* v2.4-pr1-default.store in Resources */ = {isa = PBXBuildFile; fileRef = A5BBB0D11B556509F1B7A9C6 /* v2.4-pr1-default.store */; };
 		85EE6279FE466C8293D9C413 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D34A17E8BFC3829CC161AA /* DeviceDetailViewModel.swift */; };
 		8691AFE753654E875A056725 /* IOSStoreMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EFAA075BB305B9626B949DD /* IOSStoreMigrationTests.swift */; };
 		86ABC20A40FAF71C98111FF3 /* PairWithMacViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31EE1D61CCC126139E23D09 /* PairWithMacViewModel.swift */; };
@@ -1135,6 +1137,7 @@
 		A250E7592344D3DD67910685 /* DataSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSettingsView.swift; sourceTree = "<group>"; };
 		A3A26AEE62C6261706D57D1A /* GeoFenceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoFenceSettingsView.swift; sourceTree = "<group>"; };
 		A5380F904D8A46DD9A585ACA /* CardStateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStateViews.swift; sourceTree = "<group>"; };
+		A5BBB0D11B556509F1B7A9C6 /* v2.4-pr1-default.store */ = {isa = PBXFileReference; path = "v2.4-pr1-default.store"; sourceTree = "<group>"; };
 		A5C85599B4C0D70201382408 /* ChangeBriefViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeBriefViewModel.swift; sourceTree = "<group>"; };
 		A5C9C397E3C5F3B5DD286717 /* SSLCertificateMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSLCertificateMonitorView.swift; sourceTree = "<group>"; };
 		A5CD4C3C6894A893EDE6003C /* ConnectivityMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectivityMonitor.swift; sourceTree = "<group>"; };
@@ -1252,6 +1255,7 @@
 		D06BEFF5D13AB04413ED57E5 /* TroubleshootToolViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TroubleshootToolViewModelTests.swift; sourceTree = "<group>"; };
 		D1B63113D27266E541737C00 /* PlainRuleIOSViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainRuleIOSViewModelTests.swift; sourceTree = "<group>"; };
 		D23643E8F3DE1CC6C6B2B195 /* WiFiSignalCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiSignalCard.swift; sourceTree = "<group>"; };
+		D23672104EFE993CBF6C739B /* ios-v2.4-pr1-default.store */ = {isa = PBXFileReference; path = "ios-v2.4-pr1-default.store"; sourceTree = "<group>"; };
 		D31EE1D61CCC126139E23D09 /* PairWithMacViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairWithMacViewModel.swift; sourceTree = "<group>"; };
 		D33FA8CEF889C0CD95DE23EF /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
 		D43B91C6C0FC9D62E3100938 /* AppearanceEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceEnvironment.swift; sourceTree = "<group>"; };
@@ -1904,6 +1908,7 @@
 				40BFE4DD96843BF4F289442C /* v2.2-default.store */,
 				93BE4566F9E242DE91159BF7 /* v2.2.3-default.store */,
 				C684539425D5E6B31F528AEF /* v2.3-default.store */,
+				A5BBB0D11B556509F1B7A9C6 /* v2.4-pr1-default.store */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -2296,6 +2301,7 @@
 			isa = PBXGroup;
 			children = (
 				AC7FE1ED13EE7CF89E441A34 /* ios-v2.3-default.store */,
+				D23672104EFE993CBF6C739B /* ios-v2.4-pr1-default.store */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -2739,6 +2745,7 @@
 				34CC050F63FE38D8C7A0C361 /* v2.2-default.store in Resources */,
 				54959A0024A9726BBBD83E6F /* v2.2.3-default.store in Resources */,
 				951C44B2CBBBBFD54E7A81F6 /* v2.3-default.store in Resources */,
+				858EF0C583EA42BFCF536E9F /* v2.4-pr1-default.store in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2771,6 +2778,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A6FBE54756B2D0B6C3F1CDF2 /* ios-v2.3-default.store in Resources */,
+				5C4DC08378E909CBA563CBFC /* ios-v2.4-pr1-default.store in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
