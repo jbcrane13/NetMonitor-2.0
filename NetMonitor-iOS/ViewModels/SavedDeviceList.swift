@@ -119,9 +119,7 @@ struct SavedDeviceList {
     /// (`DeviceGroups.recentDevices`), as complete groups, most recent first, at most `fetchLimit`
     /// devices.
     static func recentRows(network: UUID?, in context: ModelContext) -> [LocalDevice] {
-        let scopes: [DeviceScope] = (network.map { [.network($0)] } ?? []) + [.withoutNetwork]
-        let devices = scopes.flatMap { (try? DeviceGroups.recentDevices(in: $0, limit: fetchLimit, in: context)) ?? [] }
-        return devices.sorted { $0.lastSeen > $1.lastSeen }.prefix(fetchLimit).flatMap(\.members)
+        DeviceGroups.listedRows(network: network, limit: fetchLimit, in: context)
     }
 
     static let fetchLimit = 500
