@@ -90,9 +90,15 @@ struct SavedDeviceList {
         self.presence = presence
         let overlay = overlay.applies(to: network) ? overlay : .none
         self.overlay = overlay
-        let found = live.filter { device in
+        let unsaved = live.filter { device in
             (device.networkProfileID == network || device.networkProfileID == nil) && !rows.contains { Self.matches($0, device) }
         }
+        // At a Mac record's address, a live phone sighting is the phone's; a cached one gives way to
+        // the Mac's current status (Devin on #624).
+        func atMacRecord(_ device: DiscoveredDevice) -> Bool {
+            overlay.macOnly.contains { record in record.members.contains { $0.ipAddress == device.ipAddress } }
+        }
+        let found = unsaved.filter { !($0.isCached && atMacRecord($0)) }
         // Past devices are filtered after matching: one the Mac has online now is shown (#585 review 4).
         let all = DeviceList.devices(rows, filter: DeviceListFilter(showPast: true), presence: presence, sort: .ipAddress, ascending: true)
         let shown = all.filter { overlay.isShown($0, showPast: showPast, presence: presence) }
@@ -100,7 +106,9 @@ struct SavedDeviceList {
         let macOnly = overlay.macOnly.filter { record in !found.contains { device in record.members.contains { $0.ipAddress == device.ipAddress } } }
         entries = Self.sorted(
             shown.map(Entry.saved) + found.map(Entry.found) + macOnly.map(Entry.mac), by: sort,
-            freshness: { Self.freshness($0, presence, overlay) }, latency: { Self.latency($0, presence) }
+            freshness: { Self.freshness($0, presence, overlay) },
+            // A latency hidden beside the Mac's "Offline" doesn't sort the row first.
+            latency: { Self.freshness($0, presence, overlay).isOnline ? Self.latency($0, presence) : .infinity }
         )
     }
 

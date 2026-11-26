@@ -766,6 +766,14 @@ struct LocalDevicesCard: View {
                     }
                 }
 
+                // Where the states come from while the Mac's inventory is shown (#585).
+                if let source = list.sourceText {
+                    Label(source, systemImage: "desktopcomputer")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.Colors.accent)
+                        .accessibilityIdentifier("dashboard_label_macInventory")
+                }
+
                 VStack(spacing: 0) {
                     let entries = visibleEntries(list)
                     ForEach(entries) { entry in
@@ -848,6 +856,13 @@ struct SavedDeviceRow: View {
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .tracking(0.3)
+                if let seen = list.phoneSightingText(device) {
+                    Text(seen)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .lineLimit(1)
+                        .accessibilityHidden(true)
+                }
             }
 
             Spacer()
@@ -866,7 +881,8 @@ struct SavedDeviceRow: View {
                             .accessibilityHidden(true)
                     }
                 }
-                Text(list.relativeLastSeen(device))
+                // The Mac's last seen says so; the phone's own reads as before (#585).
+                Text(list.macRecord(for: device) == nil ? list.relativeLastSeen(device) : "\(list.relativeLastSeen(device)) · from your Mac")
                     .font(.system(.caption2, design: .rounded))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .accessibilityHidden(true)
@@ -875,7 +891,7 @@ struct SavedDeviceRow: View {
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         // The state and last seen once, from the one place that words them.
-        .accessibilityValue(list.accessibilityText(device))
+        .accessibilityValue([list.accessibilityText(device), list.phoneSightingText(device)].compactMap { $0 }.joined(separator: ". "))
         .accessibilityIdentifier("dashboard_device_row_\(device.ipAddress)")
     }
 }

@@ -243,7 +243,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanProgress = 0.90
 
         let macStillConnected = macConnectionService?.connectionState.isConnected ?? false
-        if macStillConnected {
+        // An inventory Mac sends its list after each of its own scans (#585): no request, no wait.
+        if macStillConnected, macConnectionService?.macOffersInventory != true {
             await macConnectionService?.send(command: CommandPayload(action: .refreshDevices))
             try? await Task.sleep(for: .seconds(1))
         }

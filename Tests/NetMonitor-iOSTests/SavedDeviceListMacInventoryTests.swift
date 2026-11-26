@@ -146,6 +146,48 @@ struct SavedDeviceListMacInventoryTests {
         #expect(list.latencyText(device) == nil)
     }
 
+    /// Devin on #624: a cached (unconfirmed) phone sighting at the Mac record's address shows the
+    /// Mac's current status instead; a live phone sighting there is the phone's.
+    @Test func aCachedPhoneSightingGivesWayToTheMacsRecord() {
+        func found(cached: Bool) -> DiscoveredDevice {
+            DiscoveredDevice(
+                ipAddress: "192.168.77.50", hostname: "doorbell", vendor: nil, macAddress: nil, latency: nil, discoveredAt: now,
+                source: .local, networkProfileID: home, isCached: cached
+            )
+        }
+        let overlay = MacInventoryOverlay.make(
+            availability: availability([macDevice("192.168.77.50", name: "doorbell", online: true)]), networkID: home, rows: [],
+            presence: presence, ownScan: nil
+        )
+        let cached = SavedDeviceList(
+            saved: [], live: [found(cached: true)], network: home, sort: .ip, showPast: false, presence: presence, overlay: overlay
+        )
+        #expect(cached.entries.map(\.id).allSatisfy { $0.hasPrefix("mac-") })
+        #expect(cached.entries.count == 1)
+        let live = SavedDeviceList(
+            saved: [], live: [found(cached: false)], network: home, sort: .ip, showPast: false, presence: presence, overlay: overlay
+        )
+        #expect(live.entries.map(\.id).allSatisfy { $0.hasPrefix("found-") })
+        #expect(live.entries.count == 1)
+    }
+
+    /// Devin on #624: a latency hidden beside the Mac's "Offline" doesn't sort the row first.
+    @Test func aHiddenLatencyDoesNotSortARowFirst() throws {
+        let tv = row("192.168.77.20", name: "tv", lastSeen: now)
+        tv.lastLatency = 2
+        let nas = row("192.168.77.30", name: "nas", lastSeen: now)
+        nas.lastLatency = 40
+        let phoneScan = PresenceSnapshot(lastScans: [home: now], now: now)
+        let overlay = MacInventoryOverlay.make(
+            availability: availability([
+                macDevice("192.168.77.20", name: "tv", online: false), macDevice("192.168.77.30", name: "nas", online: true)
+            ]),
+            networkID: home, rows: [tv, nas], presence: phoneScan, ownScan: nil
+        )
+        let list = SavedDeviceList(saved: [tv, nas], network: home, sort: .latency, showPast: false, presence: phoneScan, overlay: overlay)
+        #expect(list.entries.map(\.ipAddress) == ["192.168.77.30", "192.168.77.20"])
+    }
+
     @Test func anotherNetworksOverlayIsIgnored() throws {
         let tv = row("192.168.77.20", name: "tv", lastSeen: now - 3600)
         let overlay = MacInventoryOverlay.make(
