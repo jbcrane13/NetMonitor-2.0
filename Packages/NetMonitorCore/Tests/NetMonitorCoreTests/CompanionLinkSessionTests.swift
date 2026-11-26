@@ -173,4 +173,37 @@ struct CompanionLinkSessionBackoffFormulaTests {
         #expect(batch.errors == [.malformedPayload])
         #expect(batch.messages.count == 1)
     }
+
+    /// Lead's final check: a peer that greets and then sends garbage, link after link, with hellos at
+    /// least a heartbeat apart. The phone's order is: the link comes up (`recordConnected`), the hello
+    /// is received, the link fails (`linkEnded`), a reconnect is scheduled. The backoff keeps growing
+    /// to its cap.
+    @Test("a hello-then-garbage peer keeps backing off to the cap, link after link")
+    func helloThenGarbageBacksOffToTheCap() {
+        var session = CompanionLinkSession(heartbeatInterval: 15)
+        var instant = referenceInstant
+        var delays: [TimeInterval] = []
+        for _ in 0..<9 {
+            session.recordConnected(at: instant)
+            session.recordReceived(at: instant)
+            session.linkEnded()
+            let delay = session.nextReconnectDelay(jitterFraction: 0)
+            delays.append(delay)
+            instant = instant.addingTimeInterval(delay + 20)
+        }
+        #expect(delays == delays.sorted())
+        #expect(delays.last == 60)
+        #expect(session.reconnectAttempt == 9)
+    }
+
+    /// A stale link's start never resets the backoff for a message after it ended.
+    @Test("a message after the link ended doesn't reset the backoff")
+    func aMessageAfterTheLinkEndedDoesNotReset() {
+        var session = CompanionLinkSession(heartbeatInterval: 15)
+        session.recordConnected(at: referenceInstant)
+        session.linkEnded()
+        _ = session.nextReconnectDelay(jitterFraction: 0)
+        session.recordReceived(at: referenceInstant.addingTimeInterval(100))
+        #expect(session.reconnectAttempt == 1)
+    }
 }

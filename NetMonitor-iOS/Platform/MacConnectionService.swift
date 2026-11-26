@@ -15,9 +15,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Shared Instance
 
-    static let shared: MacConnectionService = .init(
-        insightClient: PhoneInsight.linkClient, macStore: defaultMacStore(), defaults: defaultDefaults()
-    )
+    static let shared: MacConnectionService = .init(insightClient: PhoneInsight.linkClient, macStore: defaultMacStore(), defaults: defaultDefaults())
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "MacConnectionService")
 
     // MARK: - Public State
@@ -246,6 +244,8 @@ extension MacConnectionService {
         // The Mac's device list stays for display, but is no longer evidence of presence (#598).
         lastDeviceListReceivedAt = nil
         inventoryLink = CompanionInventoryLink()
+        // No message after this counts toward a stable link (#624).
+        linkSession.linkEnded()
         session = nil
         awaitingHello = false
         insightClient.disconnected()
@@ -372,8 +372,10 @@ extension MacConnectionService {
     }
 
     private func handleMessage(_ message: CompanionMessage) {
-        // Any inbound message proves the link is alive, not just heartbeats.
-        linkSession.recordReceived(at: Date())
+        // Any inbound message proves the link is alive, not just heartbeats. Recorded after it is
+        // handled, so the hello's `recordConnected` comes first and the backoff resets only on a link
+        // that has stayed up (#624).
+        defer { linkSession.recordReceived(at: Date()) }
         Self.logger.debug("Received companion message: \(message.logName, privacy: .public)")
         switch message {
         case .serverHello(let payload):

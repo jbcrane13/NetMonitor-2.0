@@ -60,8 +60,15 @@ public struct CompanionLinkSession: Sendable {
     /// attempt, using the same capped-exponential-backoff-with-jitter formula as the original
     /// `MacConnectionService.reconnectDelay(attempt:jitterFraction:)`.
     public mutating func nextReconnectDelay(jitterFraction: Double) -> TimeInterval {
+        connectedAt = nil
         reconnectAttempt += 1
         return Self.reconnectDelay(attempt: reconnectAttempt, jitterFraction: jitterFraction)
+    }
+
+    /// Records that the link ended, by any path: a message after it never counts toward a stable
+    /// link, so the backoff keeps growing for a peer that greets and then fails (#624).
+    public mutating func linkEnded() {
+        connectedAt = nil
     }
 
     /// Resets reconnect and liveness state to its initial values.
