@@ -539,6 +539,66 @@ extension UITestBootstrap {
     }
 }
 
+// MARK: - Grouping (#594 PR2)
+
+extension UITestBootstrap {
+    /// The two interfaces `UITEST_FAKE_BONJOUR_GROUP=1` adds to the UI-test scan, both answering for
+    /// one strong Bonjour name. Fixture values only.
+    static let bonjourGroupScan = (host: "uitest-studio.local", wifiIP: "192.168.1.70", wiredIP: "192.168.1.71")
+
+    /// With `UITEST_FAKE_BONJOUR_GROUP=1` (Debug builds): a Mac answering the UI-test scan at two
+    /// addresses, each with its own MAC, both claiming `bonjourGroupScan.host`, so the scan groups
+    /// them into one device. `enabled` is for the unit test that checks the fixture.
+    static func bonjourGroupScanDevices(
+        enabled: Bool = isUITesting && ProcessInfo.processInfo.environment["UITEST_FAKE_BONJOUR_GROUP"] == "1"
+    ) -> [DiscoveredDevice] {
+        #if DEBUG
+        guard enabled else { return [] }
+        let scan = bonjourGroupScan
+        return [(scan.wifiIP, "02:00:00:94:00:70"), (scan.wiredIP, "02:00:00:94:00:71")].map { ip, mac in
+            DiscoveredDevice(
+                ipAddress: ip, hostname: "uitest-studio", vendor: nil, macAddress: mac, latency: 3, discoveredAt: Date(), source: .bonjour,
+                networkProfileID: networkProfileID, bonjourClaims: [HostClaim(host: scan.host, service: "UITest Studio", address: ip)]
+            )
+        }
+        #else
+        return []
+        #endif
+    }
+
+    /// The two saved devices `UITEST_SEED_GROUP_SUGGESTION=1` adds. Fixture values only.
+    static let suggestionPair = (
+        host: "uitest-library.local", wiredIP: "192.168.1.80", wiredName: "uitest-library-wired",
+        wifiIP: "192.168.1.81", wifiName: "uitest-library-wifi"
+    )
+
+    /// With `UITEST_SEED_GROUP_SUGGESTION=1` (Debug builds): two saved devices on the UI-test network,
+    /// not in the UI-test scan, that answered for `suggestionPair.host` an hour ago, so device detail
+    /// suggests they are one device. Never twice.
+    static func seedGroupSuggestionIfNeeded(in context: ModelContext) {
+        #if DEBUG
+        let pair = suggestionPair
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SEED_GROUP_SUGGESTION"] == "1",
+              !((try? context.fetch(FetchDescriptor<LocalDevice>()))?.contains { $0.ipAddress == pair.wiredIP } ?? false)
+        else { return }
+        // Against the wall clock, which the suggestion's 30-day window reads.
+        let seen = Date().addingTimeInterval(-3600)
+        for (ip, name, mac) in [(pair.wiredIP, pair.wiredName, "02:00:00:94:00:80"), (pair.wifiIP, pair.wifiName, "02:00:00:94:00:81")] {
+            let row = LocalDevice(ipAddress: ip, macAddress: mac, hostname: name, deviceType: .storage, networkProfileID: networkProfileID)
+            row.bonjourHost = pair.host
+            row.bonjourHostSeenAt = seen
+            row.lastSeen = seen
+            context.insert(row)
+        }
+        do {
+            try context.save()
+        } catch {
+            Logger.data.error("UI-test group suggestion seed failed to save: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+    }
+}
+
 // MARK: - Saved devices follow scans (#582)
 
 extension UITestBootstrap {
