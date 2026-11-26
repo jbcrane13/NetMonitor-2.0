@@ -292,12 +292,12 @@ struct DeviceDiscoveryNewDeviceHookTests {
                 ScanPipeline(steps: [ScanPipeline.Step(phases: [ListUpsertPhase(box: box)], concurrent: false)])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         let suite = "DeviceDiscoveryNewDeviceHookTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite) ?? .standard
         defer { defaults.removePersistentDomain(forName: suite) }
-        coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
         var reported: [[String]] = []
         coordinator.addDeviceChangeHandler { events, _ in
             let firstSeen = events.compactMap { event -> String? in
@@ -370,12 +370,12 @@ struct DeviceDiscoveryNewDeviceHookTests {
                 ScanPipeline(steps: [ScanPipeline.Step(phases: [ListUpsertPhase(box: box)], concurrent: false)])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         let suite = "UpgradeSeedTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite) ?? .standard
         defer { defaults.removePersistentDomain(forName: suite) }
-        coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
         var events: [DeviceChangeEvent] = []
         coordinator.addDeviceChangeHandler { changes, _ in events += changes }
 

@@ -4,8 +4,9 @@ import NetMonitorCore
 /// The one place the Mac writes network events (#491 D7): devices joining, leaving and coming
 /// back, completed scans, connectivity changes and gateway changes, each with its network's ID.
 ///
-/// Device names come from the network's rows (`MacRuleAlerts.row`, then the device it is an
-/// interface of, #594), the same lookup the alerts use; an unmatched device keeps the name the
+/// Each device event (one per device per scan, #603) names its device's primary row; the entry
+/// keeps that row's ID and the device's name (`MacRuleAlerts.row`, then the device it is an
+/// interface of, #594), the same lookup the alerts use. An unmatched device keeps the name the
 /// scan saw.
 ///
 /// **Flap guard:** each device logs at most one left and one joined per `flapWindow`. Events are
@@ -183,30 +184,32 @@ private struct DeviceEntry {
     private(set) var observedAt = Date.distantPast
 
     init?(_ change: DeviceChangeEvent, devices: [LocalDevice], profileID: UUID?) {
-        let device: (ip: String, mac: String?, name: String?)
+        let device: (ip: String, mac: String?, name: String?, id: UUID?)
         let prefix: String
         switch change {
         case let .firstSeen(seen):
-            (device, prefix, direction) = ((seen.ipAddress, seen.macAddress, seen.name), "Device Joined", .joined)
+            (device, prefix, direction) = ((seen.ipAddress, seen.macAddress, seen.name, seen.deviceID), "Device Joined", .joined)
         case let .cameOnline(seen):
-            (device, prefix, direction) = ((seen.ipAddress, seen.macAddress, seen.name), "Device Back Online", .joined)
+            (device, prefix, direction) = ((seen.ipAddress, seen.macAddress, seen.name, seen.deviceID), "Device Back Online", .joined)
         case let .wentOffline(known):
-            (device, prefix, direction) = ((known.ipAddress, known.macAddress, known.name), "Device Left", .left)
+            (device, prefix, direction) = ((known.ipAddress, known.macAddress, known.name, known.deviceID), "Device Left", .left)
         case .changed:
             return nil
         }
         let (ip, mac) = (device.ip, device.mac)
-        let row = MacRuleAlerts.row(ip: ip, mac: mac, in: devices)
-        // Named by the device the row is an interface of (#594); the event keeps the row's ID,
-        // which resolves to the device.
-        let name = row.map { MacRuleAlerts.device(of: $0).displayName }
-        let label = name ?? device.name.flatMap { $0.isEmpty ? nil : $0 } ?? ip
+        let row = MacRuleAlerts.row(deviceID: device.id, ip: ip, mac: mac, in: devices)
+        // Named by the device the row is an interface of (#594); the entry keeps the event's
+        // primary row ID, which resolves to the device.
+        let projection = row.map { MacRuleAlerts.device(of: $0) }
+        let label = projection?.displayName ?? device.name.flatMap { $0.isEmpty ? nil : $0 } ?? ip
         title = "\(prefix): \(label)"
         details = label == ip ? nil : ip
-        deviceID = row?.id
+        deviceID = device.id ?? row?.id
         self.profileID = profileID
-        // The MAC first: a row can be missing from one scan's rows and present in the next.
-        key = mac.flatMap { $0.isEmpty ? nil : $0.uppercased() } ?? row?.id.uuidString ?? ip
+        // The event's device (its primary row, #603) first: its current interface, and so its MAC,
+        // can change between scans. Then the MAC: a row can be missing from one scan's rows and
+        // present in the next.
+        key = device.id?.uuidString ?? mac.flatMap { $0.isEmpty ? nil : $0.uppercased() } ?? row?.id.uuidString ?? ip
     }
 
     func observed(at timestamp: Date) -> DeviceEntry {

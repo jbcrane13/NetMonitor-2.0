@@ -339,7 +339,6 @@ struct NetMonitorApp: App {
             clock: UITestScanFixture.scanClock ?? Date.init,
             presenceClock: UITestScanFixture.presenceClock ?? Date.init
         )
-        discovery.changeTracker = UITestScanFixture.changeTracker(reset: HistoryFileLocation.current.resetRequested)
         deviceDiscovery = discovery
         // Settings > Companion over in-memory credentials; the listener stays off, so a UI-test
         // launch never opens the companion port (#590).
@@ -353,6 +352,7 @@ struct NetMonitorApp: App {
                 profileID: profileManager.activeProfile?.id,
                 deviceType: ProcessInfo.processInfo.environment["UITEST_FAKE_SUGGESTION"] == "1" ? .unknown : .computer
             )
+            UITestScanFixture.recordBaseline(in: discovery, profileID: profileManager.activeProfile?.id)
             // UI tests don't scan, so ask about the seeded device directly (#449).
             discovery.startSuggestions(profileID: profileManager.activeProfile?.id)
         }
@@ -477,10 +477,11 @@ enum NetworkProfileDefaults {
 // MARK: - UI-test scan fixture
 
 /// What `--uitesting` scans instead of the LAN (#491 D7): the `--seed-test-device` row's device
-/// and a printer it has never seen. The seeded row is the network's baseline, so a scan reports
-/// the printer, and only the printer, as first seen.
+/// and a printer it has never seen. A scan of the seeded row alone is recorded at launch as the
+/// network's baseline (its first recorded scan, on which nothing "joins", #603), so the first
+/// fixture scan reports the printer, and only the printer, as joined.
 enum UITestScanFixture {
-    /// The device tracker's own suite, so UI-test scans never touch the user's registry.
+    /// The UI-test scans' own suite (their scan history), so they never touch the user's.
     static let trackerSuite = "netmonitor.uitest"
     static let seedIP = "192.168.77.77"
     static let seedMAC = "AA:BB:CC:DD:EE:FF"
@@ -565,17 +566,14 @@ enum UITestScanFixture {
         ScanPipeline(steps: [ScanPipeline.Step(phases: [FixturePhase()], concurrent: false)])
     }
 
-    /// The UI-test tracker, emptied first when `reset` (`--reset-history-files`) is set.
+    /// Reconciles a scan of the seeded device alone, a minute before launch: the network's first
+    /// recorded scan, so later fixture scans can report devices joining (#603).
     @MainActor
-    static func changeTracker(reset: Bool) -> DeviceChangeTracker {
-        // Never fall back to the standard defaults: that is the user's real registry.
-        guard let defaults = UserDefaults(suiteName: trackerSuite) else {
-            preconditionFailure("UI-test tracker suite \(trackerSuite) is unavailable")
-        }
-        if reset {
-            defaults.removePersistentDomain(forName: trackerSuite)
-        }
-        return DeviceChangeTracker(defaults: defaults)
+    static func recordBaseline(in discovery: DeviceDiscoveryCoordinator, profileID: UUID?) {
+        let seed = DiscoveredDevice(
+            ipAddress: seedIP, hostname: seedHostname, vendor: nil, macAddress: seedMAC, latency: 5, discoveredAt: Date(), source: .local
+        )
+        discovery.reconcileScan([seed], profileID: profileID, now: Date().addingTimeInterval(-60))
     }
 
     /// Seeds the baseline `LocalDevice` on `profileID`, for UI tests that need a non-empty
