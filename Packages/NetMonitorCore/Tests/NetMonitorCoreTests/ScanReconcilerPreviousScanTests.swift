@@ -90,35 +90,4 @@ extension ScanReconcilerTests {
         #expect(outcome != .skipped)
         #expect(try rows(context).count == 1)
     }
-
-    /// The tracker forgets misses counted before a new owner of the grace count (#596).
-    @Test @MainActor func forgettingMissesRestartsTheGraceCountButKeepsOfflineDevices() {
-        let suite = "forgetMisses.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite) ?? .standard
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let tracker = DeviceChangeTracker(defaults: defaults)
-        let router = DeviceObservation(ipAddress: "192.168.7.1", macAddress: "AC:DE:48:00:00:01", name: "router")
-        let printer = DeviceObservation(ipAddress: "192.168.7.20", macAddress: "AC:DE:48:00:00:20", name: "printer")
-        _ = tracker.record(scope: "home", observed: [router, printer], now: start)
-        _ = tracker.record(scope: "home", observed: [router], now: minutes(10))
-        _ = tracker.record(scope: "home", observed: [router], now: minutes(20))
-        tracker.forgetMisses(for: "home")
-        // Without forgetting, this third miss past 15 minutes would report the printer left.
-        let events = tracker.record(scope: "home", observed: [router], now: minutes(30))
-        #expect(!events.contains {
-            if case .wentOffline = $0 {
-                true
-            } else {
-                false
-            }
-        })
-        let later = [40.0, 50].flatMap { tracker.record(scope: "home", observed: [router], now: minutes($0)) }
-        #expect(later.contains {
-            if case .wentOffline(let known) = $0 {
-                known.name == "printer"
-            } else {
-                false
-            }
-        })
-    }
 }

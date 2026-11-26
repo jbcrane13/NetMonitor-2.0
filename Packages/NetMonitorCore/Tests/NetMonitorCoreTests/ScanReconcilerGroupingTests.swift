@@ -211,4 +211,67 @@ final class ScanReconcilerGroupingTests {
         }
         #expect(outcomes.count == 1, "\(outcomes)")
     }
+
+    @Test("A stale network returning days later reports nothing for the devices that answer, and a leave only after grace")
+    func staleNetworkReturns() throws {
+        let printer = seen("10.0.0.30", name: "printer", mac: "AA:BB:CC:00:00:30")
+        try reconcile([routerSeen, seen("10.0.0.10", mac: "AA:BB:CC:00:00:10"), printer], at: 0)
+        let days = 3.0 * 24 * 60
+        #expect(try reconcile([routerSeen, seen("10.0.0.10", mac: "AA:BB:CC:00:00:10")], at: days).isEmpty)
+        var later: [DeviceEvent] = []
+        for step in [10.0, 20] {
+            later += try reconcile([routerSeen, seen("10.0.0.10", mac: "AA:BB:CC:00:00:10")], at: days + step)
+        }
+        #expect(later.map(\.name) == ["printer"])
+        #expect(later.map(\.kind) == [.wentOffline(since: minutes(0))])
+    }
+
+    @Test("Every interface of a device crossing grace in the same scan is one leave")
+    func allMembersLeaveTogether() throws {
+        try reconcile([routerSeen], at: 0)
+        try reconcile([routerSeen, seen("10.0.0.10", hosts: ["studio.local"]), seen("10.0.0.40", hosts: ["studio.local"])], at: 5)
+        var gone: [DeviceEvent] = []
+        for time in [25.0, 45, 65] {
+            gone += try reconcile([routerSeen], at: time)
+        }
+        #expect(gone.map(\.kind) == [.wentOffline(since: minutes(5))])
+        #expect(Set(gone.flatMap(\.memberIDs)).count == 2)
+    }
+
+    @Test("A rename in the scan that groups: an event only when the renamed row stays the primary")
+    func renameDuringPrimaryChange() throws {
+        let wired = "AA:BB:CC:00:00:10", wifi = "AA:BB:CC:00:00:40"
+        try reconcile([routerSeen], at: 0)
+        try reconcile([routerSeen, seen("10.0.0.10", mac: wired), seen("10.0.0.40", name: "studio-wifi", mac: wifi)], at: 5)
+        // The Wi-Fi row has the user's notes, so the group's primary is the Wi-Fi row, not the renamed wired one.
+        let rows = try context.fetch(FetchDescriptor<LocalDevice>())
+        try #require(rows.first { $0.ipAddress == "10.0.0.40" }).notes = "the user's"
+        try context.save()
+        let events = try reconcile([
+            routerSeen, seen("10.0.0.10", name: "studio-pro", mac: wired, hosts: ["studio.local"]),
+            seen("10.0.0.40", name: "studio-wifi", mac: wifi, hosts: ["studio.local"])
+        ], at: 10)
+        #expect(events.isEmpty, "the primary changed to the Wi-Fi row, whose name didn't")
+        #expect(try devices().first { $0.isGroup }?.displayName == "studio-wifi")
+    }
+
+    @Test("Undo after interleaved scans: a scan that only refreshes presence keeps it; a scan that regroups refuses it")
+    func undoAcrossScans() throws {
+        try reconcile([routerSeen], at: 0)
+        try reconcile([routerSeen, seen("10.0.0.10", mac: "AA:BB:CC:00:00:10"), seen("10.0.0.40", name: "nas", mac: "AA:BB:CC:00:00:40")], at: 5)
+        let rows = try context.fetch(FetchDescriptor<LocalDevice>()).filter { $0.ipAddress != "10.0.0.1" }
+        let writer = DeviceGroupWriter(container: container)
+        let undo = try writer.groupForUser(rows.map(\.id), primary: rows[0].id)
+        try reconcile([routerSeen, seen("10.0.0.10", mac: "AA:BB:CC:00:00:10"), seen("10.0.0.40", name: "nas", mac: "AA:BB:CC:00:00:40")], at: 10)
+        try writer.undo(undo)
+        #expect(try devices().count == 3)
+
+        let again = try writer.groupForUser(rows.map(\.id), primary: rows[0].id)
+        try reconcile([
+            routerSeen, seen("10.0.0.10", mac: "AA:BB:CC:00:00:10", hosts: ["studio.local"]),
+            seen("10.0.0.41", name: "studio-eth2", mac: "AA:BB:CC:00:00:41", hosts: ["studio.local"])
+        ], at: 15)
+        #expect(throws: DeviceGroupWriter.Refusal.undoUnavailable) { try writer.undo(again) }
+        #expect(try devices().first { $0.isGroup }?.members.count == 3)
+    }
 }

@@ -39,4 +39,16 @@ struct OnePerMACTests {
         let scan = [device("10.0.0.5", cached: true), device("10.0.0.50"), device("10.0.0.7", mac: nil), device("10.0.0.8", mac: nil)]
         #expect(PresenceMatch.onePerMAC(scan).map(\.ipAddress) == ["10.0.0.50", "10.0.0.7", "10.0.0.8"])
     }
+
+    @Test("Only the scanned network's row counts: another network's row at an address doesn't")
+    func knownRowsAreTheNetworks() throws {
+        let container = try ModelContainer(for: LocalDevice.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let home = UUID(), office = UUID()
+        let homeRow = LocalDevice(ipAddress: "10.0.0.20", macAddress: "AA:BB:CC:00:00:01", networkProfileID: home)
+        let officeRow = LocalDevice(ipAddress: "10.0.0.35", macAddress: "AA:BB:CC:00:00:01", networkProfileID: office)
+        container.mainContext.insert(homeRow)
+        container.mainContext.insert(officeRow)
+        let scan = [device("10.0.0.20"), device("10.0.0.35")]
+        #expect(PresenceMatch.onePerMAC(scan, known: [officeRow]).map(\.ipAddress) == ["10.0.0.35"])
+    }
 }

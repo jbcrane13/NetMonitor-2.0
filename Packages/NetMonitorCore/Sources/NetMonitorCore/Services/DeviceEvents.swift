@@ -32,6 +32,23 @@ public struct DeviceEvent: Sendable, Equatable {
     public let networkProfileID: UUID?
     public let firstSeen: Date
     public let lastSeen: Date
+
+    public init(
+        kind: Kind, deviceID: UUID, rowID: UUID, memberIDs: Set<UUID>, name: String, matchName: String?, ipAddress: String,
+        macAddress: String?, networkProfileID: UUID?, firstSeen: Date, lastSeen: Date
+    ) {
+        self.kind = kind
+        self.deviceID = deviceID
+        self.rowID = rowID
+        self.memberIDs = memberIDs
+        self.name = name
+        self.matchName = matchName
+        self.ipAddress = ipAddress
+        self.macAddress = macAddress
+        self.networkProfileID = networkProfileID
+        self.firstSeen = firstSeen
+        self.lastSeen = lastSeen
+    }
 }
 
 /// A reconcile's events, delivered once by the reconcile that applied the scan.
@@ -39,13 +56,30 @@ public struct DeviceEventBatch: Sendable, Equatable {
     public let networkProfileID: UUID?
     public let scanDate: Date
     public let events: [DeviceEvent]
+
+    public init(networkProfileID: UUID?, scanDate: Date, events: [DeviceEvent]) {
+        self.networkProfileID = networkProfileID
+        self.scanDate = scanDate
+        self.events = events
+    }
+}
+
+/// Where device events go (#603): the reconcile that applied a scan delivers; Timeline, alerts and
+/// notifications subscribe. ``DeviceEventDispatcher/shared`` is the app's one; tests make their own.
+@MainActor
+public protocol DeviceEventDispatching: AnyObject {
+    /// Calls `handler` with every later batch until `unsubscribe` is called with the returned token.
+    @discardableResult
+    func subscribe(_ handler: @escaping DeviceEventDispatcher.Handler) -> UUID
+    func unsubscribe(_ token: UUID)
+    func deliver(_ batch: DeviceEventBatch)
 }
 
 /// The one delivery owner for device events (#603): only a reconcile that applied a scan delivers,
 /// so a foreground and a background reconcile of the same scan deliver once. Timeline, alerts and
 /// notifications subscribe here.
 @MainActor
-public final class DeviceEventDispatcher {
+public final class DeviceEventDispatcher: DeviceEventDispatching {
     public static let shared = DeviceEventDispatcher()
     public typealias Handler = @MainActor (DeviceEventBatch) -> Void
 
@@ -88,18 +122,18 @@ public final class DeviceEventDispatcher {
 public enum DeviceEventReducer {
     /// A row's saved state at one moment, with its device's primary and current interface.
     public struct RowState: Sendable, Equatable {
-        let id: UUID
-        let deviceID: UUID
-        let isPrimary: Bool
-        let isCurrent: Bool
-        let status: DeviceStatus
-        let ipAddress: String
-        let macAddress: String?
-        let matchName: String?
-        let displayName: String
-        let networkProfileID: UUID?
-        let firstSeen: Date
-        let lastSeen: Date
+        public let id: UUID
+        public let deviceID: UUID
+        public let isPrimary: Bool
+        public let isCurrent: Bool
+        public let status: DeviceStatus
+        public let ipAddress: String
+        public let macAddress: String?
+        public let matchName: String?
+        public let displayName: String
+        public let networkProfileID: UUID?
+        public let firstSeen: Date
+        public let lastSeen: Date
     }
 
     /// The rows' states now, projected into devices.
