@@ -9,8 +9,8 @@ available: true
       - id dev-b: Synology DS920, storage, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.20
     > Pinged Synology DS920 at 192.168.1.20: 3 of 3 replies, average 2 ms.
   raw answer: The Synology DS920 at 192.168.1.20 is answering now with 3 of 3 replies, average 2 ms.
-  3.19 s
-  SHOWN: Here is what the app measured.  [model text kept: false]
+  2.96 s
+  SHOWN: The app's live check is below.  [model text kept: false]
   MEASUREMENTS: ["Synology DS920: 3 of 3 replies, 2 ms average"]
   STATUSES: ["Synology DS920=Online"]
   FRESHNESS LINE: Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).
@@ -22,8 +22,8 @@ available: true
       - id dev-a: Brother HL-L2350DW, printer, offline, last seen 2 hours ago (2026-11-23 9:14 AM), address 192.168.1.57
     > Pinged Brother HL-L2350DW at 192.168.1.57: no reply to 3 pings.
   raw answer: The Brother HL-L2350DW at 192.168.1.57 did not reply to 3 pings.
-  3.10 s
-  SHOWN: The Brother HL-L2350DW at 192.168.1.57 did not reply to 3 pings.  [model text kept: true]
+  2.93 s
+  SHOWN: The app's live check is below.  [model text kept: false]
   MEASUREMENTS: ["Brother HL-L2350DW: no reply to 3 pings"]
   STATUSES: ["Brother HL-L2350DW=Offline"]
   FRESHNESS LINE: Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).
@@ -35,8 +35,8 @@ available: true
       - id dev-c: Ring Doorbell, camera, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.88
     > Pinged Ring Doorbell at 192.168.1.88: 2 of 3 replies, average 50 ms.
   raw answer: The Ring Doorbell at 192.168.1.88 is responding with 2 of 3 replies averaging 50 ms.
-  3.08 s
-  SHOWN: Here is what the app measured.  [model text kept: false]
+  2.87 s
+  SHOWN: The app's live check is below.  [model text kept: false]
   MEASUREMENTS: ["Ring Doorbell: 2 of 3 replies, 50 ms average"]
   STATUSES: ["Ring Doorbell=Online"]
   FRESHNESS LINE: Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).
@@ -45,7 +45,7 @@ available: true
   calls: 1, outputs kept: 1
     > Connection: Wi-Fi. Gateway at 192.168.1.1: 3 of 3 replies, average 2 ms. Internet (pinged 8.8.8.8): 3 of 3 replies, average 15 ms.
   raw answer: Your connection is Wi-Fi. The gateway at 192.168.1.1: 3 of 3 replies, average 2 ms. Internet (pinged 8.8.8.8): 3 of 3 replies, average 15 ms.
-  2.47 s
+  2.33 s
   SHOWN: Your connection is Wi-Fi.  [model text kept: true]
   MEASUREMENTS: ["Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet: 3 of 3 replies, 15 ms average"]
   STATUSES: []
@@ -55,8 +55,8 @@ available: true
   calls: 1, outputs kept: 1
     > Connection: Wi-Fi. Gateway at 192.168.1.1: 3 of 3 replies, average 2 ms. Internet (pinged 8.8.8.8): 3 of 3 replies, average 15 ms.
   raw answer: The internet is up with 3 of 3 replies to 8.8.8.8 at 15 ms average. The gateway at 192.168.1.1 responded with 3 of 3 replies at 2 ms average.
-  2.35 s
-  SHOWN: Here is what the app measured.  [model text kept: false]
+  2.37 s
+  SHOWN: The app's live check is below.  [model text kept: false]
   MEASUREMENTS: ["Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet: 3 of 3 replies, 15 ms average"]
   STATUSES: []
   FRESHNESS LINE: -
@@ -65,8 +65,8 @@ available: true
   calls: 1, outputs kept: 1
     > Connection: Wi-Fi. Gateway at 192.168.1.1: 3 of 3 replies, average 2 ms. Internet (pinged 8.8.8.8): 3 of 3 replies, average 15 ms.
   raw answer: The gateway at 192.168.1.1 returned 3 of 3 replies with an average latency of 2 ms.
-  1.95 s
-  SHOWN: Here is what the app measured.  [model text kept: false]
+  1.90 s
+  SHOWN: The app's live check is below.  [model text kept: false]
   MEASUREMENTS: ["Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet: 3 of 3 replies, 15 ms average"]
   STATUSES: []
   FRESHNESS LINE: -
@@ -78,7 +78,7 @@ available: true
       - id dev-a: Brother HL-L2350DW, printer, offline, last seen 2 hours ago (2026-11-23 9:14 AM), address 192.168.1.57
     > Brother HL-L2350DW is offline as of the scan 3 minutes ago (2026-11-23 11:57 AM). Last seen 2 hours ago (2026-11-23 9:14 AM). Address 192.168.1.57. Last reply 6 ms. Went offline 1 time in the last 7 days (2026-11-17 to 2026-11-23).
   raw answer: The Brother HL-L2350DW printer is offline as of the scan 3 minutes ago (2026-11-23 11:57 AM). It was last seen 2 hours ago (2026-11-23 9:14 AM) at address 192.168.1.57. It went offline 1 time in the last 7 days (2026-11-17 to 2026-11-23).
-  4.71 s
+  4.53 s
   SHOWN: It was last seen 2 hours ago (2026-11-23 9:14 AM) at address 192.168.1.57. It went offline 1 time in the last 7 days (2026-11-17 to 2026-11-23).  [model text kept: true]
   MEASUREMENTS: []
   STATUSES: ["Brother HL-L2350DW=Offline"]
@@ -89,11 +89,9 @@ available: true
     > 2 events (Device Joined) in the last 7 days (2026-11-17 to 2026-11-23), newest first:
       - 2026-11-21 3:02 PM: Device Joined: Kitchen iPad
       - 2026-11-19 10:05 AM: Device Joined: ESP_3F21A9
-  raw answer: Two events joined in the last 7 days:
-- 2026-11-21 3:02 PM: Kitchen iPad
-- 2026-11-19 10:05 AM: ESP_3F21A9
-  2.99 s
-  SHOWN: Two events joined in the last 7 days: - 2026-11-21 3:02 PM: Kitchen iPad - 2026-11-19 10:05 AM: ESP_3F21A9  [model text kept: true]
+  raw answer: Two devices joined in the last 7 days: Kitchen iPad on 2026-11-21 3:02 PM and ESP_3F21A9 on 2026-11-19 10:05 AM.
+  5.64 s
+  SHOWN: Two devices joined in the last 7 days: Kitchen iPad on 2026-11-21 3:02 PM and ESP_3F21A9 on 2026-11-19 10:05 AM.  [model text kept: true]
   MEASUREMENTS: []
   STATUSES: ["Kitchen iPad=Online", "ESP_3F21A9=Online"]
   FRESHNESS LINE: Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).
@@ -104,7 +102,7 @@ available: true
       - Ring Doorbell: went offline 2 times; 2 latency spikes, highest 512 ms
       - Nest Thermostat: went offline 1 time; 1 latency spike, highest 297 ms
   raw answer: Two devices were flaky in the last 7 days: Ring Doorbell with 2 latency spikes, highest 512 ms, and Nest Thermostat with 1 latency spike, highest 297 ms.
-  2.71 s
+  8.30 s
   SHOWN: Two devices were flaky in the last 7 days: Ring Doorbell with 2 latency spikes, highest 512 ms, and Nest Thermostat with 1 latency spike, highest 297 ms.  [model text kept: true]
   MEASUREMENTS: []
   STATUSES: ["Ring Doorbell=Online", "Nest Thermostat=Online"]
@@ -116,9 +114,9 @@ available: true
       1 device matches "NAS":
       - id dev-b: Synology DS920, storage, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.20
     > Synology DS920, this session's latency samples (4): average 2 ms, highest 2 ms, lowest 2 ms. Latency spikes: 0. Went offline 0 times in the last 7 days (2026-11-17 to 2026-11-23). Lost pings are not recorded per device.
-  raw answer: The Synology DS920 had latency samples averaging 2 ms today, with the highest and lowest at 2 ms. There were no latency spikes or offline periods in the last 7 days (2026-11-17 to 2026-11-23).
-  3.88 s
-  SHOWN: The Synology DS920 had latency samples averaging 2 ms today, with the highest and lowest at 2 ms.  [model text kept: true]
+  raw answer: The Synology DS920 had latency samples averaging 2 ms, highest 2 ms, lowest 2 ms today. Latency spikes: 0. Went offline 0 times in the last 7 days (2026-11-17 to 2026-11-23). Lost pings are not recorded per device.
+  11.71 s
+  SHOWN: The Synology DS920 had latency samples averaging 2 ms, highest 2 ms, lowest 2 ms today. Latency spikes: 0. Went offline 0 times in the last 7 days (2026-11-17 to 2026-11-23). Lost pings are not recorded per device.  [model text kept: true]
   MEASUREMENTS: []
   STATUSES: ["Synology DS920=Online"]
   FRESHNESS LINE: Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).
@@ -129,9 +127,9 @@ available: true
       1 device matches "printer":
       - id dev-a: Brother HL-L2350DW, printer, offline, last seen 2 hours ago (2026-11-23 9:14 AM), address 192.168.1.57
     > Pinged Brother HL-L2350DW at 192.168.1.57: no reply to 3 pings.
-  raw answer: The Brother HL-L2350DW at 192.168.1.57 is offline, and no reply came back to the ping.
-  3.24 s
-  SHOWN: Here is what the app measured.  [model text kept: false]
+  raw answer: The Brother HL-L2350DW at 192.168.1.57 is offline; no reply to 3 pings.
+  10.36 s
+  SHOWN: The app's live check is below.  [model text kept: false]
   MEASUREMENTS: ["Brother HL-L2350DW: no reply to 3 pings"]
   STATUSES: ["Brother HL-L2350DW=Offline"]
   FRESHNESS LINE: Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).
@@ -139,9 +137,9 @@ available: true
 === Why is the internet slow tonight?
   calls: 1, outputs kept: 1
     > Connection: Wi-Fi. Gateway at 192.168.1.1: 3 of 3 replies, average 2 ms. Internet (pinged 8.8.8.8): 3 of 3 replies, average 15 ms.
-  raw answer: The gateway at 192.168.1.1 responded in 2 ms, while the internet ping to 8.8.8.8 averaged 15 ms.
-  2.38 s
-  SHOWN: Here is what the app measured.  [model text kept: false]
+  raw answer: The connection is Wi-Fi with the gateway at 192.168.1.1: 3 of 3 replies, average 2 ms. Internet (pinged 8.8.8.8): 3 of 3 replies, average 15 ms.
+  6.88 s
+  SHOWN: The app's live check is below.  [model text kept: false]
   MEASUREMENTS: ["Wi-Fi · gateway: 3 of 3 replies, 2 ms average · internet: 3 of 3 replies, 15 ms average"]
   STATUSES: []
   FRESHNESS LINE: -
@@ -153,19 +151,20 @@ available: true
       - id dev-c: Ring Doorbell, camera, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.88
     > Ring Doorbell is online as of the scan 3 minutes ago (2026-11-23 11:57 AM). Last seen less than a minute ago (2026-11-23 12:00 PM). Address 192.168.1.88. Last reply 388 ms. Went offline 2 times in the last 7 days (2026-11-17 to 2026-11-23).
   raw answer: The Ring Doorbell is online as of the scan 3 minutes ago (2026-11-23 11:57 AM). It was last seen less than a minute ago (2026-11-23 12:00 PM) at address 192.168.1.88. It went offline 2 times in the last 7 days (2026-11-17 to 2026-11-23).
-  4.74 s
+  11.33 s
   SHOWN: It was last seen less than a minute ago (2026-11-23 12:00 PM) at address 192.168.1.88. It went offline 2 times in the last 7 days (2026-11-17 to 2026-11-23).  [model text kept: true]
   MEASUREMENTS: []
   STATUSES: ["Ring Doorbell=Online"]
   FRESHNESS LINE: Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).
 
 === When was the Office MacBook last seen?
-  calls: 1, outputs kept: 1
+  calls: 2, outputs kept: 2
     > Device status as of the scan 3 minutes ago (2026-11-23 11:57 AM).
       1 device matches "Office MacBook":
       - id dev-f: Office MacBook, laptop, online, last seen 20 minutes ago (2026-11-23 11:40 AM), address 192.168.1.102
+    > Office MacBook is online as of the scan 3 minutes ago (2026-11-23 11:57 AM). Last seen 20 minutes ago (2026-11-23 11:40 AM). Address 192.168.1.102. Last reply 5 ms. Went offline 0 times in the last 7 days (2026-11-17 to 2026-11-23).
   raw answer: The Office MacBook was last seen at 2026-11-23 11:40 AM.
-  2.74 s
+  9.83 s
   SHOWN: The Office MacBook was last seen at 2026-11-23 11:40 AM.  [model text kept: true]
   MEASUREMENTS: []
   STATUSES: ["Office MacBook=Online"]
@@ -176,7 +175,7 @@ available: true
     > 1 event (Device Left) yesterday (2026-11-22), newest first:
       - 2026-11-22 6:30 PM: Device Left: Ring Doorbell
   raw answer: One event occurred yesterday: the Ring Doorbell left at 2026-11-22 6:30 PM.
-  2.46 s
+  2.82 s
   SHOWN: One event occurred yesterday: the Ring Doorbell left at 2026-11-22 6:30 PM.  [model text kept: true]
   MEASUREMENTS: []
   STATUSES: ["Ring Doorbell=Online"]
@@ -195,7 +194,7 @@ available: true
       - id dev-g: ESP_3F21A9, unknown type, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.143
       - id dev-h: Kitchen iPad, tablet, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.119
   raw answer: The offline device is Brother HL-L2350DW, printer, address 192.168.1.57, last seen 2 hours ago (2026-11-23 9:14 AM).
-  3.54 s
+  3.40 s
   SHOWN: 7 of 8 devices are online as of the scan 3 minutes ago.  [model text kept: false]
   MEASUREMENTS: []
   STATUSES: ["Brother HL-L2350DW=Offline", "Synology DS920=Online", "Ring Doorbell=Online", "Nest Thermostat=Online", "Living Room Apple TV=Online", "Office MacBook=Online", "ESP_3F21A9=Online", "Kitchen iPad=Online"]
@@ -214,7 +213,7 @@ available: true
       - id dev-g: ESP_3F21A9, unknown type, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.143
       - id dev-h: Kitchen iPad, tablet, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.119
   raw answer: There are 8 saved devices.
-  2.61 s
+  2.45 s
   SHOWN: There are 8 saved devices.  [model text kept: true]
   MEASUREMENTS: []
   STATUSES: ["Brother HL-L2350DW=Offline", "Synology DS920=Online", "Ring Doorbell=Online", "Nest Thermostat=Online", "Living Room Apple TV=Online", "Office MacBook=Online", "ESP_3F21A9=Online", "Kitchen iPad=Online"]
@@ -233,7 +232,7 @@ available: true
       - id dev-g: ESP_3F21A9, unknown type, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.143
       - id dev-h: Kitchen iPad, tablet, online, last seen less than a minute ago (2026-11-23 12:00 PM), address 192.168.1.119
   raw answer: The following devices are online: Synology DS920, Ring Doorbell, Nest Thermostat, Living Room Apple TV, Office MacBook, ESP_3F21A9, and Kitchen iPad. The Brother HL-L2350DW is offline.
-  4.09 s
+  3.66 s
   SHOWN: 7 of 8 devices are online as of the scan 3 minutes ago.  [model text kept: false]
   MEASUREMENTS: []
   STATUSES: ["Brother HL-L2350DW=Offline", "Synology DS920=Online", "Ring Doorbell=Online", "Nest Thermostat=Online", "Living Room Apple TV=Online", "Office MacBook=Online", "ESP_3F21A9=Online", "Kitchen iPad=Online"]
@@ -258,7 +257,7 @@ available: true
 - Synology DS920 (dev-b), storage, address 192.168.1.20, last seen 40 minutes ago (2026-11-23 11:20 AM)
 - Ring Doorbell (dev-c), camera, address 192.168.1.88, last seen 40 minutes ago (2026-11-23 11:20 AM)
 - Nest Thermostat (dev-d), iot, address 192.168.1.73, last seen 40 minutes ago (2026-1
-  6.74 s
+  6.49 s
   SHOWN: These devices haven't been checked recently. Their last-seen times are below.  [model text kept: false]
   MEASUREMENTS: []
   STATUSES: ["Brother HL-L2350DW=Not checked recently", "Synology DS920=Not checked recently", "Ring Doorbell=Not checked recently", "Nest Thermostat=Not checked recently", "Living Room Apple TV=Not checked recently", "Office MacBook=Not checked recently", "ESP_3F21A9=Not checked recently", "Kitchen iPad=Not checked recently"]
@@ -271,7 +270,7 @@ available: true
       - id dev-b: Synology DS920, storage, not checked recently, last seen 40 minutes ago (2026-11-23 11:20 AM), address 192.168.1.20
     > Synology DS920: not checked recently; the last scan was 40 minutes ago (2026-11-23 11:20 AM). Last seen 40 minutes ago (2026-11-23 11:20 AM). Address 192.168.1.20. Last reply 2 ms. Went offline 0 times in the last 7 days (2026-11-17 to 2026-11-23).
   raw answer: The Synology DS920 (192.168.1.20) was last seen 40 minutes ago (2026-11-23 11:20 AM) and has not gone offline 0 times in the last 7 days (2026-11-17 to 2026-11-23). Its last reply was 2 ms.
-  6.14 s
+  4.33 s
   SHOWN: The Synology DS920 (192.168.1.20) was last seen 40 minutes ago (2026-11-23 11:20 AM) and has not gone offline 0 times in the last 7 days (2026-11-17 to 2026-11-23). Its last reply was 2 ms.  [model text kept: true]
   MEASUREMENTS: []
   STATUSES: ["Synology DS920=Not checked recently"]
@@ -284,8 +283,8 @@ available: true
       - id dev-b: Synology DS920, storage, not checked recently, last seen 40 minutes ago (2026-11-23 11:20 AM), address 192.168.1.20
     > Pinged Synology DS920 at 192.168.1.20: 3 of 3 replies, average 2 ms.
   raw answer: The Synology DS920 at 192.168.1.20 is answering now with 3 replies averaging 2 ms.
-  5.37 s
-  SHOWN: Here is what the app measured.  [model text kept: false]
+  2.92 s
+  SHOWN: The app's live check is below.  [model text kept: false]
   MEASUREMENTS: ["Synology DS920: 3 of 3 replies, 2 ms average"]
   STATUSES: ["Synology DS920=Not checked recently"]
   FRESHNESS LINE: Not checked recently: the last scan was 40 minutes ago (2026-11-23 11:20 AM).
