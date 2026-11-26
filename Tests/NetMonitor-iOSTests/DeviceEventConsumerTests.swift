@@ -54,7 +54,7 @@ final class DeviceEventConsumerTests {
     }
 
     var router: DiscoveredDevice {
-        seen("192.168.1.1", name: "router", mac: "AA:00:00:00:00:01")
+        seen("192.168.1.1", name: "router", mac: "00:1B:A9:00:00:01")
     }
 
     /// A background scan's path: reconciled and published (`reconcileAndPublish`), its alerts from
@@ -125,7 +125,7 @@ final class DeviceEventConsumerTests {
 
     @Test("A device back online is logged with the Mac's wording, once")
     func backOnline() throws {
-        let printer = seen("192.168.1.30", name: "office-printer", mac: "AA:00:00:00:00:30")
+        let printer = seen("192.168.1.30", name: "office-printer", mac: "00:1B:A9:00:00:30")
         for index in 0 ... 3 {
             try reconcile(index == 0 ? [router, printer] : [router], at: index)
         }
@@ -140,9 +140,9 @@ final class DeviceEventConsumerTests {
         let claims = { (ip: String) in [HostClaim(host: "studio-mac.local", service: "Studio", address: ip)] }
         try reconcile([
             router,
-            DiscoveredDevice(ipAddress: "192.168.1.13", hostname: "studio-mac", vendor: nil, macAddress: "AA:00:00:00:00:13", latency: 2,
+            DiscoveredDevice(ipAddress: "192.168.1.13", hostname: "studio-mac", vendor: nil, macAddress: "00:1B:A9:00:00:13", latency: 2,
                              discoveredAt: start, source: .bonjour, networkProfileID: home, bonjourClaims: claims("192.168.1.13")),
-            DiscoveredDevice(ipAddress: "192.168.1.60", hostname: "studio-mac", vendor: nil, macAddress: "AA:00:00:00:00:60", latency: 1,
+            DiscoveredDevice(ipAddress: "192.168.1.60", hostname: "studio-mac", vendor: nil, macAddress: "00:1B:A9:00:00:60", latency: 1,
                              discoveredAt: start, source: .bonjour, networkProfileID: home, bonjourClaims: claims("192.168.1.60"))
         ], at: 1)
         #expect(deviceEntries() == ["Device Joined: studio-mac"])
@@ -206,11 +206,11 @@ final class DeviceEventConsumerTests {
     @Test("A row saved without a network, adopted by its real MAC, never joins")
     func adoptedLegacyRowIsQuiet() throws {
         let context = ModelContext(container)
-        let legacy = LocalDevice(ipAddress: "192.168.1.40", macAddress: "AA:00:00:00:00:40", hostname: "living-room", networkProfileID: nil)
+        let legacy = LocalDevice(ipAddress: "192.168.1.40", macAddress: "00:1B:A9:00:00:40", hostname: "living-room", networkProfileID: nil)
         context.insert(legacy)
         try context.save()
         try reconcile([router], at: 0)
-        try reconcile([router, seen("192.168.1.40", name: "living-room", mac: "AA:00:00:00:00:40")], at: 1)
+        try reconcile([router, seen("192.168.1.40", name: "living-room", mac: "00:1B:A9:00:00:40")], at: 1)
         #expect(deviceEntries().isEmpty)
         #expect(try rows().first { $0.id == legacy.id }?.networkProfileID == home, "adopted, not duplicated")
     }

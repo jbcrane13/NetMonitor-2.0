@@ -177,6 +177,55 @@ final class DeviceGroupingDetailTests {
         #expect(try storedDevices().first?.members.count == 3)
     }
 
+    @Test("Separating the interface detail was opened on stops probing its address, which is now another device's")
+    func separatingTheOpenedInterfaceMovesTheProbe() throws {
+        let wired = try row("192.168.1.60", name: "studio-wired")
+        let wifi = try row("192.168.1.13", name: "studio-wifi")
+        wired.macAddress = "00:1B:A9:00:00:60"
+        wifi.macAddress = "00:1B:A9:00:00:13"
+        try context.save()
+        try DeviceGroupWriter(container: container).group([wired.id, wifi.id], primary: wired.id, source: .user)
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
+        viewModel.loadDevice(ipAddress: "192.168.1.13", networkID: home, macAddress: "00:1B:A9:00:00:13", context: context)
+        #expect(viewModel.probeAddress == "192.168.1.13", "opened from the list at the Wi-Fi interface")
+
+        let opened = try #require(viewModel.interfaces.first { $0.id == wifi.id })
+        viewModel.separateInterface(opened)
+        #expect(viewModel.projection?.memberIDs == [wired.id])
+        #expect(viewModel.probeAddress != "192.168.1.13", "the separated interface is another device now")
+    }
+
+    @Test("An interface the scan grouped, said to be Not the same device, stays apart when the same scan comes again")
+    func separatedBonjourGroupStaysApart() throws {
+        let suite = "DeviceGroupingDetailTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let history = ScanHistory(defaults: defaults)
+        let reconciler = ScanReconciler(context: ModelContext(container), history: history, dispatcher: DeviceEventDispatcher())
+        func scan(at minutes: Double) throws {
+            let time = now.addingTimeInterval(minutes * 60)
+            try reconciler.reconcile(["192.168.1.13", "192.168.1.60"].map { ip in
+                DiscoveredDevice(
+                    ipAddress: ip, hostname: "studio-mac", vendor: nil, macAddress: "00:1B:A9:00:00:\(ip.suffix(2))", latency: 2, discoveredAt: time,
+                    source: .bonjour, networkProfileID: home, bonjourClaims: [HostClaim(host: "studio-mac.local", service: "Studio", address: ip)]
+                )
+            }, networkProfileID: home, scanDate: time, now: time)
+        }
+        try scan(at: 0)
+        let grouped = try #require(try storedDevices().first)
+        #expect(grouped.isGroup)
+
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
+        viewModel.loadDevice(id: grouped.id, context: context)
+        let other = try #require(viewModel.interfaces.first { $0.id != viewModel.device?.id })
+        viewModel.separateInterface(other)
+        #expect(try storedDevices().count == 2)
+
+        try scan(at: 10)
+        #expect(try storedDevices().count == 2, "the exclusion keeps the next scan from regrouping them")
+        #expect(try storedDevices().allSatisfy { !$0.isGroup })
+    }
+
     // MARK: - Label
 
     @Test("An interface the scan grouped says Grouped by Bonjour name; one the user grouped doesn't")

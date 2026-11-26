@@ -112,7 +112,7 @@ extension DeviceDetailViewModel {
         guard let modelContext, let projection, projection.isGroup,
               let anchor = projection.members.first(where: { $0.id != member.id })?.id
         else { return }
-        saveContext()
+        prepareForLeaving(member)
         do {
             let undo = try writer(modelContext).ungroupForUser(member.id)
             grouping.toast = DeviceGroupingToast(message: "\(member.ipAddress) is a separate device", undo: undo, anchor: anchor)
@@ -121,6 +121,7 @@ extension DeviceDetailViewModel {
             return
         }
         reloadDevice(anchor)
+        startSuggestion()
     }
 
     /// The toast's Undo: reverses the last grouping action, or says why it can't.
