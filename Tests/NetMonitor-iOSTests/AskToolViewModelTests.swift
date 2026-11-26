@@ -174,7 +174,8 @@ struct AskToolViewModelTests {
 
     @Test func theIntentNamesTheCandidatesInsteadOfAPicker() async {
         let other = LocalDevice(ipAddress: "192.168.77.31", macAddress: "AA:00:00:00:00:31", deviceType: .printer, customName: "Den Printer")
-        let text = await intent(devices: [AskDevice(DeviceGroups.project([printer(network: nil)])[0]), AskDevice(DeviceGroups.project([other])[0])], lastScan: nil, isScanning: false)
+        let devices = [AskDevice(DeviceGroups.project([printer(network: nil)])[0]), AskDevice(DeviceGroups.project([other])[0])]
+        let text = await intent(devices: devices, lastScan: nil, isScanning: false)
         #expect(text == "Which one do you mean: Office Printer and Den Printer? Ask again with its name.")
     }
 

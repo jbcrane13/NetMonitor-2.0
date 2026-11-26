@@ -320,7 +320,9 @@ struct DeviceGroupReaderTests {
     /// A label reader that reads `lines` with no model.
     private func labelViewModel(lines: [String]) -> LabelCaptureViewModel {
         LabelCaptureViewModel(
-            reader: LabelReader(recognizer: Lines(lines: lines), extractor: FixedLabelFieldExtractor(answer: nil), insight: UnavailableInsightService()),
+            reader: LabelReader(
+                recognizer: Lines(lines: lines), extractor: FixedLabelFieldExtractor(answer: nil), insight: UnavailableInsightService()
+            ),
             isScanning: { false }, liveScan: { [] }, testImage: { nil }
         )
     }
@@ -404,6 +406,9 @@ struct DeviceGroupReaderTests {
 
     // MARK: - Timeline, brief and naming
 
+}
+
+extension DeviceGroupReaderTests {
     @Test func eventsAboutEitherInterfaceAreNamedByTheDevice() throws {
         let group = try seedGroup()
         let saved = SavedDevices(network: group.rows, unassigned: [])
