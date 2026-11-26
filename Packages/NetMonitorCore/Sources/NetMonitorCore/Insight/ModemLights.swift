@@ -23,8 +23,10 @@ public enum ModemLightColor: String, Sendable, CaseIterable {
         }
     }
 
-    /// The words the model may answer with, `unknown` first.
-    public static let modelValues = ["unknown", "off", "green", "amber", "orange", "yellow", "red", "blue", "white", "purple", "magenta"]
+    /// The words the model may answer with, `unknown` first. Purple isn't offered: with it in the
+    /// list the real model read three unlit lights on a white case as unknown (#558 probe). A
+    /// purple light then comes back as unknown, which is shown as read without a verdict.
+    public static let modelValues = ["unknown", "off", "green", "amber", "orange", "yellow", "red", "blue", "white"]
 
     /// The colour for one of the model's words; anything outside the set is unknown.
     public init(modelValue: String) {
