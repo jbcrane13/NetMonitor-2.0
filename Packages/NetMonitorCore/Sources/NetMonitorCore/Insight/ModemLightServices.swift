@@ -10,7 +10,7 @@ public enum ModemLightServices {
     public static let extractor: any ModemLightExtractorProtocol = makeExtractor()
 
     static func makeExtractor() -> any ModemLightExtractorProtocol {
-        #if canImport(FoundationModels)
+        #if canImport(FoundationModels) && compiler(>=6.4)
         if #available(iOS 27.0, macOS 27.0, *) {
             return SystemModemLightExtractor()
         }
@@ -35,7 +35,9 @@ public struct FixedModemLightExtractor: ModemLightExtractorProtocol {
     }
 }
 
-#if canImport(FoundationModels)
+// Image attachments, `.vision` and count guides are OS 27 API: Xcode 26 has FoundationModels without
+// them, so this compiles only with the Xcode 27 toolchain (Swift 6.4).
+#if canImport(FoundationModels) && compiler(>=6.4)
 /// Reads status lights with the system language model: the photo goes in as an image
 /// attachment, straight from memory, and the answer is guided into a label and a colour per
 /// light (#558). No Bool: on/off comes from the colour.

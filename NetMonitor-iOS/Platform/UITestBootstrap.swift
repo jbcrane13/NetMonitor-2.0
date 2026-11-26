@@ -411,25 +411,37 @@ extension UITestBootstrap {
     /// `UITEST_MODEM_IMAGE=1`: the modem sheet reads ``testModemImage`` instead of asking for a
     /// photo, since the simulator has no camera.
     static var usesTestModemImage: Bool {
+        #if DEBUG
         isUITesting && ProcessInfo.processInfo.environment["UITEST_MODEM_IMAGE"] == "1"
+        #else
+        false
+        #endif
     }
 
     /// `UITEST_MODEM_MODEL`: "answer" reads ``testModemLights`` and words them with
     /// ``testModemWording``; "unwritten" reads them but writes nothing; "unavailable" offers no
-    /// reader. Nil otherwise.
+    /// reader. Nil otherwise, and always in release builds.
     static var modemLightExtractor: (any ModemLightExtractorProtocol)? {
+        #if DEBUG
         guard isUITesting, let mode = ProcessInfo.processInfo.environment["UITEST_MODEM_MODEL"] else { return nil }
         guard mode != "unavailable" else { return FixedModemLightExtractor(answer: nil, isAvailable: false) }
         return FixedModemLightExtractor(answer: ModemPanelAnswer(status: .panel, lights: testModemLights))
+        #else
+        return nil
+        #endif
     }
 
     static var modemLightsInsightService: (any InsightServiceProtocol)? {
+        #if DEBUG
         guard isUITesting else { return nil }
         switch ProcessInfo.processInfo.environment["UITEST_MODEM_MODEL"] {
         case "answer": return FixedAnswerInsightService(answer: testModemWording)
         case "unwritten", "unavailable": return UnavailableInsightService()
         default: return nil
         }
+        #else
+        return nil
+        #endif
     }
 
     /// A photo-like modem front panel with ``testModemLights``, drawn at launch.

@@ -76,6 +76,8 @@ public struct ModemPanelAnswer: Sendable, Equatable {
 /// The lights the app knows the meaning of (#558), found from the printed label.
 public enum ModemLightKind: String, Sendable, CaseIterable {
     case power, broadband, internet, wifi, ethernet, phone, upstream, downstream
+    /// A router's WAN port: its link to the modem or provider, which can stay up in an outage.
+    case wan
 
     /// The light's name in the app's sentences.
     public var name: String {
@@ -88,6 +90,7 @@ public enum ModemLightKind: String, Sendable, CaseIterable {
         case .phone: "Phone"
         case .upstream: "Upstream"
         case .downstream: "Downstream"
+        case .wan: "WAN"
         }
     }
 
@@ -96,7 +99,7 @@ public enum ModemLightKind: String, Sendable, CaseIterable {
     private static let synonyms: [(words: [String], kind: ModemLightKind)] = [
         (["POWER"], .power), (["PWR"], .power),
         (["DSL"], .broadband), (["ADSL"], .broadband), (["VDSL"], .broadband), (["BROADBAND"], .broadband),
-        (["WAN"], .broadband), (["SYNC"], .broadband),
+        (["SYNC"], .broadband), (["WAN"], .wan),
         (["INTERNET"], .internet), (["ONLINE"], .internet),
         (["WLAN"], .wifi), (["WIFI"], .wifi), (["WI", "FI"], .wifi), (["WIRELESS"], .wifi),
         (["LAN"], .ethernet), (["ETHERNET"], .ethernet), (["ETH"], .ethernet),
@@ -111,15 +114,23 @@ public enum ModemLightKind: String, Sendable, CaseIterable {
         self = match.kind
     }
 
-    /// The kind and the port number printed after it, if any.
-    static func match(_ label: String) -> (kind: ModemLightKind, port: String?)? {
+    /// The kind, and the port number (Ethernet, Phone) or Wi-Fi band printed after it, if any.
+    static func match(_ label: String) -> (kind: ModemLightKind, qualifier: String?)? {
         let words = Self.words(label)
         for (synonym, kind) in synonyms where words.starts(with: synonym) {
             let rest = Array(words.dropFirst(synonym.count))
             guard rest.allSatisfy(isSuffix) else { continue }
-            // Only a lone number is a port; bands like 5G aren't.
-            let port = rest.count == 1 && rest[0].allSatisfy(\.isNumber) ? rest[0] : nil
-            return (kind, kind == .ethernet || kind == .phone ? port : nil)
+            switch kind {
+            case .ethernet, .phone:
+                // Only a lone number is a port.
+                return (kind, rest.count == 1 && rest[0].allSatisfy(\.isNumber) ? rest[0] : nil)
+            case .wifi:
+                // A band: `2`,`4G` → 2.4G; `5`,`GHZ` → 5GHZ.
+                let band = rest.enumerated().map { index, word in index > 0 && word.first?.isNumber == true ? "." + word : word }.joined()
+                return (kind, band.isEmpty ? nil : band)
+            default:
+                return (kind, nil)
+            }
         }
         return nil
     }
@@ -193,7 +204,7 @@ public struct ModemLightVerdict: Sendable, Equatable, Identifiable {
             meaning = nil
             note = Self.powerContradiction
         } else {
-            meaning = match.flatMap { Self.meaning(kind: $0.kind, port: $0.port, color: color) }
+            meaning = match.flatMap { Self.meaning(kind: $0.kind, qualifier: $0.qualifier, color: color) }
             note = nil
         }
     }
@@ -205,9 +216,9 @@ public struct ModemLightVerdict: Sendable, Equatable, Identifiable {
 
     /// The table. Amber, blue and white mean different things across makers, so those are
     /// worded "on many modems" and kept from `problem`.
-    static func meaning(kind: ModemLightKind, port: String?, color: ModemLightColor) -> ModemLightMeaning? {
+    static func meaning(kind: ModemLightKind, qualifier: String?, color: ModemLightColor) -> ModemLightMeaning? {
         guard color != .unknown else { return nil }
-        let name = kind.name + (port.map { " " + $0 } ?? "")
+        let name = kind.name + (qualifier.map { " " + $0 } ?? "")
         let lit = color == .green || color == .blue || color == .white
         let entry: (ModemLightSeverity, String)
         switch kind {
@@ -226,6 +237,11 @@ public struct ModemLightVerdict: Sendable, Equatable, Identifiable {
                 : color == .amber ? (.attention, "on many modems this means it reaches your provider but isn't online.")
                 : color == .red ? (.problem, "the modem has no internet connection.")
                 : (.problem, "on most modems this means it isn't online. It may still be starting up.")
+        case .wifi where qualifier != nil:
+            entry = lit ? (.normal, "that Wi-Fi band is on.")
+                : color == .amber ? (.attention, "on many modems this means Wi-Fi is pairing a device (WPS) or has a fault.")
+                : color == .red ? (.problem, "on most modems this means Wi-Fi has a fault.")
+                : (.note, "that Wi-Fi band is turned off on this unit.")
         case .wifi:
             entry = lit ? (.normal, "Wi-Fi is on.")
                 : color == .amber ? (.attention, "on many modems this means Wi-Fi is pairing a device (WPS) or has a fault.")
@@ -240,6 +256,11 @@ public struct ModemLightVerdict: Sendable, Equatable, Identifiable {
             entry = lit ? (.normal, "phone service is ready.")
                 : color == .off ? (.note, "phone service is off or not set up. That is expected if you don't use it.")
                 : (.attention, "on many modems this means phone service has a problem.")
+        case .wan:
+            entry = lit ? (.normal, "the router has a link to the modem or provider. That alone doesn't show the internet is working.")
+                : color == .amber ? (.attention, "on many routers this means the WAN link is up but the internet isn't.")
+                : color == .red ? (.problem, "on most routers this means there is no internet connection on the WAN port.")
+                : (.problem, "nothing is connected to the WAN port, or the modem it connects to is off.")
         case .upstream, .downstream:
             let direction = kind == .upstream ? "upstream" : "downstream"
             entry = lit ? (.normal, "the modem is connected to your provider's \(direction) channels.")
@@ -323,7 +344,9 @@ public struct ModemPanelReport: Sendable, Equatable {
         guard isPanel else { return nil }
         return InsightRequest(
             subject: "Modem status lights read from a photo",
-            facts: verdicts.map { "Light labelled \($0.label): \($0.color.word)" } + [Self.blinkingNote],
+            // A light the app distrusts (`note`) is given as unclear, so the model can't state the reading.
+            facts: verdicts.map { "Light labelled \($0.label): \($0.note == nil ? $0.color.word : ModemLightColor.unknown.word)" }
+                + [Self.blinkingNote],
             observations: keyPoints
         )
     }

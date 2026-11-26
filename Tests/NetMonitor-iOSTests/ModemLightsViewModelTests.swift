@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import NetMonitorCore
 import Testing
+import UIKit
 @testable import NetMonitor_iOS
 
 /// #558: reading a modem's lights from a photo. The model is a scripted stand-in; the real
@@ -12,14 +13,19 @@ struct ModemLightsViewModelTests {
     /// Answers with a fixed reading and counts the photos it was asked about.
     private final class ScriptedExtractor: ModemLightExtractorProtocol, @unchecked Sendable {
         let answer: ModemPanelAnswer?
+        let delay: Duration?
         private(set) var calls = 0
-        init(_ answer: ModemPanelAnswer?) {
+        init(_ answer: ModemPanelAnswer?, delay: Duration? = nil) {
             self.answer = answer
+            self.delay = delay
         }
 
         var isAvailable: Bool { true }
         func readLights(in image: CGImage) async -> ModemPanelAnswer? {
             calls += 1
+            if let delay {
+                try? await Task.sleep(for: delay)
+            }
             return answer
         }
     }
@@ -104,6 +110,17 @@ struct ModemLightsViewModelTests {
         try await viewModel.read(Self.image)
         #expect(viewModel.phase == .choosing)
         #expect(viewModel.photoError == "The lights couldn't be read. Try another photo.")
+    }
+
+    @Test("Closing the sheet mid-read stops the reading: no result, no wording")
+    func cancelledRead() async throws {
+        let wording = FixedAnswerInsightService(answer: "The Internet light is red.")
+        let viewModel = viewModel(ScriptedExtractor(Self.redInternet, delay: .seconds(5)), wording: wording)
+        let task = try viewModel.takePhoto(UIImage(cgImage: Self.image))
+        viewModel.cancel()
+        await task.value
+        #expect(viewModel.phase != .result(ModemPanelReport(answer: Self.redInternet)))
+        #expect(viewModel.wording == .none)
     }
 
     @Test("Retake drops the reading and its wording")

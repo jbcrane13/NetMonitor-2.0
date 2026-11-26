@@ -10,7 +10,7 @@ struct ModemLightsTests {
 
     @Test("Printed labels map to the app's light kinds", arguments: [
         ("POWER", ModemLightKind.power), ("Pwr", .power),
-        ("DSL", .broadband), ("VDSL", .broadband), ("Broadband", .broadband), ("WAN", .broadband),
+        ("DSL", .broadband), ("VDSL", .broadband), ("Broadband", .broadband), ("WAN", .wan),
         ("INTERNET", .internet), ("Online", .internet),
         ("WLAN", .wifi), ("Wi-Fi", .wifi), ("WiFi 2.4G", .wifi), ("WLAN 5GHz", .wifi), ("Wireless", .wifi),
         ("LAN", .ethernet), ("LAN 1", .ethernet), ("ETHERNET", .ethernet), ("ETH2", .ethernet),
@@ -33,7 +33,7 @@ struct ModemLightsTests {
     func confusablePairs() {
         #expect(ModemLightKind(label: "WLAN") == .wifi)
         #expect(ModemLightKind(label: "LAN") == .ethernet)
-        #expect(ModemLightKind(label: "WAN") == .broadband)
+        #expect(ModemLightKind(label: "WAN") == .wan)
         #expect(ModemLightKind(label: "DSL") == .broadband)
         #expect(ModemLightKind(label: "DS") == .downstream)
         #expect(ModemLightKind(label: "US") == .upstream)
@@ -78,7 +78,13 @@ struct ModemLightsTests {
         ("INTERNET", .amber, .attention, "Internet light is amber: on many modems this means it reaches your provider but isn't online."),
         ("LAN 2", .off, .note, "Ethernet 2 light is off: nothing is connected to that port, or the connected device is off."),
         ("LAN 4", .amber, .attention, "Ethernet 4 light is amber: on many modems this means a device is connected at a slower speed."),
-        ("WLAN 5G", .off, .note, "Wi-Fi light is off: Wi-Fi is turned off on this unit. That is expected if you use a separate router."),
+        ("WLAN", .off, .note, "Wi-Fi light is off: Wi-Fi is turned off on this unit. That is expected if you use a separate router."),
+        ("WAN", .green, .normal,
+         "WAN light is green: the router has a link to the modem or provider. That alone doesn't show the internet is working."),
+        ("WAN", .off, .problem, "WAN light is off: nothing is connected to the WAN port, or the modem it connects to is off."),
+        ("WLAN 2.4G", .green, .normal, "Wi-Fi 2.4G light is green: that Wi-Fi band is on."),
+        ("WLAN 5G", .off, .note, "Wi-Fi 5G light is off: that Wi-Fi band is turned off on this unit."),
+        ("WiFi 5 GHz", .off, .note, "Wi-Fi 5GHZ light is off: that Wi-Fi band is turned off on this unit."),
         ("US", .red, .problem, "Upstream light is red: the modem has no upstream connection to your provider."),
         ("DS", .blue, .normal, "Downstream light is blue: the modem is connected to your provider's downstream channels.")
     ])
@@ -130,6 +136,8 @@ struct ModemLightsTests {
         ]))
         #expect(dark.verdicts[0].meaning?.severity == .problem)
         #expect(dark.verdicts[0].note == nil)
+        // The model is told the colour isn't clear, not the reading the app distrusts.
+        #expect(report.insightRequest?.facts.first == "Light labelled POWER: colour not clear")
     }
 
     @Test("Unsupported ignores every light the model filled in anyway")

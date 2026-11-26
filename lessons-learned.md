@@ -193,3 +193,10 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **A profile's `gatewayIP` proves nothing about which network you are on:** both apps set it to the subnet's first host. Compare routed gateways (`NetworkUtilities.detectRoutedGateway()`, nil when the route lookup fails, never a guess).
 - **Read a capability from the payload when you can.** Deciding "inventory Mac" from the heartbeat raced the first list; the list's own `network` field settles it, so the Mac always sends it.
 - **The phone's frame decoder clears its buffer on an oversize frame and then desyncs.** End the link on any rejected frame.
+
+## 2026-11-26 — Modem lights from a photo (#558)
+- **Ask the vision model for a colour, never a Bool, and ask for unlit lights by name.** With "for each light that has a printed label" it dropped 10 of 55 lights, nearly all unlit, which turned a dark ONLINE light into an all-clear. "List every labelled light, including lights that are off… lit or off" found 55/55.
+- **A lit white light on a white or silver case reads as off** (real model, macOS 27.2: 0 of 7 across three fixtures), and a prompt line saying "a lit white light glows, even on a white case" didn't change it. Any off-derived verdict is suspect on light cases; the app's own rule only covers POWER read as off beside lit lights.
+- **Give the model the app's doubt, not the raw reading.** A light the app refused to judge was still sent as "POWER: off", and the wording said "the power light is off". Send "colour not clear" for it.
+- **A router's WAN light is the link to the modem, not the provider line** (review): green WAN stays green during an outage, so it gets its own cautious meaning instead of the DSL/broadband one.
+- **`#if canImport(FoundationModels)` doesn't protect OS 27 API from Xcode 26,** which has the framework without `Attachment`, `.vision` or count guides. Guard such files with `&& compiler(>=6.4)` as well. CI's Xcode 16.4 has no FoundationModels, so CI can't catch this.

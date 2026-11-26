@@ -34,15 +34,16 @@ struct ModemLightsView: View {
             }
         }
         .task { await viewModel.start() }
+        .onDisappear { viewModel.cancel() }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             photoItem = nil
-            Task { await viewModel.readPhoto { try? await item.loadTransferable(type: Data.self) } }
+            viewModel.choosePhoto { try? await item.loadTransferable(type: Data.self) }
         }
         .fullScreenCover(isPresented: $showsCamera) {
             CameraCapture { image in
                 showsCamera = false
-                Task { await viewModel.readCameraPhoto(image) }
+                viewModel.takePhoto(image)
             } onCancel: {
                 showsCamera = false
             }

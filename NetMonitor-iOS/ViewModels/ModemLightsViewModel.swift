@@ -37,6 +37,8 @@ final class ModemLightsViewModel {
     private let insight: any InsightServiceProtocol
     private let isScanning: @MainActor () -> Bool
     private let testImage: @MainActor () -> CGImage?
+    /// The photo being read; cancelled when the sheet closes or another photo is chosen.
+    private var task: Task<Void, Never>?
 
     init(
         extractor: any ModemLightExtractorProtocol = ModemLightsViewModel.extractor,
@@ -70,6 +72,35 @@ final class ModemLightsViewModel {
 
     // MARK: - Reading
 
+    /// Reads a photo from the library in the background.
+    @discardableResult
+    func choosePhoto(_ load: @escaping @Sendable () async -> Data?) -> Task<Void, Never> {
+        run { await $0.readPhoto(load) }
+    }
+
+    /// Reads a photo from the camera in the background.
+    @discardableResult
+    func takePhoto(_ photo: UIImage) -> Task<Void, Never> {
+        run { await $0.readCameraPhoto(photo) }
+    }
+
+    /// Stops the reading in progress, when the sheet closes: the model stops, and the photo is
+    /// released.
+    func cancel() {
+        task?.cancel()
+        task = nil
+    }
+
+    private func run(_ work: @escaping @MainActor (ModemLightsViewModel) async -> Void) -> Task<Void, Never> {
+        task?.cancel()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await work(self)
+        }
+        self.task = task
+        return task
+    }
+
     /// Reads a photo from the library; `load` returns its data, or nil when Photos can't.
     func readPhoto(_ load: @Sendable () async -> Data?) async {
         photoError = nil
@@ -102,7 +133,10 @@ final class ModemLightsViewModel {
         photoError = nil
         wording = .none
         phase = .reading
-        guard let answer = await extractor.readLights(in: image) else {
+        let answer = await extractor.readLights(in: image)
+        // Closed meanwhile: nothing more is shown or asked.
+        guard !Task.isCancelled else { return }
+        guard let answer else {
             fail("The lights couldn't be read. Try another photo.")
             return
         }
@@ -121,13 +155,17 @@ final class ModemLightsViewModel {
         guard let request = report.insightRequest, !report.keyPoints.isEmpty, insight.isAvailable, !isScanning() else { return }
         wording = .writing
         let answer = await InsightSummarizer.summary(for: request, service: insight, timeout: .seconds(20))
-        // Retaken meanwhile: this answer belongs to another photo.
-        guard phase == .result(report) else { return }
+        // Closed or retaken meanwhile: this answer belongs to another photo.
+        guard !Task.isCancelled, phase == .result(report) else {
+            wording = .none
+            return
+        }
         wording = answer.map(Wording.written) ?? .none
     }
 
     /// Back to choosing a photo, dropping the reading.
     func retake() {
+        cancel()
         phase = .choosing
         wording = .none
         photoError = nil
