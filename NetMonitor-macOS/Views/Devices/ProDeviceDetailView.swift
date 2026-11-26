@@ -324,6 +324,13 @@ private extension ProDeviceDetailView {
                 }
             }
 
+            // The device's serial lives on its primary (#561).
+            if let serial = device.shownSerial {
+                detailRow("Serial", serial, mono: true, copyable: true)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("deviceDetail_label_serial")
+            }
+
             Divider().padding(.vertical, 2)
 
             detailRow("First Seen", device.firstSeen.formatted(date: .abbreviated, time: .shortened))
@@ -547,10 +554,10 @@ private extension ProDeviceDetailView {
     /// Enrichment measures the current interface (#594) and saves on its row: a port or a latency
     /// belongs to the interface it was measured on.
     func loadData() async {
-        let device = projection.current
+        let currentMember = projection.current
         // Seed immediately from persisted model so UI is never blank on open
-        bonjourServices = device.discoveredServices ?? []
-        latencyHistory = device.lastLatency.map { [$0] } ?? []
+        bonjourServices = currentMember.discoveredServices ?? []
+        latencyHistory = currentMember.lastLatency.map { [$0] } ?? []
 
         // Run all enrichment in parallel
         async let _ = enrichLatency()
@@ -563,57 +570,57 @@ private extension ProDeviceDetailView {
     // MARK: - Live Enrichment
 
     private func enrichLatency() async {
-        let device = projection.current
+        let currentMember = projection.current
         isLoadingLatency = true
         defer { isLoadingLatency = false }
 
         let pingService = ShellPingService()
-        guard let result = try? await pingService.ping(host: device.ipAddress, count: 5, timeout: 3),
+        guard let result = try? await pingService.ping(host: currentMember.ipAddress, count: 5, timeout: 3),
               result.isReachable else { return }
 
         let samples = [result.minLatency, result.avgLatency, result.maxLatency]
             .filter { $0 > 0 }
         latencyHistory = samples
 
-        device.updateLatency(result.avgLatency)
+        currentMember.updateLatency(result.avgLatency)
         try? modelContext.save()
     }
 
     private func enrichVendor() async {
-        let device = projection.current
-        guard !device.macAddress.isEmpty,
-              device.vendor == nil || device.vendor?.isEmpty == true else { return }
+        let currentMember = projection.current
+        guard !currentMember.macAddress.isEmpty,
+              currentMember.vendor == nil || currentMember.vendor?.isEmpty == true else { return }
         isLoadingVendor = true
         defer { isLoadingVendor = false }
 
         let service = MACVendorLookupService()
-        if let vendor = await service.lookupVendorEnhanced(macAddress: device.macAddress) {
-            device.vendor = vendor
+        if let vendor = await service.lookupVendorEnhanced(macAddress: currentMember.macAddress) {
+            currentMember.vendor = vendor
             try? modelContext.save()
         }
     }
 
     private func enrichHostname() async {
-        let device = projection.current
-        guard device.hostname == nil || device.hostname?.isEmpty == true else { return }
+        let currentMember = projection.current
+        guard currentMember.hostname == nil || currentMember.hostname?.isEmpty == true else { return }
         isLoadingHostname = true
         defer { isLoadingHostname = false }
 
         let resolver = ShellDeviceNameResolver()
-        if let name = await resolver.resolveName(for: device.ipAddress) {
-            device.hostname = name
+        if let name = await resolver.resolveName(for: currentMember.ipAddress) {
+            currentMember.hostname = name
             try? modelContext.save()
         }
     }
 
     private func enrichPorts() async {
-        let device = projection.current
-        guard device.openPorts == nil || device.openPorts?.isEmpty == true else { return }
+        let currentMember = projection.current
+        guard currentMember.openPorts == nil || currentMember.openPorts?.isEmpty == true else { return }
         isLoadingPorts = true
         defer { isLoadingPorts = false }
 
         let commonPorts = [22, 53, 80, 443, 445, 548, 631, 3389, 5900, 8080, 8443, 8008, 9100, 32400, 62078]
-        let ip = device.ipAddress
+        let ip = currentMember.ipAddress
 
         let found: [Int] = await Task.detached {
             let scanner = PortScannerService()
@@ -625,18 +632,18 @@ private extension ProDeviceDetailView {
         }.value
 
         if !found.isEmpty {
-            device.openPorts = found
+            currentMember.openPorts = found
             try? modelContext.save()
         }
     }
 
     private func enrichBonjourServices() async {
-        let device = projection.current
+        let currentMember = projection.current
         guard let bonjourScanner = coordinator?.bonjourScanner else { return }
 
-        let targetIP = device.ipAddress
-        let targetHostname = device.hostname ?? device.resolvedHostname ?? ""
-        var found = Set(device.discoveredServices ?? [])
+        let targetIP = currentMember.ipAddress
+        let targetHostname = currentMember.hostname ?? currentMember.resolvedHostname ?? ""
+        var found = Set(currentMember.discoveredServices ?? [])
 
         let stream = await bonjourScanner.discoveryStream(serviceType: nil)
         let browseTask = Task {
@@ -659,7 +666,7 @@ private extension ProDeviceDetailView {
         let services = found.sorted()
         if !services.isEmpty {
             bonjourServices = services
-            device.discoveredServices = services
+            currentMember.discoveredServices = services
             try? modelContext.save()
         }
     }

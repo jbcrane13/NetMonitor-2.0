@@ -303,6 +303,13 @@ struct DeviceDetailView: View {
                 }
             }
 
+            // The device's serial lives on its primary (#561).
+            if let serial = device.shownSerial {
+                infoRow(label: "Serial", value: serial, monospace: true)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("deviceDetail_label_serial")
+            }
+
             // A suggested type is shown, not written, until the user accepts it (#449).
             if let suggestedType = discoveryCoordinator?.suggestedType(for: device) {
                 HStack(spacing: 4) {

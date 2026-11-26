@@ -637,6 +637,8 @@ enum UITestScanFixture {
         )
         primary.customName = groupName
         primary.notes = "Ethernet port behind the desk"
+        primary.serialNumber = "C02UITEST0001"
+        primary.serialSource = IdentitySource.userConfirmed.rawValue
         primary.lastSeen = Date().addingTimeInterval(-2 * 3600)
         primary.firstSeen = primary.lastSeen.addingTimeInterval(-86400)
         let member = LocalDevice(

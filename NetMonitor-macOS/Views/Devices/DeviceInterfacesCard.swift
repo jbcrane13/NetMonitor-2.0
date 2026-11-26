@@ -12,6 +12,8 @@ struct DeviceInterfacesCard: View {
     let onRemove: (LocalDevice) -> Void
 
     @Environment(\.presence) private var presence
+    @Environment(\.modelContext) private var modelContext
+    @Environment(AlertRuleStore.self) private var ruleStore: AlertRuleStore?
     @State private var pendingRemoval: LocalDevice?
 
     var body: some View {
@@ -46,7 +48,7 @@ struct DeviceInterfacesCard: View {
             .accessibilityIdentifier("deviceDetail_button_confirmRemoveInterface")
             Button("Cancel", role: .cancel) {}
         } message: { member in
-            Text(Self.removalMessage(for: member))
+            Text(Self.removalMessage(for: member, references: references(to: member)))
         }
     }
 
@@ -84,7 +86,7 @@ struct DeviceInterfacesCard: View {
             Spacer()
 
             Button(role: .destructive) {
-                if DeviceGroups.hasUserContent(member) {
+                if DeviceGroups.hasUserContent(member) || !references(to: member).isEmpty {
                     pendingRemoval = member
                 } else {
                     onRemove(member)
@@ -98,7 +100,7 @@ struct DeviceInterfacesCard: View {
         }
         .padding(.vertical, 2)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("deviceDetail_interface_\(member.ipAddress)")
+        .accessibilityIdentifier("deviceDetail_row_interface_\(member.ipAddress)")
     }
 
     static func portsText(_ ports: [Int]?) -> String {
@@ -106,26 +108,24 @@ struct DeviceInterfacesCard: View {
         return ports.isEmpty ? "No open ports" : "Open ports: " + ports.map(String.init).joined(separator: ", ")
     }
 
-    /// What goes with the interface: "Its custom name “Office Mac”, notes and serial number are
-    /// deleted with it."
-    static func removalMessage(for member: LocalDevice) -> String {
-        var parts: [String] = []
-        if let name = member.customName, !name.isEmpty {
-            parts.append("custom name “\(name)”")
+    /// The rules and monitoring targets that name the member's row (v3.1 §1).
+    private func references(to member: LocalDevice) -> [String] {
+        InterfaceRemoval.references(to: member.id, rules: ruleStore?.rules ?? [], in: modelContext) { ruleStore?.device(forTarget: $0) }
+    }
+
+    /// The confirmation's text: "This deletes 192.168.77.61 with its custom name and its notes. The
+    /// rule ‘Studio down’ names this interface and won't find it after." The user-content wording is
+    /// Core's (`DeviceGroups.userContent(of:)`), shared with iOS.
+    static func removalMessage(for member: LocalDevice, references: [String]) -> String {
+        let content = DeviceGroups.userContent(of: member)
+        var text = "This deletes \(member.ipAddress)"
+        text += content.isEmpty ? "." : " with " + ListFormatter.localizedString(byJoining: content) + "."
+        if !references.isEmpty {
+            let named = ListFormatter.localizedString(byJoining: references)
+            let verb = references.count == 1 ? "names" : "name"
+            text += " " + named.prefix(1).uppercased() + named.dropFirst() + " \(verb) this interface and won't find it after."
         }
-        if let notes = member.notes, !notes.isEmpty {
-            parts.append("notes")
-        }
-        if let serial = member.serialNumber, !serial.isEmpty {
-            parts.append("serial number")
-        }
-        let identity = member.identity
-        if [identity.maker, identity.model].contains(where: { $0?.source == .userConfirmed }) {
-            parts.append("confirmed maker and model")
-        }
-        guard !parts.isEmpty else { return "This interface's saved row is deleted." }
-        let list = ListFormatter.localizedString(byJoining: parts)
-        return "Its \(list) \(parts.count == 1 && parts[0] != "notes" ? "is" : "are") deleted with it."
+        return text
     }
 }
 
@@ -158,6 +158,18 @@ enum InterfaceRemoval {
     /// Posted with the row's ID (`object`) before it is deleted.
     static let willRemove = Notification.Name("netmonitor.deviceInterfaceWillBeRemoved")
 
+    /// "the rule ‘Studio down’", "the monitoring target ‘Studio’": each rule whose device is the row
+    /// and each target a rule linked to it.
+    @MainActor
+    static func references(
+        to rowID: UUID, rules: [AlertRule], in context: ModelContext, linkedDevice: (UUID) -> UUID?
+    ) -> [String] {
+        let ruleNames = rules.filter { $0.conditions.deviceID == rowID }.map { "the rule ‘\($0.name)’" }
+        let targets = (try? context.fetch(FetchDescriptor<NetworkTarget>())) ?? []
+        let targetNames = targets.filter { linkedDevice($0.id) == rowID }.map { "the monitoring target ‘\($0.name)’" }
+        return ruleNames + targetNames
+    }
+
     @MainActor
     static func remove(_ rowID: UUID, in context: ModelContext) {
         NotificationCenter.default.post(name: willRemove, object: rowID)
@@ -168,5 +180,12 @@ enum InterfaceRemoval {
                 Logger.data.error("Failed to remove interface: \(error)")
             }
         }
+    }
+}
+
+extension LocalDevice {
+    /// The serial number device detail shows on the primary (#561), when one is set.
+    var shownSerial: String? {
+        serialNumber.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }
     }
 }

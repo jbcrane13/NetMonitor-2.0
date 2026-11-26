@@ -7,7 +7,8 @@
 # its Wi-Fi interface (192.168.77.61) with notes of its own. The fixture scan finds only the Wi-Fi
 # interface. Then:
 #   1. the Devices list shows one card for the device, at the Wi-Fi address, reading Online;
-#   2. its detail lists both interfaces under Interfaces and shows both interfaces' notes;
+#   2. its detail lists both interfaces under Interfaces, shows both interfaces' notes and the
+#      primary's serial (#561);
 #   3. Remove this interface on the Wi-Fi interface (confirmed, as it has notes) leaves one device,
 #      at the Ethernet address, still named.
 # Run 2 removes the Ethernet interface (the primary, the row the detail shows) instead; run 3 does
@@ -87,6 +88,8 @@ expect "$("$AX" textin deviceDetail_card_interfaces $WIFI 5)" "found text" "Inte
 expect "$("$AX" text "Ethernet port behind the desk" 5)" "found text" "the primary's notes should show"
 expect "$("$AX" text "Wi-Fi when undocked" 5)" "found text" "the Wi-Fi interface's notes should show"
 "$AX" capture-union "$OUT/594-2-detail-interfaces.png" deviceDetail_card_interfaces
+expect "$("$AX" textin deviceDetail_label_serial "C02UITEST0001" 5)" "found text" "the detail should show the primary's serial"
+"$AX" capture-union "$OUT/594-5-detail-serial.png" deviceDetail_card_hardware
 "$AX" scroll deviceDetail_card_interfaces -300 > /dev/null
 "$AX" capture-union "$OUT/594-3-detail-notes.png" deviceDetail_card_notes
 
