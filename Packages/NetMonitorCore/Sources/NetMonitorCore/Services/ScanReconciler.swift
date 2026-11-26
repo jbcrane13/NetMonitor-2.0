@@ -279,14 +279,19 @@ public struct ScanReconciler {
             }
         }
 
-        refresh(rows, from: macSightings, answered: &answered, networkProfileID: networkProfileID, now: now, previousScan: previousScan)
+        // The rows the phone itself answered for: only they get a type inferred (#624: presence only).
+        let phoneAnswered = answered
+        refresh(
+            rows, from: macSightings, answered: &answered, phoneAnswered: (rowForAddress, rowForMAC), networkProfileID: networkProfileID,
+            now: now, previousScan: previousScan
+        )
 
         Self.groupByBonjour(raw, rows: rows, rowForAddress: rowForAddress, rowForMAC: rowForMAC)
 
         // Rows of unknown type get one from what the scan knows, as on the Mac, so "the printer"
         // names a scanned printer (#571).
         let inference = DeviceTypeInferenceService()
-        for row in rows where answered.contains(row.id) && row.deviceType == .unknown {
+        for row in rows where phoneAnswered.contains(row.id) && row.deviceType == .unknown {
             row.deviceType = inference.inferDeviceType(for: row)
         }
 
@@ -303,12 +308,18 @@ public struct ScanReconciler {
     }
 
     /// The Mac's answers refresh rows this scan didn't answer for (#585): presence only, never a new
-    /// row, and a past row only by its MAC.
+    /// row, and a past row only by its MAC. A sighting at an address or MAC the phone's own scan
+    /// answered is that answer, so it refreshes nothing else. A MAC-proven refresh at another address
+    /// moves the row there, as a phone scan would, so its old address isn't "seen" for whoever takes
+    /// it next (#624).
     private func refresh(
-        _ rows: [LocalDevice], from sightings: [DiscoveredDevice], answered: inout Set<UUID>, networkProfileID: UUID?, now: Date,
-        previousScan: Date?
+        _ rows: [LocalDevice], from sightings: [DiscoveredDevice], answered: inout Set<UUID>,
+        phoneAnswered: (addresses: [String: UUID], macs: [String: UUID]), networkProfileID: UUID?, now: Date, previousScan: Date?
     ) {
-        let sightings = sightings.filter { !$0.isCached }
+        let sightings = sightings.filter { sighting in
+            !sighting.isCached && phoneAnswered.addresses[sighting.ipAddress] == nil
+                && (DeviceMatcher.normalizedMAC(sighting.macAddress).map { phoneAnswered.macs[$0] == nil } ?? true)
+        }
         let free = rows.filter { !answered.contains($0.id) }
         guard !sightings.isEmpty, !free.isEmpty else { return }
         let lastScan = history.newestScan(for: networkProfileID)
@@ -322,6 +333,9 @@ public struct ScanReconciler {
             let mac = DeviceMatcher.normalizedMAC(sightings[index].macAddress)
             let byMAC = mac != nil && mac == DeviceMatcher.normalizedMAC(row.macAddress)
             guard byMAC || !PresenceFreshness.isPast(lastSeen: row.lastSeen, lastScan: lastScan, now: now) else { continue }
+            if byMAC, row.ipAddress != sightings[index].ipAddress {
+                row.ipAddress = sightings[index].ipAddress
+            }
             row.status = .online
             row.lastSeen = now
             answered.insert(row.id)

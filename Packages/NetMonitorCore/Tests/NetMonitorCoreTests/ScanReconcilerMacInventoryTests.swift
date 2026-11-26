@@ -168,4 +168,115 @@ final class ScanReconcilerMacInventoryTests {
             }
         })
     }
+
+    // MARK: - Verification round (#624)
+
+    /// A: a MAC-proven refresh at another address moves the row there, as a phone scan would, so the
+    /// old address isn't "seen" for a guest who takes it next.
+    @Test func aMACProvenRefreshMovesTheRowToTheMacsAddress() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        let iPad = DiscoveredDevice(
+            ipAddress: "192.168.7.20", hostname: "ipad", vendor: nil, macAddress: "AA:BB:CC:00:00:AA", latency: 4, discoveredAt: start,
+            source: .local, networkProfileID: home
+        )
+        try reconciler.reconcile([phoneSees(), iPad], networkProfileID: home, scanDate: start, now: start)
+        let row = try #require(try rows(context).first { $0.hostname == "ipad" })
+        row.notes = "Dad's"
+        try reconciler.reconcile(
+            [phoneSees()], macSightings: [macSighting("192.168.7.30", name: "ipad", mac: "AA:BB:CC:00:00:AA")], networkProfileID: home,
+            scanDate: minutes(5), now: minutes(5)
+        )
+        #expect(row.ipAddress == "192.168.7.30")
+        // A nameless guest takes .20: it never gets the iPad's row, name or notes.
+        let guest = DiscoveredDevice(
+            ipAddress: "192.168.7.20", hostname: nil, vendor: nil, macAddress: nil, latency: 4, discoveredAt: start, source: .local,
+            networkProfileID: home
+        )
+        try reconciler.reconcile([phoneSees(), guest], networkProfileID: home, scanDate: minutes(6), now: minutes(6))
+        let atTwenty = try #require(try rows(context).first { $0.ipAddress == "192.168.7.20" })
+        #expect(atTwenty.id != row.id)
+        #expect(atTwenty.notes == nil)
+        #expect(row.ipAddress == "192.168.7.30")
+    }
+
+    /// E: a row refreshed only by the Mac gets no type inferred: presence only. (A printer's ports
+    /// would make the phone's own scan call it a printer.)
+    @Test func aMacRefreshInfersNoType() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        try reconciler.reconcile([phoneSees()], networkProfileID: home, scanDate: start, now: start)
+        let printer = LocalDevice(
+            ipAddress: "192.168.7.40", macAddress: "AA:BB:CC:00:00:40", hostname: "office-laser", openPorts: [631, 9100],
+            networkProfileID: home
+        )
+        printer.lastSeen = start
+        context.insert(printer)
+        try context.save()
+        try reconciler.reconcile(
+            [phoneSees()], macSightings: [macSighting("192.168.7.40", name: "office-laser", mac: "AA:BB:CC:00:00:40")],
+            networkProfileID: home, scanDate: minutes(5), now: minutes(5)
+        )
+        #expect(printer.lastSeen == minutes(5))
+        #expect(printer.deviceType == .unknown)
+    }
+
+    /// E: a Mac sighting at an address the phone's own scan answered refreshes nothing else. The
+    /// laptop moved to .20, where an older nameless row was seen within grace; the phone found the
+    /// laptop there, so the Mac's nameless answer at .20 is the laptop's, not the old row's.
+    @Test func aMacSightingThePhoneAlreadyAnsweredRefreshesNoOtherRow() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        try reconciler.reconcile([phoneSees()], networkProfileID: home, scanDate: start, now: start)
+        let old = LocalDevice(ipAddress: "192.168.7.20", macAddress: "", networkProfileID: home)
+        old.lastSeen = start
+        let laptop = LocalDevice(ipAddress: "192.168.7.25", macAddress: "AA:BB:CC:00:00:20", hostname: "laptop", networkProfileID: home)
+        laptop.lastSeen = start
+        context.insert(old)
+        context.insert(laptop)
+        try context.save()
+        let found = DiscoveredDevice(
+            ipAddress: "192.168.7.20", hostname: "laptop", vendor: nil, macAddress: "AA:BB:CC:00:00:20", latency: 4, discoveredAt: start,
+            source: .local, networkProfileID: home
+        )
+        try reconciler.reconcile(
+            [phoneSees(), found], macSightings: [macSighting("192.168.7.20", name: nil)], networkProfileID: home,
+            scanDate: minutes(5), now: minutes(5)
+        )
+        #expect(laptop.ipAddress == "192.168.7.20")
+        #expect(laptop.lastSeen == minutes(5))
+        #expect(old.lastSeen == start)
+    }
+
+    /// E: the Mac stays connected but stops seeing a device: it goes offline under grace, once.
+    @Test func aDeviceTheConnectedMacStopsSeeingGoesOfflineOnce() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        let tv = DiscoveredDevice(
+            ipAddress: "192.168.7.20", hostname: "tv", vendor: nil, macAddress: nil, latency: 4, discoveredAt: start, source: .local,
+            networkProfileID: home
+        )
+        try reconciler.reconcile([phoneSees(), tv], networkProfileID: home, scanDate: start, now: start)
+        var offline = 0
+        for step in 1...6 {
+            let time = minutes(Double(step) * 10)
+            // The Mac still answers for another device, not the TV.
+            let outcome = try reconciler.reconcile(
+                [phoneSees()], macSightings: [macSighting("192.168.7.60", name: "doorbell")], networkProfileID: home, scanDate: time, now: time
+            )
+            offline += events(outcome).count {
+                if case .wentOffline = $0.kind {
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+        #expect(try rows(context).first { $0.ipAddress == "192.168.7.20" }?.status == .offline)
+        #expect(offline == 1)
+    }
 }
