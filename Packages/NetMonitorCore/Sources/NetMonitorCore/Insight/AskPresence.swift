@@ -50,7 +50,9 @@ enum AskPresenceFilter {
     private static let presenceWords: Set<String> = [
         "online", "offline", "up", "down", "active", "inactive", "available", "unavailable", "awake", "asleep", "sleeping",
         "idle", "running", "working", "live", "alive", "dead", "present", "absent", "missing", "gone", "back",
-        "reachable", "unreachable", "pingable", "responding", "responsive", "unresponsive", "replied", "replies", "replying",
+        "reachable", "unreachable", "pingable", "responding", "responsive", "unresponsive",
+        // A live ping's result is the app's line (#579): the model may count replies, not say who answered.
+        "respond", "responds", "responded", "replied", "replies", "replying",
         "answer", "answers", "answering", "answered", "connected", "disconnected", "unplugged", "plugged",
         "visible", "detected", "found", "appeared", "disappeared", "status", "scan", "scanned"
     ]

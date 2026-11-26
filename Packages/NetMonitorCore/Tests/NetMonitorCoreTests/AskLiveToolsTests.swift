@@ -282,6 +282,18 @@ struct AskNetworkLiveTests {
         #expect(answer.measurements.count == 1)
     }
 
+    /// Real model, 2026-11-26: "The gateway at 192.168.1.1 responded in 2 ms" for "Why is the
+    /// internet slow tonight?". A reply count without a presence verb may stay.
+    @Test func aSentenceSayingSomethingRespondedIsDropped() async {
+        let pinger = ScriptedPinger(["192.168.1.1": .times([2, 2, 2]), AskLiveTools.internetHost: .times([15, 15, 15])])
+        let question = "Why is the internet slow tonight?"
+        let model = ScriptedAskModel(scripts: [question: AskScript(
+            calls: [.networkStatus], answer: "The gateway at 192.168.1.1 responded in 2 ms. The connection is Wi-Fi."
+        )])
+        let answer = await AskNetwork.answer(question, snapshot: Live.snapshot, pinnedDeviceID: nil, model: model, live: Live.live(pinger))
+        #expect(answer.text == "The connection is Wi-Fi.")
+    }
+
     @Test func aLiveReplyDoesNotChangeTheSavedStatus() async {
         // The printer is offline as of the scan; a reply now is shown as a measurement only.
         let pinger = ScriptedPinger(["192.168.1.57": .times([6, 6, 6])])
