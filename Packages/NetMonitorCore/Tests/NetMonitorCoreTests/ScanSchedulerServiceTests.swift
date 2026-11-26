@@ -36,7 +36,7 @@ final class ScanSchedulerServiceTests {
     }
 
     private var router: DiscoveredDevice {
-        device("192.168.1.1", name: "router", mac: "AA:00:00:00:00:01")
+        device("192.168.1.1", name: "router", mac: "00:1B:A9:00:00:01")
     }
 
     @discardableResult
@@ -76,7 +76,7 @@ final class ScanSchedulerServiceTests {
     @Test("A device is removed only once it went offline under grace, with when it last answered")
     func removedAfterGrace() throws {
         let service = ScanSchedulerService(dispatcher: dispatcher)
-        let camera = device("192.168.1.41", name: "Garage Camera", mac: "AA:00:00:00:00:41")
+        let camera = device("192.168.1.41", name: "Garage Camera", mac: "00:1B:A9:00:00:41")
         try reconcile([router, camera], at: 0)
         try reconcile([router], at: 1)
         try reconcile([router], at: 2)
@@ -101,8 +101,8 @@ final class ScanSchedulerServiceTests {
     @Test("A known device at a new address is changed")
     func addressChangeIsChanged() throws {
         let service = ScanSchedulerService(dispatcher: dispatcher)
-        try reconcile([router, device("192.168.1.30", name: "nas", mac: "AA:00:00:00:00:30")], at: 0)
-        try reconcile([router, device("192.168.1.31", name: "nas", mac: "AA:00:00:00:00:30")], at: 1)
+        try reconcile([router, device("192.168.1.30", name: "nas", mac: "00:1B:A9:00:00:30")], at: 0)
+        try reconcile([router, device("192.168.1.31", name: "nas", mac: "00:1B:A9:00:00:30")], at: 1)
         let diff = try #require(service.getLastScanDiff())
         #expect(diff.changedDevices.map(\.ipAddress) == ["192.168.1.31"])
         #expect(diff.newDevices.isEmpty && diff.removedDevices.isEmpty)

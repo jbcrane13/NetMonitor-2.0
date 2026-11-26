@@ -17,7 +17,7 @@ struct GroupSuggestionBanner: View {
     private func banner(_ suggestion: DeviceProjection) -> some View {
         VStack(alignment: .leading, spacing: Theme.Layout.itemSpacing) {
             Label {
-                Text("Same Bonjour name as \(Text(suggestion.displayName).bold()): same device?")
+                Text(DeviceGroupingChoices.suggestion(suggestion.displayName))
                     .foregroundStyle(Theme.Colors.textPrimary)
             } icon: {
                 Image(systemName: "bonjour")
@@ -62,8 +62,10 @@ struct SameDeviceAsButton: View {
 }
 
 /// "Same device as…"'s picker: the other devices on this network, suggestions first, with search.
+/// A pick is handed back and grouped once the sheet is gone, so the override confirmation can show.
 struct SameDeviceAsSheet: View {
     let viewModel: DeviceDetailViewModel
+    let onPick: (DeviceProjection) -> Void
     @State private var query = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -103,8 +105,8 @@ struct SameDeviceAsSheet: View {
 
     private func row(_ device: DeviceProjection) -> some View {
         Button {
+            onPick(device)
             dismiss()
-            viewModel.groupWith(device)
         } label: {
             VStack(alignment: .leading, spacing: 2) {
                 Text(device.displayName)
@@ -160,18 +162,26 @@ struct GroupingUndoToast: View {
 struct DeviceGroupingPresentation: ViewModifier {
     let viewModel: DeviceDetailViewModel
     @Binding var showsSameDeviceAs: Bool
+    /// The device picked in "Same device as…", grouped once the sheet has gone.
+    @State private var picked: DeviceProjection?
 
     func body(content: Content) -> some View {
         content
-            .sheet(isPresented: $showsSameDeviceAs) {
-                SameDeviceAsSheet(viewModel: viewModel)
-            }
+            .sheet(isPresented: $showsSameDeviceAs, onDismiss: {
+                if let picked {
+                    viewModel.groupWith(picked)
+                }
+                picked = nil
+            }, content: {
+                SameDeviceAsSheet(viewModel: viewModel) { picked = $0 }
+            })
             .confirmationDialog(
-                "You said these were different devices. Group them anyway?", isPresented: isConfirmingOverride, titleVisibility: .visible
+                DeviceGroupingChoices.overrideQuestion, isPresented: isConfirmingOverride, titleVisibility: .visible
             ) {
                 Button("Group Anyway") { viewModel.confirmGroupOverride() }
                     .accessibilityIdentifier("deviceDetail_button_confirmGroupOverride")
                 Button("Cancel", role: .cancel) { viewModel.cancelGroupOverride() }
+                    .accessibilityIdentifier("deviceDetail_button_cancelGroupOverride")
             }
             .safeAreaInset(edge: .bottom) {
                 if let toast = viewModel.grouping.toast {

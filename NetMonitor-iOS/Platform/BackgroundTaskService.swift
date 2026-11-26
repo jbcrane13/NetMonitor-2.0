@@ -443,7 +443,7 @@ extension BackgroundTaskService {
         summaries: SavedDeviceSummaryModel = .shared,
         defaults: UserDefaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard,
         reloadWidget: Bool = true,
-        dispatcher: DeviceEventDispatcher = .shared,
+        dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared,
         now: Date = Date()
     ) -> Bool {
         // Its own context on the app's container: a failed save rolls back only this scan, never
@@ -466,11 +466,11 @@ extension BackgroundTaskService {
 /// Delivery happens once, so either way the scan alerts once.
 @MainActor
 final class DeviceEventCollector {
-    private let dispatcher: DeviceEventDispatcher
+    private let dispatcher: any DeviceEventDispatching
     private var batches: [DeviceEventBatch] = []
     private var subscription: UUID?
 
-    init(dispatcher: DeviceEventDispatcher = .shared) {
+    init(dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared) {
         self.dispatcher = dispatcher
         subscription = dispatcher.subscribe { [weak self] batch in
             self?.batches.append(batch)

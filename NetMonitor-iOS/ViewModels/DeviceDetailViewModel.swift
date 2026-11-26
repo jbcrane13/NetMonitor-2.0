@@ -157,7 +157,7 @@ final class DeviceDetailViewModel {
     /// Asks the on-device model about the loaded row without blocking the load. Called again
     /// when enrichment, a port scan or service discovery changes the evidence; a pass already
     /// started on the same evidence keeps running.
-    private func startSuggestion() {
+    func startSuggestion() {
         refreshSuggestionState()
         guard let device else {
             return
@@ -618,12 +618,7 @@ extension DeviceDetailViewModel {
         guard let modelContext, let projection, projection.isGroup,
               let survivor = projection.members.first(where: { $0.id != member.id })?.id
         else { return }
-        suggestionTask?.cancel()
-        saveContext()
-        if openedMember === member {
-            openedMember = nil
-            nameLookup = .confirmedByScan
-        }
+        prepareForLeaving(member)
         do {
             try DeviceGroupWriter(context: modelContext, references: references).removeInterface(member.id)
         } catch {
@@ -632,6 +627,19 @@ extension DeviceDetailViewModel {
         }
         showDevice(of: Self.row(named: survivor, in: modelContext))
         startSuggestion()
+    }
+
+    /// Before `member` leaves the device shown (removed, or separated as "Not the same device"):
+    /// stops the running suggestion and saves edits waiting here, so the writer sees them. When
+    /// detail was opened on that member, its address now belongs to another device, so probes go
+    /// only where the latest scan confirms a member from now on.
+    func prepareForLeaving(_ member: LocalDevice) {
+        suggestionTask?.cancel()
+        saveContext()
+        if openedMember === member {
+            openedMember = nil
+            nameLookup = .confirmedByScan
+        }
     }
 
     /// Wake on LAN to every member's real MAC (#594): any interface may be the one that wakes it.

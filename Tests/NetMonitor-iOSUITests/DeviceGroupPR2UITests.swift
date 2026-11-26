@@ -57,6 +57,7 @@ final class DeviceGroupPR2UITests: PresenceUITestCase {
         let toast = ui("deviceDetail_label_toastMessage")
         requireExists(toast, timeout: 5, message: "Grouping shows an undo toast")
         XCTAssertEqual(toast.label, "Grouped with uitest-library-wifi")
+        XCTAssertTrue(ui("deviceDetail_toast_undo").exists, "The toast carries its container identifier")
         XCTAssertTrue(waitForDisappearance(banner, timeout: 5), "The suggestion goes once accepted")
         keepCroppedEvidence(frame: toast.frame.union(ui("deviceDetail_button_dismissToast").frame), named: "594-pr2-ios-undo-toast")
         let interfaces = ui("deviceDetail_section_interfaces")
@@ -77,6 +78,18 @@ final class DeviceGroupPR2UITests: PresenceUITestCase {
         requireExists(wifi, timeout: 5, message: "Two devices again: the Wi-Fi one")
         scrollToElement(wifi)
         keepCroppedEvidence(wifi, named: "594-pr2-ios-after-undo")
+
+        // Accepted for good this time: the list shows one device.
+        scrollToElement(row("192.168.1.80"))
+        row("192.168.1.80").tap()
+        requireExists(ui("deviceDetail_button_suggestionSameDevice"), timeout: 8, message: "The suggestion is back").tap()
+        requireExists(ui("deviceDetail_label_toastMessage"), timeout: 5, message: "Grouping shows an undo toast")
+        app.navigationBars.buttons.firstMatch.tap()
+        let device = row("192.168.1.80")
+        requireExists(device, timeout: 8, message: "One device")
+        XCTAssertTrue(waitForDisappearance(row("192.168.1.81"), timeout: 5), "The Wi-Fi interface is no longer a device of its own")
+        scrollToElement(device)
+        keepCroppedEvidence(device, named: "594-pr2-ios-suggestion-one-device")
     }
 
     func testSameDeviceAsThenNotTheSameDevice() {
@@ -127,6 +140,24 @@ final class DeviceGroupPR2UITests: PresenceUITestCase {
         requireExists(second, timeout: 5, message: "Two devices again: uitest-device-2")
         scrollToElement(second)
         keepCroppedEvidence(second, named: "594-pr2-ios-after-not-same-device")
+
+        // Grouping them again overrides "Not the same device" only after the user confirms.
+        scrollToElement(row("192.168.1.11"))
+        row("192.168.1.11").tap()
+        scrollToElement(sameDeviceAs)
+        requireExists(sameDeviceAs, timeout: 8, message: "Detail offers Same device as…").tap()
+        requireExists(ui("sameDeviceAs_row_192_168_1_12"), timeout: 5, message: "The picker lists uitest-device-2").tap()
+        let groupAnyway = app.buttons["Group Anyway"].firstMatch
+        requireExists(groupAnyway, timeout: 5, message: "Grouping devices said to be different asks first")
+        let question = app.staticTexts["You said these were different devices. Group them anyway?"].firstMatch
+        XCTAssertTrue(question.exists, "The confirmation says why it asks")
+        keepCroppedEvidence(frame: question.frame.union(groupAnyway.frame), named: "594-pr2-ios-override-confirmation")
+        groupAnyway.tap()
+        requireExists(ui("deviceDetail_label_toastMessage"), timeout: 5, message: "Grouping shows an undo toast")
+        XCTAssertEqual(ui("deviceDetail_label_toastMessage").label, "Grouped with uitest-device-2")
+        app.navigationBars.buttons.firstMatch.tap()
+        requireExists(row("192.168.1.11"), timeout: 8, message: "One device again")
+        XCTAssertTrue(waitForDisappearance(row("192.168.1.12"), timeout: 5), "uitest-device-2 is an interface again")
     }
 
     /// Keeps the screenshot cropped to `frame`, such as an interface row and its label together.

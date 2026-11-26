@@ -29,13 +29,13 @@ final class CompanionMembersGroupingTests {
     /// The Mac's list: its studio Mac answered its latest scan on Wi-Fi and on Ethernet.
     func macList(scanTime: Date) -> DeviceListPayload {
         let members = [
-            MemberInfo(id: UUID(), ipAddress: "192.168.1.13", macAddress: "AA:00:00:00:00:13", lastSeen: scanTime, answeredLatestScan: true,
+            MemberInfo(id: UUID(), ipAddress: "192.168.1.13", macAddress: "00:1B:A9:00:00:13", lastSeen: scanTime, answeredLatestScan: true,
                        scanTime: scanTime),
-            MemberInfo(id: UUID(), ipAddress: "192.168.1.60", macAddress: "AA:00:00:00:00:60", lastSeen: scanTime, answeredLatestScan: true,
+            MemberInfo(id: UUID(), ipAddress: "192.168.1.60", macAddress: "00:1B:A9:00:00:60", lastSeen: scanTime, answeredLatestScan: true,
                        scanTime: scanTime)
         ]
         return DeviceListPayload(devices: [
-            DeviceInfo(ipAddress: "192.168.1.13", macAddress: "AA:00:00:00:00:13", hostname: "studio-mac", isOnline: true, members: members,
+            DeviceInfo(ipAddress: "192.168.1.13", macAddress: "00:1B:A9:00:00:13", hostname: "studio-mac", isOnline: true, members: members,
                        isDeviceOnline: true)
         ])
     }
@@ -93,7 +93,7 @@ final class CompanionMembersGroupingTests {
 
         // The next scan: the phone itself hears the studio Mac's host on both addresses.
         let later = now.addingTimeInterval(600)
-        let own = [claimed("192.168.1.13", mac: "AA:00:00:00:00:13"), claimed("192.168.1.60", mac: "AA:00:00:00:00:60")]
+        let own = [claimed("192.168.1.13", mac: "00:1B:A9:00:00:13"), claimed("192.168.1.60", mac: "00:1B:A9:00:00:60")]
         let second = await phoneScan(own: own, macScanTime: now.addingTimeInterval(-20), ownLastScan: now)
         #expect(second.map(\.ipAddress).sorted() == ["192.168.1.13", "192.168.1.60"], "the Mac's older scan adds no sightings")
         try reconcile(second, at: later)
