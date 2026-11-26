@@ -51,14 +51,19 @@ public struct DeviceGroupWriter {
     private let container: ModelContainer
     private let references: [any DeviceReferenceStore]
     private let save: @MainActor (ModelContext) throws -> Void
+    /// Where the user's grouping actions report a device's presence changing (#619 verification):
+    /// an offline device grouped into an online one comes back online, once.
+    private let dispatcher: (any DeviceEventDispatching)?
 
     public init(
         container: ModelContainer,
         references: [any DeviceReferenceStore] = [],
+        dispatcher: (any DeviceEventDispatching)? = nil,
         save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) {
         self.container = container
         self.references = references
+        self.dispatcher = dispatcher
         self.save = save
     }
 
@@ -66,9 +71,10 @@ public struct DeviceGroupWriter {
     public init(
         context: ModelContext,
         references: [any DeviceReferenceStore] = [],
+        dispatcher: (any DeviceEventDispatching)? = nil,
         save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) {
-        self.init(container: context.container, references: references, save: save)
+        self.init(container: context.container, references: references, dispatcher: dispatcher, save: save)
     }
 
     // MARK: Grouping
@@ -91,8 +97,9 @@ public struct DeviceGroupWriter {
     /// With `overridingExclusions` (the user confirmed "You said these were different devices"),
     /// exactly the exclusions between the rows that would join are cleared first.
     public func groupForUser(_ rowIDs: [UUID], primary: UUID?, overridingExclusions: Bool = false) throws -> DeviceGroupUndo {
-        try committing { context in
+        try reporting { context, window in
             let (named, members) = try groupRows(rowIDs, in: context)
+            window.watch(members)
             return try recording(members) {
                 if overridingExclusions {
                     while let pair = DeviceGroups.excludedPair(in: members) {
@@ -108,9 +115,10 @@ public struct DeviceGroupWriter {
 
     /// "Not the same device" with an undo (#594 PR2): ``ungroup(_:)``, recorded.
     public func ungroupForUser(_ rowID: UUID) throws -> DeviceGroupUndo {
-        try committing { context in
+        try reporting { context, window in
             let row = try self.row(rowID, in: context)
             let members = try row.deviceGroupID.map { try DeviceGroups.members(ofGroups: [$0], in: context) } ?? [row]
+            window.watch(members)
             return try recording(members) { ungroupRow(row, others: members.filter { $0.id != row.id }) }
         }
     }
@@ -118,7 +126,7 @@ public struct DeviceGroupWriter {
     /// Reverses exactly what `undo` recorded, when the rows it touched are still as that operation
     /// left them; otherwise refuses with ``Refusal/undoUnavailable`` and changes nothing.
     public func undo(_ undo: DeviceGroupUndo) throws {
-        try committing { context in
+        try reporting { context, window in
             let touched = try rows(Set(undo.after.keys), in: context)
             // The groups the operation left must still have exactly the members it left them.
             let groups = Set(undo.after.values.compactMap(\.groupID))
@@ -130,6 +138,7 @@ public struct DeviceGroupWriter {
                   undo.added.allSatisfy({ pair in pairExists(pair, in: touched) }),
                   undo.removed.allSatisfy({ pair in !pairExists(pair, in: touched) })
             else { throw Refusal.undoUnavailable }
+            window.watch(touched)
             for row in touched {
                 undo.before[row.id]?.apply(to: row)
             }
@@ -375,6 +384,40 @@ public struct DeviceGroupWriter {
             return try DeviceGroups.device(of: row, in: context).members
         }
         return try DeviceGroups.members(ofGroups: [id], in: context)
+    }
+
+    /// The rows a user action touches, compared before and after it (#619 verification).
+    private final class EventWindow {
+        private var rows: [LocalDevice] = []
+        private var before: [DeviceEventReducer.RowState] = []
+
+        /// Call once the rows are fetched, before anything changes.
+        func watch(_ rows: [LocalDevice]) {
+            self.rows = rows
+            before = DeviceEventReducer.snapshot(rows)
+        }
+
+        var network: UUID? { rows.first?.networkProfileID }
+
+        func events() -> [DeviceEvent] {
+            rows.isEmpty ? [] : DeviceEventReducer.reduce(before: before, after: DeviceEventReducer.snapshot(rows), isBaseline: false)
+        }
+    }
+
+    /// A user action: `change` watches the rows it touches, and once the save succeeds any device
+    /// event between before and after is delivered (#619 verification). An offline device grouped
+    /// into an online one comes back online, so its Timeline entry and its rule outage end; a row
+    /// separated or undone keeps its saved presence, which is no event.
+    private func reporting<Result>(_ change: (ModelContext, EventWindow) throws -> Result) throws -> Result {
+        let window = EventWindow()
+        var events: [DeviceEvent] = []
+        let result = try committing { context in
+            let result = try change(context, window)
+            events = window.events()
+            return result
+        }
+        dispatcher?.deliver(DeviceEventBatch(networkProfileID: window.network, scanDate: Date(), events: events))
+        return result
     }
 
     /// Runs `change` in a new context and saves it when anything changed; rolls back and rethrows

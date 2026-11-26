@@ -38,7 +38,8 @@ struct DevicesView: View {
     /// which grouping recreates.
     @State private var grouping = DeviceGroupingViewModel(
         // Long enough under UI tests for a driver to read the toast and press Undo.
-        toastDuration: ProcessInfo.processInfo.arguments.contains("--uitesting") ? .seconds(60) : .seconds(10)
+        toastDuration: ProcessInfo.processInfo.arguments.contains("--uitesting") ? .seconds(60) : .seconds(10),
+        dispatcher: DeviceEventDispatcher.shared
     )
 
     // Context menu action state

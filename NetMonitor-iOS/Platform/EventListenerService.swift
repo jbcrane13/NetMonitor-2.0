@@ -87,7 +87,7 @@ final class EventListenerService {
         networkMonitor: NetworkMonitorService = NetworkMonitorService.shared,
         discoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         currentNetworkProfileID: @escaping @MainActor () -> UUID? = { nil },
-        dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared
+        dispatcher: any DeviceEventDispatching
     ) {
         self.eventService = eventService
         self.networkMonitor = networkMonitor

@@ -15,7 +15,7 @@ struct DeviceDetailView: View {
     }
 
     let entry: Entry
-    @State private var viewModel = DeviceDetailViewModel()
+    @State private var viewModel = DeviceDetailViewModel(dispatcher: DeviceEventDispatcher.shared)
     @State private var showsLabelCapture = false
     /// The member "Remove this interface" asked about, while its confirmation is up (#594).
     @State private var removingInterface: LocalDevice?

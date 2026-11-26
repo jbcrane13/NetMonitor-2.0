@@ -180,10 +180,10 @@ public enum DeviceEventReducer {
             if !wasOffline, isOffline {
                 return event(.wentOffline(since: members.map(\.lastSeen).max() ?? primary.lastSeen))
             }
-            // A row's own address changing is a real move, whichever member is current (#619);
-            // the current interface first, then in member order.
-            if let moved = members.first(where: { row in beforeByID[row.id].map { $0.ipAddress != row.ipAddress } == true }),
-               let old = beforeByID[moved.id] {
+            // A row's own address changing is a real move, whichever member is current (#619).
+            // When several moved, the current interface's move is the one reported.
+            let moves = members.filter { row in beforeByID[row.id].map { $0.ipAddress != row.ipAddress } == true }
+            if let moved = moves.first(where: \.isCurrent) ?? moves.first, let old = beforeByID[moved.id] {
                 return event(.addressChanged(from: old.ipAddress), interface: moved)
             }
             if let old = beforeByID[primary.id], old.isPrimary, let oldName = old.matchName, let newName = primary.matchName, oldName != newName {

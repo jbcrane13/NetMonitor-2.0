@@ -112,6 +112,29 @@ struct DeviceGroupingViewModelTests {
         #expect(model.suggestions.map(\.primary.id) == [store.wifi], "Apart again: the banner is back")
     }
 
+    /// #619 verification: grouping an offline interface into an online device reports it back
+    /// online through the app's dispatcher, once; Edit › Undo reports nothing.
+    @Test func groupingAnOfflineDeviceIntoAnOnlineOneReportsItBackOnlineOnce() throws {
+        let store = try makeStore()
+        let context = ModelContext(store.container)
+        let ethernetID = store.ethernet
+        let ethernet = try #require(try context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == ethernetID })).first)
+        ethernet.status = .offline
+        try context.save()
+        let dispatcher = DeviceEventDispatcher()
+        var kinds: [DeviceEvent.Kind] = []
+        dispatcher.subscribe { batch in kinds += batch.events.map(\.kind) }
+        let model = DeviceGroupingViewModel(toastDuration: .seconds(60), dispatcher: dispatcher)
+        let wifi = try #require(store.device(store.wifi))
+        let studio = try #require(store.device(store.ethernet))
+        let undo = makeUndoManager()
+
+        inGroup(undo) { model.group(wifi, with: studio, in: context, undoManager: undo) }
+        #expect(kinds == [.cameOnline])
+        undo.undo()
+        #expect(kinds == [.cameOnline], "undo leaves the Ethernet row offline: no event")
+    }
+
     /// Codex stop review: a scan that records the Bonjour host on the *other* device saves only that
     /// row; the shown device's suggestion must still appear.
     @Test func aSaveElsewhereBringsTheSuggestionToTheShownDevice() async throws {
@@ -133,7 +156,7 @@ struct DeviceGroupingViewModelTests {
         scanned.bonjourHostSeenAt = Date()
         try scan.save()
 
-        await waitUntil { !model.suggestions.isEmpty }
+        #expect(await pollOnMain { !model.suggestions.isEmpty })
         #expect(model.suggestions.map(\.primary.id) == [store.wifi])
     }
 
@@ -205,7 +228,7 @@ struct DeviceGroupingViewModelTests {
         let row = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
         row.notes = UUID().uuidString
         try context.save()
-        await waitUntil { observed.value > 0 }
+        #expect(await pollOnMain { observed.value > 0 })
     }
 
     @Test func notTheSameDeviceOnASuggestionRemovesItForGood() throws {
@@ -416,11 +439,4 @@ struct DeviceGroupingViewModelTests {
 
 @MainActor private final class Counter {
     var value = 0
-}
-
-@MainActor private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool) async {
-    let deadline = ContinuousClock.now + timeout
-    while !condition(), ContinuousClock.now < deadline {
-        try? await Task.sleep(for: .milliseconds(20))
-    }
 }

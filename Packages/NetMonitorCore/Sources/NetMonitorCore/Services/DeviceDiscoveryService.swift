@@ -412,7 +412,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
             // Each interface that answered a Mac scan newer than the phone's own (#594 PR2), with
             // the Mac's scan placed on this phone's clock by its age when sent (#619).
             return members.filter { member in
-                let scannedHere = member.scanAge.map { (receivedAt ?? now).addingTimeInterval(-$0) }
+                // A negative age (a bad clock read on the Mac) counts as a scan at sending.
+                let scannedHere = member.scanAge.map { (receivedAt ?? now).addingTimeInterval(-max($0, 0)) }
                 return member.answeredLatestScan && includes(member.ipAddress)
                     && (ownLastScan.map { own in scannedHere.map { $0 > own } ?? false } ?? true)
             }.map { sighting(ipAddress: $0.ipAddress, macAddress: $0.macAddress, of: device) }

@@ -250,3 +250,15 @@ func poll<T>(timeout: Duration = .seconds(5), _ read: () async -> T?) async -> T
 func poll(timeout: Duration = .seconds(5), _ condition: () async -> Bool) async -> Bool {
     await poll(timeout: timeout) { await condition() ? true : nil } ?? false
 }
+
+/// ``poll(timeout:_:)`` for a condition on main-actor state (view models), checked on the main
+/// actor so a `@MainActor` test needn't send its state anywhere.
+@MainActor
+func pollOnMain(timeout: Duration = .seconds(5), _ condition: () -> Bool) async -> Bool {
+    let deadline = ContinuousClock.now + timeout
+    while !condition() {
+        guard ContinuousClock.now < deadline else { return false }
+        try? await Task.sleep(for: .milliseconds(20))
+    }
+    return true
+}

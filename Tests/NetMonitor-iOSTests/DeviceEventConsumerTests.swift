@@ -365,6 +365,35 @@ final class DeviceEventConsumerTests {
     // MARK: - Helpers
 
     @discardableResult
+    // MARK: - Manual grouping (#619 verification)
+
+    @Test("Same device as… joins an offline device to an online one: the Timeline gets Back Online once, and Undo adds nothing")
+    func manualUnionLogsBackOnlineOnce() throws {
+        let wired = seen("192.168.1.10", name: "studio", mac: "00:1B:A9:00:00:10")
+        let wifi = seen("192.168.1.40", name: "studio-wifi", mac: "00:1B:A9:00:00:40")
+        _ = try reconcile([router], at: 0)
+        _ = try reconcile([router, wired, wifi], at: 1)
+        for index in 2 ... 4 {
+            _ = try reconcile([router, wifi], at: index)
+        }
+        #expect(deviceEntries().last == "Device Left: studio")
+
+        let context = ModelContext(container)
+        let rows = try context.fetch(FetchDescriptor<LocalDevice>())
+        let wifiRow = try #require(rows.first { $0.ipAddress == "192.168.1.40" })
+        let wiredRow = try #require(rows.first { $0.ipAddress == "192.168.1.10" })
+        let viewModel = DeviceDetailViewModel(
+            deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [start] in start }, dispatcher: dispatcher
+        )
+        viewModel.loadDevice(id: wifiRow.id, context: context)
+        viewModel.groupWith(DeviceGroups.project([wiredRow])[0])
+        #expect(deviceEntries().filter { $0.hasPrefix("Device Back Online: ") } == ["Device Back Online: studio-wifi"])
+
+        viewModel.undoGrouping()
+        _ = try reconcile([router, wifi], at: 5)
+        #expect(deviceEntries().filter { $0.hasPrefix("Device Back Online: ") }.count == 1, "Undo and the next scan add nothing")
+    }
+
     func reconcile(_ devices: [DiscoveredDevice], at index: Int) throws -> ScanReconciler.Outcome {
         try ScanReconciler(context: ModelContext(container), history: history, dispatcher: dispatcher)
             .reconcile(devices, networkProfileID: home, scanDate: time(index), now: time(index))

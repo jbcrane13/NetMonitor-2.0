@@ -68,14 +68,20 @@ import SwiftData
     private var toastTask: Task<Void, Never>?
     private let toastDuration: Duration
     private let now: () -> Date
+    /// Where a grouping action reports a device coming back online (an offline device grouped
+    /// into an online one, #619): the app's dispatcher; nil reports nothing.
+    private let dispatcher: (any DeviceEventDispatching)?
 
     /// Re-reads the shown device's suggestions after a save in its container: a scan can record
     /// the Bonjour host on the *other* device, which changes nothing the detail view keys on.
     private var saveObserver: (any NSObjectProtocol)?
 
-    init(toastDuration: Duration = .seconds(10), now: @escaping () -> Date = Date.init) {
+    init(
+        toastDuration: Duration = .seconds(10), now: @escaping () -> Date = Date.init, dispatcher: (any DeviceEventDispatching)? = nil
+    ) {
         self.toastDuration = toastDuration
         self.now = now
+        self.dispatcher = dispatcher
         saveObserver = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { [weak self] note in
             // The notification's object is the context that saved.
             let container = (note.object as? ModelContext)?.container
@@ -171,7 +177,7 @@ import SwiftData
         self.undoManager = undoManager
         let rowIDs = DeviceGroupingChoices.rowIDs(joining: other, to: device)
         do {
-            let undo = try DeviceGroupWriter(context: context).groupForUser(rowIDs, primary: device.primary.id)
+            let undo = try DeviceGroupWriter(context: context, dispatcher: dispatcher).groupForUser(rowIDs, primary: device.primary.id)
             let message = DeviceGroupingChoices.grouped(with: other.displayName)
             completed(undo, .group, container: context.container, anchor: device.primary.id, message: message)
         } catch DeviceGroupWriter.Refusal.excluded {
@@ -186,7 +192,8 @@ import SwiftData
         guard let pending = pendingOverride else { return }
         pendingOverride = nil
         do {
-            let undo = try DeviceGroupWriter(context: context).groupForUser(pending.rowIDs, primary: pending.anchor, overridingExclusions: true)
+            let undo = try DeviceGroupWriter(context: context, dispatcher: dispatcher)
+                .groupForUser(pending.rowIDs, primary: pending.anchor, overridingExclusions: true)
             let message = DeviceGroupingChoices.grouped(with: pending.otherName)
             completed(undo, .group, container: context.container, anchor: pending.anchor, message: message)
         } catch {
@@ -215,7 +222,7 @@ import SwiftData
         let address = member.ipAddress
         let remaining = device.members.first { $0.id != member.id }?.id ?? member.id
         do {
-            let undo = try DeviceGroupWriter(context: context).ungroupForUser(member.id)
+            let undo = try DeviceGroupWriter(context: context, dispatcher: dispatcher).ungroupForUser(member.id)
             completed(undo, .separate, container: context.container, anchor: remaining, message: DeviceGroupingChoices.separated(address))
         } catch {
             fail("separate", title: "Couldn't separate \(address)", error)
@@ -229,7 +236,7 @@ import SwiftData
         self.last = nil
         undoManager?.removeAllActions(withTarget: self)
         do {
-            try DeviceGroupWriter(container: last.container).undo(last.undo)
+            try DeviceGroupWriter(container: last.container, dispatcher: dispatcher).undo(last.undo)
             select(last.anchor)
             hideToast()
         } catch {

@@ -20,9 +20,6 @@ private final class MockScanSchedulerService: ScanSchedulerServiceProtocol {
         mockDiff
     }
 
-    func computeDiff(current: [DiscoveredDevice]) -> ScanDiff {
-        return mockDiff
-    }
 }
 
 // MARK: - Tests

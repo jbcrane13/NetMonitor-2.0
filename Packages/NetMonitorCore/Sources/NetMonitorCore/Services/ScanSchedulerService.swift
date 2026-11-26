@@ -7,7 +7,7 @@ import NetworkScanKit
 /// the saved rows and the Timeline. Must be called from the MainActor.
 @MainActor
 public final class ScanSchedulerService: ScanSchedulerServiceProtocol {
-    public static let shared = ScanSchedulerService()
+    public static let shared = ScanSchedulerService(dispatcher: DeviceEventDispatcher.shared)
 
     /// The last applied scan's diff. Nil until a scan with device events is reconciled; a scan
     /// with none (or a skipped reconcile) delivers nothing, so the previous diff stays.
@@ -17,7 +17,7 @@ public final class ScanSchedulerService: ScanSchedulerServiceProtocol {
     private let dispatcher: any DeviceEventDispatching
     private var subscription: UUID?
 
-    public init(dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared) {
+    public init(dispatcher: any DeviceEventDispatching) {
         self.dispatcher = dispatcher
         subscription = dispatcher.subscribe { [weak self] batch in
             self?.cachedDiff = ScanDiff(batch)

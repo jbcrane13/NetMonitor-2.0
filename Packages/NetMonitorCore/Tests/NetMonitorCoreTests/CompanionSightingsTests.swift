@@ -140,6 +140,9 @@ struct CompanionSightingsTests {
         #expect(sightings(macClockAhead: 600, scanAgeAtSend: 60, ownLastScan: now.addingTimeInterval(-30)).isEmpty)
         // 10 minutes slow: its scan a minute ago is newer than the phone's two minutes ago.
         #expect(sightings(macClockAhead: -600, scanAgeAtSend: 60, ownLastScan: now.addingTimeInterval(-120)) == ["192.168.7.40"])
+        // A negative age is a scan at sending, not one in the phone's future.
+        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: now.addingTimeInterval(-1)) == ["192.168.7.40"])
+        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: now.addingTimeInterval(1)).isEmpty)
     }
 
     @Test func oldAndNewPayloadsDecodeBothWays() throws {

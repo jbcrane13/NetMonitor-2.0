@@ -160,7 +160,7 @@ extension DeviceDetailViewModel {
     }
 
     private func writer(_ context: ModelContext) -> DeviceGroupWriter {
-        DeviceGroupWriter(context: context, references: references)
+        DeviceGroupWriter(context: context, references: references, dispatcher: dispatcher)
     }
 
     /// Shows the device `anchor` is a member of, read again after the writer saved in its own context.

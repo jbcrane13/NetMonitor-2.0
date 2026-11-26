@@ -423,7 +423,7 @@ extension BackgroundTaskService {
             Self.logger.error("Failed to open the store to save scanned devices")
             return
         }
-        Self.reconcileAndPublish(devices, scanDate: scanDate, network: network, in: container)
+        Self.reconcileAndPublish(devices, scanDate: scanDate, network: network, in: container, dispatcher: DeviceEventDispatcher.shared)
     }
 
     /// Reconciles a background scan, then, once it saved, publishes each scanned network's
@@ -440,7 +440,7 @@ extension BackgroundTaskService {
         summaries: SavedDeviceSummaryModel = .shared,
         defaults: UserDefaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard,
         reloadWidget: Bool = true,
-        dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared,
+        dispatcher: any DeviceEventDispatching,
         now: Date = Date()
     ) -> Bool {
         // Its own context on the app's container: a failed save rolls back only this scan, never

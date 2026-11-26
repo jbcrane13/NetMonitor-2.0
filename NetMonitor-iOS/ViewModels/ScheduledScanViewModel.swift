@@ -83,7 +83,7 @@ final class ScheduledScanViewModel {
         scheduler: any ScanSchedulerServiceProtocol = ScanSchedulerService.shared,
         discovery: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         currentNetwork: @escaping @MainActor () -> NetworkProfile? = { CurrentNetwork.detected() },
-        dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared
+        dispatcher: any DeviceEventDispatching
     ) {
         self.scheduler = scheduler
         self.discovery = discovery

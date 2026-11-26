@@ -77,7 +77,8 @@ struct NetmonitorApp: App {
             _eventListener = State(initialValue: EventListenerService(
                 eventService: environment.eventService,
                 discoveryService: environment.deviceDiscovery,
-                currentNetworkProfileID: environment.currentNetworkProfileID
+                currentNetworkProfileID: environment.currentNetworkProfileID,
+                dispatcher: DeviceEventDispatcher.shared
             ))
         }
         // Background work writes through this container's main context (#582).
