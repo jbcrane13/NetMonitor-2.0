@@ -359,9 +359,9 @@ extension MacConnectionService {
                         Self.logger.error("Rejected \(batch.errors.count) companion frame(s)")
                     }
 
-                    // A rejected frame (too large, unreadable) leaves the stream out of step: end the link,
-                    // which ends the Mac's inventory too, and connect again (#585 review 12).
-                    if isComplete || error != nil || !batch.errors.isEmpty {
+                    // A bad frame length leaves the stream out of step: end the link, which ends the Mac's
+                    // inventory too. A malformed payload was consumed whole and is only skipped (#624).
+                    if isComplete || error != nil || batch.errors.contains(where: \.desyncsStream) {
                         self.linkFailed(generation: generation, reason: error?.localizedDescription)
                     } else if self.connectionGeneration == generation {
                         self.scheduleReceive(connection: connection, generation: generation)

@@ -169,7 +169,7 @@ final class CompanionMessageHandler {
         // answered. The phone keys nothing on the ID.
         let sentAt = Date()
         let lastChanges = lastChangeByRow()
-        let deviceInfos = deviceDiscovery.projectedDevices.map { device in
+        let deviceInfos = Self.listOrder(deviceDiscovery.projectedDevices).map { device in
             let primary = device.primary
             let scanTime = presence.lastScan(for: primary.networkProfileID)
             // Every interface with its own sighting (#594 PR2): whether it answered the latest scan,
@@ -215,16 +215,34 @@ final class CompanionMessageHandler {
 
     /// `list` trimmed to the most recently seen devices (they come latest first) until its frame
     /// fits `frameBudget`.
+    /// A list trimmed of any device says so (`truncated`), so the phone shows it as partial (#624).
     nonisolated static func fitting(_ list: DeviceListPayload) -> DeviceListPayload {
         var count = min(list.devices.count, maximumListedDevices)
         while count > 0 {
-            let trimmed = DeviceListPayload(devices: Array(list.devices.prefix(count)), network: list.network)
+            let trimmed = DeviceListPayload(
+                devices: Array(list.devices.prefix(count)), network: list.network, truncated: count < list.devices.count ? true : nil
+            )
             if let frame = try? CompanionMessage.deviceList(trimmed).encodeLengthPrefixed(), frame.count <= frameBudget {
                 return trimmed
             }
             count = count * 3 / 4
         }
-        return DeviceListPayload(devices: [], network: list.network)
+        return DeviceListPayload(devices: [], network: list.network, truncated: list.devices.isEmpty ? nil : true)
+    }
+
+    /// Most recently seen first; ties by address (numerically), then ID, so a trim keeps the same
+    /// devices every time (#624).
+    static func listOrder(_ devices: [DeviceProjection]) -> [DeviceProjection] {
+        devices.sorted { lhs, rhs in
+            if lhs.lastSeen != rhs.lastSeen {
+                return lhs.lastSeen > rhs.lastSeen
+            }
+            let left = NetworkUtilities.ipv4ToUInt32(lhs.ipAddress) ?? .max, right = NetworkUtilities.ipv4ToUInt32(rhs.ipAddress) ?? .max
+            if left != right {
+                return left < right
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
     }
 
     /// The default route's gateway when it is on `profile`'s network, else nil.

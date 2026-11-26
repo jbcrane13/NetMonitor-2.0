@@ -116,6 +116,22 @@ struct CompanionInventorySenderTests {
         guard case .deviceList(let list) = message else { throw Missing() }
         #expect(!list.devices.isEmpty)
         #expect(list.devices.count < 1500)
+        // #624 verification F: the phone is told the list is partial.
+        #expect(list.truncated == true)
+    }
+
+    /// #624 verification F: devices seen at the same time are listed by address, then ID, so a trim
+    /// keeps the same devices every time; a whole list isn't marked partial.
+    @Test func theOrderIsDeterministicAndAWholeListIsNotPartial() throws {
+        let fixture = try makeFixture()
+        let scan = ["192.168.77.30", "192.168.77.2", "192.168.77.10"].enumerated().map { index, ip in
+            LocalDiscoveredDevice(ipAddress: ip, macAddress: "02:00:00:00:00:0\(index)", hostname: "device-\(index)")
+        }
+        fixture.discovery.reconcileScan(scan, profileID: fixture.profile.id, now: Date().addingTimeInterval(-60))
+        let first = try deviceList(fixture.handler)
+        #expect(first.devices.map(\.ipAddress) == ["192.168.77.2", "192.168.77.10", "192.168.77.30"])
+        #expect(try deviceList(fixture.handler).devices.map(\.id) == first.devices.map(\.id))
+        #expect(first.truncated == nil)
     }
 
     @Test func eachDeviceCarriesItsAgesAndIdentity() throws {

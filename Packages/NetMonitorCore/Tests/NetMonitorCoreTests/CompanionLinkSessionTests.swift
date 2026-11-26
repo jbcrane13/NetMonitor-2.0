@@ -88,14 +88,23 @@ struct CompanionLinkSessionReconnectTests {
         }
     }
 
-    @Test("recordConnected resets reconnectAttempt to zero")
-    func recordConnectedResetsAttempt() {
-        var session = CompanionLinkSession()
+    /// #624 verification D: a link that comes up is not yet proof the Mac works: a peer that greets
+    /// and then sends bad frames must keep backing off. The backoff resets only once a link has stayed
+    /// up for a heartbeat interval and delivered a message.
+    @Test("the backoff resets only after a link stays up and delivers a message")
+    func backoffResetsOnlyOnAStableLink() {
+        var session = CompanionLinkSession(heartbeatInterval: 15)
         _ = session.nextReconnectDelay(jitterFraction: 0)
         _ = session.nextReconnectDelay(jitterFraction: 0)
-        #expect(session.reconnectAttempt == 2)
-
         session.recordConnected(at: referenceInstant)
+        #expect(session.reconnectAttempt == 2)
+        // A message straight after the hello, then the link drops: still backing off.
+        session.recordReceived(at: referenceInstant.addingTimeInterval(1))
+        #expect(session.reconnectAttempt == 2)
+        #expect(session.nextReconnectDelay(jitterFraction: 0) == CompanionLinkSession.reconnectDelay(attempt: 3, jitterFraction: 0))
+        // A link that stays up a heartbeat interval and delivers a message: reset.
+        session.recordConnected(at: referenceInstant.addingTimeInterval(100))
+        session.recordReceived(at: referenceInstant.addingTimeInterval(116))
         #expect(session.reconnectAttempt == 0)
     }
 
@@ -148,5 +157,20 @@ struct CompanionLinkSessionBackoffFormulaTests {
         let aboveRange = CompanionLinkSession.reconnectDelay(attempt: 2, jitterFraction: 5)
         #expect(belowRange == 2)
         #expect(aboveRange == CompanionLinkSession.reconnectDelay(attempt: 2, jitterFraction: 1))
+    }
+
+    /// #624 verification D: only a bad length desyncs the stream (the decoder dropped its buffer); a
+    /// malformed payload was consumed whole, so the next frame still reads.
+    @Test("only a bad length desyncs the stream; a malformed payload is skipped")
+    func whichFrameErrorsDesync() async throws {
+        #expect(CompanionFrameError.invalidLength(0).desyncsStream)
+        #expect(!CompanionFrameError.malformedPayload.desyncsStream)
+        let decoder = CompanionFrameDecoder()
+        var bad = Data([0, 0, 0, 3])
+        bad.append(Data("{x}".utf8))
+        let good = try CompanionMessage.heartbeat(HeartbeatPayload()).encodeLengthPrefixed()
+        let batch = await decoder.append(bad + good)
+        #expect(batch.errors == [.malformedPayload])
+        #expect(batch.messages.count == 1)
     }
 }
