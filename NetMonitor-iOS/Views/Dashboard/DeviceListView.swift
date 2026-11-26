@@ -225,31 +225,6 @@ struct DeviceListView: View {
         }
     }
 
-    /// The Mac's maker and model when the phone has neither (#585, #427).
-    @ViewBuilder
-    private func macIdentity(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
-        if let text = list.macIdentityText(device) {
-            Text(text)
-                .font(.caption2)
-                .foregroundStyle(Theme.Colors.textTertiary)
-                .lineLimit(1)
-                .accessibilityIdentifier("deviceList_label_macIdentity_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
-        }
-    }
-
-    /// "Seen by this iPhone at 10:42 AM" when the phone's own latest scan saw it (#585).
-    @ViewBuilder
-    private func phoneSighting(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
-        if let text = list.phoneSightingText(device) {
-            Label(text, systemImage: "iphone")
-                .font(.caption2)
-                .foregroundStyle(Theme.Colors.textTertiary)
-                .lineLimit(1)
-                .accessibilityHidden(true)
-                .accessibilityIdentifier("deviceList_label_phoneSighting_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
-        }
-    }
-
     private func header(count: String) -> some View {
         HStack {
             Text(count)
@@ -432,6 +407,35 @@ struct DeviceListView: View {
         case .bonjour: return Theme.Colors.warning
         case .ssdp: return Theme.Colors.warning
         case .local: return Theme.Colors.textTertiary
+        }
+    }
+}
+
+// MARK: - The Mac's inventory (#585)
+
+extension DeviceListView {
+    /// The Mac's maker and model when the phone has neither (#585, #427).
+    @ViewBuilder
+    private func macIdentity(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
+        if let text = list.macIdentityText(device) {
+            Text(text)
+                .font(.caption2)
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .lineLimit(1)
+                .accessibilityIdentifier("deviceList_label_macIdentity_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
+        }
+    }
+
+    /// "Seen by this iPhone at 10:42 AM" when the phone's own latest scan saw it (#585).
+    @ViewBuilder
+    private func phoneSighting(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
+        if let text = list.phoneSightingText(device) {
+            Label(text, systemImage: "iphone")
+                .font(.caption2)
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .lineLimit(1)
+                .accessibilityHidden(true)
+                .accessibilityIdentifier("deviceList_label_phoneSighting_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
         }
     }
 }
