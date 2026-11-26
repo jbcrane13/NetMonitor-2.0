@@ -82,9 +82,10 @@ final class PlainRuleIOSViewModel {
         let matched = Self.match(scan, to: devices)
         var candidates = DeviceGroups.project(devices).map { projection in
             var device = RuleDevice(projection)
-            // The last scan's open ports win over ports a row saved earlier (#572): the current
-            // member's, else another member's.
-            if let ports = projection.members.lazy.compactMap({ matched.byRow[$0.id]?.openPorts }).first(where: { !$0.isEmpty }) {
+            // The last scan's open ports win over ports a row saved earlier (#572). Only ports
+            // measured at the candidate's address (the current member's) count: another
+            // interface's ports say nothing about this one, so with none the port probe runs (#594).
+            if let ports = matched.byRow[projection.current.id]?.openPorts, !ports.isEmpty {
                 device.openPorts = ports
             }
             return device

@@ -27,6 +27,13 @@ struct SavedDeviceSummary: Equatable {
         top = answered.prefix(3).map { Entry(name: $0.displayName, ipAddress: $0.ipAddress) }
     }
 
+    /// A scan no saved network describes (#594 review): its own devices, in the scan's order (by
+    /// address), as the widget showed every scan before #594.
+    init(scan: [DiscoveredDevice]) {
+        count = scan.count
+        top = scan.prefix(3).map { Entry(name: $0.displayName, ipAddress: $0.ipAddress) }
+    }
+
     /// Writes the count and the top three where the widget reads them.
     func publish(to defaults: UserDefaults) {
         let topDevices = top.map { ["name": $0.name, "ip": $0.ipAddress] }
@@ -49,6 +56,25 @@ final class SavedDeviceSummaryModel {
     /// The count for `network`, or nil before any of its scans was summarized.
     func count(for network: UUID?) -> Int? {
         network.flatMap { summaries[$0]?.count }
+    }
+
+    /// Publishes a saved scan: each network it saved (`networks`), from its saved devices; a scan
+    /// that saved no network (none was known) still publishes its own devices to the widget.
+    func publish(
+        savedScan scan: [DiscoveredDevice], networks: Set<UUID>, in context: ModelContext, presence: PresenceSnapshot,
+        defaults: UserDefaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard,
+        reloadWidget: Bool = true
+    ) {
+        guard !networks.isEmpty else {
+            SavedDeviceSummary(scan: scan).publish(to: defaults)
+            if reloadWidget {
+                WidgetCenter.shared.reloadTimelines(ofKind: "DeviceGlanceWidget")
+            }
+            return
+        }
+        for network in networks {
+            refresh(network: network, in: context, presence: presence, defaults: defaults, reloadWidget: reloadWidget)
+        }
     }
 
     /// Summarizes `network`'s saved devices from `context`, and publishes it to the widget.

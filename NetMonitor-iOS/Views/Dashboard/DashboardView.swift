@@ -11,7 +11,6 @@ struct DashboardView: View {
     @State private var lastHealthRefresh: Date?
     @State private var changeBrief = ChangeBriefViewModel.dashboard
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
-    @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
     @Environment(\.modelContext) private var modelContext
     @Query(Self.recentSpeedTestsDescriptor) private var recentSpeedTests: [SpeedTestResult]
     // periphery:ignore
@@ -123,12 +122,6 @@ struct DashboardView: View {
 
     // MARK: - Since-yesterday brief (#453)
 
-    private static var savedDevicesDescriptor: FetchDescriptor<LocalDevice> {
-        var descriptor = FetchDescriptor<LocalDevice>()
-        descriptor.fetchLimit = 500
-        return descriptor
-    }
-
     /// The brief compares the latest test with the one before it.
     private static var recentSpeedTestsDescriptor: FetchDescriptor<SpeedTestResult> {
         var descriptor = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\SpeedTestResult.timestamp, order: .reverse)])
@@ -139,8 +132,8 @@ struct DashboardView: View {
     private func refreshChangeBrief() async {
         await changeBrief.refresh(
             scanned: viewModel.discoveredDevices,
-            // Every member of each group the bounded fetch holds (#594).
-            saved: (try? DeviceGroups.completingGroups(savedDevices, in: modelContext)) ?? savedDevices,
+            // The network's most recent devices, each with every member, read when asked (#594).
+            saved: SavedDeviceList.recentRows(network: viewModel.activeNetwork?.id, in: modelContext),
             networkProfileID: viewModel.activeNetwork?.id,
             speedTests: recentSpeedTests,
             presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans,
@@ -722,16 +715,13 @@ private struct DeviceListRoute: Hashable {}
 struct LocalDevicesCard: View {
     @Bindable var viewModel: DashboardViewModel
     /// The network's saved rows (#583), with their presence, plus the scan's devices not saved yet.
-    @Query private var savedDevices: [LocalDevice]
-    /// The grouped rows, so every device shown has all its interfaces (#594).
-    @Query private var groupedDevices: [LocalDevice]
+    /// The network's saved devices, paged by device (#594).
+    @State private var saved = SavedDeviceRows()
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
-        _savedDevices = Query(SavedDeviceList.fetchDescriptor(network: viewModel.deviceNetworkID))
-        _groupedDevices = Query(SavedDeviceList.groupedDescriptor(network: viewModel.deviceNetworkID))
     }
 
     /// Show all devices on iPad, cap at 5 on iPhone
@@ -741,7 +731,7 @@ struct LocalDevicesCard: View {
 
     var body: some View {
         let list = SavedDeviceList(
-            saved: SavedDeviceList.completing(savedDevices, with: groupedDevices), live: viewModel.discoveredDevices,
+            saved: saved.rows, live: viewModel.discoveredDevices,
             network: viewModel.deviceNetworkID, sort: .status, showPast: false,
             presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
         )
@@ -750,6 +740,7 @@ struct LocalDevicesCard: View {
         }
         .buttonStyle(PlainButtonStyle())
         .frame(maxHeight: sizeClass == .regular ? .infinity : nil)
+        .readsSavedDevices(saved, network: viewModel.deviceNetworkID)
         .accessibilityIdentifier("dashboard_link_devices")
         .accessibilityValue("\(list.onlineCount) online, \(list.entries.count) devices")
     }

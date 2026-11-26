@@ -21,14 +21,21 @@ struct DeviceGroupReaderTests {
         PresenceSnapshot(lastScans: [home: scan], now: scan + 60)
     }
 
+    /// The seeded group, read in `context` after the writer saved it (the writer works in its own
+    /// context, so rows read before a writer call don't show it).
     @MainActor
     struct Group {
         let container: ModelContainer
+        let context: ModelContext
         let primary: LocalDevice
         let member: LocalDevice
         let groupID: UUID
-        var context: ModelContext { container.mainContext }
         var rows: [LocalDevice] { [primary, member] }
+
+        /// The store as it is now, in a new context.
+        func freshRows() throws -> [LocalDevice] {
+            try ModelContext(container).fetch(FetchDescriptor<LocalDevice>())
+        }
     }
 
     func makeContainer() throws -> ModelContainer {
@@ -56,8 +63,14 @@ struct DeviceGroupReaderTests {
         context.insert(primary)
         context.insert(member)
         try context.save()
-        let groupID = try DeviceGroupWriter(context: context).group([primary.id, member.id], primary: primary.id, source: .user)
-        return Group(container: container, primary: primary, member: member, groupID: groupID)
+        let primaryID = primary.id, memberID = member.id
+        let groupID = try DeviceGroupWriter(container: container).group([primaryID, memberID], primary: primaryID, source: .user)
+        let fresh = ModelContext(container)
+        let rows = try fresh.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == primaryID || $0.id == memberID }))
+        return try Group(
+            container: container, context: fresh,
+            primary: #require(rows.first { $0.id == primaryID }), member: #require(rows.first { $0.id == memberID }), groupID: groupID
+        )
     }
 
     func filler(_ index: Int, lastSeen: Date) -> LocalDevice {
@@ -92,25 +105,40 @@ struct DeviceGroupReaderTests {
         #expect(list.entries.first?.destination == .savedDevice(id: group.groupID))
     }
 
-    /// The list's fetch holds the 500 most recent rows; the primary, seen three days ago, is the
-    /// 501st. The grouped rows complete it, so the device still shows its name.
-    @Test func theDeviceListCompletesAGroupWhosePrimaryIsOutsideTheFirst500Rows() throws {
-        let group = try seedGroup { context in
-            for index in 0 ..< 500 {
-                context.insert(filler(index, lastSeen: scan - 3600))
-            }
+    /// The list pages by device (#594 review): 250 two-member groups among the newest 500 rows
+    /// still list 500 devices, and the oldest group's primary is completed.
+    @Test func theDeviceListPagesByDeviceNotByRow() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        var groups: [[UUID]] = []
+        for index in 0 ..< 250 {
+            let wired = filler(index * 2, lastSeen: scan - Double(index))
+            let wifi = filler(index * 2 + 1, lastSeen: scan - Double(index))
+            context.insert(wired)
+            context.insert(wifi)
+            groups.append([wired.id, wifi.id])
         }
-        let fetched = try group.context.fetch(SavedDeviceList.fetchDescriptor(network: home))
-        #expect(fetched.count == 500)
-        #expect(!fetched.contains { $0.id == group.primary.id })
+        for index in 500 ..< 800 {
+            context.insert(filler(index, lastSeen: scan - 1000 - Double(index)))
+        }
+        try context.save()
+        let writer = DeviceGroupWriter(container: container)
+        for pair in groups {
+            try writer.group(pair, primary: pair[0], source: .user)
+        }
 
-        let grouped = try group.context.fetch(SavedDeviceList.groupedDescriptor(network: home))
         let list = SavedDeviceList(
-            saved: SavedDeviceList.completing(fetched, with: grouped), network: home, sort: .ip, showPast: false, presence: presence
+            saved: SavedDeviceList.recentRows(network: home, in: ModelContext(container)), network: home, sort: .ip,
+            showPast: false, presence: presence
         )
-        let studio = list.entries.filter { $0.ipAddress == "192.168.1.13" }
-        #expect(studio.map(\.displayName) == ["Studio Mac"])
         #expect(list.entries.count == 500)
+        let devices = list.entries.compactMap { entry -> DeviceProjection? in
+            if case let .saved(device) = entry {
+                return device
+            }
+            return nil
+        }
+        #expect(devices.count(where: \.isGroup) == 250)
     }
 
     // MARK: - Dashboard count and widget
@@ -249,7 +277,7 @@ struct DeviceGroupReaderTests {
 
     @Test func removingAnInterfaceLeavesOneDeviceAndRemovingThePrimaryKeepsTheOther() throws {
         let group = try seedGroup()
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService())
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [])
         viewModel.loadDevice(id: group.groupID, context: group.context)
         let memberID = group.member.id
         #expect(viewModel.userContent(of: group.primary) == DeviceGroups.userContent(of: group.primary))
@@ -257,7 +285,8 @@ struct DeviceGroupReaderTests {
 
         viewModel.removeInterface(group.primary)
 
-        let rows = try group.context.fetch(FetchDescriptor<LocalDevice>())
+        // The store, read fresh: the writer saved in its own context.
+        let rows = try group.freshRows()
         #expect(rows.map(\.id) == [memberID])
         #expect(rows.first?.deviceGroupID == nil)
         #expect(viewModel.device?.id == memberID)
@@ -451,6 +480,6 @@ extension DeviceGroupReaderTests {
     @Test func clearingSavedDataDeletesEveryInterface() async throws {
         let group = try seedGroup()
         await SettingsViewModel().clearAllCachedData(modelContext: group.context)
-        #expect(try group.context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+        #expect(try group.freshRows().isEmpty)
     }
 }

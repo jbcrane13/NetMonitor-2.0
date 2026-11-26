@@ -16,9 +16,9 @@ final class DeviceRecordUpdater {
     /// The network a scan is about when its devices don't say.
     private let currentNetworkProfileID: @MainActor () -> UUID?
     private let clock: @MainActor () -> Date
-    /// Called after a scan is saved and recorded, with the networks it saved, so presence is read
-    /// again (#583) and the saved-device count and widget are published from the saved devices (#594).
-    private let onSaved: @MainActor (Set<UUID>) -> Void
+    /// Called after a scan is saved and recorded, with the networks it saved and its devices, so
+    /// presence is read again (#583) and the saved-device count and widget are published (#594).
+    private let onSaved: @MainActor (Set<UUID>, [DiscoveredDevice]) -> Void
     private var wasScanning = false
     /// The last completed scan taken into `pending`.
     private var capturedScanDate: Date?
@@ -48,7 +48,7 @@ final class DeviceRecordUpdater {
         reconciler: ScanReconciler,
         currentNetworkProfileID: @escaping @MainActor () -> UUID?,
         clock: @escaping @MainActor () -> Date = Date.init,
-        onSaved: @escaping @MainActor (Set<UUID>) -> Void = { _ in }
+        onSaved: @escaping @MainActor (Set<UUID>, [DiscoveredDevice]) -> Void = { _, _ in }
     ) {
         self.discoveryService = discoveryService
         self.reconciler = reconciler
@@ -100,7 +100,7 @@ final class DeviceRecordUpdater {
             let scan = pending[0]
             if Self.reconcile(scan.devices, scanDate: scan.date, network: scan.network, with: reconciler, now: scan.reconciledAt) {
                 pending.removeFirst()
-                onSaved(Set(scan.devices.compactMap { $0.networkProfileID ?? scan.network }))
+                onSaved(Set(scan.devices.compactMap { $0.networkProfileID ?? scan.network }), scan.devices)
                 continue
             }
             pending[0].attempts += 1

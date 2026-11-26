@@ -31,6 +31,8 @@ final class DeviceDetailViewModel {
     private let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
     private let suggester: DeviceSuggester
     private let wakeService: any WakeOnLANServiceProtocol
+    /// Stores that name rows by ID; removing an interface re-points them to the device (#594).
+    private let references: [any DeviceReferenceStore]
     /// The reconciled scans, for "seen by the previous scan" in the row match (#596).
     private let scanHistory: ScanHistory
     private var modelContext: ModelContext?
@@ -60,6 +62,7 @@ final class DeviceDetailViewModel {
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         suggester: DeviceSuggester = DeviceSuggester(service: UITestFakeDeviceFeed.insightService, store: DeviceSuggestionStore()),
         wakeService: any WakeOnLANServiceProtocol = WakeOnLANService(),
+        references: [any DeviceReferenceStore] = [NetworkEventService.shared],
         scanHistory: ScanHistory = ScanHistory()
     ) {
         self.macLookupService = macLookupService
@@ -69,6 +72,7 @@ final class DeviceDetailViewModel {
         self.deviceDiscoveryService = deviceDiscoveryService
         self.suggester = suggester
         self.wakeService = wakeService
+        self.references = references
         self.scanHistory = scanHistory
     }
 
@@ -586,28 +590,22 @@ extension DeviceDetailViewModel {
 
 extension DeviceDetailViewModel {
     /// Shows the device `row` is an interface of: its primary as ``device``, and every member,
-    /// fetched in this context (a group lives on one network).
+    /// fetched in this context (`DeviceGroups.device(of:in:)`).
     func showDevice(of row: LocalDevice?) {
         guard let row else {
             device = nil
             projection = nil
             return
         }
-        var rows = [row]
-        if let group = row.deviceGroupID, let modelContext {
-            let groupID: UUID? = group
-            let network = row.networkProfileID
-            let descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.deviceGroupID == groupID && $0.networkProfileID == network })
-            rows = (try? modelContext.fetch(descriptor)) ?? rows
-        }
-        let shown = DeviceGroups.project(rows).first { $0.contains(row.id) }
+        let shown = modelContext.flatMap { try? DeviceGroups.device(of: row, in: $0) } ?? DeviceGroups.project([row]).first
         projection = shown
         device = shown?.primary ?? row
     }
 
-    /// "Remove this interface": deletes the member's row through `DeviceGroupWriter`. The device
-    /// stays open on the members that remain (a group left with one becomes that row). Edits
-    /// waiting in the context are saved first, since a failed removal rolls the context back.
+    /// "Remove this interface": deletes the member's row through `DeviceGroupWriter`, which works in
+    /// its own context and re-points the row's references (Timeline entries) to the device. The
+    /// device stays open on the members that remain, read again from the store (a group left with
+    /// one becomes that row). Edits waiting here are saved first, so the writer sees them.
     func removeInterface(_ member: LocalDevice) {
         guard let modelContext, let projection, projection.isGroup,
               let survivor = projection.members.first(where: { $0.id != member.id })?.id
@@ -619,7 +617,7 @@ extension DeviceDetailViewModel {
             nameLookup = .confirmedByScan
         }
         do {
-            try DeviceGroupWriter(context: modelContext).removeInterface(member.id)
+            try DeviceGroupWriter(context: modelContext, references: references).removeInterface(member.id)
         } catch {
             self.error = "The interface couldn't be removed. Try again."
             return

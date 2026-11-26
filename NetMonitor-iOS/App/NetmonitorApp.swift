@@ -108,14 +108,12 @@ struct NetmonitorApp: App {
             // network the phone has left (#589).
             currentNetworkProfileID: { CurrentNetwork.detected()?.id },
             clock: UITestBootstrap.scanClock ?? Date.init,
-            onSaved: { [presence, sharedModelContainer] networks in
+            onSaved: { [presence, sharedModelContainer] networks, devices in
                 presence.refresh()
                 // The dashboard count and the widget, from the saved devices this scan updated (#594).
-                for network in networks {
-                    SavedDeviceSummaryModel.shared.refresh(
-                        network: network, in: sharedModelContainer.mainContext, presence: presence.snapshot
-                    )
-                }
+                SavedDeviceSummaryModel.shared.publish(
+                    savedScan: devices, networks: networks, in: sharedModelContainer.mainContext, presence: presence.snapshot
+                )
             }
         )
         updater.start()
