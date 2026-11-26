@@ -172,8 +172,10 @@ public struct ScanReconciler {
     /// rows can't be read or saved; the scan is then not recorded, so it can be tried again.
     /// - Parameter macSightings: the connected Mac's answers while its inventory is live (#585):
     ///   each refreshes the presence (status, last seen) of an **existing** row it matches by the
-    ///   `PresenceMatch` rule, and a past row only by MAC; it never inserts a row, and never writes
-    ///   a name, maker or address. They are not part of `scan`, so they never make a row.
+    ///   `PresenceMatch` rule, and a past row only by MAC; it never inserts a row, and never writes a
+    ///   name, maker or type. A MAC-proven match at another address moves the row there, as a phone
+    ///   scan would, and that proof keeps the row out of an address-only match at its old address in
+    ///   the same reconcile. They are not part of `scan`, so they never make a row.
     @discardableResult
     public func reconcile(
         _ scan: [DiscoveredDevice], macSightings: [DiscoveredDevice] = [], networkProfileID: UUID?, scanDate: Date, now: Date = Date()
@@ -230,7 +232,8 @@ public struct ScanReconciler {
         let previousScan = history.previousReconciled(beforeScan: scanDate, for: networkProfileID)
         let assignment = PresenceMatch.assign(
             known: rows.map { PresenceMatch.Known(Self.candidate($0), lastSeen: $0.lastSeen) },
-            observed: scan.map(Self.candidate), now: now, window: policy.interval, previousScan: previousScan
+            observed: scan.map(Self.candidate), now: now, window: policy.interval, previousScan: previousScan,
+            answeredElsewhere: Self.movedMACs(macSightings, rows: rows)
         )
         var answered = Set<UUID>()
         var latencies: [UUID: Double] = [:]
@@ -305,6 +308,22 @@ public struct ScanReconciler {
         }
         let events = DeviceEventReducer.reduce(before: before, after: DeviceEventReducer.snapshot(rows), isBaseline: isBaseline)
         return Applied(answered: answered, latencies: latencies, events: events)
+    }
+
+    /// The real MACs the Mac saw answering at an address other than their row's (#585): moved devices,
+    /// whose rows must not be taken by whoever now has their old address.
+    private static func movedMACs(_ sightings: [DiscoveredDevice], rows: [LocalDevice]) -> Set<String> {
+        var addresses: [String: Set<String>] = [:]
+        for row in rows {
+            if let mac = DeviceMatcher.normalizedMAC(row.macAddress) {
+                addresses[mac, default: []].insert(row.ipAddress)
+            }
+        }
+        return Set(sightings.filter { !$0.isCached }.compactMap { sighting in
+            guard let mac = DeviceMatcher.normalizedMAC(sighting.macAddress), let known = addresses[mac],
+                  !known.contains(sighting.ipAddress) else { return nil }
+            return mac
+        })
     }
 
     /// The Mac's answers refresh rows this scan didn't answer for (#585): presence only, never a new

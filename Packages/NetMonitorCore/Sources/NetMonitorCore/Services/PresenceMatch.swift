@@ -99,13 +99,16 @@ public enum PresenceMatch {
     ///   - window: the grace window (`DeviceGracePolicy.interval`).
     ///   - previousScan: when the network's previous recorded scan was reconciled
     ///     (`ScanHistory.previousReconciled`); a row it saw counts as recent.
+    ///   - answeredElsewhere: real MACs another source proved answering at another address in this
+    ///     scan (the Mac's sightings, #585): like a MAC observed here, their rows never match by address.
     public static func assign(
-        known: [Known], observed: [DeviceMatchCandidate], now: Date, window: TimeInterval, previousScan: Date? = nil
+        known: [Known], observed: [DeviceMatchCandidate], now: Date, window: TimeInterval, previousScan: Date? = nil,
+        answeredElsewhere: Set<String> = []
     ) -> [Int?] {
         var result = [Int?](repeating: nil, count: observed.count)
         var taken = Set<Int>()
         var matcher = DeviceMatcher(known: known.map(\.candidate), observed: observed)
-        let observedMACs = Set(observed.compactMap { DeviceMatcher.normalizedMAC($0.macAddress) })
+        let observedMACs = Set(observed.compactMap { DeviceMatcher.normalizedMAC($0.macAddress) }).union(answeredElsewhere)
 
         // Devices with a MAC first, so a newcomer without one can't take the row of a device that
         // moved to another address in the same scan.

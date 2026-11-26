@@ -279,4 +279,43 @@ final class ScanReconcilerMacInventoryTests {
         #expect(try rows(context).first { $0.ipAddress == "192.168.7.20" }?.status == .offline)
         #expect(offline == 1)
     }
+
+    /// Lead's final check: in ONE reconcile, the iPad (aa) has moved .20 → .30 and a nameless guest
+    /// has taken .20. The phone finds only the guest; the Mac saw aa answering at .30. The Mac's proof
+    /// keeps the iPad's row out of an address-only match at .20: the guest gets a new row, and the
+    /// iPad's row moves to .30 with its notes. Another nameless row seen at .30 within grace is not
+    /// stamped by the Mac's answer.
+    @Test func theMacsProofOfAMoveKeepsTheOldAddressFromTheGuestInOneReconcile() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let reconciler = try makeReconciler(context)
+        let iPad = DiscoveredDevice(
+            ipAddress: "192.168.7.20", hostname: "ipad", vendor: nil, macAddress: "AA:BB:CC:00:00:AA", latency: 4, discoveredAt: start,
+            source: .local, networkProfileID: home
+        )
+        let other = DiscoveredDevice(
+            ipAddress: "192.168.7.30", hostname: nil, vendor: nil, macAddress: nil, latency: 4, discoveredAt: start, source: .local,
+            networkProfileID: home
+        )
+        try reconciler.reconcile([phoneSees(), iPad, other], networkProfileID: home, scanDate: start, now: start)
+        let iPadRow = try #require(try rows(context).first { $0.hostname == "ipad" })
+        iPadRow.notes = "Dad's"
+        let otherRow = try #require(try rows(context).first { $0.ipAddress == "192.168.7.30" })
+        let guest = DiscoveredDevice(
+            ipAddress: "192.168.7.20", hostname: nil, vendor: nil, macAddress: nil, latency: 4, discoveredAt: start, source: .local,
+            networkProfileID: home
+        )
+        try reconciler.reconcile(
+            [phoneSees(), guest], macSightings: [macSighting("192.168.7.30", name: "ipad", mac: "AA:BB:CC:00:00:AA")],
+            networkProfileID: home, scanDate: minutes(5), now: minutes(5)
+        )
+        let atTwenty = try #require(try rows(context).first { $0.ipAddress == "192.168.7.20" })
+        #expect(atTwenty.id != iPadRow.id)
+        #expect(atTwenty.notes == nil)
+        #expect(atTwenty.hostname == nil)
+        #expect(iPadRow.ipAddress == "192.168.7.30")
+        #expect(iPadRow.notes == "Dad's")
+        #expect(iPadRow.lastSeen == minutes(5))
+        #expect(otherRow.lastSeen == start)
+    }
 }
