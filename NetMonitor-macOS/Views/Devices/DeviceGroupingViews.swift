@@ -29,7 +29,8 @@ struct DeviceGroupingSection: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .sheet(isPresented: $showPicker) {
-                SameDeviceAsSheet(device: device, isPresented: $showPicker)
+                // The detail window's undo manager: the sheet's goes with the sheet.
+                SameDeviceAsSheet(device: device, isPresented: $showPicker, undoManager: undoManager)
             }
         }
     }
@@ -64,10 +65,11 @@ struct DeviceGroupingSection: View {
 struct SameDeviceAsSheet: View {
     let device: DeviceProjection
     @Binding var isPresented: Bool
+    /// Where Edit › Undo is registered: the window the sheet was opened from.
+    let undoManager: UndoManager?
 
     @Environment(DeviceGroupingViewModel.self) private var grouping: DeviceGroupingViewModel?
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.undoManager) private var undoManager
     @State private var search = ""
 
     var body: some View {

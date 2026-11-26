@@ -36,7 +36,10 @@ struct DevicesView: View {
     @State private var selectedProDevice: LocalDevice?
     /// Device detail's grouping actions and their undo toast (#594 PR2), above the detail view,
     /// which grouping recreates.
-    @State private var grouping = DeviceGroupingViewModel()
+    @State private var grouping = DeviceGroupingViewModel(
+        // Long enough under UI tests for a driver to read the toast and press Undo.
+        toastDuration: ProcessInfo.processInfo.arguments.contains("--uitesting") ? .seconds(60) : .seconds(10)
+    )
 
     // Context menu action state
     @State private var deviceToPing: DeviceProjection?

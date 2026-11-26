@@ -369,6 +369,9 @@ struct NetMonitorApp: App {
         if arguments.contains("--seed-device-group") {
             UITestScanFixture.seedDeviceGroup(into: context, profileID: profileManager.activeProfile?.id)
         }
+        if arguments.contains("--seed-group-suggestion") {
+            UITestScanFixture.seedGroupSuggestion(into: context, profileID: profileManager.activeProfile?.id)
+        }
         if arguments.contains("--seed-test-events") {
             UITestScanFixture.seedEvents(into: NetworkEventService.shared, profileID: profileManager.activeProfile?.id)
         }
@@ -501,7 +504,24 @@ enum UITestScanFixture {
         let drops = ProcessInfo.processInfo.environment["UITEST_SCAN_DROP_LAST"] == "1" && scansRun > 0
         let scan = drops ? devices.filter { $0.ipAddress != printerIP } : devices
         // With the seeded group, only its second interface answers (#594).
-        return ProcessInfo.processInfo.arguments.contains("--seed-device-group") ? scan + [groupMemberScan] : scan
+        let group = ProcessInfo.processInfo.arguments.contains("--seed-device-group") ? [groupMemberScan] : []
+        // UITEST_SCAN_BONJOUR_PAIR=1: two addresses answer for one strong Bonjour host (#594 PR2).
+        let pair = ProcessInfo.processInfo.environment["UITEST_SCAN_BONJOUR_PAIR"] == "1" ? bonjourPairScan : []
+        return scan + group + pair
+    }
+
+    static let workstationHost = "uitest-workstation.local"
+
+    /// The workstation's Ethernet (192.168.77.70) and Wi-Fi (192.168.77.71) interfaces, both
+    /// answering for `workstationHost`: the scan groups them automatically.
+    private static var bonjourPairScan: [DiscoveredDevice] {
+        [("192.168.77.70", "uitest-workstation"), ("192.168.77.71", "uitest-workstation-wifi")].map { ip, name in
+            DiscoveredDevice(
+                ipAddress: ip, hostname: name, vendor: nil, macAddress: "02:00:00:77:00:\(ip.suffix(2))", latency: 3,
+                discoveredAt: Date(), source: .local,
+                bonjourClaims: [HostClaim(host: workstationHost, service: "_ssh._tcp", address: ip)]
+            )
+        }
     }
 
     static let groupPrimaryIP = "192.168.77.60"
@@ -658,6 +678,27 @@ enum UITestScanFixture {
         rows.forEach(context.insert)
         try? context.save()
         try? DeviceGroupWriter(context: context).group(rows.map(\.id), primary: primary.id, source: .user)
+    }
+
+    /// `--seed-group-suggestion` (#594 PR2): a laptop saved as two devices (192.168.77.80 and .81)
+    /// whose addresses answered for the same strong Bonjour host an hour ago, so device detail
+    /// suggests they are the same device. Neither answers the fixture scan.
+    @MainActor
+    static func seedGroupSuggestion(into context: ModelContext, profileID: UUID?) {
+        // Seen together, so once grouped the device shows at the lower address.
+        let seen = Date()
+        for (ip, name) in [("192.168.77.80", "uitest-laptop"), ("192.168.77.81", "uitest-laptop-wifi")] {
+            let row = LocalDevice(
+                ipAddress: ip, macAddress: "02:00:00:77:00:\(ip.suffix(2))", hostname: name, deviceType: .laptop, status: .online,
+                networkProfileID: profileID
+            )
+            row.lastSeen = seen
+            row.firstSeen = seen
+            row.bonjourHost = "uitest-laptop.local"
+            row.bonjourHostSeenAt = Date().addingTimeInterval(-3600)
+            context.insert(row)
+        }
+        try? context.save()
     }
 
     /// `--seed-test-events`: one event today and one ten days ago, for the Timeline's ranges.
