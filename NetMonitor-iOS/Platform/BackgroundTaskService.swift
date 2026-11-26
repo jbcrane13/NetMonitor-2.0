@@ -32,6 +32,8 @@ final class BackgroundTaskService {
     private let notificationWriter: NotificationTextWriter
     /// Reaches TCP and ICMP targets (#572).
     private let probe: MonitoringTargetProbe
+    /// Posts the alerts of every applied reconcile's device events, from `notifyDeviceEvents(from:)` (#619).
+    private var deviceEventNotifier: DeviceEventNotifier?
 
     init(
         registerTask: @escaping TaskRegistration = { identifier, queue, launchHandler in
@@ -385,10 +387,6 @@ final class BackgroundTaskService {
 
         Self.logger.debug("Starting network scan...")
         let scanBefore = DeviceDiscoveryService.shared.lastScanDate
-        // Before the scan: the foreground updater may reconcile it first, and its delivery is the
-        // one that counts (#603).
-        let collector = DeviceEventCollector()
-        defer { collector.stop() }
         // The network this phone is on now, detected again: the saved local profile can still
         // describe the network it left (a move from home to the office), and the scan's devices
         // carry this network so they are saved as its devices.
@@ -402,14 +400,13 @@ final class BackgroundTaskService {
         let devices = DeviceDiscoveryService.shared.discoveredDevices
         Self.logger.info("Network scan found \(devices.count) device(s)")
         // Only a scan that finished during this task; `lastScanDate` moves when one does, with
-        // `completedScanDevices` as its list. Its alerts are the device events of the reconcile
-        // that applied it, this one's or the foreground updater's (#603): a scan that was never
-        // applied, or applied with no events, alerts nothing.
-        guard let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore else { return }
-        reconcileSavedDevices(DeviceDiscoveryService.shared.completedScanDevices, scanDate: scanDate, network: network?.id)
-        let diff = ScanDiff(events: collector.events(for: scanDate), networkProfileID: network?.id, scannedAt: scanDate)
-        Self.logger.info("Scan diff: \(diff.newDevices.count) new, \(diff.removedDevices.count) removed")
-        await notifyScanChanges(diff, wordBodies: !taskCancelled)
+        // `completedScanDevices` as its list. Its alerts come from the device events of the
+        // reconcile that applied it, this one's or the foreground updater's, posted by the
+        // device-event notifier (#603, #619); the task waits for them before it ends.
+        if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore {
+            reconcileSavedDevices(DeviceDiscoveryService.shared.completedScanDevices, scanDate: scanDate, network: network?.id)
+        }
+        await deviceEventAlertsPosted()
     }
 
 }
@@ -461,32 +458,50 @@ extension BackgroundTaskService {
     }
 }
 
-/// The device events delivered while a background scan runs (#603), from whichever reconcile
-/// applies it: the background task's own, or the foreground updater's when it got there first.
-/// Delivery happens once, so either way the scan alerts once.
+/// Posts the scan alerts of every applied reconcile's device events (#619), foreground or
+/// background: the dispatcher delivers each reconcile's events once, so each change alerts once.
+/// Batches post in order, one after another; `posted()` waits for every one delivered so far.
 @MainActor
-final class DeviceEventCollector {
-    private let dispatcher: any DeviceEventDispatching
-    private var batches: [DeviceEventBatch] = []
-    private var subscription: UUID?
+final class DeviceEventNotifier {
+    typealias Post = @MainActor (ScanDiff) async -> Void
 
-    init(dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared) {
+    private let dispatcher: any DeviceEventDispatching
+    private let post: Post
+    private var subscription: UUID?
+    /// The last queued post; each waits for the one before it.
+    private var queue: Task<Void, Never>?
+
+    init(dispatcher: any DeviceEventDispatching, post: @escaping Post) {
         self.dispatcher = dispatcher
+        self.post = post
         subscription = dispatcher.subscribe { [weak self] batch in
-            self?.batches.append(batch)
+            self?.enqueue(ScanDiff(batch))
         }
     }
 
-    /// The events of every network's applied reconcile of the scan that finished at `scanDate`.
-    func events(for scanDate: Date) -> [DeviceEvent] {
-        batches.filter { $0.scanDate == scanDate }.flatMap(\.events)
-    }
-
-    func stop() {
+    isolated deinit {
         if let subscription {
             dispatcher.unsubscribe(subscription)
         }
-        subscription = nil
+    }
+
+    private func enqueue(_ diff: ScanDiff) {
+        guard !diff.newDevices.isEmpty || !diff.removedDevices.isEmpty else { return }
+        let previous = queue
+        queue = Task { [post] in
+            await previous?.value
+            await post(diff)
+        }
+    }
+
+    /// Returns once every alert queued so far, and any queued while waiting, is posted.
+    func posted() async {
+        while let current = queue {
+            await current.value
+            if queue == current {
+                return
+            }
+        }
     }
 }
 
@@ -507,6 +522,20 @@ extension BackgroundTaskService {
         for (alert, body) in zip(alerts, bodies) {
             alert.post(body)
         }
+    }
+
+    /// Notifies the scan alerts of every reconcile `dispatcher` delivers from now on (#619), once;
+    /// the app calls it at launch with the shared dispatcher.
+    func notifyDeviceEvents(from dispatcher: any DeviceEventDispatching) {
+        guard deviceEventNotifier == nil else { return }
+        deviceEventNotifier = DeviceEventNotifier(dispatcher: dispatcher) { [weak self] diff in
+            await self?.notifyScanChanges(diff)
+        }
+    }
+
+    /// Waits until the device-event alerts delivered so far are posted.
+    func deviceEventAlertsPosted() async {
+        await deviceEventNotifier?.posted()
     }
 
     /// Alerts for a scheduled scan's new and missing devices, with the user's toggles applied.

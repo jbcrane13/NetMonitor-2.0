@@ -93,7 +93,9 @@ struct EventListenerNetworkIDTests {
         let box = DeviceBox()
         let fake = UITestFakeDiscoveryService(devices: { box.devices }, hold: .milliseconds(20))
         let events = SpyNetworkEventService()
-        let listener = EventListenerService(eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA })
+        let listener = EventListenerService(
+            eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA }, dispatcher: DeviceEventDispatcher()
+        )
         listener.start()
         defer { listener.stop() }
 
@@ -116,7 +118,9 @@ struct EventListenerNetworkIDTests {
         let scan = Task { await fake.scanNetwork(profile: nil) }
         await waitUntil({ fake.isScanning }, timeout: .seconds(5))
         #expect(fake.isScanning)
-        let listener = EventListenerService(eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA })
+        let listener = EventListenerService(
+            eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA }, dispatcher: DeviceEventDispatcher()
+        )
         listener.start()
         defer { listener.stop() }
 

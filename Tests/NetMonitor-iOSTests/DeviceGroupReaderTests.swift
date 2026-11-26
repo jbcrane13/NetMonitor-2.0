@@ -173,7 +173,7 @@ struct DeviceGroupReaderTests {
 
         let saved = BackgroundTaskService.reconcileAndPublish(
             scanned, scanDate: scan, network: home, in: group.container, history: history, summaries: model,
-            defaults: defaults, reloadWidget: false, now: scan
+            defaults: defaults, reloadWidget: false, dispatcher: DeviceEventDispatcher(), now: scan
         )
 
         #expect(saved)

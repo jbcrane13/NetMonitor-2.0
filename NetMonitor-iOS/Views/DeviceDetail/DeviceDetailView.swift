@@ -65,7 +65,7 @@ struct DeviceDetailView: View {
                             groupLabel: viewModel.groupLabel(for:), onSeparate: viewModel.separateInterface, onRemove: requestRemoval
                         )
                     }
-                    SameDeviceAsButton { showsSameDeviceAs = true }
+                    SameDeviceAsButton(viewModel: viewModel) { showsSameDeviceAs = true }
                     statusSection(device)
                     quickActionsSection(current)
                     notesSection(device)
