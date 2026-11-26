@@ -60,7 +60,9 @@ enum AskPresenceFilter {
     private static let upPhrases = ["looked up", "look up", "set up", "up to", "pick up", "picked up"]
     private static let presencePhrases = [
         "on the network", "off the network", "on your network", "off your network", "is on", "are on", "is off", "are off",
-        "turned on", "turned off", "powered on", "powered off", "switched on", "switched off", "dropped off", "drops off"
+        "turned on", "turned off", "powered on", "powered off", "switched on", "switched off", "dropped off", "drops off",
+        // A live ping's silence is the app's line too (#579); "its last reply was 6 ms" stays.
+        "no reply", "not reply", "n't reply", "no replies", "no response", "not respond", "n't respond"
     ]
     private static let yesNo: Set<String> = ["yes", "no", "yep", "yeah", "yup", "nope", "nah"]
 

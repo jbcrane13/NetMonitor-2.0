@@ -17,6 +17,9 @@ final class AskMacViewModel {
         var networkProfileID: UUID?
         var lastScan: Date?
         var isScanning = false
+        /// The network the Mac is on now (`NetworkProfileManager.connectedLocalProfile`): the live
+        /// tools ping only inside it (#579).
+        var currentNetwork: NetworkProfile?
     }
 
     /// - Parameter live: the live tools' services (#579); the app's own by default.
@@ -50,7 +53,7 @@ final class AskMacViewModel {
             return AskUITestFixture.live { inputs.networkProfileID }
         }
         #endif
-        return .system(monitor: NetMonitorCore.NetworkMonitorService()) { inputs.isScanning }
+        return .system(monitor: NetMonitorCore.NetworkMonitorService(), currentNetwork: { inputs.currentNetwork }) { inputs.isScanning }
     }
 
     /// The model the app uses: the UI-test fixture's under `--uitest-ask=<mode>`, else the on-device one.
@@ -68,7 +71,11 @@ final class AskMacViewModel {
 
     /// - Parameter lastScan: when the network's latest scan was reconciled
     ///   (`DeviceDiscoveryCoordinator.lastScanTime(for:)`, the clock that stamps `lastSeen`).
-    func update(devices: [LocalDevice], networkProfileID: UUID?, lastScan: Date?, isScanning: Bool) {
+    /// - Parameter currentNetwork: the network the Mac is on now, for the live tools.
+    func update(
+        devices: [LocalDevice], networkProfileID: UUID?, lastScan: Date?, isScanning: Bool, currentNetwork: NetworkProfile? = nil
+    ) {
+        inputs.currentNetwork = currentNetwork
         inputs.devices = devices
         inputs.networkProfileID = networkProfileID
         inputs.lastScan = lastScan

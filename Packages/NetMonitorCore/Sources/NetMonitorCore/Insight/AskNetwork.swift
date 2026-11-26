@@ -83,7 +83,7 @@ public enum AskNetwork {
     public static let unscannedFallback = "This network hasn't been scanned yet."
     /// Shown instead of the model's text when the app measured something (#579): its own lines
     /// follow, so a saved status beside a fresh ping doesn't read as the answer.
-    public static let measuredFallback = "Here is what the app measured."
+    public static let measuredFallback = "The app's live check is below."
 
     /// Asks `model`, then checks its answer against this run's tool results (`AskAnswerCheck`).
     public static func answer(

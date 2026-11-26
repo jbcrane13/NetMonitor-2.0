@@ -33,6 +33,7 @@ struct AskToolView: View {
         let networkProfileID: UUID?
         let lastScan: Date?
         let isScanning: Bool
+        let currentNetwork: NetworkProfile?
     }
 
     var body: some View {
@@ -54,10 +55,12 @@ struct AskToolView: View {
             groups: devices.map(\.deviceGroupID),
             networkProfileID: networkProfileID,
             lastScan: lastScan,
-            isScanning: coordinator?.isScanning ?? false
+            isScanning: coordinator?.isScanning ?? false,
+            currentNetwork: profileManager?.connectedLocalProfile
         )) {
             viewModel.update(
-                devices: devices, networkProfileID: networkProfileID, lastScan: lastScan, isScanning: coordinator?.isScanning ?? false
+                devices: devices, networkProfileID: networkProfileID, lastScan: lastScan, isScanning: coordinator?.isScanning ?? false,
+                currentNetwork: profileManager?.connectedLocalProfile
             )
         }
         .sheet(item: $openDevice) { device in

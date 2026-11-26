@@ -14,8 +14,10 @@ public struct AskLiveTools: Sendable {
     /// How long one probe waits for its reply.
     public static let pingTimeout: TimeInterval = 1
     /// The longest one tool's measurement may take, all probes included. Past it the tool answers
-    /// that it couldn't measure, and the probes are cancelled.
-    public static let deadline: Duration = .seconds(5)
+    /// that it couldn't measure, and the probes are cancelled. `PingService` waits 1 s between
+    /// probes, so a silent device takes about 5 s (3 timeouts, 2 gaps; 4.2 s measured on a Mac,
+    /// 2026-11-26): the deadline leaves room for that and catches only a hung run.
+    public static let deadline: Duration = .seconds(8)
     /// The host `networkStatus` pings for the internet: the one the health score pings.
     public static let internetHost = "8.8.8.8"
 
@@ -127,15 +129,18 @@ public struct AskMeasurement: Equatable, Sendable, Identifiable {
 }
 
 public extension AskLiveTools {
-    /// The live tools on the app's own services: Core `PingService`, the network this device is on
-    /// now (`NetworkProfileManager.currentProfile`), `monitor`'s connection and the routed gateway
-    /// (never the subnet's first host, which is a guess).
+    /// The live tools on the app's own services: Core `PingService`, `monitor`'s connection and the
+    /// routed gateway (never the subnet's first host, which is a guess).
+    /// - Parameter currentNetwork: the network this device is on now; by default the saved local
+    ///   network while a live interface is on it (`NetworkProfileManager.currentProfile`).
     static func system(
-        monitor: any NetworkMonitorServiceProtocol, isScanning: @escaping @Sendable @MainActor () -> Bool
+        monitor: any NetworkMonitorServiceProtocol,
+        currentNetwork: @escaping @Sendable @MainActor () -> NetworkProfile? = { NetworkProfileManager.currentProfile() },
+        isScanning: @escaping @Sendable @MainActor () -> Bool
     ) -> AskLiveTools {
         AskLiveTools(
             pinger: PingService(),
-            currentNetwork: { NetworkProfileManager.currentProfile() },
+            currentNetwork: currentNetwork,
             connection: {
                 Connection(type: monitor.isConnected ? monitor.connectionType : nil, gatewayIP: NetworkUtilities.detectRoutedGateway())
             },

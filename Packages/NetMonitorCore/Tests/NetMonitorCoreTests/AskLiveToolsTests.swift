@@ -294,6 +294,35 @@ struct AskNetworkLiveTests {
         #expect(answer.text == "The connection is Wi-Fi.")
     }
 
+    /// Real model, 2026-11-26: "… did not reply to 3 pings." for "Can you ping the printer?".
+    @Test func aSentenceSayingNothingRepliedIsDropped() async {
+        let answer = await ask([.pingDevice("dev-a")], answer: "Brother HL-L2350DW did not reply to 3 pings. It is a printer.",
+                               pinger: ScriptedPinger([:]))
+        #expect(answer.text == "It is a printer.")
+        #expect(answer.measurements.map(\.text) == ["Brother HL-L2350DW: no reply to 3 pings"])
+    }
+
+    /// The model's sentences through the pipeline for each refusal (#579): only the app's line says it.
+    @Test func refusalsReachTheAnswerAsTheAppsLine() async {
+        let away = Fix.device("Cabin Camera", .camera, ip: "10.0.0.8")
+        let snapshot = AskSnapshot(devices: Fix.devices + [away], events: [], networkProfileID: Live.network.id, lastScan: Fix.now,
+                                   now: Fix.now, calendar: Fix.calendar)
+        let question = "Is it answering?"
+        func answer(_ id: String, live: AskLiveTools) async -> AskAnswer {
+            let model = ScriptedAskModel(scripts: [question: AskScript(calls: [.pingDevice(id)], answer: "It is a device.")])
+            return await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model, live: live)
+        }
+        let offNetwork = await answer("Cabin Camera", live: Live.live(ScriptedPinger([:])))
+        #expect(offNetwork.measurements.map(\.text) == ["Cabin Camera: not pinged, not on the network this device is on now"])
+        let scanning = await answer("dev-b", live: Live.live(ScriptedPinger([:]), scanning: Live.Flag(true)))
+        #expect(scanning.measurements.map(\.text) == ["Synology DS920: not pinged, a device scan is running"])
+        let timedOut = await answer("dev-b", live: Live.live(ScriptedPinger(["192.168.1.20": .hang]), deadline: .milliseconds(100)))
+        #expect(timedOut.measurements.map(\.text) == ["Synology DS920: not measured, timed out"])
+        for result in [offNetwork, scanning, timedOut] {
+            #expect(result.text == "It is a device.")
+        }
+    }
+
     @Test func aLiveReplyDoesNotChangeTheSavedStatus() async {
         // The printer is offline as of the scan; a reply now is shown as a measurement only.
         let pinger = ScriptedPinger(["192.168.1.57": .times([6, 6, 6])])
