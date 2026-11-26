@@ -117,7 +117,7 @@ final class SpeedTestToolUITests: IOSUITestCase {
             // FUNCTIONAL: if history exists, it should contain data
             if history.exists {
                 XCTAssertTrue(
-                    !history.staticTexts.isEmpty || !app.cells.isEmpty,
+                    !history.staticTexts.hasNoMatches || !app.cells.hasNoMatches,
                     "History section should contain speed test result data"
                 )
             }

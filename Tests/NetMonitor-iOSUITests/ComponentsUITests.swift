@@ -27,7 +27,7 @@ final class ComponentsUITests: XCTestCase {
         // FUNCTIONAL: status badge should display a status text value
         let statusTexts = header.staticTexts
         XCTAssertTrue(
-            !statusTexts.isEmpty || !header.label.isEmpty,
+            !statusTexts.hasNoMatches || !header.label.isEmpty,
             "Status badge should display a connection status value (e.g., Monitoring, Offline)"
         )
     }
@@ -68,11 +68,11 @@ final class ComponentsUITests: XCTestCase {
         XCTAssertTrue(wifiCard.exists, "WiFi card should exist on dashboard")
         // FUNCTIONAL: cards should contain visible text content
         XCTAssertTrue(
-            !sessionCard.staticTexts.isEmpty,
+            !sessionCard.staticTexts.hasNoMatches,
             "Session card should contain metric text content"
         )
         XCTAssertTrue(
-            !wifiCard.staticTexts.isEmpty,
+            !wifiCard.staticTexts.hasNoMatches,
             "WiFi card should contain metric text content"
         )
     }
@@ -92,7 +92,7 @@ final class ComponentsUITests: XCTestCase {
         // FUNCTIONAL: if empty state is shown, it should contain instructional text
         if emptyState.exists {
             XCTAssertTrue(
-                !emptyState.staticTexts.isEmpty || !emptyState.label.isEmpty,
+                !emptyState.staticTexts.hasNoMatches || !emptyState.label.isEmpty,
                 "Empty state view should contain instructional text"
             )
         }
@@ -260,7 +260,7 @@ final class ComponentsUITests: XCTestCase {
                      "WiFi card should exist on dashboard")
         // FUNCTIONAL: WiFi card should contain metric text data
         XCTAssertTrue(
-            !wifiCard.staticTexts.isEmpty,
+            !wifiCard.staticTexts.hasNoMatches,
             "WiFi card should contain result/metric text content"
         )
     }
@@ -283,7 +283,7 @@ final class ComponentsUITests: XCTestCase {
                          "Statistics card should appear after ping completes")
             // FUNCTIONAL: statistics card should contain min/avg/max data
             XCTAssertTrue(
-                !statsCard.staticTexts.isEmpty,
+                !statsCard.staticTexts.hasNoMatches,
                 "Statistics card should contain ping statistics text (min/avg/max)"
             )
         }

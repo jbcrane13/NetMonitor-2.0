@@ -120,7 +120,7 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         )
         if emptyState.exists {
             XCTAssertTrue(
-                !emptyState.staticTexts.isEmpty,
+                !emptyState.staticTexts.hasNoMatches,
                 "Empty state should contain descriptive text"
             )
         }

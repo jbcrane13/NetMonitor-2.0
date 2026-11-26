@@ -70,7 +70,7 @@ final class WHOISToolUITests: IOSUITestCase {
         // FUNCTIONAL: verify lookup produced meaningful output
         if domainInfo.exists {
             XCTAssertTrue(
-                !domainInfo.staticTexts.isEmpty,
+                !domainInfo.staticTexts.hasNoMatches,
                 "Domain info section should contain WHOIS data"
             )
         }

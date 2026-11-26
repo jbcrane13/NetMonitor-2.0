@@ -93,7 +93,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
         // FUNCTIONAL: verify lookup produced meaningful output
         if queryInfo.exists {
             XCTAssertTrue(
-                !queryInfo.staticTexts.isEmpty,
+                !queryInfo.staticTexts.hasNoMatches,
                 "Query info section should contain DNS query data"
             )
         }

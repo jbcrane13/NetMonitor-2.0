@@ -98,9 +98,9 @@ final class PingToolUITests: IOSUITestCase {
         XCTAssertTrue(resultsSection.waitForExistence(timeout: 10), "Results section should appear after starting ping")
         // FUNCTIONAL: results section should contain actual result content
         XCTAssertTrue(
-            !resultsSection.staticTexts.isEmpty || !app.otherElements.matching(
+            !resultsSection.staticTexts.hasNoMatches || !app.otherElements.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'pingTool_row_'")
-            ).isEmpty,
+            ).hasNoMatches,
             "Results section should contain ping result data"
         )
     }
@@ -113,7 +113,7 @@ final class PingToolUITests: IOSUITestCase {
         XCTAssertTrue(statsCard.waitForExistence(timeout: 30), "Statistics card should appear after ping completes")
         // FUNCTIONAL: stats card should contain statistical data
         XCTAssertTrue(
-            !statsCard.staticTexts.isEmpty,
+            !statsCard.staticTexts.hasNoMatches,
             "Statistics card should contain min/avg/max statistics"
         )
     }
@@ -215,7 +215,7 @@ final class PingToolUITests: IOSUITestCase {
         XCTAssertTrue(statsCard.waitForExistence(timeout: 30), "Statistics card should appear after ping completes")
         // FUNCTIONAL: stats card should contain actual numeric values
         XCTAssertTrue(
-            !statsCard.staticTexts.isEmpty,
+            !statsCard.staticTexts.hasNoMatches,
             "Stats card should display min/avg/max values"
         )
     }

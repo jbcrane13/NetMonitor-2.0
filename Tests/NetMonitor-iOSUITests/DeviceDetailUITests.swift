@@ -46,7 +46,7 @@ final class DeviceDetailUITests: IOSUITestCase {
                 // FUNCTIONAL: detail screen should contain device information text
                 let detailScreen = app.byID("screen_deviceDetail")
                 XCTAssertTrue(
-                    !detailScreen.staticTexts.isEmpty,
+                    !detailScreen.staticTexts.hasNoMatches,
                     "Device detail screen should contain device information text"
                 )
             }
@@ -83,7 +83,7 @@ final class DeviceDetailUITests: IOSUITestCase {
             // FUNCTIONAL: if IP row exists, it should contain text data
             if ipRow.exists {
                 XCTAssertTrue(
-                    !ipRow.staticTexts.isEmpty || !ipRow.label.isEmpty,
+                    !ipRow.staticTexts.hasNoMatches || !ipRow.label.isEmpty,
                     "IP address row should contain IP address data"
                 )
             }

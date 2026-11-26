@@ -106,7 +106,7 @@ final class TracerouteToolUITests: IOSUITestCase {
         XCTAssertTrue(firstHop.waitForExistence(timeout: 15), "First hop row should appear")
         // FUNCTIONAL: hop row should contain address or latency data
         XCTAssertTrue(
-            !firstHop.staticTexts.isEmpty || firstHop.exists,
+            !firstHop.staticTexts.hasNoMatches || firstHop.exists,
             "First hop row should contain hop data (address/latency)"
         )
     }
@@ -162,7 +162,7 @@ final class TracerouteToolUITests: IOSUITestCase {
             )
             // FUNCTIONAL: hop row should have content
             XCTAssertTrue(
-                !firstHop.staticTexts.isEmpty,
+                !firstHop.staticTexts.hasNoMatches,
                 "Hop row should contain hop number, address, or latency data"
             )
             captureScreenshot(named: "Traceroute_HopRows")

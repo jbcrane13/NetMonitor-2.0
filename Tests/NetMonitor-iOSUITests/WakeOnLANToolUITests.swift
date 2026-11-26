@@ -72,7 +72,7 @@ final class WakeOnLANToolUITests: IOSUITestCase {
         XCTAssertTrue(infoLabel.waitForExistence(timeout: 5), "Info card should exist")
         // FUNCTIONAL: info card should contain descriptive text
         XCTAssertTrue(
-            !infoLabel.staticTexts.isEmpty,
+            !infoLabel.staticTexts.hasNoMatches,
             "Info card should contain descriptive text about Wake on LAN"
         )
     }

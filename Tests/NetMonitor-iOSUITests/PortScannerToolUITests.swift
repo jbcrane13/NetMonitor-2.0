@@ -98,7 +98,7 @@ final class PortScannerToolUITests: IOSUITestCase {
         XCTAssertTrue(results.waitForExistence(timeout: 30), "Results section should appear after scan completes")
         // FUNCTIONAL: results should contain port data
         XCTAssertTrue(
-            !results.staticTexts.isEmpty || !app.cells.isEmpty,
+            !results.staticTexts.hasNoMatches || !app.cells.hasNoMatches,
             "Results section should contain port scan result data"
         )
         captureScreenshot(named: "PortScanner_Results")
@@ -199,7 +199,7 @@ final class PortScannerToolUITests: IOSUITestCase {
         if resultsSection.exists {
             // FUNCTIONAL: results section should contain actual port data
             XCTAssertTrue(
-                !resultsSection.staticTexts.isEmpty || !app.cells.isEmpty,
+                !resultsSection.staticTexts.hasNoMatches || !app.cells.hasNoMatches,
                 "Results section should contain at least one port result row"
             )
         }
