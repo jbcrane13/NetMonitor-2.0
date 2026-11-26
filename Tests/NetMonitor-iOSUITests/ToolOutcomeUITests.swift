@@ -421,7 +421,7 @@ private extension ToolOutcomeUITests {
 
     func openTool(cardID: String, screenID: String) {
         openToolsRoot()
-        let card = ui(cardID)
+        let card = toolCard(cardID)
         scrollToElement(card)
         requireExists(card, timeout: 8, message: "Tool card \(cardID) should exist")
         card.tap()
@@ -464,6 +464,15 @@ private extension ToolOutcomeUITests {
             ),
             "Tools root content should be visible after navigating back"
         )
+    }
+
+    /// The tappable card button. On iOS 26+ the `NavigationLink` button carries a synthesized identifier
+    /// made of its children's (`tools_card_ping-tools_card_ping-…`), while the plain identifier lands on
+    /// non-hittable images and texts inside it (as in `FunctionalSmokeTests`).
+    func toolCard(_ cardID: String) -> XCUIElement {
+        app.buttons.matching(
+            NSPredicate(format: "identifier == %@ OR identifier BEGINSWITH %@", cardID, cardID + "-")
+        ).firstMatch
     }
 
     func ui(_ identifier: String) -> XCUIElement {

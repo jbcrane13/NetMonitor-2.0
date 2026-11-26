@@ -89,7 +89,7 @@ final class DashboardUITests: IOSUITestCase {
         // The DNS value always renders, so check the ISP value itself, not any value.
         let ispValue = app.texts(carrying: "dashboard_card_wan").element(boundBy: 2)
         let detected = NSPredicate(format: "exists == true AND NOT (label IN %@)", ["Detecting…", "—", "ISP", "PUBLIC IP"] as NSArray)
-        let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: detected, object: ispValue)], timeout: 15)
+        let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: detected, object: ispValue)], timeout: 30)
         XCTAssertEqual(
             result, .completed,
             "WAN card should show a detected ISP name, not a placeholder (got \"\(ispValue.exists ? ispValue.label : "nothing")\")"
@@ -213,28 +213,26 @@ final class DashboardUITests: IOSUITestCase {
         requireExists(app.navigationBars["Add Network"], timeout: 8,
                      message: "Add Network sheet should appear")
 
-        // Switch to Manual tab if available
-        let manualTab = app.segmentedControls.buttons["Manual"]
-        if manualTab.waitForExistence(timeout: 3) {
-            manualTab.tap()
-        }
+        // The manual form's rule: "Validate & Add" stays disabled until both the gateway and the subnet
+        // are filled in. The sheet can prefill both, so empty them first.
+        requireExists(app.segmentedControls.buttons["Manual"], message: "The sheet should offer a Manual tab").tap()
+        let gatewayField = app.byID("addNetwork_textfield_gateway")
+        let subnetField = app.byID("addNetwork_textfield_subnet")
+        let validateButton = app.byID("networkSheet_button_addManual")
+        requireExists(validateButton, message: "Validate & Add button should exist in the sheet")
+        clearAndTypeText("", into: gatewayField)
+        clearAndTypeText("", into: subnetField)
+        XCTAssertFalse(validateButton.isEnabled, "Validate & Add should be disabled with an empty gateway and subnet")
 
-        // Verify save/add button is disabled with empty fields
-        let saveButton = app.buttons.matching(
-            NSPredicate(format: "identifier == 'networkSheet_button_save' OR label == 'Save' OR label == 'Add'")
-        ).firstMatch
-        if saveButton.waitForExistence(timeout: 3) {
-            XCTAssertFalse(saveButton.isEnabled,
-                          "Save/Add button should be disabled with empty gateway field")
+        clearAndTypeText("192.168.1.1", into: gatewayField)
+        XCTAssertFalse(validateButton.isEnabled, "Validate & Add should stay disabled with a gateway but no subnet")
 
-            // Fill in gateway field
-            let gatewayField = app.textFields["networkSheet_field_gateway"]
-            if gatewayField.waitForExistence(timeout: 3) {
-                clearAndTypeText("192.168.1.1", into: gatewayField)
-                XCTAssertTrue(saveButton.isEnabled,
-                             "Save/Add button should be enabled after filling gateway field")
-            }
-        }
+        clearAndTypeText("192.168.1.0/24", into: subnetField)
+        XCTAssertTrue(validateButton.isEnabled, "Validate & Add should be enabled once gateway and subnet are filled in")
+
+        clearAndTypeText("", into: gatewayField)
+        XCTAssertFalse(validateButton.isEnabled, "Validate & Add should be disabled again after the gateway is cleared")
+        captureScreenshot(named: "Dashboard_AddNetworkValidation")
 
         // Cancel the sheet
         let cancelButton = app.buttons.matching(
@@ -293,10 +291,10 @@ final class DashboardUITests: IOSUITestCase {
         requireExists(app.navigationBars["Network Map"], timeout: 8,
                      message: "Network Map screen should appear after tapping Map tab")
 
-        // A tap right after the Map tab's transition is sometimes dropped: tap again if nothing shows.
-        tabBar.buttons["Tools"].tap()
-        if !app.byID("screen_tools").waitForExistence(timeout: 3) {
+        // A tap right after the Map tab's transition is sometimes dropped: tap again (up to 3 times) if nothing shows.
+        for _ in 0..<3 where !app.byID("screen_tools").exists {
             tabBar.buttons["Tools"].tap()
+            _ = app.byID("screen_tools").waitForExistence(timeout: 4)
         }
         requireExists(app.byID("screen_tools"), timeout: 8,
                      message: "Tools screen should appear after tapping Tools tab")
