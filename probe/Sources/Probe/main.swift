@@ -46,7 +46,7 @@ let homeNetwork = NetworkProfile(id: home, interfaceName: "en0", ipAddress: "192
                                         interfaceAddress: NetworkUtilities.ipv4ToUInt32("192.168.1.10")!, netmask: 0xFFFF_FF00),
   connectionType: .wifi, name: "Home", gatewayIP: "192.168.1.1", subnet: "192.168.1.0/24", isLocal: true, discoveryMethod: .auto)
 let live = AskLiveTools(pinger: FixturePinger(), currentNetwork: { homeNetwork },
-  connection: { .init(type: .wifi, gatewayIP: "192.168.1.1") }, isScanning: { false }, now: { now })
+  connection: { .init(type: .wifi, gatewayIP: "192.168.1.1") }, isScanning: { false }, joinedAt: { now.addingTimeInterval(-3600) }, now: { now })
 let snapshot = AskSnapshot(devices: devices, events: events, networkProfileID: home, lastScan: now.addingTimeInterval(-180), now: now, calendar: calendar)
 let staleDevices = devices.map { d in AskDevice(id: d.id, displayName: d.displayName, deviceType: d.deviceType, maker: d.maker, ipAddress: d.ipAddress,
   status: d.status, lastSeen: d.status == .online ? now.addingTimeInterval(-2400) : d.lastSeen, lastLatency: d.lastLatency, latencyHistory: d.latencyHistory) }
