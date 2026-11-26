@@ -29,6 +29,7 @@ struct ToolSheetContainer<InputArea: View, OutputArea: View, FooterContent: View
     private var insightScreen = ""
     private var insightRequest: InsightRequest?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.closeTool) private var closeTool
 
     /// Full initializer with all four generic parameters.
     init(
@@ -79,7 +80,11 @@ struct ToolSheetContainer<InputArea: View, OutputArea: View, FooterContent: View
         .frame(minWidth: minWidth, minHeight: minHeight)
         .overlay(alignment: .topTrailing) {
             Button {
-                dismiss()
+                if let closeTool {
+                    closeTool()
+                } else {
+                    dismiss()
+                }
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title2)
@@ -111,6 +116,12 @@ struct ToolSheetContainer<InputArea: View, OutputArea: View, FooterContent: View
         }
         .padding()
     }
+}
+
+extension EnvironmentValues {
+    /// Set where a tool fills the main window's detail pane, so its Close returns to the
+    /// Tools grid; `dismiss()` there clears the selection instead (#545). Sheets leave it nil.
+    @Entry var closeTool: (() -> Void)?
 }
 
 // MARK: - Four-section convenience (no header trailing)

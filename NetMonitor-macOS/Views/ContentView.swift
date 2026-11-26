@@ -207,6 +207,7 @@ struct ContentView: View {
             case .ask: AskToolView()
             }
         }
+        .environment(\.closeTool) { selectedSection = .section(.tools) }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
