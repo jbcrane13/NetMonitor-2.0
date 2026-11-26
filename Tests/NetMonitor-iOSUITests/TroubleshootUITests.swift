@@ -163,8 +163,12 @@ final class ModemLightsUITests: IOSUITestCase {
         let internet = ui("modemLights_row_2")
         XCTAssertTrue(internet.label.contains("INTERNET: red"), "Row 3: \(internet.label)")
         XCTAssertTrue(internet.label.contains("Internet light is red: the modem has no internet connection."), "Row 3: \(internet.label)")
-        XCTAssertTrue(ui("modemLights_row_5").label.contains("nothing is connected to that port"), "LAN 2: \(ui("modemLights_row_5").label)")
+        // Off is a check worded as a question, never a problem (#558 option A).
+        let lan2 = ui("modemLights_row_5").label
+        XCTAssertTrue(lan2.contains("LAN 2: reads as off"), "LAN 2: \(lan2)")
+        XCTAssertTrue(lan2.contains("Ethernet 2 reads as off. If it is dark, nothing is connected to that port"), "LAN 2: \(lan2)")
         XCTAssertTrue(ui("modemLights_label_blinking").label.contains("blinking can't be seen in one photo"))
+        XCTAssertEqual(ui("modemLights_label_whiteNote").label, "White lights on a light-coloured case may read as off.")
 
         let explanation = ui("modemLights_label_explanation")
         requireExists(explanation, timeout: 15, message: "The model's wording should show")
@@ -172,7 +176,7 @@ final class ModemLightsUITests: IOSUITestCase {
         let marker = ui("modemLights_label_generated")
         XCTAssertTrue(marker.label.contains("Written by the on-device model"), "Marker: \(marker.label)")
 
-        keep([headline, ui("modemLights_label_blinking")], named: "modem-lights-reading")
+        keep([headline, ui("modemLights_label_whiteNote")], named: "modem-lights-reading")
         let screen = ui("modemLights_button_retake")
         scrollTo(screen)
         keep([explanation, marker], named: "modem-lights-explanation")
@@ -195,7 +199,7 @@ final class ModemLightsUnwrittenUITests: IOSUITestCase {
         requireExists(headline, timeout: 15, message: "The lights should be read")
         XCTAssertTrue(ui("modemLights_row_2").label.contains("the modem has no internet connection"))
         XCTAssertFalse(ui("modemLights_label_explanation").exists, "Nothing is worded without the text model")
-        keep([headline, ui("modemLights_label_blinking")], named: "modem-lights-unworded")
+        keep([headline, ui("modemLights_label_whiteNote")], named: "modem-lights-unworded")
     }
 }
 

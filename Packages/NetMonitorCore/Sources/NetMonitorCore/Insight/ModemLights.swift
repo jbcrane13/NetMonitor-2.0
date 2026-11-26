@@ -175,6 +175,9 @@ public enum ModemLightSeverity: Int, Sendable, Comparable, CaseIterable {
 public struct ModemLightMeaning: Sendable, Equatable {
     public let severity: ModemLightSeverity
     public let text: String
+    /// Derived from an off reading, which is only ever a check: the probe read lit white lights on a
+    /// light case as off (lead decision on #558, option A).
+    public var readsAsOff = false
 }
 
 /// One light as read, with the app's meaning when it knows the label and the colour (#558).
@@ -209,66 +212,74 @@ public struct ModemLightVerdict: Sendable, Equatable, Identifiable {
         }
     }
 
-    /// The light as read: "USB: green", "INTERNET: colour not clear".
+    /// The light as read: "USB: green", "INTERNET: colour not clear", "LAN 2: reads as off".
     public var reading: String {
-        "\(label): \(color.word)"
+        "\(label): \(color == .off ? "reads as off" : color.word)"
     }
 
     /// The table. Amber, blue and white mean different things across makers, so those are
-    /// worded "on many modems" and kept from `problem`.
+    /// worded "on many modems" and kept from `problem`. Off is never a problem (#558 option A):
+    /// it is a check worded as a question, since a lit white light on a light case reads as off.
     static func meaning(kind: ModemLightKind, qualifier: String?, color: ModemLightColor) -> ModemLightMeaning? {
         guard color != .unknown else { return nil }
         let name = kind.name + (qualifier.map { " " + $0 } ?? "")
+        if color == .off {
+            let (severity, clause) = offMeaning(kind: kind, isBand: qualifier != nil)
+            return ModemLightMeaning(severity: severity, text: "\(name) reads as off. If it is dark, \(clause)", readsAsOff: true)
+        }
         let lit = color == .green || color == .blue || color == .white
+        let amber = color == .amber
         let entry: (ModemLightSeverity, String)
         switch kind {
         case .power:
             entry = lit ? (.normal, "the modem has power.")
-                : color == .amber ? (.attention, "on many modems this means it is starting up or has a fault.")
-                : color == .red ? (.problem, "on most modems this means a hardware fault or a failed start-up.")
-                : (.problem, "the modem has no power. Check its power cable and outlet.")
+                : amber ? (.attention, "on many modems this means it is starting up or has a fault.")
+                : (.problem, "on most modems this means a hardware fault or a failed start-up.")
         case .broadband:
             entry = lit ? (.normal, "the line from your provider is connected.")
-                : color == .amber ? (.attention, "on many modems this means the line is still connecting or is weak.")
-                : color == .red ? (.problem, "the modem has no line from your provider.")
-                : (.problem, "the modem has no line from your provider. Check the cable to the wall socket.")
+                : amber ? (.attention, "on many modems this means the line is still connecting or is weak.")
+                : (.problem, "the modem has no line from your provider.")
         case .internet:
             entry = lit ? (.normal, "the modem is connected to the internet.")
-                : color == .amber ? (.attention, "on many modems this means it reaches your provider but isn't online.")
-                : color == .red ? (.problem, "the modem has no internet connection.")
-                : (.problem, "on most modems this means it isn't online. It may still be starting up.")
-        case .wifi where qualifier != nil:
-            entry = lit ? (.normal, "that Wi-Fi band is on.")
-                : color == .amber ? (.attention, "on many modems this means Wi-Fi is pairing a device (WPS) or has a fault.")
-                : color == .red ? (.problem, "on most modems this means Wi-Fi has a fault.")
-                : (.note, "that Wi-Fi band is turned off on this unit.")
+                : amber ? (.attention, "on many modems this means it reaches your provider but isn't online.")
+                : (.problem, "the modem has no internet connection.")
         case .wifi:
-            entry = lit ? (.normal, "Wi-Fi is on.")
-                : color == .amber ? (.attention, "on many modems this means Wi-Fi is pairing a device (WPS) or has a fault.")
-                : color == .red ? (.problem, "on most modems this means Wi-Fi has a fault.")
-                : (.note, "Wi-Fi is turned off on this unit. That is expected if you use a separate router.")
+            entry = lit ? (.normal, qualifier == nil ? "Wi-Fi is on." : "that Wi-Fi band is on.")
+                : amber ? (.attention, "on many modems this means Wi-Fi is pairing a device (WPS) or has a fault.")
+                : (.problem, "on most modems this means Wi-Fi has a fault.")
         case .ethernet:
             entry = lit ? (.normal, "a device is connected to that port.")
-                : color == .amber ? (.attention, "on many modems this means a device is connected at a slower speed.")
-                : color == .red ? (.problem, "on many modems this means a fault on that port.")
-                : (.note, "nothing is connected to that port, or the connected device is off.")
+                : amber ? (.attention, "on many modems this means a device is connected at a slower speed.")
+                : (.problem, "on many modems this means a fault on that port.")
         case .phone:
-            entry = lit ? (.normal, "phone service is ready.")
-                : color == .off ? (.note, "phone service is off or not set up. That is expected if you don't use it.")
-                : (.attention, "on many modems this means phone service has a problem.")
+            entry = lit ? (.normal, "phone service is ready.") : (.attention, "on many modems this means phone service has a problem.")
         case .wan:
             entry = lit ? (.normal, "the router has a link to the modem or provider. That alone doesn't show the internet is working.")
-                : color == .amber ? (.attention, "on many routers this means the WAN link is up but the internet isn't.")
-                : color == .red ? (.problem, "on most routers this means there is no internet connection on the WAN port.")
-                : (.problem, "nothing is connected to the WAN port, or the modem it connects to is off.")
+                : amber ? (.attention, "on many routers this means the WAN link is up but the internet isn't.")
+                : (.problem, "on most routers this means there is no internet connection on the WAN port.")
         case .upstream, .downstream:
             let direction = kind == .upstream ? "upstream" : "downstream"
             entry = lit ? (.normal, "the modem is connected to your provider's \(direction) channels.")
-                : color == .amber ? (.attention, "on many modems this means it is still connecting, or connected on fewer channels.")
-                : color == .red ? (.problem, "the modem has no \(direction) connection to your provider.")
-                : (.problem, "the modem has no \(direction) connection to your provider. Check the coax cable.")
+                : amber ? (.attention, "on many modems this means it is still connecting, or connected on fewer channels.")
+                : (.problem, "the modem has no \(direction) connection to your provider.")
         }
         return ModemLightMeaning(severity: entry.0, text: "\(name) light is \(color.rawValue): \(entry.1)")
+    }
+
+    /// What a dark light would mean: a check for the lights that matter, a note where off is often expected.
+    private static func offMeaning(kind: ModemLightKind, isBand: Bool) -> (ModemLightSeverity, String) {
+        switch kind {
+        case .power: (.attention, "the modem has no power: check its power cable and outlet.")
+        case .broadband: (.attention, "the modem has no line from your provider: check the cable to the wall socket.")
+        case .internet: (.attention, "the modem isn't online.")
+        case .wifi where isBand: (.note, "that Wi-Fi band is turned off on this unit.")
+        case .wifi: (.note, "Wi-Fi is turned off on this unit. That is expected if you use a separate router.")
+        case .ethernet: (.note, "nothing is connected to that port, or the connected device is off.")
+        case .phone: (.note, "phone service is off or not set up. That is expected if you don't use it.")
+        case .wan: (.attention, "nothing is connected to the WAN port, or the modem it connects to is off.")
+        case .upstream: (.attention, "the modem has no upstream connection to your provider.")
+        case .downstream: (.attention, "the modem has no downstream connection to your provider.")
+        }
     }
 }
 
@@ -282,6 +293,8 @@ public struct ModemPanelReport: Sendable, Equatable {
     public static let labelLimit = 24
     /// Shown under every reading, and given to the model as a fact.
     public static let blinkingNote = "Whether a light is blinking can't be seen in one photo"
+    /// Shown under every reading: the real-model probe read lit white lights on a light case as off.
+    public static let whiteLightNote = "White lights on a light-coloured case may read as off."
 
     /// False when the model said the photo isn't a panel of status lights, or read none.
     public let isPanel: Bool
@@ -319,34 +332,54 @@ public struct ModemPanelReport: Sendable, Equatable {
         verdicts.compactMap(\.meaning?.severity).max()
     }
 
-    /// One line over the lights. Known lights without a verdict are counted, so an unclear
-    /// light never hides behind an all-clear.
+    /// One line over the lights. Off lights that matter are counted as lights to check, never as
+    /// problems; known lights without a verdict are counted, so neither hides behind an all-clear.
     public var headline: String {
-        let severities = verdicts.compactMap(\.meaning?.severity)
-        let problems = severities.count(where: { $0 == .problem })
-        let attention = severities.count(where: { $0 == .attention })
+        let meanings = verdicts.compactMap(\.meaning)
+        let problems = meanings.count(where: { $0.severity == .problem })
+        let attention = meanings.count(where: { $0.severity == .attention && !$0.readsAsOff })
+        let checks = meanings.count(where: { $0.severity == .attention && $0.readsAsOff })
         let unclear = verdicts.count(where: { $0.kind != nil && $0.meaning == nil })
-        let summary = if problems > 0 {
+        var line = if problems > 0 {
             problems == 1 ? "1 light shows a problem." : "\(problems) lights show a problem."
         } else if attention > 0 {
             attention == 1 ? "1 light needs a look." : "\(attention) lights need a look."
-        } else if severities.isEmpty {
+        } else if meanings.isEmpty {
             "The app doesn't know these lights."
         } else {
             "No light shows a problem."
         }
-        guard unclear > 0 else { return summary }
-        return summary + (unclear == 1 ? " 1 known light wasn't clear in the photo." : " \(unclear) known lights weren't clear in the photo.")
+        if checks > 0 {
+            line += checks == 1 ? " 1 light reads as off: check it." : " \(checks) lights read as off: check them."
+        }
+        if unclear > 0 {
+            line += unclear == 1 ? " 1 known light wasn't clear in the photo." : " \(unclear) known lights weren't clear in the photo."
+        }
+        return line
     }
 
-    /// What the model is asked to word, or nil when there is nothing to word.
+    private static func factColor(_ verdict: ModemLightVerdict) -> String {
+        if verdict.note != nil {
+            return ModemLightColor.unknown.word
+        }
+        return verdict.color == .off ? "reads as off (check)" : verdict.color.word
+    }
+
+    /// Whether a light that matters reads as off, which the user has to check.
+    public var hasChecks: Bool {
+        verdicts.contains { $0.meaning?.readsAsOff == true && $0.meaning?.severity == .attention }
+    }
+
+    /// What the model is asked to word, or nil when there is nothing to word. Nil too while a light
+    /// needs a check: in the real-model probe, "reads as off (check)" came back as "the modem is not
+    /// online" and "no power is supplied", so only the app's own lines are shown then.
     public var insightRequest: InsightRequest? {
-        guard isPanel else { return nil }
+        guard isPanel, !hasChecks else { return nil }
         return InsightRequest(
             subject: "Modem status lights read from a photo",
-            // A light the app distrusts (`note`) is given as unclear, so the model can't state the reading.
-            facts: verdicts.map { "Light labelled \($0.label): \($0.note == nil ? $0.color.word : ModemLightColor.unknown.word)" }
-                + [Self.blinkingNote],
+            // A light the app distrusts (`note`) is given as unclear, and an off reading as one to
+            // check, so the wording can't state the one or assert a fault from the other.
+            facts: verdicts.map { "Light labelled \($0.label): \(Self.factColor($0))" } + [Self.blinkingNote],
             observations: keyPoints
         )
     }

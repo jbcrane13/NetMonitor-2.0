@@ -120,6 +120,11 @@ struct ModemLightsView: View {
                         .foregroundStyle(Theme.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("modemLights_label_blinking")
+                    Label(ModemPanelReport.whiteLightNote, systemImage: "lightbulb")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("modemLights_label_whiteNote")
                 }
                 .glassCard()
                 .accessibilityElement(children: .contain)

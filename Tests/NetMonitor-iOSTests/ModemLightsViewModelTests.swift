@@ -71,6 +71,21 @@ struct ModemLightsViewModelTests {
         #expect(viewModel.wording == .written(wording))
     }
 
+    @Test("An Internet light read as off is a light to check, not a problem, and isn't worded")
+    func offInternetIsACheck() async throws {
+        let answer = ModemPanelAnswer(status: .panel, lights: [.init(label: "POWER", color: .green), .init(label: "INTERNET", color: .off)])
+        let viewModel = viewModel(ScriptedExtractor(answer), wording: FixedAnswerInsightService(answer: "The modem is not online."))
+        try await viewModel.read(Self.image)
+        guard case let .result(report) = viewModel.phase else {
+            Issue.record("Expected a result, got \(viewModel.phase)")
+            return
+        }
+        #expect(report.headline == "No light shows a problem. 1 light reads as off: check it.")
+        #expect(report.keyPoints.first == "Internet reads as off. If it is dark, the modem isn't online.")
+        // The model isn't asked, so it can't turn the check into a fault.
+        #expect(viewModel.wording == .none)
+    }
+
     @Test("Wording that states a number the app didn't is dropped; the app's lines stay")
     func ungroundedWording() async throws {
         let viewModel = viewModel(ScriptedExtractor(Self.redInternet), wording: FixedAnswerInsightService(answer: "4 of your lights are fine."))
