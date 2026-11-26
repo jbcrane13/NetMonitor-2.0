@@ -534,19 +534,7 @@ extension DeviceGroupReaderTests {
     }
 }
 
-@MainActor
-private final class GroupPoster: NotificationRequestPosting {
-    private(set) var requests: [UNNotificationRequest] = []
-    func post(_ request: UNNotificationRequest) { requests.append(request) }
-}
-
-@MainActor
-private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool) async {
-    let deadline = ContinuousClock.now + timeout
-    while !condition(), ContinuousClock.now < deadline {
-        try? await Task.sleep(for: .milliseconds(10))
-    }
-
+extension DeviceGroupReaderTests {
     /// #615 verification: with no active network the Devices list and the panel read rows saved
     /// without a network, as before #594, never every network's.
     @Test func withNoActiveNetworkTheListReadsRowsWithoutANetworkOnly() throws {
@@ -562,5 +550,19 @@ private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool)
         #expect(DevicesView.scope(nil) == .withoutNetwork)
         #expect(LocalDeviceQueries.recentDevices(in: DevicesView.scope(nil), in: context).map(\.id) == [unassigned.id])
         #expect(LocalDeviceQueries.recentDevices(in: DevicesView.scope(home), in: context).map(\.ipAddress) == ["10.0.0.6"])
+    }
+}
+
+@MainActor
+private final class GroupPoster: NotificationRequestPosting {
+    private(set) var requests: [UNNotificationRequest] = []
+    func post(_ request: UNNotificationRequest) { requests.append(request) }
+}
+
+@MainActor
+private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool) async {
+    let deadline = ContinuousClock.now + timeout
+    while !condition(), ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(10))
     }
 }

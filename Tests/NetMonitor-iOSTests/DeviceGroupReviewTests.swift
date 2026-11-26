@@ -147,7 +147,7 @@ final class ProbeLog: @unchecked Sendable {
 
     /// #615 verification: the list reads its network's devices plus those saved without a network,
     /// through Core's scopes, never another network's.
-    @Test func theListReadsItsNetworkAndRowsWithoutANetworkOnly() throws {
+    @Test @MainActor func theListReadsItsNetworkAndRowsWithoutANetworkOnly() throws {
         let container = try ModelContainer(for: LocalDevice.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = ModelContext(container)
         let mine = UUID(), elsewhere = UUID()
