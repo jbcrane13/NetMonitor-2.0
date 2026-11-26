@@ -163,7 +163,7 @@ struct TimelineView: View {
             if viewModel.canSummarize, viewModel.summary(for: label) != .loading {
                 Button {
                     // The most recent devices of every network, each with every member (#594).
-                    let saved = (try? DeviceGroups.recentDevices(network: nil, limit: 500, in: modelContext))?.flatMap(\.members) ?? []
+                    let saved = (try? DeviceGroups.recentDevices(in: .allNetworks, limit: 500, in: modelContext))?.flatMap(\.members) ?? []
                     Task { await viewModel.summarize(label, savedDevices: saved, speedTests: speedTests) }
                 } label: {
                     Label("Summarize", systemImage: "sparkles")

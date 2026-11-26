@@ -23,7 +23,7 @@ struct QuickJumpSheet: View {
 
     private var filteredDevices: [DeviceProjection] {
         // `devices` (the query) only triggers the refresh; devices are paged by device (#594).
-        devices.isEmpty ? [] : Self.results(LocalDeviceQueries.recentDevices(network: nil, in: modelContext), search: searchText)
+        devices.isEmpty ? [] : Self.results(LocalDeviceQueries.recentDevices(in: .allNetworks, in: modelContext), search: searchText)
     }
 
     /// The first 8 devices matching `search` (#594: one entry per device, searched across every

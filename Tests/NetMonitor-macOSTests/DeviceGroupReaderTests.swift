@@ -144,7 +144,7 @@ struct DeviceGroupReaderTests {
     @Test func sidebarCountsTheGroupOnce() throws {
         let network = UUID()
         let fixture = try makeGroup(network: network)
-        #expect(SidebarView.deviceCounts(LocalDeviceQueries.recentDevices(network: nil, in: fixture.context)) == [network: 1])
+        #expect(SidebarView.deviceCounts(LocalDeviceQueries.recentDevices(in: .allNetworks, in: fixture.context)) == [network: 1])
     }
 
     @Test func quickJumpFindsTheDeviceByItsOtherInterface() throws {
@@ -173,7 +173,7 @@ struct DeviceGroupReaderTests {
         #expect(rows.count == 500)
         #expect(!rows.contains { $0.id == fixture.primary.id })
 
-        let devices = LocalDeviceQueries.recentDevices(network: network, in: fixture.context)
+        let devices = LocalDeviceQueries.recentDevices(in: .network(network), in: fixture.context)
         #expect(devices.count == 500)
         let group = try #require(devices.first { $0.isGroup })
         #expect(group.primary.id == fixture.primary.id)
@@ -191,7 +191,7 @@ struct DeviceGroupReaderTests {
 
     @Test func wakeOnLanToolPicksOneEntryAndSendsToEveryInterface() throws {
         let fixture = try makeGroup()
-        let devices = LocalDeviceQueries.recentDevices(network: nil, in: fixture.context)
+        let devices = LocalDeviceQueries.recentDevices(in: .allNetworks, in: fixture.context)
         #expect(devices.count == 1)
         let device = try #require(devices.first)
         #expect(device.realMACs == [Self.memberMAC, Self.primaryMAC])
@@ -481,10 +481,10 @@ extension DeviceGroupReaderTests {
         }
 
         let context = ModelContext(container)
-        let devices = LocalDeviceQueries.recentDevices(network: network, in: context)
+        let devices = LocalDeviceQueries.recentDevices(in: .network(network), in: context)
         #expect(devices.count == 500)
         #expect(devices.count(where: \.isGroup) == 250)
-        #expect(SidebarView.deviceCounts(LocalDeviceQueries.recentDevices(network: nil, in: context)) == [network: 500])
+        #expect(SidebarView.deviceCounts(LocalDeviceQueries.recentDevices(in: .allNetworks, in: context)) == [network: 500])
     }
 
     /// A Mac target for a rule is an ICMP check of the current interface: Ethernet's open port 22
@@ -545,5 +545,22 @@ private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool)
     let deadline = ContinuousClock.now + timeout
     while !condition(), ContinuousClock.now < deadline {
         try? await Task.sleep(for: .milliseconds(10))
+    }
+
+    /// #615 verification: with no active network the Devices list and the panel read rows saved
+    /// without a network, as before #594, never every network's.
+    @Test func withNoActiveNetworkTheListReadsRowsWithoutANetworkOnly() throws {
+        let container = try ModelContainer(for: LocalDevice.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let home = UUID(), elsewhere = UUID()
+        let unassigned = LocalDevice(ipAddress: "10.0.0.5", macAddress: "")
+        for row in [unassigned, LocalDevice(ipAddress: "10.0.0.6", macAddress: "", networkProfileID: home),
+                    LocalDevice(ipAddress: "10.0.0.7", macAddress: "", networkProfileID: elsewhere)] {
+            context.insert(row)
+        }
+        try context.save()
+        #expect(DevicesView.scope(nil) == .withoutNetwork)
+        #expect(LocalDeviceQueries.recentDevices(in: DevicesView.scope(nil), in: context).map(\.id) == [unassigned.id])
+        #expect(LocalDeviceQueries.recentDevices(in: DevicesView.scope(home), in: context).map(\.ipAddress) == ["10.0.0.6"])
     }
 }

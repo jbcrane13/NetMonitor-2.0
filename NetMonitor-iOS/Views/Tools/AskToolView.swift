@@ -26,7 +26,7 @@ struct AskToolView: View {
     /// The devices Ask reads: every network's most recent, paged by device, each with every member
     /// (#594); the snapshot keeps the current network's when a question is asked.
     private func readDevices() {
-        let devices = (try? DeviceGroups.recentDevices(network: nil, limit: AskIntentRunner.deviceLimit, in: modelContext)) ?? []
+        let devices = (try? DeviceGroups.recentDevices(in: .allNetworks, limit: AskIntentRunner.deviceLimit, in: modelContext)) ?? []
         viewModel.update(devices: devices.flatMap(\.members))
     }
 

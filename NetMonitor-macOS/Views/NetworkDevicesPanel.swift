@@ -54,12 +54,15 @@ struct NetworkDevicesPanel: View {
         return .startScan
     }
 
-    /// One entry per device (#594): the 500 most recent devices (paged by device), projected, then
-    /// searched and sorted.
-    private var filteredDevices: [DeviceProjection] {
-        // `devices` (the query) only triggers the refresh; the rows are paged by device.
-        DeviceList.devices(
-            devices.isEmpty ? [] : LocalDeviceQueries.recentDevices(network: networkProfileID, in: modelContext).flatMap(\.members),
+    /// One entry per device (#594), computed once per refresh as `DevicesView` does.
+    @State private var filteredDevices: [DeviceProjection] = []
+
+    /// The 500 most recent devices of the panel's network (rows saved without a network when it
+    /// has none, as before #594), paged by device, projected, then searched and sorted.
+    private func refresh() {
+        let rows = LocalDeviceQueries.recentDevices(in: DevicesView.scope(networkProfileID), in: modelContext).flatMap(\.members)
+        filteredDevices = DeviceList.devices(
+            rows,
             // Past devices stay in the Devices view, behind "Show past devices" (#583).
             filter: DeviceListFilter(search: searchText),
             presence: presence,
@@ -246,6 +249,14 @@ struct NetworkDevicesPanel: View {
                 .allowsHitTesting(false)
             }
         }
+        .onAppear(perform: refresh)
+        .onChange(of: networkProfileID) { refresh() }
+        .onChange(of: searchText) { refresh() }
+        .onChange(of: sortOrder) { refresh() }
+        .onChange(of: presence) { refresh() }
+        // `devices` (the query) and any context's save only say when to read again.
+        .onChange(of: devices.map(\.persistentModelID)) { refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in refresh() }
     }
 
 }

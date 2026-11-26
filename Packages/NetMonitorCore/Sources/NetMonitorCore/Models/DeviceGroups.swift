@@ -43,6 +43,32 @@ public struct DeviceProjection: Identifiable {
     }
 }
 
+/// Which saved rows a capped reader reads (#594): one network's, those saved before rows had a
+/// network, or every network's. Explicit, so "no network" never quietly means "every network".
+public enum DeviceScope: Sendable, Equatable {
+    case network(UUID)
+    case withoutNetwork
+    case allNetworks
+
+    /// `network` when there is one, else `fallback`.
+    public static func network(_ network: UUID?, else fallback: DeviceScope) -> DeviceScope {
+        network.map(DeviceScope.network) ?? fallback
+    }
+
+    var predicate: Predicate<LocalDevice>? {
+        switch self {
+        case let .network(id):
+            let predicate: Predicate<LocalDevice> = #Predicate { $0.networkProfileID == id }
+            return predicate
+        case .withoutNetwork:
+            let predicate: Predicate<LocalDevice> = #Predicate { $0.networkProfileID == nil }
+            return predicate
+        case .allNetworks:
+            return nil
+        }
+    }
+}
+
 /// What makes rows one device (#594): the same group on the same network; a row outside a group is
 /// a device of its own. The one key projection, repair and the bounded fetch share.
 public struct DeviceGroupKey: Hashable, Sendable {
@@ -113,26 +139,23 @@ public enum DeviceGroups {
             ?? project([row])[0]
     }
 
-    /// The `limit` most recently seen devices on `network` (every network's when nil), each with
-    /// all its members, most recent first: the bounded fetch every capped reader uses (#594). Pages
-    /// through the rows, newest first, until `limit` distinct devices are chosen (a group's
-    /// interfaces count once) or the rows run out, then completes their groups.
-    public static func recentDevices(network: UUID?, limit: Int, in context: ModelContext) throws -> [DeviceProjection] {
+    /// The `limit` most recently seen devices in `scope`, each with all its members, most recent
+    /// first: the bounded fetch every capped reader uses (#594). Pages through the rows (newest
+    /// first, then by address, then by ID, so ties page the same way every time), skipping a row a
+    /// page already gave, until `limit` distinct devices are chosen (a group's interfaces count
+    /// once) or the rows run out, then completes their groups.
+    public static func recentDevices(in scope: DeviceScope, limit: Int, in context: ModelContext) throws -> [DeviceProjection] {
         var selected: [LocalDevice] = []
+        var seenRows = Set<UUID>()
         var chosen = Set<DeviceGroupKey>()
         var offset = 0
         while chosen.count < limit {
-            var descriptor: FetchDescriptor<LocalDevice>
-            if let network {
-                descriptor = FetchDescriptor(predicate: #Predicate { $0.networkProfileID == network })
-            } else {
-                descriptor = FetchDescriptor()
-            }
-            descriptor.sortBy = [SortDescriptor(\.lastSeen, order: .reverse), SortDescriptor(\.ipAddress)]
+            var descriptor = FetchDescriptor<LocalDevice>(predicate: scope.predicate)
+            descriptor.sortBy = [SortDescriptor(\.lastSeen, order: .reverse), SortDescriptor(\.ipAddress), SortDescriptor(\.id)]
             descriptor.fetchOffset = offset
             descriptor.fetchLimit = limit
             let page = try context.fetch(descriptor)
-            for row in page {
+            for row in page where seenRows.insert(row.id).inserted {
                 let key = DeviceGroupKey(row)
                 if chosen.contains(key) || chosen.count < limit {
                     chosen.insert(key)

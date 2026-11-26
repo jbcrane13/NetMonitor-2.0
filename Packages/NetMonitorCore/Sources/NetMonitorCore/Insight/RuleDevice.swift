@@ -93,6 +93,7 @@ public extension RuleDevice {
     /// known (so the cap never drops them for another network's), else every network's; most
     /// recently seen first, capped at ``candidateLimit`` devices, each with all its members.
     static func candidates(network: UUID?, in context: ModelContext) -> [RuleDevice] {
-        ((try? DeviceGroups.recentDevices(network: network, limit: candidateLimit, in: context)) ?? []).map(RuleDevice.init)
+        ((try? DeviceGroups.recentDevices(in: .network(network, else: .allNetworks), limit: candidateLimit, in: context)) ?? [])
+            .map(RuleDevice.init)
     }
 }

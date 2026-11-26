@@ -25,7 +25,7 @@ public protocol DeviceReferenceStore: AnyObject {
 /// - A group has at least two members; one left with one member is cleared.
 /// - Exclusions are kept per pair on both rows.
 /// - Removing an interface that leaves the device other interfaces re-points its references
-///   (`references`) to the device's primary, after the save.
+///   (`references`) to the device's primary, before the save.
 @MainActor
 public struct DeviceGroupWriter {
     public enum Refusal: Error, Equatable {
@@ -140,17 +140,19 @@ public struct DeviceGroupWriter {
     /// passes to the next member. When interfaces remain, the row's references move to the
     /// device's primary.
     public func removeInterface(_ rowID: UUID) throws {
-        let primary: UUID? = try committing { context in
+        try committing { context in
             let row = try self.row(rowID, in: context)
             let others = try row.deviceGroupID.map { id in
                 try DeviceGroups.members(ofGroups: [id], in: context).filter { $0.id != row.id }
             } ?? []
             context.delete(row)
-            return settle(others)
-        }
-        if let primary {
-            for store in references {
-                store.repoint(from: rowID, to: primary)
+            // Before the save: pointing at the device's primary is safe even if the save then
+            // fails (it is a live row of the same device), and no crash after the save can leave a
+            // rule or a link naming a deleted row.
+            if let primary = settle(others) {
+                for store in references {
+                    store.repoint(from: rowID, to: primary)
+                }
             }
         }
     }

@@ -29,7 +29,7 @@ struct WakeOnLanToolView: View {
     /// query) only triggers the refresh.
     private var pickerDevices: [DeviceProjection] {
         guard !devices.isEmpty else { return [] }
-        return LocalDeviceQueries.recentDevices(network: nil, in: modelContext).filter { device in
+        return LocalDeviceQueries.recentDevices(in: .allNetworks, in: modelContext).filter { device in
             device.members.contains { !$0.macAddress.isEmpty }
         }
     }

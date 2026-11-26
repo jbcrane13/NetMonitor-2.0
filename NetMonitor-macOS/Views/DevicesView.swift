@@ -212,9 +212,15 @@ struct DevicesView: View {
         }
     }
 
+    /// The rows the list reads: the active network's, or with none, rows saved without a network
+    /// (as before #594), never every network's.
+    static func scope(_ activeProfileID: UUID?) -> DeviceScope {
+        .network(activeProfileID, else: .withoutNetwork)
+    }
+
     private func reloadDevices() {
         // The 500 most recent devices, paged by device, each with all its interfaces (#594).
-        devices = LocalDeviceQueries.recentDevices(network: activeProfileID, in: modelContext).flatMap(\.members)
+        devices = LocalDeviceQueries.recentDevices(in: Self.scope(activeProfileID), in: modelContext).flatMap(\.members)
     }
 
     // MARK: - Device List

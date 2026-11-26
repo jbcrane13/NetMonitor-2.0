@@ -262,7 +262,7 @@ struct DeviceGroupWriterTests {
         for pair in groups {
             try writer.group(pair, primary: pair[0], source: .user)
         }
-        let devices = try DeviceGroups.recentDevices(network: home, limit: 500, in: ModelContext(container))
+        let devices = try DeviceGroups.recentDevices(in: .network(home), limit: 500, in: ModelContext(container))
         #expect(devices.count == 500)
         #expect(devices.prefix(250).allSatisfy { $0.isGroup })
         #expect(devices.dropFirst(250).allSatisfy { !$0.isGroup })
@@ -279,6 +279,77 @@ struct DeviceGroupWriterTests {
         let device = try #require(try DeviceGroups.project(all()).first)
         #expect(device.ipAddress == "10.0.0.40")
         #expect(RuleDevice(device).openPorts.isEmpty, "no Wi-Fi:22 target from the Ethernet port")
+    }
+
+    // MARK: Verification round (#615)
+
+    @Test("References move before the save: a failure after the save leaves no rule on a deleted row")
+    func repointsBeforeTheSave() throws {
+        let primary = try row("10.0.0.10", notes: "Mac mini"), wifi = try row("10.0.0.40")
+        try writer.group([primary.id, wifi.id], primary: primary.id, source: .user)
+        let rules = RecordingReferences(holding: [primary.id])
+        struct CrashAfterSave: Error {}
+        let crashing = DeviceGroupWriter(container: container, references: [rules], save: { context in
+            try context.save()
+            throw CrashAfterSave()
+        })
+        #expect(throws: CrashAfterSave.self) { try crashing.removeInterface(primary.id) }
+        let rows = try all()
+        #expect(rows.map(\.id) == [wifi.id], "the removal was saved")
+        #expect(rules.held == [wifi.id], "the rule names the live interface, not the deleted row")
+    }
+
+    @Test("A scope reads one network, the rows without a network, or every network; never mixed by accident")
+    func scopes() throws {
+        let other = UUID()
+        let mine = try row("10.0.0.10"), theirs = try row("10.0.0.20", network: other)
+        let unassigned = LocalDevice(ipAddress: "10.0.0.30", macAddress: "")
+        context.insert(unassigned)
+        try context.save()
+        func ids(_ scope: DeviceScope) throws -> Set<UUID> {
+            try Set(DeviceGroups.recentDevices(in: scope, limit: 10, in: ModelContext(container)).map(\.id))
+        }
+        #expect(try ids(.network(home)) == [mine.id])
+        #expect(try ids(.withoutNetwork) == [unassigned.id])
+        #expect(try ids(.allNetworks) == [mine.id, theirs.id, unassigned.id])
+        #expect(DeviceScope.network(nil, else: .withoutNetwork) == .withoutNetwork)
+    }
+
+    @Test("Rows with equal last seen and address page in a stable order, each once")
+    func pagingTies() throws {
+        let seen = Date(timeIntervalSince1970: 1_800_000_000)
+        var made: [UUID] = []
+        for _ in 0..<7 {
+            let tie = LocalDevice(ipAddress: "10.0.0.9", macAddress: "", networkProfileID: home)
+            tie.lastSeen = seen
+            context.insert(tie)
+            made.append(tie.id)
+        }
+        try context.save()
+        let first = try DeviceGroups.recentDevices(in: .network(home), limit: 3, in: ModelContext(container)).map(\.id)
+        let again = try DeviceGroups.recentDevices(in: .network(home), limit: 3, in: ModelContext(container)).map(\.id)
+        #expect(first.count == 3 && Set(first).count == 3)
+        #expect(first == again, "the same three every time")
+        let all = try DeviceGroups.recentDevices(in: .network(home), limit: 7, in: ModelContext(container)).map(\.id)
+        #expect(Set(all) == Set(made), "every row once, across pages of 7")
+    }
+
+    @Test("After ungroup and after removing the primary, a refetch in the view's own context shows the new state")
+    func viewContextSeesWriterChanges() throws {
+        let primary = try row("10.0.0.10", notes: "Mac mini"), wifi = try row("10.0.0.40"), spare = try row("10.0.0.41")
+        try writer.group([primary.id, wifi.id, spare.id], primary: primary.id, source: .user)
+        func viewDevices() throws -> [DeviceProjection] {
+            try DeviceGroups.project(context.fetch(FetchDescriptor<LocalDevice>()))
+        }
+        #expect(try viewDevices().count == 1)
+        try writer.ungroup(spare.id)
+        #expect(try viewDevices().count == 2)
+        #expect(spare.deviceGroupID == nil, "the view's own object, refetched, has no stale group")
+        try writer.removeInterface(primary.id)
+        let devices = try viewDevices()
+        #expect(devices.count == 2)
+        #expect(devices.allSatisfy { !$0.isGroup })
+        #expect(wifi.deviceGroupID == nil && wifi.groupPrimaryID == nil)
     }
 }
 

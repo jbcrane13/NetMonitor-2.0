@@ -58,10 +58,10 @@ enum LocalDeviceQueries {
         (try? DeviceGroups.completingGroups(rows, in: context)) ?? rows
     }
 
-    /// The `limit` most recently seen devices on `network` (every network's when nil), each with
-    /// all its interfaces: Core's `DeviceGroups.recentDevices`, which pages by device, not row. The
-    /// capped readers (lists, pickers, counts) read this; their `@Query` only tells them when to.
-    static func recentDevices(network: UUID?, in context: ModelContext, limit: Int = defaultLimit) -> [DeviceProjection] {
-        (try? DeviceGroups.recentDevices(network: network, limit: limit, in: context)) ?? []
+    /// The `limit` most recently seen devices in `scope`, each with all its interfaces: Core's
+    /// `DeviceGroups.recentDevices`, which pages by device, not row. The capped readers (lists,
+    /// pickers, counts) read this; their `@Query` only tells them when to.
+    static func recentDevices(in scope: DeviceScope, in context: ModelContext, limit: Int = defaultLimit) -> [DeviceProjection] {
+        (try? DeviceGroups.recentDevices(in: scope, limit: limit, in: context)) ?? []
     }
 }

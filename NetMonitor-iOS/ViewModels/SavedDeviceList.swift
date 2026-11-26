@@ -80,40 +80,13 @@ struct SavedDeviceList {
     }
 
     /// The saved devices the list reads (#594): the network's `fetchLimit` most recently seen
-    /// devices, paged by device (`DeviceGroups.recentDevices`), plus those saved before rows had a
-    /// network, as complete groups, most recent first, at most `fetchLimit` devices.
+    /// devices plus those saved before rows had a network, each paged by device by Core
+    /// (`DeviceGroups.recentDevices`), as complete groups, most recent first, at most `fetchLimit`
+    /// devices.
     static func recentRows(network: UUID?, in context: ModelContext) -> [LocalDevice] {
-        var devices = network.flatMap { try? DeviceGroups.recentDevices(network: $0, limit: fetchLimit, in: context) } ?? []
-        devices += recentUnassignedDevices(limit: fetchLimit, in: context)
+        let scopes: [DeviceScope] = (network.map { [.network($0)] } ?? []) + [.withoutNetwork]
+        let devices = scopes.flatMap { (try? DeviceGroups.recentDevices(in: $0, limit: fetchLimit, in: context)) ?? [] }
         return devices.sorted { $0.lastSeen > $1.lastSeen }.prefix(fetchLimit).flatMap(\.members)
-    }
-
-    /// The `limit` most recently seen devices among rows saved without a network, paged by device
-    /// as `DeviceGroups.recentDevices` pages a network's (whose nil means every network), each with
-    /// every member.
-    static func recentUnassignedDevices(limit: Int, in context: ModelContext) -> [DeviceProjection] {
-        var selected: [LocalDevice] = []
-        var chosen = Set<DeviceGroupKey>()
-        var offset = 0
-        while chosen.count < limit {
-            var page = FetchDescriptor<LocalDevice>(
-                predicate: #Predicate { $0.networkProfileID == nil },
-                sortBy: [SortDescriptor(\.lastSeen, order: .reverse), SortDescriptor(\.ipAddress)]
-            )
-            page.fetchOffset = offset
-            page.fetchLimit = limit
-            let rows = (try? context.fetch(page)) ?? []
-            for row in rows where chosen.contains(DeviceGroupKey(row)) || chosen.count < limit {
-                chosen.insert(DeviceGroupKey(row))
-                selected.append(row)
-            }
-            offset += rows.count
-            if rows.count < limit {
-                break
-            }
-        }
-        let complete = (try? DeviceGroups.completingGroups(selected, in: context)) ?? selected
-        return Array(DeviceGroups.project(complete).prefix(limit))
     }
 
     static let fetchLimit = 500

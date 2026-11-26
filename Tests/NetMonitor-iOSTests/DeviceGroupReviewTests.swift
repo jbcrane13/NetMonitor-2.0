@@ -81,7 +81,7 @@ extension DeviceGroupReaderTests {
             return false
         })
         model.text = "Tell me if Studio Mac goes offline"
-        let rows = try DeviceGroups.recentDevices(network: home, limit: RuleDevice.candidateLimit, in: group.context).flatMap(\.members)
+        let rows = try DeviceGroups.recentDevices(in: .network(home), limit: RuleDevice.candidateLimit, in: group.context).flatMap(\.members)
 
         await model.submit(devices: rows, targets: [], networkID: home, isScanning: false, context: group.context)
 
@@ -143,5 +143,20 @@ final class ProbeLog: @unchecked Sendable {
 
     func record(_ host: String, _ port: Int) {
         lock.withLock { recorded.append((host, port)) }
+    }
+
+    /// #615 verification: the list reads its network's devices plus those saved without a network,
+    /// through Core's scopes, never another network's.
+    @Test func theListReadsItsNetworkAndRowsWithoutANetworkOnly() throws {
+        let container = try ModelContainer(for: LocalDevice.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let mine = UUID(), elsewhere = UUID()
+        for row in [LocalDevice(ipAddress: "10.0.0.5", macAddress: ""), LocalDevice(ipAddress: "10.0.0.6", macAddress: "", networkProfileID: mine),
+                    LocalDevice(ipAddress: "10.0.0.7", macAddress: "", networkProfileID: elsewhere)] {
+            context.insert(row)
+        }
+        try context.save()
+        #expect(Set(SavedDeviceList.recentRows(network: mine, in: context).map(\.ipAddress)) == ["10.0.0.5", "10.0.0.6"])
+        #expect(SavedDeviceList.recentRows(network: nil, in: context).map(\.ipAddress) == ["10.0.0.5"])
     }
 }

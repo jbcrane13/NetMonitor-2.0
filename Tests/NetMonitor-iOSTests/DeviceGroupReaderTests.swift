@@ -421,7 +421,7 @@ struct DeviceGroupReaderTests {
         ])
         let model = PlainRuleIOSViewModel(parser: parser, probe: MonitoringTargetProbe { _, _, _ in false })
         model.text = "scan web ports on Studio Mac"
-        let rows = try DeviceGroups.recentDevices(network: home, limit: RuleDevice.candidateLimit, in: group.context).flatMap(\.members)
+        let rows = try DeviceGroups.recentDevices(in: .network(home), limit: RuleDevice.candidateLimit, in: group.context).flatMap(\.members)
 
         await model.submit(devices: rows, targets: [], networkID: home, isScanning: false, context: group.context)
 

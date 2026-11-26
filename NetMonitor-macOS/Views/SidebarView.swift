@@ -35,7 +35,7 @@ struct SidebarView: View {
     var body: some View {
         // Devices, not rows (#594): a device of several interfaces counts once.
         // `devices` (the query) only triggers the recount.
-        let deviceCounts = devices.isEmpty ? [:] : Self.deviceCounts(LocalDeviceQueries.recentDevices(network: nil, in: modelContext))
+        let deviceCounts = devices.isEmpty ? [:] : Self.deviceCounts(LocalDeviceQueries.recentDevices(in: .allNetworks, in: modelContext))
         List(selection: $selection) {
                 Section {
                     ForEach(profileManager.profiles) { profile in
