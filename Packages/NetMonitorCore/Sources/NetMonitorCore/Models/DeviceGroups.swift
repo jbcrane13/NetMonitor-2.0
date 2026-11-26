@@ -212,6 +212,24 @@ public enum DeviceGroups {
         return message + " \(named.prefix(1).uppercased() + named.dropFirst()) \(verb) will follow the device's other interfaces."
     }
 
+    /// The first pair of `rows` one of which says it isn't the other (`notSameAsIDs`), in row order.
+    public static func excludedPair(in rows: [LocalDevice]) -> (UUID, UUID)? {
+        for row in rows {
+            if let other = rows.first(where: { $0 !== row && (row.notSameAsIDs ?? []).contains($0.id) }) {
+                return (row.id, other.id)
+            }
+        }
+        return nil
+    }
+
+    /// `named` and every other row of `rows` in a group one of them is in: the device(s) a grouping
+    /// would touch.
+    public static func withGroupMembers(_ named: [LocalDevice], among rows: [LocalDevice]) -> [LocalDevice] {
+        let groupIDs = Set(named.compactMap(\.deviceGroupID))
+        let ids = Set(named.map(\.id))
+        return named + rows.filter { !ids.contains($0.id) && $0.deviceGroupID.map(groupIDs.contains) == true }
+    }
+
     /// The primary to use when a group's `groupPrimaryID` names no member, or a member leaves:
     /// one with user content (a custom name, notes, a serial, a user-confirmed value), then the
     /// earliest first seen, then the lower IPv4, then the lower ID.
@@ -357,12 +375,14 @@ public extension PresenceSnapshot {
 
 public extension AlertRuleSubject {
     /// Marks the subject as `row`, one interface of `device` (#594): rules naming any member match
-    /// it, an outage is one per device, and while another interface is online the device is
-    /// (#615 review).
-    mutating func setDevice(_ device: DeviceProjection, row: LocalDevice) {
+    /// it and an outage is one per device. With `interfacePresence` (a monitoring target's check of
+    /// one interface), another interface online means the device is online (#615 review); a scan
+    /// event is already judged per device by the reconciler, so it passes false.
+    mutating func setDevice(_ device: DeviceProjection, row: LocalDevice, interfacePresence: Bool = true) {
         deviceID = row.id
         deviceGroupID = device.isGroup ? device.id : nil
         groupMemberIDs = device.isGroup ? device.memberIDs : []
-        onlineInterfaceIDs = Set(device.members.filter { $0.id != row.id && $0.status == .online }.map(\.id))
+        onlineInterfaceIDs = interfacePresence
+            ? Set(device.members.filter { $0.id != row.id && $0.status == .online }.map(\.id)) : []
     }
 }

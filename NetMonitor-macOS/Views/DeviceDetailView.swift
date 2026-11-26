@@ -64,6 +64,7 @@ struct DeviceDetailView: View {
                 headerCard
                 quickActionBar
                 networkInfoCard
+                DeviceGroupingSection(device: projection)
                 if projection.isGroup {
                     DeviceInterfacesCard(device: projection, onRemove: removeInterface)
                 }
@@ -109,6 +110,7 @@ struct DeviceDetailView: View {
         }
         .wakeOnLanAlert(wolAction)
         .saveErrorAlert($saveError)
+        .deviceGroupingFeedback()
         .alert("Add to Targets", isPresented: $showAddToTargetsAlert) {
             Button("OK", role: .cancel) {}
         } message: {

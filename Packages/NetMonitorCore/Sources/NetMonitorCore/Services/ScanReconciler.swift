@@ -139,7 +139,7 @@ public struct ScanReconciler {
     private let holdsUnassignedForDetail: Bool
     private let save: @MainActor (ModelContext) throws -> Void
     private let fetch: @MainActor (ModelContext) throws -> [LocalDevice]
-    private let dispatcher: DeviceEventDispatcher?
+    private let dispatcher: (any DeviceEventDispatching)?
 
     /// Reads every saved row; the default for `fetch`.
     public static let fetchAllRows: @MainActor (ModelContext) throws -> [LocalDevice] = { try $0.fetch(FetchDescriptor<LocalDevice>()) }
@@ -157,7 +157,7 @@ public struct ScanReconciler {
         holdsUnassignedForDetail: Bool = true,
         save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         fetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows,
-        dispatcher: DeviceEventDispatcher? = nil
+        dispatcher: (any DeviceEventDispatching)? = nil
     ) {
         self.context = context
         self.history = history
@@ -208,8 +208,8 @@ public struct ScanReconciler {
         _ raw: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date, isBaseline: Bool
     ) throws -> Applied {
         let all = try fetch(context)
-        // One observation per MAC, chosen by the saved rows as device detail chooses it.
-        let scan = PresenceMatch.onePerMAC(raw, known: all)
+        // One observation per MAC, chosen by this network's saved rows, as device detail chooses it.
+        let scan = PresenceMatch.onePerMAC(raw, known: all.filter { $0.networkProfileID == networkProfileID })
         var rows = all.filter { $0.networkProfileID == networkProfileID }.sorted { $0.lastSeen > $1.lastSeen }
         let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
         // Saved states before anything changes; a row adopted from those saved without a network
@@ -306,9 +306,12 @@ public struct ScanReconciler {
         }
         for ids in DeviceGrouping.plan(scan: raw, rowForAddress: rowForAddress, rows: rows) {
             let named = rows.filter { ids.contains($0.id) }
-            let groupIDs = Set(named.compactMap(\.deviceGroupID))
-            let members = named + rows.filter { row in !ids.contains(row.id) && row.deviceGroupID.map(groupIDs.contains) == true }
-            _ = try? DeviceGroupWriter.join(named, members: members, primary: nil, source: .bonjour)
+            do {
+                try DeviceGroupWriter.join(named, members: DeviceGroups.withGroupMembers(named, among: rows), primary: nil, source: .bonjour)
+            } catch {
+                // The plan checked the same rules; a refusal here means the rows changed under it.
+                logger.notice("Automatic grouping refused: \(String(describing: error), privacy: .public)")
+            }
         }
     }
 

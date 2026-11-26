@@ -7,7 +7,7 @@ import NetworkScanKit
 
 // MARK: - Test support
 
-/// UserDefaults that never touch disk, for a test's own `ScanHistory` and change tracker (#596).
+/// UserDefaults that never touch disk, for a test's own `ScanHistory` (#596).
 final class InMemoryDefaults: UserDefaults, @unchecked Sendable {
     private var values: [String: Any] = [:]
 
@@ -80,18 +80,17 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         clock: TestClock,
         pipeline: (@Sendable (ScanPipelineInputs) -> ScanPipeline)? = nil
     ) -> DeviceDiscoveryCoordinator {
-        let coordinator = DeviceDiscoveryCoordinator(
+        return DeviceDiscoveryCoordinator(
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
-            // No ambient network: rows and the tracker use the "no network" scope.
+            // No ambient network: rows use the "no network" scope.
             networkProfileManager: NetworkProfileManager(userDefaults: InMemoryDefaults(), activeProfilesProvider: { [] }),
             pipelineFactory: pipeline ?? { _ in ScanPipeline(steps: []) },
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
-            clock: { clock.now }
+            clock: { clock.now },
+            dispatcher: DeviceEventDispatcher()
         )
-        coordinator.changeTracker = DeviceChangeTracker(defaults: InMemoryDefaults())
-        return coordinator
     }
 
     static func device(_ ip: String, _ name: String?, mac: String = "", latency: Double? = nil, cached: Bool = false) -> LocalDiscoveredDevice {
@@ -458,9 +457,9 @@ extension DeviceDiscoveryCoordinatorReconcileTests {
         #expect(completed == 1)
     }
 
-    /// Review (#601): after an upgrade the tracker may remember misses from before `ScanHistory`
-    /// existed. "Device Left" must still wait for the row's own grace, so both move together.
-    @Test func afterAnUpgradeTheTimelineWaitsForTheRowToGoOffline() async throws {
+    /// Review (#601), since #603 by construction: "Device Left" comes from the row going offline
+    /// under its own grace, the event the reconcile that saved it delivers.
+    @Test func theTimelineWaitsForTheRowToGoOffline() async throws {
         let (container, context) = try makeStore()
         _ = container
         let start = Date(timeIntervalSince1970: 1_790_000_000)
@@ -473,19 +472,10 @@ extension DeviceDiscoveryCoordinatorReconcileTests {
             context.insert(row)
         }
         try context.save()
-        // The tracker from before the upgrade: the printer already missed two scans.
-        let tracker = DeviceChangeTracker(defaults: InMemoryDefaults())
-        for (minutes, seen) in [(0.0, [router, printer]), (10, [router]), (20, [router])] {
-            _ = tracker.record(
-                scope: "default", observed: seen.map { DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname) },
-                now: start.addingTimeInterval(minutes * 60)
-            )
-        }
         let box = FixtureUpsertBox(devices: [router])
         let coordinator = makeCoordinator(context, clock: clock) { _ in
             ScanPipeline(steps: [ScanPipeline.Step(phases: [FixtureUpsertScanPhase(box: box)], concurrent: false)])
         }
-        coordinator.changeTracker = tracker
         var left: [String?] = []
         coordinator.addDeviceChangeHandler { changes, _ in
             left += changes.compactMap {
@@ -498,7 +488,7 @@ extension DeviceDiscoveryCoordinatorReconcileTests {
         }
         func printerRow() -> LocalDevice? { coordinator.discoveredDevices.first { $0.hostname == "printer" } }
 
-        // The first scan after the upgrade: the tracker's third miss, the reconciler's first.
+        // The printer's first missed scan, 30 minutes after it was last seen: still within grace.
         clock.now = start.addingTimeInterval(30 * 60)
         await runScan(coordinator)
         #expect(printerRow()?.status == .online)

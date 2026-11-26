@@ -34,6 +34,12 @@ struct DevicesView: View {
 
     // Pro mode detail sheet
     @State private var selectedProDevice: LocalDevice?
+    /// Device detail's grouping actions and their undo toast (#594 PR2), above the detail view,
+    /// which grouping recreates.
+    @State private var grouping = DeviceGroupingViewModel(
+        // Long enough under UI tests for a driver to read the toast and press Undo.
+        toastDuration: ProcessInfo.processInfo.arguments.contains("--uitesting") ? .seconds(60) : .seconds(10)
+    )
 
     // Context menu action state
     @State private var deviceToPing: DeviceProjection?
@@ -185,6 +191,18 @@ struct DevicesView: View {
         .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in
             reloadDevices()
         }
+        // Grouping, separating or undoing changes the device's ID; select it by a row it kept.
+        .onChange(of: grouping.selection?.revision) {
+            guard let rowID = grouping.selection?.rowID else { return }
+            if viewMode != .pro {
+                selectedDeviceID = rowID
+            } else if selectedProDevice != nil {
+                // The Pro sheet edits the row it shows: after grouping, separating or undoing, show
+                // the device's primary, where its name and notes go.
+                selectedProDevice = Self.proDetailRow(after: rowID, in: modelContext) ?? selectedProDevice
+            }
+        }
+        .environment(grouping)
         .onChange(of: coordinator?.isScanning) { _, isScanning in
             if isScanning == false {
                 reloadDevices()
@@ -215,6 +233,13 @@ struct DevicesView: View {
     /// The device `id` names (a group's ID or any interface's row ID): from the list's rows, else
     /// from the store, so an alert's View Details opens a device the list's fetch left out (#615
     /// review).
+    /// The row the Pro detail sheet shows after a grouping action anchored on `rowID`: the
+    /// primary of the device that row now belongs to, read from the store (#594 PR2).
+    static func proDetailRow(after rowID: UUID, in context: ModelContext) -> LocalDevice? {
+        guard let row = try? context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == rowID })).first else { return nil }
+        return (try? DeviceGroups.device(of: row, in: context))?.primary ?? row
+    }
+
     static func device(for id: UUID, among rows: [LocalDevice], in context: ModelContext) -> DeviceProjection? {
         if let listed = DeviceGroupResolver(rows: rows).device(for: id) {
             return listed

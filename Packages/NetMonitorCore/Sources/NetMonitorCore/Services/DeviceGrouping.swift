@@ -61,14 +61,8 @@ public enum DeviceGrouping {
 
     /// Exclusions, conflicting models or makers, or two existing groups stop a group.
     static func isEligible(_ members: [LocalDevice], among rows: [LocalDevice]) -> Bool {
-        let groupIDs = Set(members.compactMap(\.deviceGroupID))
-        guard groupIDs.count <= 1 else { return false }
-        let everyone = members + rows.filter { row in
-            row.deviceGroupID.map(groupIDs.contains) == true && !members.contains { $0.id == row.id }
-        }
-        for member in everyone where (member.notSameAsIDs ?? []).contains(where: { id in everyone.contains { $0.id == id } }) {
-            return false
-        }
+        guard Set(members.compactMap(\.deviceGroupID)).count <= 1,
+              DeviceGroups.excludedPair(in: DeviceGroups.withGroupMembers(members, among: rows)) == nil else { return false }
         let models = Set(members.compactMap(\.modelName).filter { !$0.isEmpty })
         guard models.count <= 1 else { return false }
         let makers = Set(members.compactMap(\.vendor).filter { !$0.isEmpty }.map(firstWord))

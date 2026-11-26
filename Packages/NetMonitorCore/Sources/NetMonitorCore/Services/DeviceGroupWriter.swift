@@ -84,6 +84,8 @@ public struct DeviceGroupWriter {
     }
 
     /// "Same device as…" (#594 PR2): groups the rows as the user said, and returns how to undo it.
+    /// `primary` is the device the user is on: it keeps its group and its primary, and the rest are
+    /// re-keyed to it with `groupSource = user`.
     /// With `overridingExclusions` (the user confirmed "You said these were different devices"),
     /// exactly the exclusions between the rows that would join are cleared first.
     public func groupForUser(_ rowIDs: [UUID], primary: UUID?, overridingExclusions: Bool = false) throws -> DeviceGroupUndo {
@@ -91,13 +93,13 @@ public struct DeviceGroupWriter {
             let (named, members) = try groupRows(rowIDs, in: context)
             return try recording(members) {
                 if overridingExclusions {
-                    for member in members {
-                        for other in members where other !== member && (member.notSameAsIDs ?? []).contains(other.id) {
-                            removeExclusion(member, other)
+                    while let pair = DeviceGroups.excludedPair(in: members) {
+                        if let lhs = members.first(where: { $0.id == pair.0 }), let rhs = members.first(where: { $0.id == pair.1 }) {
+                            removeExclusion(lhs, rhs)
                         }
                     }
                 }
-                _ = try Self.join(named, members: members, primary: primary, source: .user)
+                _ = try Self.join(named, members: members, primary: primary, source: .user, anchor: primary)
             }
         }
     }
@@ -160,13 +162,27 @@ public struct DeviceGroupWriter {
     /// primary are kept; rows already in a group keep their `groupSource`. Throws a ``Refusal``
     /// before changing anything.
     @discardableResult
-    static func join(_ named: [LocalDevice], members: [LocalDevice], primary: UUID?, source: DeviceGroupSource) throws -> UUID {
+    static func join(
+        _ named: [LocalDevice], members: [LocalDevice], primary: UUID?, source: DeviceGroupSource, anchor: UUID? = nil
+    ) throws -> UUID {
         guard members.count >= 2 else { throw Refusal.tooFewMembers }
         guard Set(members.map(\.networkProfileID)).count <= 1 else { throw Refusal.differentNetworks }
-        for member in members {
-            if let other = members.first(where: { $0 !== member && (member.notSameAsIDs ?? []).contains($0.id) }) {
-                throw Refusal.excluded(between: member.id, and: other.id)
+        if let pair = DeviceGroups.excludedPair(in: members) {
+            throw Refusal.excluded(between: pair.0, and: pair.1)
+        }
+        // "Same device as…" (#594 PR2, v3 §3): the device the user is on keeps its group and its
+        // primary; every row that joins it is re-keyed to it, as the user's grouping.
+        if let anchor, let anchorRow = members.first(where: { $0.id == anchor }) {
+            let groupID = anchorRow.deviceGroupID ?? UUID()
+            let primaryID = anchorRow.groupPrimaryID.flatMap { id in members.first { $0.id == id }?.id } ?? anchorRow.id
+            for member in members {
+                if member.deviceGroupID != anchorRow.deviceGroupID || member.deviceGroupID == nil {
+                    member.groupSource = source.rawValue
+                }
+                member.deviceGroupID = groupID
+                member.groupPrimaryID = primaryID
             }
+            return groupID
         }
         let existingGroups = named.compactMap(\.deviceGroupID)
         let groupID = existingGroups.first ?? UUID()
