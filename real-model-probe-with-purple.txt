@@ -1,0 +1,246 @@
+variant=AFM 3 Core Advanced vision=true extractor.isAvailable=true
+
+[01-dsl-dark] status=panel 2.78 s, prompt tokens=113, lights returned=8
+  POWER: want green got POWER=green ✓
+  DSL: want green got DSL=green ✓
+  INTERNET: want red got INTERNET=red ✓
+  WI-FI: want green got WI-FI=green ✓
+  LAN 1: want green got LAN 1=green ✓
+  LAN 2: want off got LAN 2=off ✓
+  LAN 3: want off got LAN 3=off ✓
+  LAN 4: want amber got LAN 4=amber ✓
+  headline: 1 light shows a problem. 2 lights read as off: check them. 1 light needs a look.
+  key point: Internet light reads as red: this normally means the modem has no internet connection.
+  key point: Ethernet 4 light is amber: on many modems this means a device is connected at a slower speed.
+  key point: Ethernet 2 reads as off. If it is dark, nothing is connected to that port, or the connected device is off.
+  key point: Ethernet 3 reads as off. If it is dark, nothing is connected to that port, or the connected device is off.
+  key point: Power light is green: this normally means the modem has power.
+  key point: Broadband light is green: this normally means the line from your provider is connected.
+  key point: Wi-Fi light is green: this normally means Wi-Fi is on.
+  key point: Ethernet 1 light is green: this normally means a device is connected to that port.
+
+[02-cable-white-case] status=panel 2.45 s, prompt tokens=209, lights returned=5
+    verdict: truth normal → app -
+  POWER: want white got POWER=off ✗
+  DS: want blue got DS=blue ✓
+  US: want blue got US=blue ✓
+    verdict: truth attention → app -
+  ONLINE: want off got ONLINE=unknown ✗
+    verdict: truth normal → app note
+  WIFI: want white got WIFI=off ✗
+  headline: 1 light reads as off: check it. 2 known lights weren't clear in the photo.
+  key point: Wi-Fi reads as off. If it is dark, Wi-Fi is turned off on this unit. That is expected if you use a separate router.
+  key point: Downstream light is blue: this normally means the modem is connected to your provider's downstream channels.
+  key point: Upstream light is blue: this normally means the modem is connected to your provider's upstream channels.
+
+[03-cable-vertical] status=panel 1.73 s, prompt tokens=209, lights returned=4
+  POWER: want green got POWER=green ✓
+  DS: want amber got DS=amber ✓
+  US: want green got US=green ✓
+  ONLINE: want green got ONLINE=green ✓
+  headline: 1 light needs a look.
+  key point: Downstream light is amber: on many modems this means it is still connecting, or connected on fewer channels.
+  key point: Power light is green: this normally means the modem has power.
+  key point: Upstream light is green: this normally means the modem is connected to your provider's upstream channels.
+  key point: Internet light is green: this normally means the modem is online.
+
+[04-router-blue] status=panel 2.40 s, prompt tokens=209, lights returned=7
+  POWER: want blue got POWER=blue ✓
+  INTERNET: want blue got INTERNET=blue ✓
+  WLAN 2.4G: want blue got WLAN 2.4G=blue ✓
+  WLAN 5G: want off got WLAN 5G=off ✓
+  LAN 1: want blue got LAN 1=blue ✓
+  LAN 2: want off got LAN 2=off ✓
+  USB: want off got USB=off ✓
+  headline: 2 lights read as off: check them.
+  key point: Wi-Fi 5G reads as off. If it is dark, that Wi-Fi band is turned off on this unit.
+  key point: Ethernet 2 reads as off. If it is dark, nothing is connected to that port, or the connected device is off.
+  key point: Power light is blue: this normally means the modem has power.
+  key point: Internet light is blue: this normally means the modem is online.
+  key point: Wi-Fi 2.4G light is blue: this normally means that Wi-Fi band is on.
+  key point: Ethernet 1 light is blue: this normally means a device is connected to that port.
+
+[05-dsl-silver-square] status=panel 2.04 s, prompt tokens=209, lights returned=5
+  POWER: want green got POWER=green ✓
+  DSL: want green got DSL=green ✓
+  INTERNET: want green got INTERNET=green ✓
+  PHONE: want off got PHONE=off ✓
+  WLAN: want green got WLAN=green ✓
+  headline: 1 light reads as off: check it.
+  key point: Phone reads as off. If it is dark, phone service is off or not set up. That is expected if you don't use it.
+  key point: Power light is green: this normally means the modem has power.
+  key point: Broadband light is green: this normally means the line from your provider is connected.
+  key point: Internet light is green: this normally means the modem is online.
+  key point: Wi-Fi light is green: this normally means Wi-Fi is on.
+
+[06-dsl-amber-sync] status=panel 2.50 s, prompt tokens=209, lights returned=6
+  POWER: want green got POWER=green ✓
+  DSL: want amber got DSL=amber ✓
+  INTERNET: want off got INTERNET=off ✓
+  WLAN: want green got WLAN=green ✓
+  PHONE 1: want green got PHONE 1=green ✓
+  PHONE 2: want off got PHONE 2=off ✓
+  headline: 2 lights read as off: check them. 1 light needs a look.
+  key point: Broadband light is amber: on many modems this means the line is still connecting or is weak.
+  key point: Internet reads as off. If it is dark, the modem isn't online.
+  key point: Phone 2 reads as off. If it is dark, phone service is off or not set up. That is expected if you don't use it.
+  key point: Power light is green: this normally means the modem has power.
+  key point: Wi-Fi light is green: this normally means Wi-Fi is on.
+  key point: Phone 1 light is green: this normally means phone service is ready.
+
+[07-power-red-white] status=panel 1.91 s, prompt tokens=209, lights returned=4
+  POWER: want red got POWER=red ✓
+    verdict: truth attention → app -
+  DSL: want off got DSL=unknown ✗
+    verdict: truth attention → app -
+  INTERNET: want off got INTERNET=unknown ✗
+    verdict: truth note → app -
+  WI-FI: want off got WI-FI=unknown ✗
+  headline: 1 light shows a problem. 3 known lights weren't clear in the photo.
+  key point: Power light reads as red: this normally means a hardware fault or a failed start-up.
+
+[08-gateway-tiny] status=panel 2.34 s, prompt tokens=209, lights returned=6
+  POWER: want green got POWER=green ✓
+  BROADBAND: want green got BROADBAND=green ✓
+  INTERNET: want amber got INTERNET=amber ✓
+  ETHERNET: want green got ETHERNET=green ✓
+  WIRELESS: want green got WIRELESS=green ✓
+  USB: want green got USB=green ✓
+  headline: 1 light needs a look.
+  key point: Internet light is amber: on many modems this means it reaches your provider but isn't online.
+  key point: Power light is green: this normally means the modem has power.
+  key point: Broadband light is green: this normally means the line from your provider is connected.
+  key point: Ethernet light is green: this normally means a device is connected to that port.
+  key point: Wi-Fi light is green: this normally means Wi-Fi is on.
+
+[09-ont-unknown-labels] status=panel 1.86 s, prompt tokens=209, lights returned=4
+  POWER: want green got POWER=green ✓
+  PON: want green got PON=green ✓
+  LOS: want red got LOS=red ✓
+  LAN 1: want green got LAN 1=green ✓
+  headline: 1 light is red: LOS. The app doesn't know this light; check your modem's guide.
+  key point: Power light is green: this normally means the modem has power.
+  key point: Ethernet 1 light is green: this normally means a device is connected to that port.
+
+[10-router-wan-red] status=panel 2.29 s, prompt tokens=209, lights returned=6
+  POWER: want green got POWER=green ✓
+  WAN: want red got WAN=red ✓
+  LAN 1: want green got LAN 1=green ✓
+  LAN 2: want green got LAN 2=green ✓
+  LAN 3: want off got LAN 3=off ✓
+  WLAN: want green got WLAN=green ✓
+  headline: 1 light shows a problem. 1 light reads as off: check it.
+  key point: WAN light reads as red: this normally means there is no internet connection on the WAN port.
+  key point: Ethernet 3 reads as off. If it is dark, nothing is connected to that port, or the connected device is off.
+  key point: Power light is green: this normally means the modem has power.
+  key point: Ethernet 1 light is green: this normally means a device is connected to that port.
+  key point: Ethernet 2 light is green: this normally means a device is connected to that port.
+  key point: Wi-Fi light is green: this normally means Wi-Fi is on.
+
+[13-all-white-light-case] status=panel 2.11 s, prompt tokens=209, lights returned=5
+    verdict: truth normal → app attention
+  POWER: want white got POWER=off ✗
+    verdict: truth normal → app attention
+  DSL: want white got DSL=off ✗
+    verdict: truth normal → app attention
+  INTERNET: want white got INTERNET=off ✗
+    verdict: truth normal → app note
+  WI-FI: want white got WI-FI=off ✗
+    verdict: truth normal → app note
+  LAN 1: want white got LAN 1=off ✗
+  headline: 5 lights read as off: check them.
+  key point: Power reads as off. If it is dark, the modem has no power: check its power cable and outlet.
+  key point: Broadband reads as off. If it is dark, the modem has no line from your provider: check the cable to the wall socket.
+  key point: Internet reads as off. If it is dark, the modem isn't online.
+  key point: Wi-Fi reads as off. If it is dark, Wi-Fi is turned off on this unit. That is expected if you use a separate router.
+  key point: Ethernet 1 reads as off. If it is dark, nothing is connected to that port, or the connected device is off.
+
+[14-white-internet-silver] status=panel 2.00 s, prompt tokens=209, lights returned=4
+  POWER: want green got POWER=green ✓
+  BROADBAND: want green got BROADBAND=green ✓
+    verdict: truth normal → app attention
+  INTERNET: want white got INTERNET=off ✗
+  WIRELESS: want off got WIRELESS=off ✓
+  headline: 2 lights read as off: check them.
+  key point: Internet reads as off. If it is dark, the modem isn't online.
+  key point: Wi-Fi reads as off. If it is dark, Wi-Fi is turned off on this unit. That is expected if you use a separate router.
+  key point: Power light is green: this normally means the modem has power.
+  key point: Broadband light is green: this normally means the line from your provider is connected.
+
+== non-panel images
+[11-label-sticker] status=unsupported lights=["unknown=unknown"] → rejected ✓ (panel report isPanel=false)
+[12-landscape] status=unsupported lights=["unknown=unknown"] → rejected ✓ (panel report isPanel=false)
+
+== summary
+labels found 64/64 (100%), missed 0, invented 0
+colour right 52/64 (81%)
+colour errors: 02-cable-white-case POWER: white→off; 02-cable-white-case ONLINE: off→unknown; 02-cable-white-case WIFI: white→off; 07-power-red-white DSL: off→unknown; 07-power-red-white INTERNET: off→unknown; 07-power-red-white WI-FI: off→unknown; 13-all-white-light-case POWER: white→off; 13-all-white-light-case DSL: white→off; 13-all-white-light-case INTERNET: white→off; 13-all-white-light-case WI-FI: white→off; 13-all-white-light-case LAN 1: white→off; 14-white-internet-silver INTERNET: white→off
+app verdict flips (normal↔problem) on power/broadband/internet/US/DS/WAN: none
+non-panel rejected 2/2
+
+| Fixture | Light | Truth | Model | |
+|---|---|---|---|---|
+| 01-dsl-dark | POWER | green | green | ✓ |
+| 01-dsl-dark | DSL | green | green | ✓ |
+| 01-dsl-dark | INTERNET | red | red | ✓ |
+| 01-dsl-dark | WI-FI | green | green | ✓ |
+| 01-dsl-dark | LAN 1 | green | green | ✓ |
+| 01-dsl-dark | LAN 2 | off | off | ✓ |
+| 01-dsl-dark | LAN 3 | off | off | ✓ |
+| 01-dsl-dark | LAN 4 | amber | amber | ✓ |
+| 02-cable-white-case | POWER | white | off | ✗ |
+| 02-cable-white-case | DS | blue | blue | ✓ |
+| 02-cable-white-case | US | blue | blue | ✓ |
+| 02-cable-white-case | ONLINE | off | unknown | ✗ |
+| 02-cable-white-case | WIFI | white | off | ✗ |
+| 03-cable-vertical | POWER | green | green | ✓ |
+| 03-cable-vertical | DS | amber | amber | ✓ |
+| 03-cable-vertical | US | green | green | ✓ |
+| 03-cable-vertical | ONLINE | green | green | ✓ |
+| 04-router-blue | POWER | blue | blue | ✓ |
+| 04-router-blue | INTERNET | blue | blue | ✓ |
+| 04-router-blue | WLAN 2.4G | blue | blue | ✓ |
+| 04-router-blue | WLAN 5G | off | off | ✓ |
+| 04-router-blue | LAN 1 | blue | blue | ✓ |
+| 04-router-blue | LAN 2 | off | off | ✓ |
+| 04-router-blue | USB | off | off | ✓ |
+| 05-dsl-silver-square | POWER | green | green | ✓ |
+| 05-dsl-silver-square | DSL | green | green | ✓ |
+| 05-dsl-silver-square | INTERNET | green | green | ✓ |
+| 05-dsl-silver-square | PHONE | off | off | ✓ |
+| 05-dsl-silver-square | WLAN | green | green | ✓ |
+| 06-dsl-amber-sync | POWER | green | green | ✓ |
+| 06-dsl-amber-sync | DSL | amber | amber | ✓ |
+| 06-dsl-amber-sync | INTERNET | off | off | ✓ |
+| 06-dsl-amber-sync | WLAN | green | green | ✓ |
+| 06-dsl-amber-sync | PHONE 1 | green | green | ✓ |
+| 06-dsl-amber-sync | PHONE 2 | off | off | ✓ |
+| 07-power-red-white | POWER | red | red | ✓ |
+| 07-power-red-white | DSL | off | unknown | ✗ |
+| 07-power-red-white | INTERNET | off | unknown | ✗ |
+| 07-power-red-white | WI-FI | off | unknown | ✗ |
+| 08-gateway-tiny | POWER | green | green | ✓ |
+| 08-gateway-tiny | BROADBAND | green | green | ✓ |
+| 08-gateway-tiny | INTERNET | amber | amber | ✓ |
+| 08-gateway-tiny | ETHERNET | green | green | ✓ |
+| 08-gateway-tiny | WIRELESS | green | green | ✓ |
+| 08-gateway-tiny | USB | green | green | ✓ |
+| 09-ont-unknown-labels | POWER | green | green | ✓ |
+| 09-ont-unknown-labels | PON | green | green | ✓ |
+| 09-ont-unknown-labels | LOS | red | red | ✓ |
+| 09-ont-unknown-labels | LAN 1 | green | green | ✓ |
+| 10-router-wan-red | POWER | green | green | ✓ |
+| 10-router-wan-red | WAN | red | red | ✓ |
+| 10-router-wan-red | LAN 1 | green | green | ✓ |
+| 10-router-wan-red | LAN 2 | green | green | ✓ |
+| 10-router-wan-red | LAN 3 | off | off | ✓ |
+| 10-router-wan-red | WLAN | green | green | ✓ |
+| 13-all-white-light-case | POWER | white | off | ✗ |
+| 13-all-white-light-case | DSL | white | off | ✗ |
+| 13-all-white-light-case | INTERNET | white | off | ✗ |
+| 13-all-white-light-case | WI-FI | white | off | ✗ |
+| 13-all-white-light-case | LAN 1 | white | off | ✗ |
+| 14-white-internet-silver | POWER | green | green | ✓ |
+| 14-white-internet-silver | BROADBAND | green | green | ✓ |
+| 14-white-internet-silver | INTERNET | white | off | ✗ |
+| 14-white-internet-silver | WIRELESS | off | off | ✓ |

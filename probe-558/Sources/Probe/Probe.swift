@@ -209,16 +209,7 @@ func norm(_ s: String) -> String { s.uppercased().filter { $0.isLetter || $0.isN
       let report = ModemPanelReport(answer: answer)
       print("  headline: \(report.headline)")
       for point in report.keyPoints { print("  key point: \(point)") }
-      if let request = report.insightRequest {
-        let wording = await InsightSummarizer.outcome(for: request, service: InsightService.shared, timeout: .seconds(20))
-        switch wording {
-        case let .answer(a): print("  wording (shown): \(a.text)")
-        case .refused: print("  wording: REFUSED by the checks (app lines only)")
-        case .tryLater: print("  wording: none (timeout/unavailable)")
-        }
-      } else if report.isPanel {
-        print("  wording: not asked (a light reads as off: app lines only)")
-      }
+      for notice in report.notices { print("  notice: \(notice)") }
     }
     print("\n== non-panel images")
     var rejects = 0
