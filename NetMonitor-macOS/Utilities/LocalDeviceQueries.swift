@@ -48,4 +48,19 @@ enum LocalDeviceQueries {
         descriptor.fetchLimit = limit
         return descriptor
     }
+
+    // MARK: - Devices, not rows (#594)
+
+    /// `rows` (a capped fetch from one of the queries above) with every other member of the groups
+    /// they belong to, so a reader never sees a group without its primary. Readers project these
+    /// (or hand them to a Core reader that projects) before searching, filtering or limiting.
+    static func completed(_ rows: [LocalDevice], in context: ModelContext) -> [LocalDevice] {
+        (try? DeviceGroups.completingGroups(rows, in: context)) ?? rows
+    }
+
+    /// The devices of `rows`: groups completed from `context`, projected (one entry per device),
+    /// then capped at `limit` devices.
+    static func devices(_ rows: [LocalDevice], in context: ModelContext, limit: Int = defaultLimit) -> [DeviceProjection] {
+        Array(DeviceGroups.project(completed(rows, in: context)).prefix(limit))
+    }
 }

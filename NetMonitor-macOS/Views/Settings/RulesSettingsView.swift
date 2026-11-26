@@ -68,7 +68,10 @@ private struct RulesForm: View {
                 ForEach(store.rules) { rule in
                     RuleRow(
                         rule: rule,
-                        summary: RuleDescription.summary(rule, networks: profileManager?.profiles ?? [], devices: ruleDevices),
+                        summary: RuleDescription.summary(
+                            rule, networks: profileManager?.profiles ?? [],
+                            devices: LocalDeviceQueries.completed(ruleDevices, in: modelContext)
+                        ),
                         onToggle: { isOn in
                             var updated = rule
                             updated.isEnabled = isOn
@@ -168,7 +171,8 @@ private struct RuleRow: View {
 
 /// Plain-language text for a rule, shown in the list.
 enum RuleDescription {
-    /// `devices` name a rule's `deviceID` by the device's current name (#450).
+    /// `devices` name a rule's `deviceID` by the device's current name (#450): the name of the
+    /// device that row is an interface of (#594). Pass complete groups.
     static func summary(_ rule: AlertRule, networks: [NetworkProfile], devices: [LocalDevice] = []) -> String {
         var parts = [trigger(rule.trigger)]
         if let duration = rule.minimumDuration, duration > 0 {
@@ -176,7 +180,7 @@ enum RuleDescription {
         }
         let conditions = rule.conditions
         if let deviceID = conditions.deviceID {
-            parts.append("device \(devices.first { $0.id == deviceID }?.displayName ?? "a removed device")")
+            parts.append("device \(DeviceGroupResolver(rows: devices).device(for: deviceID)?.displayName ?? "a removed device")")
         } else if let device = conditions.device, !device.isEmpty {
             parts.append("device \(device)")
         }

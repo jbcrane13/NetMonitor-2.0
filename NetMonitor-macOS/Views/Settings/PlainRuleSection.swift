@@ -45,8 +45,9 @@ struct PlainRuleSection: View {
     }
 
     private func parse() {
-        let devices = (try? modelContext.fetch(RuleDevice.candidates(network: networkID))) ?? []
-        Task { await viewModel.submit(devices: devices, targets: targets, isScanning: isScanning, linkedDevice: store.device(forTarget:)) }
+        // One candidate per device, each group complete (#594).
+        let candidates = RuleDevice.candidates(network: networkID, in: modelContext)
+        Task { await viewModel.submit(candidates: candidates, targets: targets, isScanning: isScanning, linkedDevice: store.device(forTarget:)) }
     }
 
     @ViewBuilder

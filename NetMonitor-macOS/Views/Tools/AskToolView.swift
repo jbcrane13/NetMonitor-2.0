@@ -28,6 +28,8 @@ struct AskToolView: View {
     private struct InputsKey: Equatable {
         let names: [String]
         let addresses: [String]
+        /// Which rows are one device (#594).
+        let groups: [UUID?]
         let networkProfileID: UUID?
         let lastScan: Date?
         let isScanning: Bool
@@ -49,6 +51,7 @@ struct AskToolView: View {
         .task(id: InputsKey(
             names: devices.map(\.displayName),
             addresses: devices.map(\.ipAddress),
+            groups: devices.map(\.deviceGroupID),
             networkProfileID: networkProfileID,
             lastScan: lastScan,
             isScanning: coordinator?.isScanning ?? false

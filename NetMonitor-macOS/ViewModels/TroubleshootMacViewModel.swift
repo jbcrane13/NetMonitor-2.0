@@ -43,9 +43,9 @@ final class TroubleshootMacViewModel {
     }
 
     /// The saved devices on `networkProfileID`, and those on no network, and whether a scan runs.
+    /// `devices` are rows with complete groups; each device is offered once (#594).
     func update(devices: [LocalDevice], networkProfileID: UUID?, isScanning: Bool) {
-        inputs.devices = devices
-            .filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
+        inputs.devices = DeviceGroups.project(devices.filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID })
             .map(TroubleshootDevice.init)
         inputs.isScanning = isScanning
     }

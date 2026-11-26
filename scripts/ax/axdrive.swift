@@ -13,6 +13,8 @@ import ApplicationServices
 //   axdrive capture-in <id> <file.png>  (the app window only, cropped to that element; no other window shows)
 //   axdrive capture-union <file.png> <id>...  (the app window only, cropped to every element carrying any of
 //                                            the ids, for content macOS 27 stamps one identifier across)
+//   axdrive clickat <id> <dx> <dy>  (clicks that far from the element's top-left corner)
+//   axdrive scroll <id> <lines>  (mouse-wheel scrolls the view under <id>; negative is down)
 //   axdrive resize <width> <height>  (moves the app's main window to the main display's top left and
 //                                     resizes it, such as to fit a wide table)
 //   axdrive typefield <id> <text>  (types into the first text field with or inside <id>, for a container
@@ -278,6 +280,32 @@ case "type", "typefield":
         usleep(80_000)
     }
     print("typed \(args[2])")
+case "scroll":
+    // Scrolls the view under element <id> by <lines> (negative scrolls down), with the mouse wheel:
+    // SwiftUI scroll views don't take AXScrollToVisible.
+    guard let el = find(args[2]), let point = center(el) else { print("NOTFOUND \(args[2])")
+    exit(1)
+    }
+    let src = CGEventSource(stateID: .hidSystemState)
+    CGEvent(mouseEventSource: src, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(100_000)
+    let lines = Int32(args[3]) ?? -10
+    for _ in 0 ..< abs(lines) {
+        CGEvent(scrollWheelEvent2Source: src, units: .line, wheelCount: 1, wheel1: lines < 0 ? -1 : 1, wheel2: 0, wheel3: 0)?
+            .post(tap: .cghidEventTap)
+        usleep(20_000)
+    }
+    usleep(500_000)
+    print("scrolled \(args[2]) by \(lines)")
+case "clickat":
+    // Clicks <dx>,<dy> points from the element's top-left corner, for a row whose frame reaches
+    // off the window so its centre misses it.
+    guard let el = find(args[2]), let rect = frame(of: el) else { print("NOTFOUND \(args[2])")
+    exit(1)
+    }
+    let point = CGPoint(x: rect.minX + (Double(args[3]) ?? 20), y: rect.minY + (Double(args[4]) ?? 10))
+    mouseClick(point)
+    print("clicked \(args[2]) at \(point) in \(rect)")
 case "wait":
     print(waitFor(args[2], Double(args[3]) ?? 10, present: true) ? "found \(args[2])" : "TIMEOUT \(args[2])")
 case "gone":

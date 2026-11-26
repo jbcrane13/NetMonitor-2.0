@@ -71,9 +71,19 @@ final class PlainRuleMacViewModel {
         targets.first { !$0.isEnabled && checks($0, device) }
     }
 
-    /// - Parameter linkedDevice: the device a rule linked a target to (`AlertRuleStore.device(forTarget:)`).
+    /// `submit(candidates:)` for saved rows (complete groups): one candidate per device (#594).
     func submit(
         devices: [LocalDevice], targets: [NetworkTarget], isScanning: Bool, linkedDevice: (UUID) -> UUID? = { _ in nil }
+    ) async {
+        let candidates = DeviceGroups.project(devices).map(RuleDevice.init)
+        await submit(candidates: candidates, targets: targets, isScanning: isScanning, linkedDevice: linkedDevice)
+    }
+
+    /// - Parameters:
+    ///   - candidates: the devices the rule can name (`RuleDevice.candidates(network:in:)`).
+    ///   - linkedDevice: the device a rule linked a target to (`AlertRuleStore.device(forTarget:)`).
+    func submit(
+        candidates: [RuleDevice], targets: [NetworkTarget], isScanning: Bool, linkedDevice: (UUID) -> UUID? = { _ in nil }
     ) async {
         draft = nil
         self.targets = targets
@@ -82,7 +92,6 @@ final class PlainRuleMacViewModel {
         let enabled = targets.filter(\.isEnabled)
         targetIntervals = Dictionary(targets.filter { !$0.isEnabled }.map { ($0.host, $0.checkInterval) }) { first, _ in first }
             .merging(Dictionary(enabled.map { ($0.host, $0.checkInterval) }, uniquingKeysWith: min)) { _, enabled in enabled }
-        let candidates = devices.map(RuleDevice.init)
         // The addresses of devices an enabled target checks: a linked target counts only for its
         // own device, an unlinked one for the device at its address.
         let monitored = candidates.filter { device in enabled.contains { checks($0, device) } }

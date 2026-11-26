@@ -102,7 +102,8 @@ private struct SecurityReadoutContent: View {
                     }
                     ForEach(viewModel.findings) { finding in
                         Button {
-                            openDevice = devices.first { $0.id == finding.deviceID }
+                            // A finding names the interface its port is open on; its device opens (#594).
+                            openDevice = DeviceGroupResolver(rows: devices).device(for: finding.deviceID)?.primary
                         } label: {
                             SecurityFindingRow(finding: finding, showsDevice: true)
                         }

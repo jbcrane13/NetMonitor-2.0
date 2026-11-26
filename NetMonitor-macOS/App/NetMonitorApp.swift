@@ -366,6 +366,9 @@ struct NetMonitorApp: App {
         if arguments.contains("--seed-security-devices") {
             UITestScanFixture.seedSecurityDevices(into: context, profileID: profileManager.activeProfile?.id)
         }
+        if arguments.contains("--seed-device-group") {
+            UITestScanFixture.seedDeviceGroup(into: context, profileID: profileManager.activeProfile?.id)
+        }
         if arguments.contains("--seed-test-events") {
             UITestScanFixture.seedEvents(into: NetworkEventService.shared, profileID: profileManager.activeProfile?.id)
         }
@@ -495,7 +498,20 @@ enum UITestScanFixture {
     static func nextScan() -> [DiscoveredDevice] {
         defer { scansRun += 1 }
         let drops = ProcessInfo.processInfo.environment["UITEST_SCAN_DROP_LAST"] == "1" && scansRun > 0
-        return drops ? devices.filter { $0.ipAddress != printerIP } : devices
+        let scan = drops ? devices.filter { $0.ipAddress != printerIP } : devices
+        // With the seeded group, only its second interface answers (#594).
+        return ProcessInfo.processInfo.arguments.contains("--seed-device-group") ? scan + [groupMemberScan] : scan
+    }
+
+    static let groupPrimaryIP = "192.168.77.60"
+    static let groupMemberIP = "192.168.77.61"
+    static let groupName = "UITest Studio Mac"
+
+    private static var groupMemberScan: DiscoveredDevice {
+        DiscoveredDevice(
+            ipAddress: groupMemberIP, hostname: "uitest-studio", vendor: nil, macAddress: "02:00:00:77:00:61",
+            latency: 3, discoveredAt: Date(), source: .local
+        )
     }
 
     /// With `UITEST_SCAN_CLOCK=1`: the time each scan happens, starting at launch and stepping
@@ -607,6 +623,41 @@ enum UITestScanFixture {
             deviceType: .storage, status: .online, openPorts: [445], networkProfileID: profileID
         ))
         try? context.save()
+    }
+
+    /// `--seed-device-group` (#594): one device on two interfaces, written through
+    /// `DeviceGroupWriter`: the primary (Ethernet, offline since two hours ago) holds the name and
+    /// notes, and the Wi-Fi interface has notes of its own. The fixture scan finds only the Wi-Fi
+    /// interface, so the device reads Online through its second member.
+    @MainActor
+    static func seedDeviceGroup(into context: ModelContext, profileID: UUID?) {
+        let primary = LocalDevice(
+            ipAddress: groupPrimaryIP, macAddress: "02:00:00:77:00:60", hostname: "uitest-studio",
+            deviceType: .computer, status: .offline, networkProfileID: profileID
+        )
+        primary.customName = groupName
+        primary.notes = "Ethernet port behind the desk"
+        primary.lastSeen = Date().addingTimeInterval(-2 * 3600)
+        primary.firstSeen = primary.lastSeen.addingTimeInterval(-86400)
+        let member = LocalDevice(
+            ipAddress: groupMemberIP, macAddress: "02:00:00:77:00:61", hostname: "uitest-studio",
+            deviceType: .computer, status: .offline, networkProfileID: profileID
+        )
+        member.notes = "Wi-Fi when undocked"
+        member.lastSeen = primary.lastSeen
+        var rows = [primary, member]
+        // UITEST_GROUP_THIRD=1: a third interface, so the group outlives removing the primary.
+        if ProcessInfo.processInfo.environment["UITEST_GROUP_THIRD"] == "1" {
+            let third = LocalDevice(
+                ipAddress: "192.168.77.62", macAddress: "02:00:00:77:00:62", hostname: "uitest-studio",
+                deviceType: .computer, status: .offline, networkProfileID: profileID
+            )
+            third.lastSeen = primary.lastSeen
+            rows.append(third)
+        }
+        rows.forEach(context.insert)
+        try? context.save()
+        try? DeviceGroupWriter(context: context).group(rows.map(\.id), primary: primary.id, source: .user)
     }
 
     /// `--seed-test-events`: one event today and one ten days ago, for the Timeline's ranges.
