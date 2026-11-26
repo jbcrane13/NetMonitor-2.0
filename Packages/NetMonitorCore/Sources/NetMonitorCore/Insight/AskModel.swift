@@ -44,10 +44,14 @@ struct SystemAskModel: AskModelProtocol {
     var isAvailable: Bool { SystemLanguageModel.default.isAvailable }
 
     func answer(_ question: String, instructions: String, toolbox: AskToolbox) async -> String? {
-        let tools: [any Tool] = [
+        var tools: [any Tool] = [
             FindDevicesTool(toolbox: toolbox), DeviceStatusTool(toolbox: toolbox), DeviceLatencyHistoryTool(toolbox: toolbox),
             EventsTool(toolbox: toolbox), FlakyDevicesTool(toolbox: toolbox)
         ]
+        // Only where the app can measure (#579).
+        if toolbox.hasLiveTools {
+            tools += [PingDeviceTool(toolbox: toolbox), NetworkStatusTool(toolbox: toolbox)] as [any Tool]
+        }
         let profile = LanguageModelSession.Profile {
             Instructions(instructions)
             tools
@@ -143,6 +147,33 @@ struct EventsTool: Tool {
 
     func call(arguments: AskEventsArguments) async throws -> String {
         toolbox.events(arguments.range, type: arguments.type)
+    }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+@Generable
+struct AskNoArguments {}
+
+@available(iOS 27.0, macOS 27.0, *)
+struct PingDeviceTool: Tool {
+    let toolbox: AskToolbox
+    let name = "pingDevice"
+    let description = "Ping one device now, 3 times: how many replies came back and the average reply time. "
+        + "For whether a device answers right now."
+
+    func call(arguments: AskDeviceArguments) async throws -> String {
+        await toolbox.pingDevice(arguments.id)
+    }
+}
+
+@available(iOS 27.0, macOS 27.0, *)
+struct NetworkStatusTool: Tool {
+    let toolbox: AskToolbox
+    let name = "networkStatus"
+    let description = "Measure the connection now: its type, and pings to the gateway and to the internet."
+
+    func call(arguments: AskNoArguments) async throws -> String {
+        await toolbox.networkStatus()
     }
 }
 

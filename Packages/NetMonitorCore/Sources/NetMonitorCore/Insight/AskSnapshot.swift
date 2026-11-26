@@ -74,6 +74,8 @@ public struct AskSnapshot: Sendable {
     }
 
     public let devices: [AskDevice]
+    /// The network asked about; the live tools ping only while this device is on it (#579).
+    public let networkProfileID: UUID?
     /// Newest first.
     public let events: [NetworkEvent]
     /// When the network's last scan finished, on the clock that stamps `lastSeen`; nil when it
@@ -127,6 +129,7 @@ public struct AskSnapshot: Sendable {
         calendar: Calendar = .current
     ) {
         self.devices = devices
+        self.networkProfileID = networkProfileID
         self.events = events
             .filter { networkProfileID == nil || $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
             .sorted { $0.timestamp > $1.timestamp }
