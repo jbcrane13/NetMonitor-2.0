@@ -35,7 +35,8 @@ struct DeviceDiscoveryCoordinatorLiveScanTests {
             modelContext: container.mainContext,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
 
         coordinator.startScan()

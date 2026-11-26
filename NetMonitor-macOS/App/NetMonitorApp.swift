@@ -209,7 +209,8 @@ struct NetMonitorApp: App {
                 networkProfileManager: profileManager,
                 reviewPrompt: RateAppService.reviewPrompt,
                 // The on-device model suggests what unidentified devices are (#449).
-                suggester: DeviceSuggester(service: InsightService.shared, store: DeviceSuggestionStore())
+                suggester: DeviceSuggester(service: InsightService.shared, store: DeviceSuggestionStore()),
+                dispatcher: DeviceEventDispatcher.shared
             )
             deviceDiscovery = discovery
             // Network events and app-scope connectivity, before the first scan (#491).
@@ -337,9 +338,9 @@ struct NetMonitorApp: App {
             suggester: Self.uiTestSuggester,
             scanHistory: UITestScanFixture.scanHistory(),
             clock: UITestScanFixture.scanClock ?? Date.init,
-            presenceClock: UITestScanFixture.presenceClock ?? Date.init
+            presenceClock: UITestScanFixture.presenceClock ?? Date.init,
+            dispatcher: DeviceEventDispatcher.shared
         )
-        discovery.changeTracker = UITestScanFixture.changeTracker(reset: HistoryFileLocation.current.resetRequested)
         deviceDiscovery = discovery
         // Settings > Companion over in-memory credentials; the listener stays off, so a UI-test
         // launch never opens the companion port (#590).
@@ -353,6 +354,7 @@ struct NetMonitorApp: App {
                 profileID: profileManager.activeProfile?.id,
                 deviceType: ProcessInfo.processInfo.environment["UITEST_FAKE_SUGGESTION"] == "1" ? .unknown : .computer
             )
+            UITestScanFixture.recordBaseline(in: discovery, profileID: profileManager.activeProfile?.id)
             // UI tests don't scan, so ask about the seeded device directly (#449).
             discovery.startSuggestions(profileID: profileManager.activeProfile?.id)
         }
@@ -368,6 +370,9 @@ struct NetMonitorApp: App {
         }
         if arguments.contains("--seed-device-group") {
             UITestScanFixture.seedDeviceGroup(into: context, profileID: profileManager.activeProfile?.id)
+        }
+        if arguments.contains("--seed-group-suggestion") {
+            UITestScanFixture.seedGroupSuggestion(into: context, profileID: profileManager.activeProfile?.id)
         }
         if arguments.contains("--seed-test-events") {
             UITestScanFixture.seedEvents(into: NetworkEventService.shared, profileID: profileManager.activeProfile?.id)
@@ -477,11 +482,12 @@ enum NetworkProfileDefaults {
 // MARK: - UI-test scan fixture
 
 /// What `--uitesting` scans instead of the LAN (#491 D7): the `--seed-test-device` row's device
-/// and a printer it has never seen. The seeded row is the network's baseline, so a scan reports
-/// the printer, and only the printer, as first seen.
+/// and a printer it has never seen. A scan of the seeded row alone is recorded at launch as the
+/// network's baseline (its first recorded scan, on which nothing "joins", #603), so the first
+/// fixture scan reports the printer, and only the printer, as joined.
 enum UITestScanFixture {
-    /// The device tracker's own suite, so UI-test scans never touch the user's registry.
-    static let trackerSuite = "netmonitor.uitest"
+    /// The UI-test scans' own suite (their scan history), so they never touch the user's.
+    static let scanHistorySuite = "netmonitor.uitest"
     static let seedIP = "192.168.77.77"
     static let seedMAC = "AA:BB:CC:DD:EE:FF"
     static let seedHostname = "uitest-device"
@@ -500,7 +506,24 @@ enum UITestScanFixture {
         let drops = ProcessInfo.processInfo.environment["UITEST_SCAN_DROP_LAST"] == "1" && scansRun > 0
         let scan = drops ? devices.filter { $0.ipAddress != printerIP } : devices
         // With the seeded group, only its second interface answers (#594).
-        return ProcessInfo.processInfo.arguments.contains("--seed-device-group") ? scan + [groupMemberScan] : scan
+        let group = ProcessInfo.processInfo.arguments.contains("--seed-device-group") ? [groupMemberScan] : []
+        // UITEST_SCAN_BONJOUR_PAIR=1: two addresses answer for one strong Bonjour host (#594 PR2).
+        let pair = ProcessInfo.processInfo.environment["UITEST_SCAN_BONJOUR_PAIR"] == "1" ? bonjourPairScan : []
+        return scan + group + pair
+    }
+
+    static let workstationHost = "uitest-workstation.local"
+
+    /// The workstation's Ethernet (192.168.77.70) and Wi-Fi (192.168.77.71) interfaces, both
+    /// answering for `workstationHost`: the scan groups them automatically.
+    private static var bonjourPairScan: [DiscoveredDevice] {
+        [("192.168.77.70", "uitest-workstation"), ("192.168.77.71", "uitest-workstation-wifi")].map { ip, name in
+            DiscoveredDevice(
+                ipAddress: ip, hostname: name, vendor: nil, macAddress: "02:00:00:77:00:\(ip.suffix(2))", latency: 3,
+                discoveredAt: Date(), source: .local,
+                bonjourClaims: [HostClaim(host: workstationHost, service: "_ssh._tcp", address: ip)]
+            )
+        }
     }
 
     static let groupPrimaryIP = "192.168.77.60"
@@ -540,8 +563,8 @@ enum UITestScanFixture {
     /// and be skipped.
     @MainActor
     static func scanHistory() -> ScanHistory {
-        guard let defaults = UserDefaults(suiteName: trackerSuite) else {
-            preconditionFailure("UI-test tracker suite \(trackerSuite) is unavailable")
+        guard let defaults = UserDefaults(suiteName: scanHistorySuite) else {
+            preconditionFailure("UI-test scan-history suite \(scanHistorySuite) is unavailable")
         }
         let history = ScanHistory(defaults: defaults)
         history.clearAll()
@@ -565,17 +588,14 @@ enum UITestScanFixture {
         ScanPipeline(steps: [ScanPipeline.Step(phases: [FixturePhase()], concurrent: false)])
     }
 
-    /// The UI-test tracker, emptied first when `reset` (`--reset-history-files`) is set.
+    /// Reconciles a scan of the seeded device alone, a minute before launch: the network's first
+    /// recorded scan, so later fixture scans can report devices joining (#603).
     @MainActor
-    static func changeTracker(reset: Bool) -> DeviceChangeTracker {
-        // Never fall back to the standard defaults: that is the user's real registry.
-        guard let defaults = UserDefaults(suiteName: trackerSuite) else {
-            preconditionFailure("UI-test tracker suite \(trackerSuite) is unavailable")
-        }
-        if reset {
-            defaults.removePersistentDomain(forName: trackerSuite)
-        }
-        return DeviceChangeTracker(defaults: defaults)
+    static func recordBaseline(in discovery: DeviceDiscoveryCoordinator, profileID: UUID?) {
+        let seed = DiscoveredDevice(
+            ipAddress: seedIP, hostname: seedHostname, vendor: nil, macAddress: seedMAC, latency: 5, discoveredAt: Date(), source: .local
+        )
+        discovery.reconcileScan([seed], profileID: profileID, now: Date().addingTimeInterval(-60))
     }
 
     /// Seeds the baseline `LocalDevice` on `profileID`, for UI tests that need a non-empty
@@ -660,6 +680,27 @@ enum UITestScanFixture {
         rows.forEach(context.insert)
         try? context.save()
         try? DeviceGroupWriter(context: context).group(rows.map(\.id), primary: primary.id, source: .user)
+    }
+
+    /// `--seed-group-suggestion` (#594 PR2): a laptop saved as two devices (192.168.77.80 and .81)
+    /// whose addresses answered for the same strong Bonjour host an hour ago, so device detail
+    /// suggests they are the same device. Neither answers the fixture scan.
+    @MainActor
+    static func seedGroupSuggestion(into context: ModelContext, profileID: UUID?) {
+        // Seen together, so once grouped the device shows at the lower address.
+        let seen = Date()
+        for (ip, name) in [("192.168.77.80", "uitest-laptop"), ("192.168.77.81", "uitest-laptop-wifi")] {
+            let row = LocalDevice(
+                ipAddress: ip, macAddress: "02:00:00:77:00:\(ip.suffix(2))", hostname: name, deviceType: .laptop, status: .online,
+                networkProfileID: profileID
+            )
+            row.lastSeen = seen
+            row.firstSeen = seen
+            row.bonjourHost = "uitest-laptop.local"
+            row.bonjourHostSeenAt = Date().addingTimeInterval(-3600)
+            context.insert(row)
+        }
+        try? context.save()
     }
 
     /// `--seed-test-events`: one event today and one ten days ago, for the Timeline's ranges.

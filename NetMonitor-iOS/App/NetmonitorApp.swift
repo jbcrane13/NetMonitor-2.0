@@ -67,7 +67,20 @@ struct NetmonitorApp: App {
         // Before `.live()` first loads `NetworkEventService.shared`, so a UI test's legacy
         // events are in place to migrate (#491).
         UITestBootstrap.prepareEventHistoryIfNeeded()
-        _environment = State(initialValue: .live())
+        // The retired change registry and scan-diff baseline (#603) are dead data now (#619).
+        LegacyDeviceChangeRegistry.clearOnce()
+        let environment = AppEnvironment.live()
+        _environment = State(initialValue: environment)
+        // The Timeline listens for device events from launch (#603), so a scan a background launch
+        // reconciles before any view appears is logged; `onAppear` starts the rest of its watching.
+        if Self.isUITesting ? UITestBootstrap.recordsEvents : !Self.persistenceOutcome.isDegraded {
+            _eventListener = State(initialValue: EventListenerService(
+                eventService: environment.eventService,
+                discoveryService: environment.deviceDiscovery,
+                currentNetworkProfileID: environment.currentNetworkProfileID,
+                dispatcher: DeviceEventDispatcher.shared
+            ))
+        }
         // Background work writes through this container's main context (#582).
         AppModelStore.container = Self.persistenceOutcome.store
         // Device groups made consistent, and serial notes lines moved into the field (#561, #594).
@@ -79,21 +92,18 @@ struct NetmonitorApp: App {
             UITestBootstrap.logTestEventIfRequested()
             return
         }
+        // New and missing device alerts from every applied scan, foreground or background, before
+        // any reconcile can run (#619).
+        BackgroundTaskService.shared.notifyDeviceEvents(from: DeviceEventDispatcher.shared)
         BackgroundTaskService.shared.registerTasks()
     }
 
-    /// Starts the Timeline's event listener once, on the environment's discovery service and
-    /// network, naming devices from the saved rows (#491 D9).
+    /// Starts the Timeline's connectivity and scan watching once, on the listener made at launch
+    /// (the environment's discovery service and network); device entries come from the
+    /// reconciled scans' device events, logged since launch (#603).
     private func startEventListener() {
-        guard eventListener == nil else { return }
-        let listener = EventListenerService(
-            eventService: environment.eventService,
-            discoveryService: environment.deviceDiscovery,
-            currentNetworkProfileID: environment.currentNetworkProfileID,
-            savedDevices: SavedDeviceLookup(context: sharedModelContainer.mainContext)
-        )
-        listener.start()
-        eventListener = listener
+        guard let eventListener, !eventListener.isRunning else { return }
+        eventListener.start()
     }
 
     /// Starts keeping the saved device rows current after each scan, once (#582).
@@ -103,7 +113,8 @@ struct NetmonitorApp: App {
             discoveryService: environment.deviceDiscovery,
             // Its own context on the app's container: a failed save rolls back only the scan, never
             // device detail's unsaved edits in the main context, which sees the saved rows (#589).
-            reconciler: ScanReconciler(context: ModelContext(sharedModelContainer)),
+            // Its applied scans' device events go to the Timeline and the scheduler's diff (#603).
+            reconciler: ScanReconciler(context: ModelContext(sharedModelContainer), dispatcher: DeviceEventDispatcher.shared),
             // Read only, and only a live network: a device without one is never filed under a
             // network the phone has left (#589).
             currentNetworkProfileID: { CurrentNetwork.detected()?.id },
@@ -156,6 +167,7 @@ struct NetmonitorApp: App {
                     UITestBootstrap.seedRuleDevicesIfNeeded(in: sharedModelContainer.mainContext)
                     UITestBootstrap.seedPastDeviceIfNeeded(in: sharedModelContainer.mainContext)
                     UITestBootstrap.seedDeviceGroupIfNeeded(in: sharedModelContainer.mainContext)
+                    UITestBootstrap.seedGroupSuggestionIfNeeded(in: sharedModelContainer.mainContext)
                     // Ask your network (#452)
                     UITestBootstrap.seedAskIfNeeded(in: sharedModelContainer.mainContext)
                     if UITestBootstrap.recordsEvents {

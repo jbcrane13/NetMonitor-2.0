@@ -280,6 +280,10 @@ public struct NetworkProfilePayload: Codable, Sendable {
     }
 }
 
+/// One device on the Mac (#594: a device, not a row). `id` is the device's ID (its group's, or its
+/// row's); `ipAddress`, `macAddress` and `isOnline` are the current interface's and whether the
+/// device answered the Mac's latest scan, as an older phone reads them. A newer phone reads
+/// `members` (absent from an older Mac) and `isDeviceOnline`.
 public struct DeviceInfo: Codable, Sendable, Identifiable {
     public let id: UUID
     public let ipAddress: String
@@ -288,6 +292,11 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
     public let vendor: String?
     public let deviceType: String
     public let isOnline: Bool
+    /// Every interface, with its own sighting (#594 PR2). Nil from a Mac before it.
+    public let members: [MemberInfo]?
+    /// What the Mac shows for the device (any interface online, within grace), apart from
+    /// `isOnline`'s "answered the latest scan".
+    public let isDeviceOnline: Bool?
 
     public init(
         id: UUID = UUID(),
@@ -296,7 +305,9 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         hostname: String?,
         vendor: String? = nil,
         deviceType: String = "unknown",
-        isOnline: Bool
+        isOnline: Bool,
+        members: [MemberInfo]? = nil,
+        isDeviceOnline: Bool? = nil
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -305,6 +316,43 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         self.vendor = vendor
         self.deviceType = deviceType
         self.isOnline = isOnline
+        self.members = members
+        self.isDeviceOnline = isDeviceOnline
+    }
+}
+
+/// One interface of a device on the Mac (#594 PR2): whether it answered the Mac's latest scan of
+/// its network, and when that scan was, so the phone can tell a new sighting from an old one.
+public struct MemberInfo: Codable, Sendable, Equatable, Identifiable {
+    /// The interface's row ID on the Mac.
+    public let id: UUID
+    public let ipAddress: String
+    public let macAddress: String?
+    public let lastSeen: Date
+    public let answeredLatestScan: Bool
+    /// When the Mac's latest scan of the network was reconciled, on the Mac's clock; nil when it
+    /// has none.
+    public let scanTime: Date?
+    /// How long before the list was sent that scan was, measured on the Mac's clock alone. The
+    /// phone places the scan on its own clock as `receivedAt - scanAge`, so the two devices' wall
+    /// clocks are never compared (#619).
+    public let scanAge: TimeInterval?
+    /// Whether this is the device's primary interface, the one its `hostname` names (#619). The
+    /// phone gives the name to this member's sighting only. Nil from a Mac that doesn't say.
+    public let isPrimary: Bool?
+
+    public init(
+        id: UUID, ipAddress: String, macAddress: String?, lastSeen: Date, answeredLatestScan: Bool, scanTime: Date?,
+        scanAge: TimeInterval? = nil, isPrimary: Bool? = nil
+    ) {
+        self.id = id
+        self.ipAddress = ipAddress
+        self.macAddress = macAddress
+        self.lastSeen = lastSeen
+        self.answeredLatestScan = answeredLatestScan
+        self.scanTime = scanTime
+        self.scanAge = scanAge
+        self.isPrimary = isPrimary
     }
 }
 

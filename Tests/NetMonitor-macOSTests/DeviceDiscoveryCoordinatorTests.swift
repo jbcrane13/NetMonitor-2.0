@@ -188,9 +188,8 @@ struct DeviceDiscoveryCoordinatorTests {
             },
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
-            clock: { clock.now }
+            clock: { clock.now }, dispatcher: DeviceEventDispatcher()
         )
-        coordinator.changeTracker = DeviceChangeTracker(defaults: InMemoryDefaults())
 
         coordinator.startScan()
         await waitUntil(timeout: .seconds(30)) { coordinator.isScanning == false }
@@ -266,7 +265,7 @@ struct DeviceDiscoveryCoordinatorTests {
                 ])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
         )
 
         // `ConnectionBudget.shared` is process-global: earlier suites in the same test
@@ -297,7 +296,7 @@ struct DeviceDiscoveryCoordinatorTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
         )
     }
 }
@@ -313,7 +312,7 @@ struct DeviceDiscoveryCoordinatorCachedTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
         )
     }
 
@@ -397,7 +396,7 @@ struct CoordinatorUPnPDescriptionTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
         )
     }
 
@@ -466,7 +465,7 @@ struct DeviceDiscoveryCoordinatorModelTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
         )
     }
 
@@ -630,7 +629,7 @@ struct DeviceDiscoveryEnrichmentTests {
                 ])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
         )
 
         coordinator.startScan()
@@ -690,7 +689,7 @@ struct DeviceDiscoveryEnrichmentTests {
                 ])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
         )
 
         coordinator.startScan()
@@ -774,7 +773,7 @@ struct DeviceDiscoveryEnrichmentTests {
                 ])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
         )
 
         coordinator.startScan()

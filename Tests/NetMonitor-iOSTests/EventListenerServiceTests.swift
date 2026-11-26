@@ -51,7 +51,8 @@ struct EventListenerServiceTests {
         let service = EventListenerService(
             eventService: spy,
             networkMonitor: NetworkMonitorService.shared,
-            discoveryService: DeviceDiscoveryService.shared
+            discoveryService: DeviceDiscoveryService.shared,
+            dispatcher: DeviceEventDispatcher()
         )
         _ = service
         // No crash; dependencies are wired correctly
@@ -63,7 +64,8 @@ struct EventListenerServiceTests {
         let service = EventListenerService(
             eventService: spy,
             networkMonitor: NetworkMonitorService.shared,
-            discoveryService: DeviceDiscoveryService.shared
+            discoveryService: DeviceDiscoveryService.shared,
+            dispatcher: DeviceEventDispatcher()
         )
         service.start()
         // Brief pause to let observation tracking set up
@@ -78,7 +80,8 @@ struct EventListenerServiceTests {
         let service = EventListenerService(
             eventService: spy,
             networkMonitor: NetworkMonitorService.shared,
-            discoveryService: DeviceDiscoveryService.shared
+            discoveryService: DeviceDiscoveryService.shared,
+            dispatcher: DeviceEventDispatcher()
         )
         service.stop()
         service.stop() // double stop should not crash
@@ -90,7 +93,8 @@ struct EventListenerServiceTests {
         let service = EventListenerService(
             eventService: spy,
             networkMonitor: NetworkMonitorService.shared,
-            discoveryService: DeviceDiscoveryService.shared
+            discoveryService: DeviceDiscoveryService.shared,
+            dispatcher: DeviceEventDispatcher()
         )
         service.start()
         try? await Task.sleep(for: .milliseconds(20))

@@ -190,18 +190,20 @@ final class MacRuleAlerts {
         self.currentDevices = currentDevices
     }
 
-    /// From a completed scan (#393). `devices` are the network's rows, used for each device's
-    /// type and maker.
+    /// From a completed scan (#393, #603): one event per device, already judged by Core's reducer.
+    /// `devices` are the network's rows, used for each device's name, type and maker.
     func handle(deviceChanges: [DeviceChangeEvent], devices: [LocalDevice], networkID: UUID?) {
         let events = deviceChanges.compactMap { change -> AlertRuleEvent? in
             switch change {
             case let .firstSeen(seen):
-                event(.firstSeen, seen.ipAddress, seen.macAddress, seen.name, devices, networkID)
+                event(.firstSeen, seen.ipAddress, seen.macAddress, seen.name, seen.deviceID, devices, networkID)
             case let .cameOnline(seen):
-                event(.cameOnline, seen.ipAddress, seen.macAddress, seen.name, devices, networkID)
+                event(.cameOnline, seen.ipAddress, seen.macAddress, seen.name, seen.deviceID, devices, networkID)
             case let .wentOffline(known):
                 // Reported after the grace period: the device has been down since it last answered.
-                event(.wentOffline, known.ipAddress, known.macAddress, known.name, devices, networkID, offlineSince: known.lastSeen)
+                event(
+                    .wentOffline, known.ipAddress, known.macAddress, known.name, known.deviceID, devices, networkID, offlineSince: known.lastSeen
+                )
             case .changed:
                 nil
             }
@@ -334,17 +336,21 @@ final class MacRuleAlerts {
         }
     }
 
+    // swiftlint:disable:next function_parameter_count
     private func event(
-        _ kind: AlertRuleEvent.Kind, _ ip: String, _ mac: String?, _ name: String?, _ devices: [LocalDevice], _ networkID: UUID?,
-        offlineSince: Date? = nil
+        _ kind: AlertRuleEvent.Kind, _ ip: String, _ mac: String?, _ name: String?, _ deviceID: UUID?, _ devices: [LocalDevice],
+        _ networkID: UUID?, offlineSince: Date? = nil
     ) -> AlertRuleEvent {
-        AlertRuleEvent(kind: kind, subject: subject(ip, mac, name, devices, networkID), offlineSince: offlineSince)
+        AlertRuleEvent(kind: kind, subject: scanSubject(ip, mac, name, deviceID, devices, networkID), offlineSince: offlineSince)
     }
 
-    private func subject(
-        _ ip: String, _ mac: String?, _ name: String?, _ devices: [LocalDevice], _ networkID: UUID?
+    /// A scan event's subject. Core's reducer already judged the device (one event per device, an
+    /// interface going quiet while another answers is none), so no interface counts as still online
+    /// here: otherwise a device whose interfaces all came back together would lose its recovery.
+    private func scanSubject(
+        _ ip: String, _ mac: String?, _ name: String?, _ deviceID: UUID?, _ devices: [LocalDevice], _ networkID: UUID?
     ) -> AlertRuleSubject {
-        let row = Self.row(ip: ip, mac: mac, in: devices)
+        let row = Self.row(deviceID: deviceID, ip: ip, mac: mac, in: devices)
         // The row is one interface; the name, type and maker are its device's (#594).
         let device = row.map { Self.device(of: $0) }
         let identity = device?.primary ?? row
@@ -358,7 +364,7 @@ final class MacRuleAlerts {
             deviceID: row?.id
         )
         if let device, let row {
-            subject.setDevice(device, row: row)
+            subject.setDevice(device, row: row, interfacePresence: false)
         }
         return subject
     }
@@ -369,15 +375,24 @@ final class MacRuleAlerts {
         row.modelContext.flatMap { try? DeviceGroups.device(of: row, in: $0) } ?? DeviceGroups.project([row])[0]
     }
 
-    /// The network's row for an event's device, for display. A MAC identifies the row
-    /// exactly; the IP is only a fallback for an event without one. The row is one interface:
-    /// `device(of:)` gives the device it belongs to (#594).
-    static func row(ip: String, mac: String?, in devices: [LocalDevice]) -> LocalDevice? {
-        if let mac, !mac.isEmpty {
-            devices.first { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }
-        } else {
-            devices.first { $0.ipAddress == ip }
+    /// The network's row for an event's device, for display. A scan event names its device's
+    /// primary row (`deviceID`, #603), which is found first, in `devices` or else in the store;
+    /// without one, a MAC identifies the row exactly and the IP is only a fallback. The row is one
+    /// interface: `device(of:)` gives the device it belongs to (#594).
+    static func row(deviceID: UUID? = nil, ip: String, mac: String?, in devices: [LocalDevice]) -> LocalDevice? {
+        if let deviceID {
+            if let row = devices.first(where: { $0.id == deviceID }) {
+                return row
+            }
+            let context = devices.lazy.compactMap(\.modelContext).first
+            if let row = try? context?.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == deviceID })).first {
+                return row
+            }
         }
+        if let mac, !mac.isEmpty {
+            return devices.first { $0.macAddress.caseInsensitiveCompare(mac) == .orderedSame }
+        }
+        return devices.first { $0.ipAddress == ip }
     }
 
     static func detail(for event: AlertRuleEvent) -> String {

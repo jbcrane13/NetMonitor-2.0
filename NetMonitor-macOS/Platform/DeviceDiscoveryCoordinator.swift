@@ -22,9 +22,10 @@ final class DeviceDiscoveryCoordinator {
     private(set) var lastScanTime: Date?
     private(set) var scanProgress: Double = 0.0
     private(set) var networkProfile: NetworkProfile?
-    /// Receives what a completed scan changed against every device seen before on its network,
-    /// with a grace period (#393): first seen, came online, went offline, changed. Also gets the
-    /// scanned network's ID. Only reports; rows and their status are set by `ScanReconciler`.
+    /// Receives what a completed scan changed, one event per device at most (#603): joined, came
+    /// online, went offline (under the grace policy), changed. Also gets the scanned network's ID.
+    /// The events are Core's `DeviceEventDispatcher` batches, which only the reconcile that applied
+    /// the scan delivers.
     typealias DeviceChangeHandler = @MainActor (_ changes: [DeviceChangeEvent], _ profileID: UUID?) -> Void
     /// Every subscriber gets each change: the alert dispatcher and the event recorder (#491).
     private(set) var deviceChangeHandlers: [DeviceChangeHandler] = []
@@ -32,9 +33,14 @@ final class DeviceDiscoveryCoordinator {
     /// a scan in which nothing answered or whose rows couldn't be saved (#596).
     typealias ScanCompletedHandler = @MainActor (_ profileID: UUID?, _ deviceCount: Int) -> Void
     private(set) var scanCompletedHandlers: [ScanCompletedHandler] = []
-    /// Remembers devices between scans for the device change handlers, under the coordinator's
-    /// grace policy. Tests inject one with fresh defaults.
-    var changeTracker: DeviceChangeTracker
+    /// Where the reconciler delivers each applied scan's device events (#603); `.shared` in the
+    /// app, a fresh one per test.
+    private let dispatcher: any DeviceEventDispatcherProtocol
+    /// This coordinator's subscription to `dispatcher`, ended when it goes.
+    private var dispatcherSubscription: UUID?
+    /// Batches delivered while a reconcile runs, handed to the handlers once the rows are
+    /// reloaded, so a handler reading `discoveredDevices` finds a device that just joined.
+    private var heldBatches: [DeviceEventBatch]?
     /// Asks the on-device model what this network's devices are after each completed scan
     /// (#449). Nil, the default, turns suggestions off: only the app passes one, so tests
     /// never reach the real model.
@@ -70,7 +76,7 @@ final class DeviceDiscoveryCoordinator {
     private let reviewPrompt: ReviewPromptPolicy?
     /// Each network's reconciled scans, which the grace policy counts misses against (#596).
     private let scanHistory: ScanHistory
-    /// When a missed device goes offline: shared with the change tracker and the iPhone.
+    /// When a missed device goes offline: shared with the iPhone.
     private let gracePolicy: DeviceGracePolicy
     /// When a scan happens; read once per scan. UI tests step it to pass the grace interval.
     private let clock: @MainActor () -> Date
@@ -130,7 +136,8 @@ final class DeviceDiscoveryCoordinator {
         gracePolicy: DeviceGracePolicy = DeviceGracePolicy(),
         clock: @escaping @MainActor () -> Date = Date.init,
         presenceClock: @escaping @MainActor () -> Date = Date.init,
-        reconcilerFetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows
+        reconcilerFetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows,
+        dispatcher: any DeviceEventDispatcherProtocol
     ) {
         self.modelContext = modelContext
         self.bonjourScanner = bonjourScanner
@@ -147,9 +154,13 @@ final class DeviceDiscoveryCoordinator {
         self.clock = clock
         self.presenceClock = presenceClock
         self.reconcilerFetch = reconcilerFetch
-        self.changeTracker = DeviceChangeTracker(policy: gracePolicy)
+        self.dispatcher = dispatcher
         self.networkProfile = networkProfileManager.activeProfile
         loadPersistedDevices(for: effectiveProfileID())
+        // The one subscription (#603): every batch goes to this coordinator's handlers.
+        dispatcherSubscription = dispatcher.subscribe(owner: self) { [weak self] batch in
+            self?.received(batch)
+        }
     }
 
     var selectedInterface: String? {
@@ -166,14 +177,9 @@ final class DeviceDiscoveryCoordinator {
         didMergeAtEnrichmentTransition = false
 
         let profileID = effectiveProfileID()
-        // The scan's one time: the sparse merge, the reconcile and the change tracker share it.
+        // The scan's one time: the sparse merge and the reconcile share it.
         let scanTime = readClock()
         loadPersistedDevices(for: profileID)
-        // Rows from before #393, used only when this network has no tracker state yet, so an
-        // update doesn't report every existing device as new. Every row counts as confirmed:
-        // a row's status describes the latest scan, not whether the device ever answered.
-        // Captured now, before the merge rewrites the rows.
-        let trackerSeed = Self.trackerSeed(from: discoveredDevices)
 
         let context = makeScanContext()
         let bonjourScannerRef = bonjourScanner
@@ -225,18 +231,9 @@ final class DeviceDiscoveryCoordinator {
                 try Task.checkCancellation()
 
                 let allDiscovered = Self.mapDiscoveredDevices(engineDevices)
-                // The first scan this network's `ScanHistory` records: misses the tracker counted
-                // before it (an app update) start over, so "went offline" waits for the rows' grace.
-                let isFirstRecordedScan = scanHistory.previousReconciled(beforeScan: .distantFuture, for: profileID) == nil
-                // Rows and the Timeline move together: a scan the reconciler skipped (nothing
-                // answered) or couldn't save is no evidence of anything, and writes no event.
+                // Rows and the Timeline move together: the reconcile that applies the scan delivers
+                // its events (#603); a scan it skipped (nothing answered) or couldn't save writes none.
                 let applied = reconcileScan(engineDevices, profileID: profileID, now: scanTime)
-                if applied {
-                    if isFirstRecordedScan {
-                        changeTracker.forgetMisses(for: Self.trackerScope(profileID))
-                    }
-                    reportDeviceChanges(allDiscovered, profileID: profileID, seed: trackerSeed, now: scanTime)
-                }
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
                 lastScanTime = Date()
@@ -446,9 +443,12 @@ final class DeviceDiscoveryCoordinator {
         saveContext("devices before reconciling")
         let reconciler = ScanReconciler(
             context: ModelContext(modelContext.container), history: scanHistory, policy: gracePolicy, holdsUnassignedForDetail: false,
-            fetch: reconcilerFetch
+            fetch: reconcilerFetch, dispatcher: dispatcher
         )
         let outcome: ScanReconciler.Outcome
+        heldBatches = []
+        // Handed over once the rows are reloaded below; a failed or skipped reconcile delivers none.
+        defer { deliverHeldBatches() }
         do {
             outcome = try reconciler.reconcile(scan, networkProfileID: profileID, scanDate: now, now: now)
         } catch {
@@ -456,7 +456,7 @@ final class DeviceDiscoveryCoordinator {
             return false
         }
         loadPersistedDevices(for: profileID)
-        guard case .applied(let answered, let latencies) = outcome else { return false }
+        guard case .applied(let answered, let latencies, _) = outcome else { return false }
         presenceRevision += 1
         let inference = DeviceTypeInferenceService()
         for row in discoveredDevices {
@@ -704,32 +704,21 @@ final class DeviceDiscoveryCoordinator {
         candidates.first { networkProvider($0) != nil }
     }
 
-    private static func trackerSeed(from rows: [LocalDevice]) -> [KnownDevice] {
-        rows.map {
-            KnownDevice(
-                macAddress: $0.macAddress, ipAddress: $0.ipAddress, name: $0.matchName,
-                firstSeen: $0.firstSeen, lastSeen: $0.lastSeen, isConfirmed: true
-            )
+    /// A batch from the dispatcher: held while a reconcile runs, else handed over at once.
+    private func received(_ batch: DeviceEventBatch) {
+        if heldBatches != nil {
+            heldBatches?.append(batch)
+        } else {
+            notifyDeviceChanges(batch.events.map(\.change), profileID: batch.networkProfileID)
         }
     }
 
-    /// Compares a completed scan with the devices seen before and reports changes (#393).
-    private func reportDeviceChanges(_ discovered: [LocalDiscoveredDevice], profileID: UUID?, seed: [KnownDevice], now: Date) {
-        let changes = changeTracker.record(
-            scope: Self.trackerScope(profileID),
-            observed: discovered.map {
-                DeviceObservation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName, isCached: $0.isCached)
-            },
-            now: now,
-            knownScopes: Set(networkProfileManager.profiles.map(\.id.uuidString)),
-            seed: { seed }
-        )
-        notifyDeviceChanges(changes, profileID: profileID)
-    }
-
-    /// The change tracker's key for a network.
-    private static func trackerScope(_ profileID: UUID?) -> String {
-        profileID?.uuidString ?? "default"
+    private func deliverHeldBatches() {
+        let batches = heldBatches ?? []
+        heldBatches = nil
+        for batch in batches {
+            notifyDeviceChanges(batch.events.map(\.change), profileID: batch.networkProfileID)
+        }
     }
 
     /// Subscribes `handler` to every later scan's device changes.

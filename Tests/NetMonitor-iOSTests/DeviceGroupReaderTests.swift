@@ -173,7 +173,7 @@ struct DeviceGroupReaderTests {
 
         let saved = BackgroundTaskService.reconcileAndPublish(
             scanned, scanDate: scan, network: home, in: group.container, history: history, summaries: model,
-            defaults: defaults, reloadWidget: false, now: scan
+            defaults: defaults, reloadWidget: false, dispatcher: DeviceEventDispatcher(), now: scan
         )
 
         #expect(saved)
@@ -440,9 +440,6 @@ struct DeviceGroupReaderTests {
 extension DeviceGroupReaderTests {
     @Test func eventsAboutEitherInterfaceAreNamedByTheDevice() throws {
         let group = try seedGroup()
-        let saved = SavedDevices(network: group.rows, unassigned: [])
-        #expect(saved.name(of: group.member) == "Studio Mac")
-        #expect(saved.name(of: group.primary) == "Studio Mac")
         #expect(GroupedDeviceNames.byAddress(group.rows) == ["192.168.1.13": "Studio Mac", "192.168.1.60": "Studio Mac"])
         // A device of one row keeps the scan's name.
         let single = LocalDevice(ipAddress: "192.168.1.5", macAddress: "", customName: "Lamp", networkProfileID: home)

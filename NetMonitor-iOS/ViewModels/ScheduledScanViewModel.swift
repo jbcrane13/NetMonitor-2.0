@@ -74,17 +74,22 @@ final class ScheduledScanViewModel {
     /// The network a scan started here is about (#582).
     private let currentNetwork: @MainActor () -> NetworkProfile?
     private let discovery: any DeviceDiscoveryServiceProtocol
+    private let dispatcher: any DeviceEventDispatcherProtocol
+    private var subscription: UUID?
 
     // MARK: - Init
 
     init(
         scheduler: any ScanSchedulerServiceProtocol = ScanSchedulerService.shared,
         discovery: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
-        currentNetwork: @escaping @MainActor () -> NetworkProfile? = { CurrentNetwork.detected() }
+        currentNetwork: @escaping @MainActor () -> NetworkProfile? = { CurrentNetwork.detected() },
+        dispatcher: any DeviceEventDispatcherProtocol,
+        latestScan: (@MainActor () -> Date?)? = nil
     ) {
         self.scheduler = scheduler
         self.discovery = discovery
         self.currentNetwork = currentNetwork
+        self.dispatcher = dispatcher
 
         let intervalRaw = UserDefaults.standard.integer(forKey: Keys.interval)
         selectedInterval = ScanInterval(rawValue: intervalRaw) ?? .oneHour
@@ -93,7 +98,20 @@ final class ScheduledScanViewModel {
         notifyOnMissingDevices = (UserDefaults.standard.object(forKey: Keys.notifyMissing) as? Bool) ?? true
         triggerOnWiFiChange   = (UserDefaults.standard.object(forKey: Keys.triggerOnWiFiChange) as? Bool) ?? false
 
-        lastDiff = scheduler.getLastScanDiff()
+        // The scheduler keeps the last diff with changes (a change-free scan delivers no events), so
+        // a later reconciled scan of this network is the latest one, with no changes (#619).
+        let latest = latestScan?() ?? ScanHistory().lastScanTime(for: currentNetwork()?.id)
+        let cached = scheduler.getLastScanDiff()
+        if let latest, latest > (cached?.scannedAt ?? .distantPast) {
+            lastDiff = ScanDiff(newDevices: [], removedDevices: [], changedDevices: [], scannedAt: latest)
+        } else {
+            lastDiff = cached
+        }
+        // Each applied scan's device events, foreground or background (#603), as the scheduler's
+        // diff is built: the reconcile, not this view model, decides what changed.
+        subscription = dispatcher.subscribe(owner: self) { [weak self] batch in
+            self?.record(ScanDiff(batch))
+        }
     }
 
     // MARK: - Actions
@@ -106,12 +124,10 @@ final class ScheduledScanViewModel {
 
         // The current network, so the devices are saved and listed under its ID (#582).
         await discovery.scanNetwork(profile: currentNetwork())
-        let devices = discovery.discoveredDevices
-        let diff = scheduler.computeDiff(current: devices)
-        lastDiff = diff
-
-        if diff.hasChanges {
-            scanHistory.insert(diff, at: 0)
+        // The scan's diff arrives when its reconcile applies it, before or after this; a scan
+        // with no device events delivers nothing, so until then it shows as no changes.
+        if let scanDate = discovery.lastScanDate, lastDiff?.scannedAt != scanDate {
+            lastDiff = ScanDiff(newDevices: [], removedDevices: [], changedDevices: [], scannedAt: scanDate)
         }
 
         if isEnabled {
@@ -128,6 +144,24 @@ final class ScheduledScanViewModel {
 
     func clearHistory() {
         scanHistory.removeAll()
+    }
+
+    /// One applied scan's diff; a scan of several networks delivers one per network, kept as one.
+    private func record(_ diff: ScanDiff) {
+        var diff = diff
+        if let last = lastDiff, last.scannedAt == diff.scannedAt {
+            diff = ScanDiff(
+                newDevices: last.newDevices + diff.newDevices, removedDevices: last.removedDevices + diff.removedDevices,
+                changedDevices: last.changedDevices + diff.changedDevices, scannedAt: diff.scannedAt
+            )
+        }
+        lastDiff = diff
+        guard diff.hasChanges else { return }
+        if let index = scanHistory.firstIndex(where: { $0.scannedAt == diff.scannedAt }) {
+            scanHistory[index] = diff
+        } else {
+            scanHistory.insert(diff, at: 0)
+        }
     }
 
     // MARK: - Computed

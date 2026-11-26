@@ -15,7 +15,6 @@ private func makeContext() throws -> (ModelContainer, ModelContext) {
 }
 
 private let networkA = UUID()
-private let networkB = UUID()
 
 private func scanned(_ ip: String, mac: String?, hostname: String? = nil, network: UUID? = networkA) -> DiscoveredDevice {
     DiscoveredDevice(
@@ -24,115 +23,7 @@ private func scanned(_ ip: String, mac: String?, hostname: String? = nil, networ
     )
 }
 
-// MARK: - SavedDeviceLookup
-
-@Suite("SavedDeviceLookup")
-@MainActor
-struct SavedDeviceLookupTests {
-    @Test func findsTheRowOnTheDevicesNetworkByMAC() throws {
-        let (container, context) = try makeContext()
-        defer { withExtendedLifetime(container) {} }
-        let row = LocalDevice(ipAddress: "192.0.2.99", macAddress: "00:1B:A9:00:00:20", customName: "Office Printer", networkProfileID: networkA)
-        context.insert(row)
-        // The same MAC on another network is a different saved device.
-        context.insert(LocalDevice(ipAddress: "192.0.2.20", macAddress: "00:1B:A9:00:00:20", customName: "Elsewhere", networkProfileID: networkB))
-        try context.save()
-
-        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(for: scanned("192.0.2.20", mac: "00:1b:a9:00:00:20"))
-
-        #expect(found?.id == row.id)
-        #expect(found?.displayName == "Office Printer")
-    }
-
-    @Test func fallsBackToTheIPWithoutAMAC() throws {
-        let (container, context) = try makeContext()
-        defer { withExtendedLifetime(container) {} }
-        let row = LocalDevice(ipAddress: "192.0.2.30", macAddress: "", customName: "NAS", networkProfileID: networkA)
-        context.insert(row)
-        try context.save()
-
-        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(for: scanned("192.0.2.30", mac: nil))
-
-        #expect(found?.id == row.id)
-    }
-
-    @Test func matchesTheUITestFixturesPrivateMAC() throws {
-        let (container, context) = try makeContext()
-        defer { withExtendedLifetime(container) {} }
-        let row = LocalDevice(
-            ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:00", customName: "UITest Office Printer", networkProfileID: networkA
-        )
-        context.insert(row)
-        try context.save()
-
-        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(
-            for: scanned("192.168.1.10", mac: "AA:BB:CC:DD:EE:00", hostname: "uitest-device-0")
-        )
-
-        #expect(found?.id == row.id)
-    }
-
-    @Test func ignoresOtherNetworksAndNeverInsertsOrChangesRows() throws {
-        let (container, context) = try makeContext()
-        defer { withExtendedLifetime(container) {} }
-        let other = LocalDevice(ipAddress: "192.0.2.40", macAddress: "00:1B:A9:00:00:40", customName: "Other", networkProfileID: networkB)
-        context.insert(other)
-        try context.save()
-
-        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(for: scanned("192.0.2.41", mac: "00:1B:A9:00:00:40"))
-
-        #expect(found == nil)
-        let rows = try context.fetch(FetchDescriptor<LocalDevice>())
-        #expect(rows.count == 1)
-        #expect(rows.first?.ipAddress == "192.0.2.40")
-    }
-
-    /// A row saved with no network matches only by an identical MAC: an IP means nothing across networks.
-    @Test func aRowWithNoNetworkNeverMatchesByIPAlone() throws {
-        let (container, context) = try makeContext()
-        defer { withExtendedLifetime(container) {} }
-        context.insert(LocalDevice(ipAddress: "192.0.2.60", macAddress: "00:1B:A9:00:00:60", customName: "Other MAC"))
-        context.insert(LocalDevice(ipAddress: "192.0.2.61", macAddress: "", customName: "No MAC"))
-        try context.save()
-        let saved = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA)
-
-        #expect(saved.row(for: scanned("192.0.2.60", mac: "00:1B:A9:00:00:99")) == nil)
-        #expect(saved.row(for: scanned("192.0.2.61", mac: nil)) == nil)
-        #expect(saved.row(for: scanned("192.0.2.61", mac: "00:1B:A9:00:00:61")) == nil)
-    }
-
-    /// A saved laptop moved to a new IP and a newcomer without a MAC took its old one: the laptop
-    /// keeps its row, and the newcomer doesn't inherit it.
-    @Test func aDeviceThatMovedKeepsItsRowAndANewcomerAtItsOldIPDoesNot() throws {
-        let (container, context) = try makeContext()
-        defer { withExtendedLifetime(container) {} }
-        let laptop = LocalDevice(ipAddress: "192.0.2.5", macAddress: "00:1B:A9:00:00:05", customName: "Laptop", networkProfileID: networkA)
-        context.insert(laptop)
-        try context.save()
-        let newcomer = scanned("192.0.2.5", mac: nil)
-        let moved = scanned("192.0.2.6", mac: "00:1B:A9:00:00:05")
-
-        let rows = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).rows(for: [newcomer, moved])
-
-        #expect(rows["192.0.2.6"]?.id == laptop.id)
-        #expect(rows["192.0.2.5"] == nil)
-    }
-
-    /// Rows saved before devices carried a network have none; device detail falls back to them too.
-    @Test func fallsBackToRowsWithNoNetwork() throws {
-        let (container, context) = try makeContext()
-        defer { withExtendedLifetime(container) {} }
-        let legacy = LocalDevice(ipAddress: "192.0.2.50", macAddress: "00:1B:A9:00:00:50", customName: "Old Name")
-        context.insert(legacy)
-        try context.save()
-
-        let found = SavedDeviceLookup(context: context).snapshot(networkProfileID: networkA).row(for: scanned("192.0.2.50", mac: "00:1B:A9:00:00:50"))
-
-        #expect(found?.id == legacy.id)
-    }
-}
-
-// MARK: - EventListenerService with the fake discovery service
+// MARK: - EventListenerService
 
 @Suite("EventListenerService network and device IDs", .serialized)
 @MainActor
@@ -141,16 +32,14 @@ struct EventListenerNetworkIDTests {
         var devices: [DiscoveredDevice] = []
     }
 
-    @Test func aFakeScanLogsJoinedAndScanCompleteWithTheNetworkID() async throws {
-        let (container, context) = try makeContext()
-        defer { withExtendedLifetime(container) {} }
+    /// A scan alone logs Scan Complete; device entries come only from the reconciled scan's
+    /// device events (#603, `DeviceEventConsumerTests`).
+    @Test func aFakeScanLogsScanCompleteWithTheNetworkIDAndNoDeviceEntries() async throws {
         let events = SpyNetworkEventService()
         let fake = UITestFakeDiscoveryService()
         let listener = EventListenerService(
-            eventService: events,
-            discoveryService: fake,
-            currentNetworkProfileID: { UITestBootstrap.networkProfileID },
-            savedDevices: SavedDeviceLookup(context: context)
+            eventService: events, discoveryService: fake, currentNetworkProfileID: { UITestBootstrap.networkProfileID },
+            dispatcher: DeviceEventDispatcher()
         )
         listener.start()
         defer { listener.stop() }
@@ -159,87 +48,54 @@ struct EventListenerNetworkIDTests {
 
         await waitUntil({ events.events(ofType: .scanComplete).count == 1 }, timeout: .seconds(5))
         #expect(events.events(ofType: .scanComplete).count == 1)
-        #expect(events.events(ofType: .deviceJoined).count == fake.discoveredDevices.count)
+        #expect(events.events(ofType: .deviceJoined).isEmpty)
         #expect(events.events(ofType: .scanComplete).first?.title == "Scan Complete — 5 devices found")
         #expect(events.loggedEvents.allSatisfy { $0.networkProfileID == UITestBootstrap.networkProfileID })
     }
 
-    @Test func aRenamedDevicesCustomNameAndIDAppearInItsJoinedAndLeftEvents() async throws {
+    @Test func aRenamedDevicesCustomNameAndRowIDAppearInItsEntries() throws {
         let (container, context) = try makeContext()
-        defer { withExtendedLifetime(container) {} }
+        let suite = "EventListenerNetworkIDTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let dispatcher = DeviceEventDispatcher()
+        let events = SpyNetworkEventService()
+        let listener = EventListenerService(eventService: events, discoveryService: MockDeviceDiscoveryService(), dispatcher: dispatcher)
+        listener.start()
+        defer { listener.stop() }
         let row = LocalDevice(ipAddress: "192.0.2.20", macAddress: "00:1B:A9:00:00:20", hostname: "printer.local", networkProfileID: networkA)
         row.customName = "Office Printer"
+        row.status = .offline
         context.insert(row)
         try context.save()
-        let box = DeviceBox()
-        box.devices = [
-            scanned("192.0.2.20", mac: "00:1B:A9:00:00:20", hostname: "printer.local"),
-            scanned("192.0.2.21", mac: "00:1B:A9:00:00:21", hostname: "nas.local")
-        ]
-        let fake = UITestFakeDiscoveryService(devices: { box.devices }, hold: .milliseconds(20))
-        let events = SpyNetworkEventService()
-        let listener = EventListenerService(
-            eventService: events,
-            discoveryService: fake,
-            currentNetworkProfileID: { networkB },
-            savedDevices: SavedDeviceLookup(context: context)
+        let reconciler = ScanReconciler(context: ModelContext(container), history: ScanHistory(defaults: defaults), dispatcher: dispatcher)
+        let scanTime = Date()
+        try reconciler.reconcile(
+            [scanned("192.0.2.1", mac: "00:1B:A9:00:00:01", hostname: "router")], networkProfileID: networkA, scanDate: scanTime, now: scanTime
         )
-        listener.start()
-        defer { listener.stop() }
+        let later = scanTime.addingTimeInterval(600)
+        try reconciler.reconcile(
+            [
+                scanned("192.0.2.1", mac: "00:1B:A9:00:00:01", hostname: "router"),
+                scanned("192.0.2.20", mac: "00:1B:A9:00:00:20", hostname: "printer.local")
+            ],
+            networkProfileID: networkA, scanDate: later, now: later
+        )
 
-        await fake.scanNetwork(profile: nil)
-        await waitUntil({ events.events(ofType: .scanComplete).count == 1 }, timeout: .seconds(5))
-        #expect(events.events(ofType: .scanComplete).count == 1)
-        box.devices.removeFirst()
-        await fake.scanNetwork(profile: nil)
-        await waitUntil({ events.events(ofType: .scanComplete).count == 2 }, timeout: .seconds(5))
-        #expect(events.events(ofType: .scanComplete).count == 2)
-
-        let joined = try #require(events.events(ofType: .deviceJoined).first { $0.deviceID == row.id })
-        #expect(joined.title == "Device Joined: Office Printer")
-        #expect(joined.details == "192.0.2.20")
-        #expect(joined.networkProfileID == networkA, "A device's own network wins over the current one")
-        let unmatched = try #require(events.events(ofType: .deviceJoined).first { $0.deviceID == nil })
-        #expect(unmatched.title == "Device Joined: nas.local")
-        let left = try #require(events.events(ofType: .deviceLeft).first)
-        #expect(left.title == "Device Left: Office Printer")
-        #expect(left.deviceID == row.id)
-        #expect(left.networkProfileID == networkA)
-    }
-
-    /// Each network is compared only with its own previous scan, so switching networks logs no
-    /// false departures.
-    @Test func aScanOfAnotherNetworkLogsNoDeparturesFromTheFirst() async throws {
-        let box = DeviceBox()
-        let fake = UITestFakeDiscoveryService(devices: { box.devices }, hold: .milliseconds(20))
-        let events = SpyNetworkEventService()
-        let listener = EventListenerService(eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA })
-        listener.start()
-        defer { listener.stop() }
-
-        box.devices = [scanned("192.0.2.1", mac: "00:1B:A9:00:00:01"), scanned("192.0.2.2", mac: "00:1B:A9:00:00:02")]
-        await fake.scanNetwork(profile: nil)
-        await waitUntil({ events.events(ofType: .scanComplete).count == 1 }, timeout: .seconds(5))
-        box.devices = [scanned("192.0.2.1", mac: "00:1B:A9:00:00:99", network: networkB)]
-        await fake.scanNetwork(profile: nil)
-        await waitUntil({ events.events(ofType: .scanComplete).count == 2 }, timeout: .seconds(5))
-        #expect(events.events(ofType: .deviceLeft).isEmpty)
-        let joinedOnB = events.events(ofType: .deviceJoined).filter { $0.networkProfileID == networkB }
-        #expect(joinedOnB.count == 1, "The same IP on another network is a new device there")
-
-        box.devices = [scanned("192.0.2.1", mac: "00:1B:A9:00:00:01")]
-        await fake.scanNetwork(profile: nil)
-        await waitUntil({ events.events(ofType: .scanComplete).count == 3 }, timeout: .seconds(5))
-        let left = events.events(ofType: .deviceLeft)
-        #expect(left.map(\.title) == ["Device Left: 192.0.2.2"])
-        #expect(left.first?.networkProfileID == networkA)
+        let back = try #require(events.events(ofType: .deviceJoined).first)
+        #expect(back.title == "Device Back Online: Office Printer")
+        #expect(back.details == "192.0.2.20")
+        #expect(back.deviceID == row.id)
+        #expect(back.networkProfileID == networkA)
     }
 
     @Test func anEmptyScanLogsNoDepartures() async throws {
         let box = DeviceBox()
         let fake = UITestFakeDiscoveryService(devices: { box.devices }, hold: .milliseconds(20))
         let events = SpyNetworkEventService()
-        let listener = EventListenerService(eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA })
+        let listener = EventListenerService(
+            eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA }, dispatcher: DeviceEventDispatcher()
+        )
         listener.start()
         defer { listener.stop() }
 
@@ -262,7 +118,9 @@ struct EventListenerNetworkIDTests {
         let scan = Task { await fake.scanNetwork(profile: nil) }
         await waitUntil({ fake.isScanning }, timeout: .seconds(5))
         #expect(fake.isScanning)
-        let listener = EventListenerService(eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA })
+        let listener = EventListenerService(
+            eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA }, dispatcher: DeviceEventDispatcher()
+        )
         listener.start()
         defer { listener.stop() }
 

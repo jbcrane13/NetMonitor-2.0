@@ -32,10 +32,16 @@ final class DeviceDetailViewModel {
     private let suggester: DeviceSuggester
     private let wakeService: any WakeOnLANServiceProtocol
     /// Stores that name rows by ID; removing an interface re-points them to the device (#594).
-    private let references: [any DeviceReferenceStore]
+    let references: [any DeviceReferenceStore]
     /// The reconciled scans, for "seen by the previous scan" in the row match (#596).
     private let scanHistory: ScanHistory
-    private var modelContext: ModelContext?
+    /// "Now" for the 30-day window of grouping suggestions (#594 PR2).
+    let clock: @MainActor () -> Date
+    /// Where grouping actions report a device coming back online (#619); nil reports nothing.
+    let dispatcher: (any DeviceEventDispatcherProtocol)?
+    /// Suggestions, the override confirmation and the undo toast (#594 PR2).
+    let grouping = DeviceGroupingState()
+    private(set) var modelContext: ModelContext?
     /// The running suggestion. Cancelled on reload and when the view model goes away, so it
     /// never writes to a row that has been replaced or deleted.
     nonisolated(unsafe) private(set) var suggestionTask: Task<Void, Never>?
@@ -63,8 +69,11 @@ final class DeviceDetailViewModel {
         suggester: DeviceSuggester = DeviceSuggester(service: UITestFakeDeviceFeed.insightService, store: DeviceSuggestionStore()),
         wakeService: any WakeOnLANServiceProtocol = WakeOnLANService(),
         references: [any DeviceReferenceStore] = [NetworkEventService.shared],
-        scanHistory: ScanHistory = ScanHistory()
+        scanHistory: ScanHistory = ScanHistory(),
+        clock: @escaping @MainActor () -> Date = Date.init,
+        dispatcher: (any DeviceEventDispatcherProtocol)? = nil
     ) {
+        self.dispatcher = dispatcher
         self.macLookupService = macLookupService
         self.nameResolver = nameResolver
         self.portScanner = portScanner
@@ -74,6 +83,7 @@ final class DeviceDetailViewModel {
         self.wakeService = wakeService
         self.references = references
         self.scanHistory = scanHistory
+        self.clock = clock
     }
 
     deinit {
@@ -151,7 +161,7 @@ final class DeviceDetailViewModel {
     /// Asks the on-device model about the loaded row without blocking the load. Called again
     /// when enrichment, a port scan or service discovery changes the evidence; a pass already
     /// started on the same evidence keeps running.
-    private func startSuggestion() {
+    func startSuggestion() {
         refreshSuggestionState()
         guard let device else {
             return
@@ -200,7 +210,7 @@ final class DeviceDetailViewModel {
         suggestedType = suggester.suggestedType(for: device)
     }
 
-    private func saveContext() {
+    func saveContext() {
         try? modelContext?.save()
     }
 
@@ -537,7 +547,7 @@ extension DeviceDetailViewModel {
         let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress, name: scanned?.matchName)
         // The scan as the reconciler sees it: one observation per real MAC, at the address it
         // answered from, so a cached old address opens the same row and doesn't move it back.
-        let canonical = PresenceMatch.onePerMAC(scan)
+        let canonical = PresenceMatch.onePerMAC(scan, known: rows.filter { $0.networkProfileID == networkID })
         var observed = canonical.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
         var address = ipAddress
         let position: Int
@@ -595,11 +605,13 @@ extension DeviceDetailViewModel {
         guard let row else {
             device = nil
             projection = nil
+            refreshGroupSuggestions()
             return
         }
         let shown = modelContext.flatMap { try? DeviceGroups.device(of: row, in: $0) } ?? DeviceGroups.project([row]).first
         projection = shown
         device = shown?.primary ?? row
+        refreshGroupSuggestions()
     }
 
     /// "Remove this interface": deletes the member's row through `DeviceGroupWriter`, which works in
@@ -610,12 +622,7 @@ extension DeviceDetailViewModel {
         guard let modelContext, let projection, projection.isGroup,
               let survivor = projection.members.first(where: { $0.id != member.id })?.id
         else { return }
-        suggestionTask?.cancel()
-        saveContext()
-        if openedMember === member {
-            openedMember = nil
-            nameLookup = .confirmedByScan
-        }
+        prepareForLeaving(member)
         do {
             try DeviceGroupWriter(context: modelContext, references: references).removeInterface(member.id)
         } catch {
@@ -624,6 +631,19 @@ extension DeviceDetailViewModel {
         }
         showDevice(of: Self.row(named: survivor, in: modelContext))
         startSuggestion()
+    }
+
+    /// Before `member` leaves the device shown (removed, or separated as "Not the same device"):
+    /// stops the running suggestion and saves edits waiting here, so the writer sees them. When
+    /// detail was opened on that member, its address now belongs to another device, so probes go
+    /// only where the latest scan confirms a member from now on.
+    func prepareForLeaving(_ member: LocalDevice) {
+        suggestionTask?.cancel()
+        saveContext()
+        if openedMember === member {
+            openedMember = nil
+            nameLookup = .confirmedByScan
+        }
     }
 
     /// Wake on LAN to every member's real MAC (#594): any interface may be the one that wakes it.

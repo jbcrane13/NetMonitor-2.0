@@ -113,7 +113,8 @@ final class DeviceRecordUpdater {
     /// Reconciles `devices` into the rows of the network each was scanned on; a device that carries
     /// no network is `network`'s: the live network, read when the scan completed (the foreground
     /// updater) or when it started (the background task). With neither, nothing is reconciled:
-    /// devices are never filed under a network the phone may have left.
+    /// devices are never filed under a network the phone may have left. Each reconcile that applies
+    /// delivers its device events to the reconciler's dispatcher (#603).
     /// False when saving failed (logged).
     @discardableResult
     static func reconcile(_ devices: [DiscoveredDevice], scanDate: Date, network: UUID?, with reconciler: ScanReconciler, now: Date) -> Bool {

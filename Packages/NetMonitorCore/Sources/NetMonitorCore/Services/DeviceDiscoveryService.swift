@@ -375,28 +375,53 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     /// The paired Mac's devices as this scan's sightings, and whether they are fresh: only while the
     /// Mac is connected and its list arrived within `companionListFreshness`. A stale list (the Mac
-    /// disconnected, or its list is old) is left out of the scan (`mergeCompanion`) (#598).
+    /// disconnected, or its list is old) is left out of the scan (`mergeCompanion`) (#598). A device
+    /// with `members` (a Mac with #594 PR2) gives one sighting per interface that answered the Mac's
+    /// latest scan, when that scan is newer than `ownLastScan` (this phone's own last scan of the
+    /// network); a newly received list is not proof of a new scan. The Mac's scan is placed on this
+    /// phone's clock as `receivedAt - scanAge`, never by comparing the two devices' clocks (#619).
     nonisolated public static func companionSightings(
         list: DeviceListPayload?,
         receivedAt: Date?,
         macConnected: Bool,
         now: Date,
         includes: (String) -> Bool,
-        profileID: UUID?
+        profileID: UUID?,
+        ownLastScan: Date? = nil
     ) -> (devices: [DiscoveredDevice], fresh: Bool) {
         guard let list else { return ([], false) }
         let fresh = macConnected && receivedAt.map { now.timeIntervalSince($0) < companionListFreshness } == true
-        let devices = list.devices.filter { $0.isOnline && includes($0.ipAddress) }.map { macDevice in
+        func sighting(ipAddress: String, macAddress: String?, of device: DeviceInfo, named: Bool = true) -> DiscoveredDevice {
             DiscoveredDevice(
-                ipAddress: macDevice.ipAddress,
-                hostname: macDevice.hostname,
-                vendor: macDevice.vendor,
-                macAddress: macDevice.macAddress.isEmpty ? nil : macDevice.macAddress,
+                ipAddress: ipAddress,
+                hostname: named ? device.hostname : nil,
+                vendor: device.vendor,
+                macAddress: (macAddress ?? "").isEmpty ? nil : macAddress,
                 latency: nil,
                 discoveredAt: receivedAt ?? now,
                 source: .macCompanion,
                 networkProfileID: profileID
             )
+        }
+        let devices = list.devices.flatMap { device -> [DiscoveredDevice] in
+            // A Mac before #594 PR2: the device's one address, when it answered the Mac's latest scan.
+            guard let members = device.members else {
+                return device.isOnline && includes(device.ipAddress)
+                    ? [sighting(ipAddress: device.ipAddress, macAddress: device.macAddress, of: device)] : []
+            }
+            // Each interface that answered a Mac scan newer than the phone's own (#594 PR2), with
+            // the Mac's scan placed on this phone's clock by its age when sent (#619).
+            return members.filter { member in
+                // A negative age (a bad clock read on the Mac) counts as a scan at sending.
+                let scannedHere = member.scanAge.map { (receivedAt ?? now).addingTimeInterval(-max($0, 0)) }
+                return member.answeredLatestScan && includes(member.ipAddress)
+                    && (ownLastScan.map { own in scannedHere.map { $0 > own } ?? false } ?? true)
+            }.map { member in
+                // The device's name is its primary's: another interface's sighting carries none, so
+                // one without a MAC still matches the phone's own row at its address (#619).
+                let isPrimary = member.isPrimary ?? (members.count == 1)
+                return sighting(ipAddress: member.ipAddress, macAddress: member.macAddress, of: device, named: isPrimary)
+            }
         }
         return (devices, fresh)
     }
@@ -407,7 +432,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         await Self.mergeCompanion(
             Self.companionSightings(
                 list: macConnectionService?.lastDeviceList, receivedAt: macConnectionService?.lastDeviceListReceivedAt,
-                macConnected: macConnected, now: Date(), includes: { filter.contains(ipAddress: $0) }, profileID: profileID
+                macConnected: macConnected, now: Date(), includes: { filter.contains(ipAddress: $0) }, profileID: profileID,
+                ownLastScan: ScanHistory().lastScanTime(for: profileID)
             ),
             into: engine.accumulator
         )

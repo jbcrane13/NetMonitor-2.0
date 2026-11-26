@@ -113,6 +113,8 @@ enum UITestBootstrap {
             }
             let backgroundTask = UIApplication.shared.beginBackgroundTask()
             let service = BackgroundTaskService(registerTask: { _, _, _ in false }, insightService: insight, isScanning: { false })
+            // The demo is a scheduled scan's alert, which needs scheduled scanning on (#619).
+            UserDefaults.standard.set(true, forKey: "scheduledScan_enabled")
             await service.notifyScanChanges(ScanDiff(newDevices: [], removedDevices: [demoDevice], changedDevices: []))
             UIApplication.shared.endBackgroundTask(backgroundTask)
         }
@@ -161,9 +163,9 @@ enum UITestBootstrap {
         let now = Date()
         // Seconds before now, so they fall under "Today" whatever time the test runs.
         let seeded: [(NetworkEventType, String, String?, TimeInterval)] = [
-            (.deviceJoined, "Device Joined: UITest Camera", "192.168.1.50", 30),
-            (.deviceJoined, "Device Joined: UITest Speaker", "192.168.1.51", 20),
-            (.deviceLeft, "Device Left: 192.168.1.30", nil, 10)
+            (.deviceJoined, DeviceTimelineTitle.title(DeviceTimelineTitle.joined, name: "UITest Camera"), "192.168.1.50", 30),
+            (.deviceJoined, DeviceTimelineTitle.title(DeviceTimelineTitle.joined, name: "UITest Speaker"), "192.168.1.51", 20),
+            (.deviceLeft, DeviceTimelineTitle.title(DeviceTimelineTitle.left, name: "192.168.1.30"), nil, 10)
         ]
         for (type, title, details, secondsAgo) in seeded {
             let severity: NetworkEventSeverity = type == .deviceLeft ? .warning : .success
@@ -251,7 +253,8 @@ extension UITestBootstrap {
     }
 
     /// `--seed-timeline-device`: saves the first fixture device (its IP and MAC) on the UI-test
-    /// network as "UITest Office Printer", so its events are named by the custom name.
+    /// network as "UITest Office Printer", offline, so the next scan logs it back online (#603: a
+    /// saved device never "joins") under the custom name.
     static func seedTimelineDeviceIfNeeded(in context: ModelContext) {
         guard isUITesting, ProcessInfo.processInfo.arguments.contains("--seed-timeline-device"), !hasSeededTimelineDevice else { return }
         hasSeededTimelineDevice = true
@@ -261,6 +264,7 @@ extension UITestBootstrap {
             macAddress: fixture.macAddress ?? "",
             hostname: fixture.hostname,
             customName: timelineDeviceName,
+            status: .offline,
             networkProfileID: networkProfileID
         ))
         do {
@@ -532,6 +536,66 @@ extension UITestBootstrap {
             try DeviceGroupWriter(context: context).group([primary.id, member.id], primary: primary.id, source: .user)
         } catch {
             Logger.data.error("UI-test device group seed failed to save: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+    }
+}
+
+// MARK: - Grouping (#594 PR2)
+
+extension UITestBootstrap {
+    /// The two interfaces `UITEST_FAKE_BONJOUR_GROUP=1` adds to the UI-test scan, both answering for
+    /// one strong Bonjour name. Fixture values only.
+    static let bonjourGroupScan = (host: "uitest-studio.local", wifiIP: "192.168.1.70", wiredIP: "192.168.1.71")
+
+    /// With `UITEST_FAKE_BONJOUR_GROUP=1` (Debug builds): a Mac answering the UI-test scan at two
+    /// addresses, each with its own MAC, both claiming `bonjourGroupScan.host`, so the scan groups
+    /// them into one device. `enabled` is for the unit test that checks the fixture.
+    static func bonjourGroupScanDevices(
+        enabled: Bool = isUITesting && ProcessInfo.processInfo.environment["UITEST_FAKE_BONJOUR_GROUP"] == "1"
+    ) -> [DiscoveredDevice] {
+        #if DEBUG
+        guard enabled else { return [] }
+        let scan = bonjourGroupScan
+        return [(scan.wifiIP, "02:00:00:94:00:70"), (scan.wiredIP, "02:00:00:94:00:71")].map { ip, mac in
+            DiscoveredDevice(
+                ipAddress: ip, hostname: "uitest-studio", vendor: nil, macAddress: mac, latency: 3, discoveredAt: Date(), source: .bonjour,
+                networkProfileID: networkProfileID, bonjourClaims: [HostClaim(host: scan.host, service: "UITest Studio", address: ip)]
+            )
+        }
+        #else
+        return []
+        #endif
+    }
+
+    /// The two saved devices `UITEST_SEED_GROUP_SUGGESTION=1` adds. Fixture values only.
+    static let suggestionPair = (
+        host: "uitest-library.local", wiredIP: "192.168.1.80", wiredName: "uitest-library-wired",
+        wifiIP: "192.168.1.81", wifiName: "uitest-library-wifi"
+    )
+
+    /// With `UITEST_SEED_GROUP_SUGGESTION=1` (Debug builds): two saved devices on the UI-test network,
+    /// not in the UI-test scan, that answered for `suggestionPair.host` an hour ago, so device detail
+    /// suggests they are one device. Never twice.
+    static func seedGroupSuggestionIfNeeded(in context: ModelContext) {
+        #if DEBUG
+        let pair = suggestionPair
+        guard isUITesting, ProcessInfo.processInfo.environment["UITEST_SEED_GROUP_SUGGESTION"] == "1",
+              !((try? context.fetch(FetchDescriptor<LocalDevice>()))?.contains { $0.ipAddress == pair.wiredIP } ?? false)
+        else { return }
+        // Against the wall clock, which the suggestion's 30-day window reads.
+        let seen = Date().addingTimeInterval(-3600)
+        for (ip, name, mac) in [(pair.wiredIP, pair.wiredName, "02:00:00:94:00:80"), (pair.wifiIP, pair.wifiName, "02:00:00:94:00:81")] {
+            let row = LocalDevice(ipAddress: ip, macAddress: mac, hostname: name, deviceType: .storage, networkProfileID: networkProfileID)
+            row.bonjourHost = pair.host
+            row.bonjourHostSeenAt = seen
+            row.lastSeen = seen
+            context.insert(row)
+        }
+        do {
+            try context.save()
+        } catch {
+            Logger.data.error("UI-test group suggestion seed failed to save: \(error.localizedDescription, privacy: .public)")
         }
         #endif
     }

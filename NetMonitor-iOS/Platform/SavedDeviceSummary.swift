@@ -95,7 +95,7 @@ final class SavedDeviceSummaryModel {
 }
 
 /// The names of devices with several interfaces, by every member's address (#594), for screens
-/// that name a scan's devices by address (Port Forwards, scan notifications). A device of one row
+/// that name a scan's devices by address (Port Forwards). A device of one row
 /// keeps the name the scan gives it, as before.
 enum GroupedDeviceNames {
     /// - Parameter rows: saved rows, complete groups.
@@ -105,12 +105,6 @@ enum GroupedDeviceNames {
                 names[member.ipAddress] = device.displayName
             }
         }
-    }
-
-    /// The grouped rows of `network` (every network's when nil), from `context`.
-    static func byAddress(network: UUID?, in context: ModelContext) -> [String: String] {
-        let grouped = (try? context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.deviceGroupID != nil }))) ?? []
-        return byAddress(network.map { id in grouped.filter { $0.networkProfileID == id } } ?? grouped)
     }
 }
 

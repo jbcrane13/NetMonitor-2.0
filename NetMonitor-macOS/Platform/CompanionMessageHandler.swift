@@ -147,9 +147,21 @@ final class CompanionMessageHandler {
         let presence = deviceDiscovery.presence()
         // One entry per device (#594): the device's ID (its group's, or its row's), the primary's
         // name and type, the current interface's address and MAC, online when any interface
-        // answered. Members go in PR2's payload. The phone keys nothing on the ID.
+        // answered. The phone keys nothing on the ID.
+        let sentAt = Date()
         let deviceInfos = deviceDiscovery.projectedDevices.map { device in
             let primary = device.primary
+            let scanTime = presence.lastScan(for: primary.networkProfileID)
+            // Every interface with its own sighting (#594 PR2): whether it answered the latest scan,
+            // and when that scan was (and its age now, on this clock, #619), so the phone counts only
+            // answers newer than its own scan.
+            let members = device.members.map { member in
+                MemberInfo(
+                    id: member.id, ipAddress: member.ipAddress, macAddress: member.macAddress.isEmpty ? nil : member.macAddress,
+                    lastSeen: member.lastSeen, answeredLatestScan: presence.answeredLatestScan(member), scanTime: scanTime,
+                    scanAge: scanTime.map { sentAt.timeIntervalSince($0) }, isPrimary: member.id == primary.id
+                )
+            }
             return DeviceInfo(
                 id: device.id,
                 ipAddress: device.current.ipAddress,
@@ -161,7 +173,10 @@ final class CompanionMessageHandler {
                 // has no maker or source fields yet (#427).
                 vendor: primary.makerExcludingSuggestions,
                 deviceType: primary.deviceType.rawValue,
-                isOnline: presence.answeredLatestScan(device)
+                isOnline: presence.answeredLatestScan(device),
+                members: members,
+                // What the Mac shows: any interface online, within grace.
+                isDeviceOnline: presence.freshness(of: device).isOnline
             )
         }
 

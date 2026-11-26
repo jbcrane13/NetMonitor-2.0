@@ -15,10 +15,12 @@ struct DeviceDetailView: View {
     }
 
     let entry: Entry
-    @State private var viewModel = DeviceDetailViewModel()
+    @State private var viewModel = DeviceDetailViewModel(dispatcher: DeviceEventDispatcher.shared)
     @State private var showsLabelCapture = false
     /// The member "Remove this interface" asked about, while its confirmation is up (#594).
     @State private var removingInterface: LocalDevice?
+    /// Whether "Same device as…"'s picker is up (#594 PR2).
+    @State private var showsSameDeviceAs = false
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
@@ -54,14 +56,16 @@ struct DeviceDetailView: View {
             if let device = viewModel.device, let current = viewModel.current {
                 VStack(spacing: Theme.Layout.sectionSpacing) {
                     headerSection(device)
+                    GroupSuggestionBanner(viewModel: viewModel)
                     networkInfoSection(device, current: current)
                     servicesAndPortsSection(current)
                     if !viewModel.interfaces.isEmpty {
                         DeviceInterfacesSection(
                             interfaces: viewModel.interfaces, primary: device, presence: presence,
-                            onRemove: requestRemoval
+                            groupLabel: viewModel.groupLabel(for:), onSeparate: viewModel.separateInterface, onRemove: requestRemoval
                         )
                     }
+                    SameDeviceAsButton(viewModel: viewModel) { showsSameDeviceAs = true }
                     statusSection(device)
                     quickActionsSection(current)
                     notesSection(device)
@@ -142,6 +146,10 @@ struct DeviceDetailView: View {
                 }
             }
         }
+        // The screen's identifier goes on the content, not the toast inset, which would otherwise
+        // carry it in place of `deviceDetail_toast_undo` (iOS 26+ stamps a container's id).
+        .accessibilityIdentifier("screen_deviceDetail")
+        .modifier(DeviceGroupingPresentation(viewModel: viewModel, showsSameDeviceAs: $showsSameDeviceAs))
         .confirmationDialog(removalTitle, isPresented: isConfirmingRemoval, titleVisibility: .visible, presenting: removingInterface) { member in
             Button("Remove Interface", role: .destructive) {
                 viewModel.removeInterface(member)
@@ -151,7 +159,6 @@ struct DeviceDetailView: View {
         } message: { member in
             Text(viewModel.removalMessage(member))
         }
-        .accessibilityIdentifier("screen_deviceDetail")
     }
 
     private var presence: PresenceSnapshot {

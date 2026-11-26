@@ -90,7 +90,7 @@ final class MacAlertNotifier {
             return nil
         }
         let alerts = seen.map { device in
-            let row = MacRuleAlerts.row(ip: device.ipAddress, mac: device.macAddress, in: devices)
+            let row = MacRuleAlerts.row(deviceID: device.deviceID, ip: device.ipAddress, mac: device.macAddress, in: devices)
             // Named by the device the row is an interface of (#594).
             let identity = row.map { MacRuleAlerts.device(of: $0).primary }
             return NotificationEvent.newDevice(NotificationDevice(

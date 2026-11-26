@@ -33,7 +33,8 @@ struct ScanCommandTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: manager,
             pipelineFactory: { _ in ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldScanPhase()], concurrent: false)]) },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         defer { coordinator.stopScan() }
 

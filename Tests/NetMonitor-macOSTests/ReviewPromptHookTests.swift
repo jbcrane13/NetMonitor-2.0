@@ -64,7 +64,8 @@ struct ReviewPromptHookTests {
             // Empty pipeline: scans complete immediately, no real LAN scan (#309).
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             reviewPrompt: harness.policy,
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
     }
 

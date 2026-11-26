@@ -351,6 +351,111 @@ struct DeviceGroupWriterTests {
         #expect(devices.allSatisfy { !$0.isGroup })
         #expect(wifi.deviceGroupID == nil && wifi.groupPrimaryID == nil)
     }
+
+    // MARK: Session undo (#594 PR2)
+
+    func fields(_ rows: [LocalDevice]) throws -> [String] {
+        try rows.map { row in
+            let now = try fresh(row)
+            return "\(now.deviceGroupID?.uuidString ?? "-")|\(now.groupPrimaryID?.uuidString ?? "-")|\(now.groupSource ?? "-")|"
+                + (now.notSameAsIDs ?? []).map(\.uuidString).sorted().joined(separator: ",")
+        }
+    }
+
+    @Test("Same device as…, then undo, restores every touched row exactly, including an overridden exclusion")
+    func groupThenUndo() throws {
+        let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40"), charlie = try row("10.0.0.41")
+        try writer.group([alpha.id, bravo.id], primary: alpha.id, source: .bonjour)
+        try writer.exclude(alpha.id, charlie.id)
+        let before = try fields([alpha, bravo, charlie])
+        let undo = try writer.groupForUser([charlie.id, alpha.id], primary: nil, overridingExclusions: true)
+        #expect(try fresh(charlie).deviceGroupID == fresh(alpha).deviceGroupID)
+        #expect(try fresh(charlie).groupSource == "user" && fresh(bravo).groupSource == "bonjour")
+        try writer.undo(undo)
+        #expect(try fields([alpha, bravo, charlie]) == before)
+    }
+
+    @Test("Not the same device on the primary, then undo, restores the re-keyed members too")
+    func ungroupPrimaryThenUndo() throws {
+        let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40"), charlie = try row("10.0.0.41")
+        try writer.group([alpha.id, bravo.id, charlie.id], primary: alpha.id, source: .user)
+        let before = try fields([alpha, bravo, charlie])
+        let undo = try writer.ungroupForUser(alpha.id)
+        #expect(try fresh(bravo).groupPrimaryID != alpha.id)
+        try writer.undo(undo)
+        #expect(try fields([alpha, bravo, charlie]) == before)
+    }
+
+    @Test("An undo is refused after a later change to the rows it touched, or a deleted row, and changes nothing")
+    func staleUndoIsRefused() throws {
+        let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40"), charlie = try row("10.0.0.41")
+        let undo = try writer.groupForUser([alpha.id, bravo.id], primary: alpha.id)
+        try writer.removeInterface(bravo.id)
+        let after = try fields([alpha, charlie])
+        #expect(throws: DeviceGroupWriter.Refusal.undoUnavailable) { try writer.undo(undo) }
+        #expect(try fields([alpha, charlie]) == after)
+
+        // Another row joined the group since: undoing would strand it.
+        let second = try writer.groupForUser([alpha.id, charlie.id], primary: alpha.id)
+        let delta = try row("10.0.0.50")
+        try writer.group([delta.id, alpha.id], primary: nil, source: .bonjour)
+        #expect(throws: DeviceGroupWriter.Refusal.undoUnavailable) { try writer.undo(second) }
+        #expect(try fresh(delta).deviceGroupID == fresh(alpha).deviceGroupID)
+    }
+
+}
+
+// MARK: - Identity checks before an automatic join (#619)
+
+extension DeviceGroupWriterTests {
+    @Test("An automatic join is refused when any member of the result names another maker; the user's own isn't")
+    func automaticJoinRevalidatesIdentity() throws {
+        let apple = try row("10.0.0.10"), spare = try row("10.0.0.11"), samsung = try row("10.0.0.40")
+        apple.vendor = "Apple, Inc."
+        samsung.vendor = "Samsung Electronics"
+        try context.save()
+        try writer.group([apple.id, spare.id], primary: apple.id, source: .user)
+        let rows = try context.fetch(FetchDescriptor<LocalDevice>())
+        let named = rows.filter { [spare.id, samsung.id].contains($0.id) }
+        #expect(throws: DeviceGroupWriter.Refusal.conflictingIdentity) {
+            try DeviceGroupWriter.join(named, members: DeviceGroups.withGroupMembers(named, among: rows), primary: nil, source: .bonjour)
+        }
+        #expect(try fresh(samsung).deviceGroupID == nil)
+        _ = try writer.groupForUser([apple.id, samsung.id], primary: apple.id)
+        #expect(try fresh(samsung).deviceGroupID == fresh(apple).deviceGroupID, "the user may group what the scan won't")
+    }
+}
+
+// MARK: - The shown device anchors "Same device as…" (#594 PR2)
+
+extension DeviceGroupWriterTests {
+    @Test("Same device as… from a device of one row onto a group: the shown device keeps its primary, everyone is the user's")
+    func shownDeviceKeepsItsPrimary() throws {
+        let studio = try row("10.0.0.10", notes: "desk"), wired = try row("10.0.0.40", firstSeen: -100), wifi = try row("10.0.0.41")
+        let other = try writer.group([wired.id, wifi.id], primary: wired.id, source: .bonjour)
+        let undo = try writer.groupForUser([studio.id, wired.id], primary: studio.id)
+        for member in try [fresh(studio), fresh(wired), fresh(wifi)] {
+            #expect(member.deviceGroupID != other, "the shown device's group, not the other's")
+            #expect(member.groupPrimaryID == studio.id)
+            #expect(member.groupSource == "user")
+        }
+        #expect(try DeviceGroups.project(all()).map(\.primary.id) == [studio.id])
+        try writer.undo(undo)
+        #expect(try fresh(wifi).deviceGroupID == other && fresh(wifi).groupPrimaryID == wired.id && fresh(wifi).groupSource == "bonjour")
+        #expect(try fresh(studio).deviceGroupID == nil)
+    }
+
+    @Test("Same device as… between two groups: the shown group's ID and primary survive, whatever the fetch order")
+    func shownGroupSurvives() throws {
+        let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.11"), charlie = try row("10.0.0.40"), delta = try row("10.0.0.41")
+        let shown = try writer.group([alpha.id, bravo.id], primary: bravo.id, source: .user)
+        try writer.group([charlie.id, delta.id], primary: charlie.id, source: .bonjour)
+        _ = try writer.groupForUser([bravo.id, charlie.id], primary: bravo.id)
+        for member in try [fresh(alpha), fresh(bravo), fresh(charlie), fresh(delta)] {
+            #expect(member.deviceGroupID == shown && member.groupPrimaryID == bravo.id)
+        }
+        #expect(try fresh(delta).groupSource == "user", "re-keyed members are the user's grouping now")
+    }
 }
 
 private struct Move: Equatable {

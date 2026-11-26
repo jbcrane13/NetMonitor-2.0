@@ -5,7 +5,8 @@ import os
 
 /// Device detail's Interfaces section (#594), shown for a device of two or more interfaces: each
 /// member's address, MAC, last seen and open ports (a port stays on the interface it was measured
-/// on), and Remove this interface. Used by both device detail views.
+/// on), "Not the same device" (#594 PR2), the label "Grouped by Bonjour name" on an interface
+/// that joined automatically, and Remove this interface. Used by both device detail views.
 struct DeviceInterfacesCard: View {
     let device: DeviceProjection
     /// Deletes the member; called after the user confirmed when it holds user content or a rule
@@ -14,6 +15,10 @@ struct DeviceInterfacesCard: View {
 
     @Environment(\.presence) private var presence
     @Environment(AlertRuleStore.self) private var ruleStore: AlertRuleStore?
+    @Environment(DeviceGroupingViewModel.self) private var grouping: DeviceGroupingViewModel?
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.undoManager) private var undoManager
+    @Environment(\.commitDeviceDetailEdits) private var commitEdits
     @Query private var targets: [NetworkTarget]
     @State private var pendingRemoval: LocalDevice?
     @State private var removalError: String?
@@ -94,6 +99,13 @@ struct DeviceInterfacesCard: View {
                             .clipShape(Capsule())
                     }
                 }
+                if let label = DeviceGroupingChoices.label(for: member) {
+                    Label(label, systemImage: "dot.radiowaves.left.and.right")
+                        .font(.caption)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
+                        .help("This interface answered for the same Bonjour name as the device in one scan")
+                        .accessibilityIdentifier("deviceDetail_label_groupedByBonjour_\(member.ipAddress)")
+                }
                 if !member.macAddress.isEmpty {
                     Text(member.macAddress)
                         .font(.caption)
@@ -109,6 +121,16 @@ struct DeviceInterfacesCard: View {
             }
 
             Spacer()
+
+            Button {
+                // The member becomes a device of its own, with an undo toast.
+                grouping?.separate(member, from: device, in: modelContext, undoManager: undoManager, commitEdits: commitEdits)
+            } label: {
+                Label("Not the same device", systemImage: "link.badge.minus")
+            }
+            .controlSize(.small)
+            .help("This interface is another device: show it on its own")
+            .accessibilityIdentifier("deviceDetail_button_notSameDevice_\(member.ipAddress)")
 
             Button(role: .destructive) {
                 if DeviceGroups.hasUserContent(member) || !references(to: member).isEmpty {

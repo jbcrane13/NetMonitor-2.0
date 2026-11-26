@@ -125,7 +125,8 @@ struct ScanPolicyCoordinatorTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: manager,
             pipelineFactory: { _ in ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldPolicyScanPhase()], concurrent: false)]) },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         return (coordinator, manager, container)
     }

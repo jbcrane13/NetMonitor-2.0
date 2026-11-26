@@ -32,6 +32,8 @@ final class BackgroundTaskService {
     private let notificationWriter: NotificationTextWriter
     /// Reaches TCP and ICMP targets (#572).
     private let probe: MonitoringTargetProbe
+    /// Posts the alerts of every applied reconcile's device events, from `notifyDeviceEvents(from:)` (#619).
+    private var deviceEventNotifier: DeviceEventNotifier?
 
     init(
         registerTask: @escaping TaskRegistration = { identifier, queue, launchHandler in
@@ -398,16 +400,13 @@ final class BackgroundTaskService {
         let devices = DeviceDiscoveryService.shared.discoveredDevices
         Self.logger.info("Network scan found \(devices.count) device(s)")
         // Only a scan that finished during this task; `lastScanDate` moves when one does, with
-        // `completedScanDevices` as its list.
+        // `completedScanDevices` as its list. Its alerts come from the device events of the
+        // reconcile that applied it, this one's or the foreground updater's, posted by the
+        // device-event notifier (#603, #619); the task waits for them before it ends.
         if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore {
             reconcileSavedDevices(DeviceDiscoveryService.shared.completedScanDevices, scanDate: scanDate, network: network?.id)
         }
-
-        let diff = ScanSchedulerService.shared.computeDiff(current: devices)
-        Self.logger.info("Scan diff: \(diff.newDevices.count) new, \(diff.removedDevices.count) removed")
-
-        let names = AppModelStore.sharedContainer().map { GroupedDeviceNames.byAddress(network: network?.id, in: ModelContext($0)) } ?? [:]
-        await notifyScanChanges(diff, wordBodies: !taskCancelled, groupNames: names)
+        await deviceEventAlertsPosted()
     }
 
 }
@@ -424,12 +423,13 @@ extension BackgroundTaskService {
             Self.logger.error("Failed to open the store to save scanned devices")
             return
         }
-        Self.reconcileAndPublish(devices, scanDate: scanDate, network: network, in: container)
+        Self.reconcileAndPublish(devices, scanDate: scanDate, network: network, in: container, dispatcher: DeviceEventDispatcher.shared)
     }
 
     /// Reconciles a background scan, then, once it saved, publishes each scanned network's
     /// saved-device summary and so the widget (#594), as the foreground updater's `onSaved` does.
-    /// Returns whether the scan saved.
+    /// Its device events go to `dispatcher`: the Timeline, the scheduler's diff and the scan's
+    /// alerts (#603). Returns whether the scan saved.
     @discardableResult
     static func reconcileAndPublish(
         _ devices: [DiscoveredDevice],
@@ -440,12 +440,13 @@ extension BackgroundTaskService {
         summaries: SavedDeviceSummaryModel = .shared,
         defaults: UserDefaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard,
         reloadWidget: Bool = true,
+        dispatcher: any DeviceEventDispatcherProtocol,
         now: Date = Date()
     ) -> Bool {
         // Its own context on the app's container: a failed save rolls back only this scan, never
         // device detail's unsaved edits in the main context.
         let context = ModelContext(container)
-        let reconciler = ScanReconciler(context: context, history: history)
+        let reconciler = ScanReconciler(context: context, history: history, dispatcher: dispatcher)
         guard DeviceRecordUpdater.reconcile(devices, scanDate: scanDate, network: network, with: reconciler, now: now) else {
             return false
         }
@@ -454,6 +455,47 @@ extension BackgroundTaskService {
             presence: history.presenceSnapshot(now: now), defaults: defaults, reloadWidget: reloadWidget
         )
         return true
+    }
+}
+
+/// Posts the scan alerts of every applied reconcile's device events (#619), foreground or
+/// background: the dispatcher delivers each reconcile's events once, so each change alerts once.
+/// Batches post in order, one after another; `posted()` waits for every one delivered so far.
+@MainActor
+final class DeviceEventNotifier {
+    typealias Post = @MainActor (ScanDiff) async -> Void
+
+    private let dispatcher: any DeviceEventDispatcherProtocol
+    private let post: Post
+    private var subscription: UUID?
+    /// The last queued post; each waits for the one before it.
+    private var queue: Task<Void, Never>?
+
+    init(dispatcher: any DeviceEventDispatcherProtocol, post: @escaping Post) {
+        self.dispatcher = dispatcher
+        self.post = post
+        subscription = dispatcher.subscribe(owner: self) { [weak self] batch in
+            self?.enqueue(ScanDiff(batch))
+        }
+    }
+
+    private func enqueue(_ diff: ScanDiff) {
+        guard !diff.newDevices.isEmpty || !diff.removedDevices.isEmpty else { return }
+        let previous = queue
+        queue = Task { [post] in
+            await previous?.value
+            await post(diff)
+        }
+    }
+
+    /// Returns once every alert queued so far, and any queued while waiting, is posted.
+    func posted() async {
+        while let current = queue {
+            await current.value
+            if queue == current {
+                return
+            }
+        }
     }
 }
 
@@ -476,10 +518,27 @@ extension BackgroundTaskService {
         }
     }
 
-    /// Alerts for a scheduled scan's new and missing devices, with the user's toggles applied.
-    /// The UI-test notification demo calls this too. `groupNames` names an interface of a saved
-    /// device of several by its device (#594, `GroupedDeviceNames`); still one alert per address.
-    func notifyScanChanges(_ diff: ScanDiff, wordBodies: Bool = true, groupNames: [String: String] = [:]) async {
+    /// Notifies the scan alerts of every reconcile `dispatcher` delivers from now on (#619), once;
+    /// the app calls it at launch with the shared dispatcher.
+    func notifyDeviceEvents(from dispatcher: any DeviceEventDispatcherProtocol) {
+        guard deviceEventNotifier == nil else { return }
+        deviceEventNotifier = DeviceEventNotifier(dispatcher: dispatcher) { [weak self] diff in
+            await self?.notifyScanChanges(diff)
+        }
+    }
+
+    /// Waits until the device-event alerts delivered so far are posted.
+    func deviceEventAlertsPosted() async {
+        await deviceEventNotifier?.posted()
+    }
+
+    /// Alerts for an applied scan's new and missing devices, foreground or background (from the
+    /// device-event notifier), only while scheduled scanning is on, with the user's toggles applied. The UI-test notification demo calls this too. A diff from device events names each device
+    /// by its device (#594, #603) and has one entry per device, however many interfaces it has.
+    func notifyScanChanges(_ diff: ScanDiff, wordBodies: Bool = true) async {
+        // Scan alerts belong to scheduled scanning, as before #619: a user who never turned it on
+        // gets none from the scans they run themselves.
+        guard (UserDefaults.standard.object(forKey: "scheduledScan_enabled") as? Bool) == true else { return }
         let notifyNew     = (UserDefaults.standard.object(forKey: "scheduledScan_notifyNew") as? Bool) ?? true
         let notifyMissing = (UserDefaults.standard.object(forKey: "scheduledScan_notifyMissing") as? Bool) ?? true
 
@@ -487,7 +546,7 @@ extension BackgroundTaskService {
         if notifyNew, notifications.isNewDeviceAlertEnabled {
             alerts += diff.newDevices.map { device in
                 let event = NotificationEvent.newDevice(
-                    NotificationDevice(name: groupNames[device.ipAddress] ?? device.displayName, ipAddress: device.ipAddress, maker: device.maker)
+                    NotificationDevice(name: device.displayName, ipAddress: device.ipAddress, maker: device.maker)
                 )
                 return (event, { [notifications] body in
                     notifications.notifyNewDevice(ipAddress: device.ipAddress, hostname: device.hostname, generatedBody: body)
@@ -496,7 +555,7 @@ extension BackgroundTaskService {
         }
         if notifyMissing, notifications.isTargetDownAlertEnabled {
             alerts += diff.removedDevices.map { device in
-                let name = groupNames[device.ipAddress] ?? device.displayName
+                let name = device.displayName
                 return (.targetDown(name: name, host: device.ipAddress), { [notifications] body in
                     notifications.notifyTargetDown(name: name, host: device.ipAddress, generatedBody: body)
                 })

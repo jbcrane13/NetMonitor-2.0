@@ -9,7 +9,8 @@ struct ScheduledScanSettingsView: View {
     init(env: AppEnvironment) {
         _viewModel = State(initialValue: ScheduledScanViewModel(
             scheduler: env.scanScheduler,
-            discovery: env.deviceDiscovery
+            discovery: env.deviceDiscovery,
+            dispatcher: DeviceEventDispatcher.shared
         ))
     }
 

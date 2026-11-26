@@ -5,6 +5,7 @@ import ApplicationServices
 // identifier, and captures only its window. Build: swiftc -O scripts/ax/axdrive.swift -o <out>. Usage:
 //   axdrive press <id> | click <id> | type <id> <text> | wait <id> <seconds> | gone <id> <seconds>
 //   axdrive capture <file.png> | ids | value <id> | menu <menu item title>
+//   axdrive menutitles <menu bar title>  (opens that menu, prints its items' titles, closes it)
 //   axdrive text <substring> <seconds> | notext <substring> <seconds>  (any element's value, title or description)
 //   axdrive textin <id> <substring> <seconds> | notextin <id> <substring> <seconds>  (only in elements
 //                                            carrying <id> and their descendants, such as one card)
@@ -316,6 +317,27 @@ case "value":
     } else {
         print("NOTFOUND")
     }
+case "menutitles":
+    // Opens the menu bar menu titled <title> (so AppKit validates its items, such as Undo's action
+    // name), prints its items' titles one per line, and closes it.
+    guard let pid = app()?.processIdentifier,
+          let bar = attr(AXUIElementCreateApplication(pid), kAXMenuBarAttribute).map({ $0 as! AXUIElement }), // swiftlint:disable:this force_cast
+          let barItem = (attr(bar, kAXChildrenAttribute) as? [AXUIElement])?.first(where: { attr($0, kAXTitleAttribute) as? String == args[2] })
+    else { print("NOTFOUND \(args[2])")
+        exit(1)
+    }
+    AXUIElementPerformAction(barItem, kAXPressAction as CFString)
+    usleep(500_000)
+    let menu = (attr(barItem, kAXChildrenAttribute) as? [AXUIElement])?.first
+    for item in (menu.flatMap { attr($0, kAXChildrenAttribute) as? [AXUIElement] } ?? []) {
+        if let title = attr(item, kAXTitleAttribute) as? String, !title.isEmpty {
+            print(title)
+        }
+    }
+    AXUIElementPerformAction(menu ?? barItem, kAXCancelAction as CFString)
+    let esc = CGEventSource(stateID: .hidSystemState)
+    CGEvent(keyboardEventSource: esc, virtualKey: 53, keyDown: true)?.post(tap: .cghidEventTap)
+    CGEvent(keyboardEventSource: esc, virtualKey: 53, keyDown: false)?.post(tap: .cghidEventTap)
 case "menu":
     guard let el = menuItem(titled: args[2]), AXUIElementPerformAction(el, kAXPressAction as CFString) == .success else {
         print("NOTFOUND \(args[2])")
