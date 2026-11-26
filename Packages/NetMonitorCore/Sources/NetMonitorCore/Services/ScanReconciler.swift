@@ -167,7 +167,6 @@ public struct ScanReconciler {
     /// rows can't be read or saved; the scan is then not recorded, so it can be tried again.
     @discardableResult
     public func reconcile(_ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date = Date()) throws -> Outcome {
-        let scan = PresenceMatch.onePerMAC(scan)
         guard scan.contains(where: { !$0.isCached }), !history.contains(scan: scanDate, for: networkProfileID),
               // A scan older than one already saved for this network (a retry that lost the race to
               // a background scan) would put older addresses and presence back.
@@ -194,6 +193,8 @@ public struct ScanReconciler {
         _ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date
     ) throws -> (answered: Set<UUID>, latencies: [UUID: Double]) {
         let all = try fetch(context)
+        // One observation per MAC, chosen by the saved rows as device detail chooses it.
+        let scan = PresenceMatch.onePerMAC(scan, known: all)
         var rows = all.filter { $0.networkProfileID == networkProfileID }.sorted { $0.lastSeen > $1.lastSeen }
         let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
         // A row the network's previous scan saw never missed a scan (that scan at most

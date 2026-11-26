@@ -537,7 +537,7 @@ extension DeviceDetailViewModel {
         let observation = DeviceMatchCandidate(ipAddress: ipAddress, macAddress: macAddress ?? scanned?.macAddress, name: scanned?.matchName)
         // The scan as the reconciler sees it: one observation per real MAC, at the address it
         // answered from, so a cached old address opens the same row and doesn't move it back.
-        let canonical = PresenceMatch.onePerMAC(scan)
+        let canonical = PresenceMatch.onePerMAC(scan, known: rows)
         var observed = canonical.map { DeviceMatchCandidate(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.matchName) }
         var address = ipAddress
         let position: Int

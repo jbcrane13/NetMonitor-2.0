@@ -140,11 +140,24 @@ public enum PresenceMatch {
         return result
     }
 
-    /// One observation per real MAC, in scan order: the one that answered, else the first. A MAC
-    /// seen at two addresses (the ARP cache still lists the old one) is one device, at the address
-    /// it answered from. The kept observation carries every collapsed one's Bonjour claims, so no
-    /// evidence (or conflict) is lost (#594). Observations without a real MAC are all kept.
-    public static func onePerMAC(_ scan: [DiscoveredDevice]) -> [DiscoveredDevice] {
+    /// One observation per real MAC, at the position of the MAC's first observation. Which one is
+    /// kept doesn't depend on the scan's order (#594 PR2, v3.1 §5): one that answered beats a cached
+    /// one; then the one at an address where a row in `known` already has that MAC; then the
+    /// numerically lowest IPv4. A MAC seen at two addresses (the ARP cache still lists the old one)
+    /// is one device. The kept observation carries every collapsed one's Bonjour claims, so no
+    /// evidence (or conflict) is lost (#594). Observations without a real MAC are all kept. The
+    /// reconciler and iPhone device detail pass the same rows, so both keep the same observation.
+    public static func onePerMAC(_ scan: [DiscoveredDevice], known: [LocalDevice] = []) -> [DiscoveredDevice] {
+        var knownAddresses: [String: Set<String>] = [:]
+        for row in known {
+            if let mac = DeviceMatcher.normalizedMAC(row.macAddress) {
+                knownAddresses[mac, default: []].insert(row.ipAddress)
+            }
+        }
+        func rank(_ device: DiscoveredDevice, _ mac: String) -> (Int, Int, UInt32, String) {
+            (device.isCached ? 1 : 0, knownAddresses[mac]?.contains(device.ipAddress) == true ? 0 : 1,
+             NetworkUtilities.ipv4ToUInt32(device.ipAddress) ?? .max, device.ipAddress)
+        }
         var indexByMAC: [String: Int] = [:]
         var kept: [DiscoveredDevice] = []
         for device in scan {
@@ -152,16 +165,16 @@ public enum PresenceMatch {
                 kept.append(device)
                 continue
             }
-            if let index = indexByMAC[mac] {
-                let claims = kept[index].bonjourClaims + device.bonjourClaims.filter { !kept[index].bonjourClaims.contains($0) }
-                if kept[index].isCached, !device.isCached {
-                    kept[index] = device
-                }
-                kept[index] = kept[index].withBonjourClaims(claims)
-            } else {
+            guard let index = indexByMAC[mac] else {
                 indexByMAC[mac] = kept.count
                 kept.append(device)
+                continue
             }
+            let claims = kept[index].bonjourClaims + device.bonjourClaims.filter { !kept[index].bonjourClaims.contains($0) }
+            if rank(device, mac) < rank(kept[index], mac) {
+                kept[index] = device
+            }
+            kept[index] = kept[index].withBonjourClaims(claims)
         }
         return kept
     }
