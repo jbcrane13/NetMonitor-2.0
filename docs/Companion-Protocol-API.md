@@ -501,7 +501,7 @@ Sent periodically to maintain connection and verify connectivity.
 |-------|------|-------------|
 | `timestamp` | ISO8601 Date | Current time |
 | `version` | String | Protocol version |
-| `capabilities` | [String]? | Optional. What the sender does beyond the base protocol. The Mac sends `"insight.v1"` while its on-device model can answer, it isn't scanning, and "Answer model requests from iPhone" is on. That setting is **off by default** (#457). Since #590 only a paired iPhone can send model requests at all. Omitted when empty; older builds ignore it. |
+| `capabilities` | [String]? | Optional. What the sender does beyond the base protocol. The Mac sends `"insight.v1"` while its on-device model can answer, it isn't scanning, and "Answer model requests from iPhone" is on. That setting is **on by default** (#457), because only a paired iPhone can reach the Mac; a value the owner has stored, on or off, always wins. Since #590 only a paired iPhone can send model requests at all. Omitted when empty; older builds ignore it. |
 
 The Mac sends a heartbeat when a client connects and in reply to each heartbeat, so a phone learns the Mac's capabilities at once and again every interval.
 
