@@ -88,14 +88,23 @@ struct CompanionLinkSessionReconnectTests {
         }
     }
 
-    @Test("recordConnected resets reconnectAttempt to zero")
-    func recordConnectedResetsAttempt() {
-        var session = CompanionLinkSession()
+    /// #624 verification D: a link that comes up is not yet proof the Mac works: a peer that greets
+    /// and then sends bad frames must keep backing off. The backoff resets only once a link has stayed
+    /// up for a heartbeat interval and delivered a message.
+    @Test("the backoff resets only after a link stays up and delivers a message")
+    func backoffResetsOnlyOnAStableLink() {
+        var session = CompanionLinkSession(heartbeatInterval: 15)
         _ = session.nextReconnectDelay(jitterFraction: 0)
         _ = session.nextReconnectDelay(jitterFraction: 0)
-        #expect(session.reconnectAttempt == 2)
-
         session.recordConnected(at: referenceInstant)
+        #expect(session.reconnectAttempt == 2)
+        // A message straight after the hello, then the link drops: still backing off.
+        session.recordReceived(at: referenceInstant.addingTimeInterval(1))
+        #expect(session.reconnectAttempt == 2)
+        #expect(session.nextReconnectDelay(jitterFraction: 0) == CompanionLinkSession.reconnectDelay(attempt: 3, jitterFraction: 0))
+        // A link that stays up a heartbeat interval and delivers a message: reset.
+        session.recordConnected(at: referenceInstant.addingTimeInterval(100))
+        session.recordReceived(at: referenceInstant.addingTimeInterval(116))
         #expect(session.reconnectAttempt == 0)
     }
 
@@ -148,5 +157,53 @@ struct CompanionLinkSessionBackoffFormulaTests {
         let aboveRange = CompanionLinkSession.reconnectDelay(attempt: 2, jitterFraction: 5)
         #expect(belowRange == 2)
         #expect(aboveRange == CompanionLinkSession.reconnectDelay(attempt: 2, jitterFraction: 1))
+    }
+
+    /// #624 verification D: only a bad length desyncs the stream (the decoder dropped its buffer); a
+    /// malformed payload was consumed whole, so the next frame still reads.
+    @Test("only a bad length desyncs the stream; a malformed payload is skipped")
+    func whichFrameErrorsDesync() async throws {
+        #expect(CompanionFrameError.invalidLength(0).desyncsStream)
+        #expect(!CompanionFrameError.malformedPayload.desyncsStream)
+        let decoder = CompanionFrameDecoder()
+        var bad = Data([0, 0, 0, 3])
+        bad.append(Data("{x}".utf8))
+        let good = try CompanionMessage.heartbeat(HeartbeatPayload()).encodeLengthPrefixed()
+        let batch = await decoder.append(bad + good)
+        #expect(batch.errors == [.malformedPayload])
+        #expect(batch.messages.count == 1)
+    }
+
+    /// Lead's final check: a peer that greets and then sends garbage, link after link, with hellos at
+    /// least a heartbeat apart. The phone's order is: the link comes up (`recordConnected`), the hello
+    /// is received, the link fails (`linkEnded`), a reconnect is scheduled. The backoff keeps growing
+    /// to its cap.
+    @Test("a hello-then-garbage peer keeps backing off to the cap, link after link")
+    func helloThenGarbageBacksOffToTheCap() {
+        var session = CompanionLinkSession(heartbeatInterval: 15)
+        var instant = referenceInstant
+        var delays: [TimeInterval] = []
+        for _ in 0..<9 {
+            session.recordConnected(at: instant)
+            session.recordReceived(at: instant)
+            session.linkEnded()
+            let delay = session.nextReconnectDelay(jitterFraction: 0)
+            delays.append(delay)
+            instant = instant.addingTimeInterval(delay + 20)
+        }
+        #expect(delays == delays.sorted())
+        #expect(delays.last == 60)
+        #expect(session.reconnectAttempt == 9)
+    }
+
+    /// A stale link's start never resets the backoff for a message after it ended.
+    @Test("a message after the link ended doesn't reset the backoff")
+    func aMessageAfterTheLinkEndedDoesNotReset() {
+        var session = CompanionLinkSession(heartbeatInterval: 15)
+        session.recordConnected(at: referenceInstant)
+        session.linkEnded()
+        _ = session.nextReconnectDelay(jitterFraction: 0)
+        session.recordReceived(at: referenceInstant.addingTimeInterval(100))
+        #expect(session.reconnectAttempt == 1)
     }
 }

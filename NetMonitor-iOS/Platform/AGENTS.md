@@ -12,6 +12,8 @@ iOS-specific service implementations and UI infrastructure. Implements service p
 |------|-------------|
 | `SharedServices.swift` | Service singletons and retroactive conformances wiring protocols to implementations |
 | `MacConnectionService.swift` | Connects to macOS companion via Bonjour (`_netmon._tcp`, port 8849) using `NWConnection` |
+| `MacConnectionService+Inventory.swift` | The link's inventory state (`CompanionInventoryLink`: the Mac's `inventory.v1` offer and the link's `CompanionLinkPath`) (#585) |
+| `MacInventoryModel.swift` | Computes the Mac's inventory overlay (`MacInventoryOverlay`) once per list, link, store, scan or presence change for every device view, and publishes its online count to the dashboard and widget (#585) |
 | `WiFiInfoService.swift` | Reads SSID/BSSID via `NEHotspotNetwork.fetchCurrent()` (requires CoreLocation permission) |
 | `GatewayService.swift` | Detects default gateway IP via routing table |
 | `PublicIPService.swift` | Fetches public IP and geolocation via HTTP |

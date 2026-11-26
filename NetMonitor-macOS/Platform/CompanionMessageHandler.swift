@@ -22,6 +22,11 @@ final class CompanionMessageHandler {
     private let networkProfileManager: NetworkProfileManager
     /// Answers the iPhone's insight requests with this Mac's model (#457).
     private let insightResponder: CompanionInsightResponder
+    /// The log each device's last change is read from (#585).
+    private let eventService: any NetworkEventServiceProtocol
+    /// The network's routed gateway, nil when the lookup fails: the phone tells networks apart by it
+    /// (#585), so never the profile's first-host guess.
+    private let routedGateway: @MainActor (NetworkProfile) -> String?
 
     /// Settings key for "Answer model requests from iPhone"; on when unset.
     nonisolated static let answersInsightKey = "netmonitor.companion.answersInsight"
@@ -42,8 +47,12 @@ final class CompanionMessageHandler {
         wakeOnLanService: WakeOnLANService,
         icmpService: ICMPMonitorService,
         networkProfileManager: NetworkProfileManager,
-        insightService: any InsightServiceProtocol = InsightService.shared
+        insightService: any InsightServiceProtocol = InsightService.shared,
+        eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
+        routedGateway: @escaping @MainActor (NetworkProfile) -> String? = { CompanionMessageHandler.routedGateway(for: $0) }
     ) {
+        self.eventService = eventService
+        self.routedGateway = routedGateway
         self.modelContext = modelContext
         self.monitoringSession = monitoringSession
         self.deviceDiscovery = deviceDiscovery
@@ -81,12 +90,20 @@ final class CompanionMessageHandler {
         }
     }
 
-    /// This Mac's heartbeat, advertising insight while its model can answer and the user
-    /// allows it (#457). An iPhone sends insight requests only after seeing it.
+    /// This Mac's heartbeat: always `inventory.v1` (#585), and insight while its model can answer
+    /// and the user allows it (#457). An iPhone sends insight requests only after seeing it.
     func heartbeat() -> HeartbeatPayload {
-        HeartbeatPayload(capabilities: insightResponder.capabilities(
-            allowed: Self.answersInsight, isScanning: deviceDiscovery.isScanning
-        ))
+        let insight = insightResponder.capabilities(allowed: Self.answersInsight, isScanning: deviceDiscovery.isScanning) ?? []
+        return HeartbeatPayload(capabilities: insight + [CompanionCapability.inventory])
+    }
+
+    /// Calls `send` with the device list after each completed scan, so a connected phone shows
+    /// the Mac's inventory as it is now (#585).
+    func onScanCompleted(_ send: @escaping @MainActor (CompanionMessage) -> Void) {
+        deviceDiscovery.addScanCompletedHandler { [weak self] _, _ in
+            guard let self else { return }
+            send(self.generateDeviceList())
+        }
     }
 
     /// Calls `send` with a fresh heartbeat whenever a scan starts or ends, so a phone stops
@@ -151,7 +168,8 @@ final class CompanionMessageHandler {
         // name and type, the current interface's address and MAC, online when any interface
         // answered. The phone keys nothing on the ID.
         let sentAt = Date()
-        let deviceInfos = deviceDiscovery.projectedDevices.map { device in
+        let lastChanges = lastChangeByRow()
+        let deviceInfos = Self.listOrder(deviceDiscovery.projectedDevices).map { device in
             let primary = device.primary
             let scanTime = presence.lastScan(for: primary.networkProfileID)
             // Every interface with its own sighting (#594 PR2): whether it answered the latest scan,
@@ -178,11 +196,81 @@ final class CompanionMessageHandler {
                 isOnline: presence.answeredLatestScan(device),
                 members: members,
                 // What the Mac shows: any interface online, within grace.
-                isDeviceOnline: presence.freshness(of: device).isOnline
+                isDeviceOnline: presence.freshness(of: device).isOnline,
+                // Ages on this clock, never dates, so the phone never compares clocks (#585, #619).
+                lastSeenAge: sentAt.timeIntervalSince(device.lastSeen),
+                lastChangedAge: ([device.id] + device.members.map(\.id)).compactMap { lastChanges[$0] }.max()
+                    .map { sentAt.timeIntervalSince($0) },
+                identity: InventoryIdentity(primary.identity)
             )
         }
 
-        return .deviceList(DeviceListPayload(devices: deviceInfos))
+        return .deviceList(Self.fitting(DeviceListPayload(devices: deviceInfos, network: inventoryNetwork(presence: presence, sentAt: sentAt))))
+    }
+
+    /// The most a list may hold, and the frame budget it must fit (#585 review 12): under the
+    /// phone's 1 MiB frame cap with room to spare.
+    nonisolated static let maximumListedDevices = 1000
+    nonisolated static let frameBudget = CompanionFrameDecoder.defaultMaximumFrameSize * 7 / 8
+
+    /// `list` trimmed to the most recently seen devices (they come latest first) until its frame
+    /// fits `frameBudget`.
+    /// A list trimmed of any device says so (`truncated`), so the phone shows it as partial (#624).
+    nonisolated static func fitting(_ list: DeviceListPayload) -> DeviceListPayload {
+        var count = min(list.devices.count, maximumListedDevices)
+        while count > 0 {
+            let trimmed = DeviceListPayload(
+                devices: Array(list.devices.prefix(count)), network: list.network, truncated: count < list.devices.count ? true : nil
+            )
+            if let frame = try? CompanionMessage.deviceList(trimmed).encodeLengthPrefixed(), frame.count <= frameBudget {
+                return trimmed
+            }
+            count = count * 3 / 4
+        }
+        return DeviceListPayload(devices: [], network: list.network, truncated: list.devices.isEmpty ? nil : true)
+    }
+
+    /// Most recently seen first; ties by address (numerically), then ID, so a trim keeps the same
+    /// devices every time (#624).
+    static func listOrder(_ devices: [DeviceProjection]) -> [DeviceProjection] {
+        devices.sorted { lhs, rhs in
+            if lhs.lastSeen != rhs.lastSeen {
+                return lhs.lastSeen > rhs.lastSeen
+            }
+            let left = NetworkUtilities.ipv4ToUInt32(lhs.ipAddress) ?? .max, right = NetworkUtilities.ipv4ToUInt32(rhs.ipAddress) ?? .max
+            if left != right {
+                return left < right
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
+
+    /// The default route's gateway when it is on `profile`'s network, else nil.
+    static func routedGateway(for profile: NetworkProfile) -> String? {
+        NetworkUtilities.detectRoutedGateway().flatMap { profile.network.contains(ipAddress: $0) ? $0 : nil }
+    }
+
+    /// The network the list covers and how old its latest scan is (#585).
+    private func inventoryNetwork(presence: PresenceSnapshot, sentAt: Date) -> InventoryNetwork {
+        // Always sent, so the phone knows an inventory Mac by its list alone (#585 review 10).
+        guard let profile = deviceDiscovery.networkProfile else {
+            return InventoryNetwork(subnet: nil, gatewayIP: nil, name: nil, scanAge: nil)
+        }
+        return InventoryNetwork(
+            subnet: profile.subnetCIDR, gatewayIP: routedGateway(profile), name: profile.name,
+            scanAge: presence.lastScan(for: profile.id).map { sentAt.timeIntervalSince($0) }
+        )
+    }
+
+    /// Each row's latest joined or left entry in the event log (#585): entries name the device's
+    /// primary row, newest first.
+    private func lastChangeByRow() -> [UUID: Date] {
+        var latest: [UUID: Date] = [:]
+        for event in eventService.events where event.type == .deviceJoined || event.type == .deviceLeft {
+            guard let id = event.deviceID else { continue }
+            latest[id] = max(latest[id] ?? .distantPast, event.timestamp)
+        }
+        return latest
     }
 
     // MARK: - Private Methods

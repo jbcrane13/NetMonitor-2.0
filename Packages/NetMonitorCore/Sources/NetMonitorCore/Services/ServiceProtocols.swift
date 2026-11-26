@@ -160,6 +160,9 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     /// cached flags. Unlike `discoveredDevices`, never a running or stopped scan's partial list:
     /// what is saved as presence and what confirms a device's address (#582, #589).
     @MainActor var completedScanDevices: [DiscoveredDevice] { get }
+    /// The connected Mac's answers for that scan's network while its inventory was live (#585):
+    /// never part of the scan's devices; they refresh existing rows only (`ScanReconciler`).
+    @MainActor var completedScanMacSightings: [DiscoveredDevice] { get }
     @MainActor func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice]
     func scanNetwork(subnet: String?) async
     func scanNetwork(profile: NetworkProfile?) async
@@ -170,6 +173,8 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
 public extension DeviceDiscoveryServiceProtocol {
     /// For a conformer whose list only ever holds finished scans (test and UI-test doubles).
     var completedScanDevices: [DiscoveredDevice] { discoveredDevices }
+    /// For a conformer without a Mac: none.
+    var completedScanMacSightings: [DiscoveredDevice] { [] }
 }
 
 /// Protocol for default gateway detection.
@@ -543,6 +548,10 @@ public protocol MacConnectionServiceProtocol: AnyObject {
     /// When `lastDeviceList` arrived over the current link; nil once that link drops, by any path
     /// (#598). An older list is not evidence of presence now.
     var lastDeviceListReceivedAt: Date? { get }
+    /// Whether the Mac on the current link advertised `inventory.v1` (#585); false once it drops.
+    var macOffersInventory: Bool { get }
+    /// The current link's path (#585): the Mac's address on it and the interface; nil without one.
+    var linkPath: CompanionLinkPath? { get }
     /// The name of the currently connected Mac (nil when not connected).
     var connectedMacName: String? { get }
     /// Whether the service is currently browsing for Macs.
@@ -555,6 +564,10 @@ public protocol MacConnectionServiceProtocol: AnyObject {
 public extension MacConnectionServiceProtocol {
     /// For a conformer that doesn't track it: its list is never fresh.
     var lastDeviceListReceivedAt: Date? { nil }
+    /// For a conformer that doesn't track it: an older Mac, without an inventory.
+    var macOffersInventory: Bool { false }
+    /// For a conformer that doesn't track it: unknown, so no inventory is live.
+    var linkPath: CompanionLinkPath? { nil }
 }
 
 /// Minimal representation of a discovered Mac peer on the LAN.

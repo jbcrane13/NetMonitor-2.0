@@ -3,6 +3,16 @@ import Foundation
 public enum CompanionFrameError: Equatable, Sendable {
     case invalidLength(UInt32)
     case malformedPayload
+
+    /// Whether the stream is out of step after it: a bad length drops the decoder's buffer, so
+    /// whatever follows is read from the middle of a frame. A malformed payload was consumed
+    /// whole, so the next frame reads normally (#624).
+    public var desyncsStream: Bool {
+        if case .invalidLength = self {
+            return true
+        }
+        return false
+    }
 }
 
 public struct CompanionFrameBatch: Sendable {

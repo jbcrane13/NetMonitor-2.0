@@ -1,6 +1,7 @@
 #if DEBUG
 import Foundation
 import NetMonitorCore
+import NetworkScanKit
 import Network
 import Synchronization
 
@@ -26,6 +27,8 @@ final class FakeCompanionMac: Sendable {
     private let revealsWrongNonce: Bool
     /// Closes every connection at accept, as a Mac with full slots or a stale listener would.
     private let dropsConnections: Bool
+    /// The inventory this Mac sends for `refreshDevices` (#585); with one it advertises `inventory.v1`.
+    private let inventory: DeviceListPayload?
     private let state = Mutex(State())
 
     /// One link's fixed facts.
@@ -52,8 +55,10 @@ final class FakeCompanionMac: Sendable {
         confirmDelay: Duration = .milliseconds(200),
         pairedPins: [Data] = [],
         revealsWrongNonce: Bool = false,
-        dropsConnections: Bool = false
+        dropsConnections: Bool = false,
+        inventory: DeviceListPayload? = nil
     ) throws {
+        self.inventory = inventory
         self.name = name
         self.confirmation = confirmation
         self.confirmDelay = confirmDelay
@@ -139,7 +144,7 @@ final class FakeCompanionMac: Sendable {
             let commitment = mode == .pairing ? CompanionPairingProof.commitment(to: nonce) : nil
             send(.serverHello(ServerHelloPayload(macID: macID, macName: name, mode: mode, commitment: commitment)), on: connection)
             if mode == .paired {
-                send(.heartbeat(HeartbeatPayload()), on: connection)
+                send(.heartbeat(heartbeat), on: connection)
             }
             receive(on: connection, decoder: decoder, context: LinkContext(id: link, role: role, session: session, nonce: nonce))
         }
@@ -184,7 +189,10 @@ final class FakeCompanionMac: Sendable {
         case .dispatch:
             state.withLock { $0.received.append(message.logName) }
             if case .heartbeat = message {
-                send(.heartbeat(HeartbeatPayload()), on: connection)
+                send(.heartbeat(heartbeat), on: connection)
+            }
+            if case .command(let command) = message, command.action == .refreshDevices, let inventory {
+                send(.deviceList(inventory), on: connection)
             }
         case .pairRequest:
             guard case .pairRequest(let request) = message,
@@ -217,6 +225,11 @@ final class FakeCompanionMac: Sendable {
             }
             recordVerdict(link: link, phone: true, on: connection)
         }
+    }
+
+    /// The heartbeat this Mac sends: `inventory.v1` while it has an inventory.
+    private var heartbeat: HeartbeatPayload {
+        HeartbeatPayload(capabilities: inventory == nil ? nil : [CompanionCapability.inventory])
     }
 
     /// Pins the phone once both the stand-in user and the phone have said yes.
@@ -257,10 +270,82 @@ enum UITestFakeMacPairing {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("--uitesting"), arguments.contains("--fake-mac-pairing") else { return nil }
         let code = ProcessInfo.processInfo.environment["UITEST_PAIRING_CODE"].flatMap(CompanionPairingCode.init(typed:)) ?? .random()
-        guard let fake = try? FakeCompanionMac(port: port, code: code, confirmDelay: .seconds(3)) else { return nil }
+        let environment = ProcessInfo.processInfo.environment
+        let inventory = environment["UITEST_FAKE_MAC_INVENTORY"] == "1" ? inventoryFixture : nil
+        guard let fake = try? FakeCompanionMac(
+            port: port, code: code, confirmDelay: .seconds(3), inventory: inventory
+        ) else { return nil }
         Task { _ = try? await fake.start() }
         return fake
     }()
+
+    /// The inventory the fake Mac sends with `UITEST_FAKE_MAC_INVENTORY=1` (#585), for the phone's
+    /// current network: uitest-device-0 (the UI-test scan's 192.168.1.10, by MAC), which the Mac
+    /// last saw 20 minutes ago and has offline while the phone finds it, so a frozen Mac state
+    /// would show; uitest-device-2 (192.168.1.12), which missed the Mac's latest scan but is inside
+    /// its grace, so the Mac shows it online; and a doorbell only the Mac knows. The other scanned
+    /// devices are the phone's.
+    static let macOnlyDoorbellIP = "192.168.1.60"
+
+    private static var inventoryFixture: DeviceListPayload {
+        let local = CurrentNetwork.detected() ?? NetworkProfileManager().localProfile
+        let subnet = local?.subnetCIDR ?? "192.168.1.0/24"
+        let gateway = NetworkUtilities.detectRoutedGateway() ?? fallbackGateway
+        let doorbell = DeviceIdentity(maker: IdentityValue("Acme", source: .upnp), model: IdentityValue("Doorbell 2", source: .upnp))
+        return DeviceListPayload(
+            devices: [
+                DeviceInfo(
+                    ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:00", hostname: "uitest-device-0", isOnline: false,
+                    isDeviceOnline: false, lastSeenAge: 1200, lastChangedAge: 1800
+                ),
+                DeviceInfo(
+                    ipAddress: "192.168.1.12", macAddress: "AA:BB:CC:DD:EE:02", hostname: "uitest-device-2", isOnline: false,
+                    isDeviceOnline: true, lastSeenAge: 360
+                ),
+                DeviceInfo(
+                    ipAddress: macOnlyDoorbellIP, macAddress: "", hostname: "uitest-mac-doorbell", deviceType: "iot",
+                    isOnline: true, isDeviceOnline: true, lastSeenAge: 120, lastChangedAge: 3600, identity: InventoryIdentity(doorbell)
+                )
+            ],
+            network: InventoryNetwork(subnet: subnet, gatewayIP: gateway, name: "UITest Network", scanAge: 60)
+        )
+    }
+
+    /// Whether the fake Mac is in use.
+    static var isActive: Bool { fake != nil }
+
+    /// The fake Mac leaves: it stops listening and closes every link, as a Mac that went to sleep
+    /// or left the network would. UI tests press Settings ▸ "Fake Mac leaves" (#585).
+    static func leave() {
+        fake?.stop()
+    }
+
+    /// Stand-ins for what a UI test can't have (#585): the UI-test scan's network stands for the
+    /// phone's current one, and the fake Mac on loopback for a Mac on the Wi-Fi link. Without the
+    /// fake devices or the fake Mac, `phone` and `link` are returned as they are.
+    static func standIns(phone: PhoneNetwork?, link: CompanionLinkPath?) -> (PhoneNetwork?, CompanionLinkPath?) {
+        guard UITestBootstrap.isUITesting, let phone else { return (phone, link) }
+        var standIn = phone
+        if UITestFakeDeviceFeed.isEnabled {
+            let local = phone.profile
+            standIn = PhoneNetwork(
+                profile: NetworkProfile(
+                    id: UITestBootstrap.networkProfileID, interfaceName: local.interfaceName, ipAddress: local.ipAddress,
+                    network: local.network, connectionType: local.connectionType, name: local.name, gatewayIP: local.gatewayIP,
+                    subnet: local.subnet, isLocal: true, discoveryMethod: .auto
+                ),
+                gatewayIP: phone.gatewayIP ?? fallbackGateway
+            )
+        }
+        guard isActive else { return (standIn, link) }
+        return (
+            standIn,
+            CompanionLinkPath(remoteAddress: phone.profile.ipAddress, interface: .wifi, interfaceName: phone.profile.interfaceName)
+        )
+    }
+
+    /// The gateway both the fake Mac and the phone use when the simulator's route can't be read.
+    static let fallbackGateway = "192.0.2.1"
 
     /// The fake Mac as the browser would list it.
     static var discovered: (mac: DiscoveredMac, endpoint: NWEndpoint)? {

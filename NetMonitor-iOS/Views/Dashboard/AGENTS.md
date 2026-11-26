@@ -18,6 +18,7 @@ Main dashboard tab showing real-time network status overview — connectivity, W
 - `DashboardView` uses `DashboardViewModel` for state management
 - Displays data from multiple services: NetworkMonitorService, WiFiInfoService, GatewayService, PublicIPService
 - `DeviceListView` and `LocalDevicesCard` show the network's saved `LocalDevice` rows through `SavedDeviceList` (#583): each row's `PresenceFreshness` (online, offline, not checked recently) and last-seen time, with past devices behind "Show past devices (N)". They fall back to the live scan's `DiscoveredDevice`s only before any row is saved.
+- The paired Mac's inventory (#585) is computed once per change by `MacInventoryModel` (environment) into a Core `MacInventoryOverlay`; `SavedDeviceList` takes it as `overlay:` and never matches or fetches itself. While it is live, rows read the Mac's state "from your Mac" (`statusText`, `freshness(of:)`, `accessibilityText`), "Seen by this iPhone at …" only where the phone's own latest scan saw the device (`phoneSightingText`), the Mac's maker and model where the phone has none (`macIdentityText`), and devices only the Mac knows are `.mac` entries that are shown, never saved or opened. Read presence through the list's methods, not `list.presence`, so every surface agrees.
 - Use `MetricCard` and `GlassCard` components for consistent styling
 - Accessibility prefix: `dashboard_` for DashboardView, `deviceList_` for DeviceListView
 

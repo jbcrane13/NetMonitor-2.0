@@ -65,6 +65,15 @@ struct ConnectionSettingsSection: View {
                     }
                 }
                 .accessibilityIdentifier("settings_button_disconnect")
+                #if DEBUG
+                if UITestFakeMacPairing.isActive {
+                    // UI tests only: the fake Mac drops the link from its side (#585).
+                    Button("Fake Mac leaves") {
+                        UITestFakeMacPairing.leave()
+                    }
+                    .accessibilityIdentifier("settings_button_uitestFakeMacLeaves")
+                }
+                #endif
             } else {
                 Button {
                     showPairingSheet = true

@@ -197,17 +197,7 @@ struct DeviceDetailView: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .accessibilityIdentifier("deviceDetail_label_displayName")
 
-            // What the saved status means now (#583); the presence model refreshes every minute.
-            // A device of several interfaces is online while any member is (#594).
-            HStack(spacing: 8) {
-                PresenceDot(freshness: viewModel.freshness(presence))
-                Text(viewModel.projection.map { presence.statusText($0) } ?? presence.statusText(device))
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(viewModel.projection.map { presence.accessibilityText($0) } ?? presence.accessibilityText(device))
-            .accessibilityIdentifier("deviceDetail_label_status")
+            DeviceDetailStatusView(device: device, projection: viewModel.projection, freshness: viewModel.freshness(presence), presence: presence)
 
             if let maker = device.maker {
                 Text(maker)

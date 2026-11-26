@@ -32,6 +32,8 @@ final class DeviceRecordUpdater {
     private struct CompletedScan {
         let date: Date
         let devices: [DiscoveredDevice]
+        /// The Mac's answers for the scan's network (#585): they refresh existing rows only.
+        let macSightings: [DiscoveredDevice]
         let network: UUID?
         let reconciledAt: Date
         var attempts = 0
@@ -89,7 +91,8 @@ final class DeviceRecordUpdater {
         if !isScanning, let scanDate = discoveryService.lastScanDate, scanDate != capturedScanDate {
             capturedScanDate = scanDate
             pending.append(CompletedScan(
-                date: scanDate, devices: discoveryService.completedScanDevices, network: currentNetworkProfileID(), reconciledAt: clock()
+                date: scanDate, devices: discoveryService.completedScanDevices, macSightings: discoveryService.completedScanMacSightings,
+                network: currentNetworkProfileID(), reconciledAt: clock()
             ))
             if pending.count > Self.maxPending {
                 Logger.data.error("Too many scans waiting to be saved; dropping the oldest")
@@ -98,7 +101,9 @@ final class DeviceRecordUpdater {
         }
         while !pending.isEmpty {
             let scan = pending[0]
-            if Self.reconcile(scan.devices, scanDate: scan.date, network: scan.network, with: reconciler, now: scan.reconciledAt) {
+            if Self.reconcile(
+                scan.devices, macSightings: scan.macSightings, scanDate: scan.date, network: scan.network, with: reconciler, now: scan.reconciledAt
+            ) {
                 pending.removeFirst()
                 onSaved(Set(scan.devices.compactMap { $0.networkProfileID ?? scan.network }), scan.devices)
                 continue
@@ -115,9 +120,13 @@ final class DeviceRecordUpdater {
     /// updater) or when it started (the background task). With neither, nothing is reconciled:
     /// devices are never filed under a network the phone may have left. Each reconcile that applies
     /// delivers its device events to the reconciler's dispatcher (#603).
-    /// False when saving failed (logged).
+    /// The Mac's answers (`macSightings`, #585) go with the devices of their network and only refresh
+    /// rows that exist. False when saving failed (logged).
     @discardableResult
-    static func reconcile(_ devices: [DiscoveredDevice], scanDate: Date, network: UUID?, with reconciler: ScanReconciler, now: Date) -> Bool {
+    static func reconcile(
+        _ devices: [DiscoveredDevice], macSightings: [DiscoveredDevice] = [], scanDate: Date, network: UUID?, with reconciler: ScanReconciler,
+        now: Date
+    ) -> Bool {
         var byNetwork: [UUID: [DiscoveredDevice]] = [:]
         for device in devices {
             guard let scanned = device.networkProfileID ?? network else { continue }
@@ -126,7 +135,8 @@ final class DeviceRecordUpdater {
         var succeeded = true
         for (scanned, devices) in byNetwork {
             do {
-                try reconciler.reconcile(devices, networkProfileID: scanned, scanDate: scanDate, now: now)
+                let sightings = macSightings.filter { ($0.networkProfileID ?? network) == scanned }
+                try reconciler.reconcile(devices, macSightings: sightings, networkProfileID: scanned, scanDate: scanDate, now: now)
             } catch {
                 Logger.data.error("Saving scanned devices failed: \(error.localizedDescription, privacy: .public)")
                 succeeded = false

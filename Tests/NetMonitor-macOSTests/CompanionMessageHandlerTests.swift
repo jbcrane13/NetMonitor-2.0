@@ -244,8 +244,8 @@ struct CompanionMessageHandlerTests {
             Issue.record("expected heartbeat replies")
             return
         }
-        #expect(offered.capabilities == ["insight.v1"])
-        #expect(plain.capabilities == nil)
+        #expect(offered.capabilities == ["insight.v1", "inventory.v1"])
+        #expect(plain.capabilities == ["inventory.v1"])
     }
 
     @Test("while the Mac scans its heartbeat drops insight.v1, and a fresh heartbeat goes out when a scan starts and ends")
@@ -259,8 +259,8 @@ struct CompanionMessageHandlerTests {
 
         discovery.setScanningForTesting(true)
         try await waitUntil { sent.count == 1 }
-        #expect(handler.heartbeat().capabilities == nil)
-        #expect(sent.last?.capabilities == nil)
+        #expect(handler.heartbeat().capabilities == ["inventory.v1"])
+        #expect(sent.last?.capabilities == ["inventory.v1"])
         let reply = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
         guard case let .insightResponse(response)? = reply else {
             Issue.record("expected an insight response")
@@ -270,7 +270,7 @@ struct CompanionMessageHandlerTests {
 
         discovery.setScanningForTesting(false)
         try await waitUntil { sent.count == 2 }
-        #expect(sent.last?.capabilities == ["insight.v1"])
+        #expect(sent.last?.capabilities == ["insight.v1", "inventory.v1"])
     }
 
     @Test("a message type this build doesn't know gets no reply")
@@ -311,7 +311,7 @@ struct CompanionMessageHandlerTests {
         _ = container
 
         #expect(CompanionMessageHandler.answersInsight)
-        #expect(handler.heartbeat().capabilities == ["insight.v1"])
+        #expect(handler.heartbeat().capabilities == ["insight.v1", "inventory.v1"])
         guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
         else {
             Issue.record("expected an insight reply")
@@ -340,7 +340,7 @@ struct CompanionMessageHandlerTests {
         let (container, _, handler, _, _) = try makeFixture(insightService: FixedAnswerInsightService(answer: "SSH is open."))
         _ = container
 
-        #expect(handler.heartbeat().capabilities == nil)
+        #expect(handler.heartbeat().capabilities == ["inventory.v1"])
         let reply = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
         guard case let .insightResponse(response)? = reply else {
             Issue.record("expected an insight response")

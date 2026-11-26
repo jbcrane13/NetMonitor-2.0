@@ -15,9 +15,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Shared Instance
 
-    static let shared: MacConnectionService = .init(
-        insightClient: PhoneInsight.linkClient, macStore: defaultMacStore(), defaults: defaultDefaults()
-    )
+    static let shared: MacConnectionService = .init(insightClient: PhoneInsight.linkClient, macStore: defaultMacStore(), defaults: defaultDefaults())
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "MacConnectionService")
 
     // MARK: - Public State
@@ -31,6 +29,8 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private(set) var lastDeviceList: DeviceListPayload?
     /// When `lastDeviceList` arrived over the current link; nil once the link drops (#598).
     private(set) var lastDeviceListReceivedAt: Date?
+    /// The link's inventory offer and path (#585), reset with the link.
+    private(set) var inventoryLink = CompanionInventoryLink()
     /// The Mac this phone is paired with (#590).
     private(set) var pairedMac: PairedMacRecord?
     private(set) var linkProblem: MacLinkProblem?
@@ -73,7 +73,6 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     // MARK: - Constants
 
     private static let heartbeatInterval: TimeInterval = 15
-    private static let heartbeatVersion = "1.0"
     /// Forget This Mac couldn't delete the key: it must not be loaded or used until it is.
     static let pendingForgetKey = "netmonitor.companion.pendingForget"
 
@@ -244,6 +243,9 @@ extension MacConnectionService {
         connectedMacName = nil
         // The Mac's device list stays for display, but is no longer evidence of presence (#598).
         lastDeviceListReceivedAt = nil
+        inventoryLink = CompanionInventoryLink()
+        // No message after this counts toward a stable link (#624).
+        linkSession.linkEnded()
         session = nil
         awaitingHello = false
         insightClient.disconnected()
@@ -284,6 +286,7 @@ extension MacConnectionService {
                 return
             }
             session = verified
+            inventoryLink.path = CompanionLinkPath(connection.currentPath)
             awaitingHello = true
             frameDecoder = CompanionFrameDecoder()
             scheduleReceive(connection: connection, generation: generation)
@@ -356,7 +359,9 @@ extension MacConnectionService {
                         Self.logger.error("Rejected \(batch.errors.count) companion frame(s)")
                     }
 
-                    if isComplete || error != nil {
+                    // A bad frame length leaves the stream out of step: end the link, which ends the Mac's
+                    // inventory too. A malformed payload was consumed whole and is only skipped (#624).
+                    if isComplete || error != nil || batch.errors.contains(where: \.desyncsStream) {
                         self.linkFailed(generation: generation, reason: error?.localizedDescription)
                     } else if self.connectionGeneration == generation {
                         self.scheduleReceive(connection: connection, generation: generation)
@@ -367,8 +372,10 @@ extension MacConnectionService {
     }
 
     private func handleMessage(_ message: CompanionMessage) {
-        // Any inbound message proves the link is alive, not just heartbeats.
-        linkSession.recordReceived(at: Date())
+        // Any inbound message proves the link is alive, not just heartbeats. Recorded after it is
+        // handled, so the hello's `recordConnected` comes first and the backoff resets only on a link
+        // that has stayed up (#624).
+        defer { linkSession.recordReceived(at: Date()) }
         Self.logger.debug("Received companion message: \(message.logName, privacy: .public)")
         switch message {
         case .serverHello(let payload):
@@ -415,6 +422,7 @@ extension MacConnectionService {
         case .heartbeat(let payload):
             Self.logger.debug("Heartbeat received")
             insightClient.received(heartbeat: payload)
+            inventoryLink.received(payload) { Task { await send(command: CommandPayload(action: .refreshDevices)) } }
         case .insightResponse(let payload):
             insightClient.received(payload)
         case .command, .insightRequest, .pairRequest, .unpair, .serverHello, .pairChallenge, .pairResult:
@@ -465,7 +473,7 @@ extension MacConnectionService {
     private func sendHeartbeat() async {
         let message = CompanionMessage.heartbeat(HeartbeatPayload(
             timestamp: Date(),
-            version: Self.heartbeatVersion
+            version: "1.0"
         ))
         await sendMessage(message)
     }

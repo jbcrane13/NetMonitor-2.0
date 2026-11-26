@@ -139,6 +139,19 @@ public enum DeviceGroups {
             ?? project([row])[0]
     }
 
+    /// The rows a network's device list reads (#594, #585): its `limit` most recently seen devices
+    /// plus those saved before rows had a network, as complete groups, most recent first, at most
+    /// `limit` devices.
+    /// How many devices a device list reads at most.
+    public static let listedRowLimit = 500
+
+    @MainActor
+    public static func listedRows(network: UUID?, limit: Int, in context: ModelContext) -> [LocalDevice] {
+        let scopes: [DeviceScope] = (network.map { [.network($0)] } ?? []) + [.withoutNetwork]
+        let devices = scopes.flatMap { (try? recentDevices(in: $0, limit: limit, in: context)) ?? [] }
+        return devices.sorted { $0.lastSeen > $1.lastSeen }.prefix(limit).flatMap(\.members)
+    }
+
     /// The `limit` most recently seen devices in `scope`, each with all its members, most recent
     /// first: the bounded fetch every capped reader uses (#594). Pages through the rows (newest
     /// first, then by address, then by ID, so ties page the same way every time), skipping a row a

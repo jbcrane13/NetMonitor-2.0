@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import NetworkScanKit
 import Testing
 @testable import NetMonitorCore
 
@@ -119,6 +120,25 @@ struct CompanionDeviceListCompatibilityTests {
         #expect(received.id == device.id)
         #expect(received.ipAddress == "192.168.77.61")
         #expect(received.macAddress == "02:00:00:77:00:61")
+        #expect(received.isOnline)
+    }
+
+    @Test("A Mac's inventory (#585) decodes on an old phone, which ignores the new fields")
+    func inventoryToOld() async throws {
+        let base = Self.newDevice
+        let device = DeviceInfo(
+            id: base.id, ipAddress: base.ipAddress, macAddress: base.macAddress, hostname: base.hostname, vendor: base.vendor,
+            deviceType: base.deviceType, isOnline: base.isOnline, members: base.members, isDeviceOnline: true, lastSeenAge: 30,
+            lastChangedAge: 3600, identity: InventoryIdentity(DeviceIdentity(model: IdentityValue("Mac Studio", source: .bonjour)))
+        )
+        let list = DeviceListPayload(
+            devices: [device], network: InventoryNetwork(subnet: "192.168.77.0/24", gatewayIP: "192.168.77.1", name: "Studio", scanAge: 20)
+        )
+        let json = try await sendOverLink(CompanionMessage.deviceList(list).encodeLengthPrefixed())
+        let old = try JSONDecoder().decode(OldMessage.self, from: json)
+        let received = try #require(old.payload.devices.first)
+        #expect(received.id == device.id)
+        #expect(received.ipAddress == "192.168.77.61")
         #expect(received.isOnline)
     }
 

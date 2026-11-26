@@ -13,8 +13,6 @@ enum CurrentNetwork {
         active: () -> [NetworkProfile] = NetworkProfileManager.detectActiveProfiles,
         saved: () -> NetworkProfile? = { NetworkProfileManager.savedLocalProfile() }
     ) -> NetworkProfile? {
-        guard let local = saved() else { return nil }
-        let live = active()
-        return live.contains { $0.interfaceName == local.interfaceName && $0.subnet == local.subnet } ? local : nil
+        NetworkProfileManager.currentProfile(active: active, saved: saved)
     }
 }

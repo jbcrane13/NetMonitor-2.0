@@ -181,3 +181,15 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **iOS 27 runtime: a `List` screen's identifier sits on a `CollectionView`**, so `app.otherElements["screen_settings"]` never matches (#604). Use `app.descendants(matching: .any)[id]`.
 - **macOS AX:** a grouped `Form` exposes no `accessibilityIdentifier`, even inside a wrapping container, so crop to its rows. A `DisclosureGroup` doesn't toggle on an AX press; a plain button does.
 - **Evidence QR codes carry real data.** The Mac's QR held its real name and hostname until UI-test launches got a made-up name and no host. Decode a QR before publishing its screenshot.
+
+## 2026-11-26 — iPhone shows the Mac's inventory (#585)
+- **zsh reads `$VAR:r…` as a modifier.** `git push origin $C:refs/heads/x` stripped the ref to `…efs/heads/x`. Write `"${C}:refs/heads/x"`.
+- **Date formatting puts U+202F before AM/PM.** A string compare against "2:03 PM" fails though it prints the same. Normalise in the test, not in the product.
+- **The device list's presence clock ticks once a minute,** so a freshly received Mac list read against `presence.now` looked younger than it was ("scanned just now" for a 60 s old scan). Read ages from no earlier than the list's `receivedAt`.
+- **Rows inside the dashboard card's `NavigationLink` aren't exposed to XCUITest.** Assert on the link's own value (`dashboard_link_devices`). An element screenshot of a card under the tab bar comes out black: swipe it clear first.
+- **Opening found-device detail inserts a row.** A device the app must show but never save (the Mac's) gets no destination.
+- **Make a fixture's two sources disagree.** With the Mac and the phone both saying Online, a fallback test can't tell a frozen Mac state from the phone's own.
+- **Keep another source's sightings out of the scan list (#585 review).** Merged into the accumulator, the Mac's answers became "Found in this scan" rows that detail saves on open, and `ScanAccumulator.merged` keeps the first entry's fields, so a stale phone ARP entry plus a Mac answer read as a confirmed phone sighting. A separate refresh-only input to the reconciler (`macSightings`) keeps the phone's scan its own.
+- **A profile's `gatewayIP` proves nothing about which network you are on:** both apps set it to the subnet's first host. Compare routed gateways (`NetworkUtilities.detectRoutedGateway()`, nil when the route lookup fails, never a guess).
+- **Read a capability from the payload when you can.** Deciding "inventory Mac" from the heartbeat raced the first list; the list's own `network` field settles it, so the Mac always sends it.
+- **The phone's frame decoder clears its buffer on an oversize frame and then desyncs.** End the link on any rejected frame.

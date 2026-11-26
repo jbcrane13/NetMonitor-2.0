@@ -30,6 +30,86 @@ struct CompanionSightingsTests {
         #expect(result.devices.map(\.ipAddress) == ["192.168.7.60"])
     }
 
+    /// #585 review 10: a list that carries `network` is an inventory Mac's, whatever the heartbeat
+    /// said yet. It never joins the phone's own scan (that would save its devices); its answers
+    /// refresh existing rows separately (`inventorySightings`).
+    @Test func anInventoryListNeverJoinsThePhonesScanEvenBeforeTheHeartbeat() {
+        let inventory = DeviceListPayload(
+            devices: list.devices, network: InventoryNetwork(subnet: "192.168.7.0/24", gatewayIP: "192.168.7.1", name: nil, scanAge: 10)
+        )
+        let result = DeviceDiscoveryService.companionSightings(
+            list: inventory, receivedAt: now.addingTimeInterval(-30), macConnected: true, now: now,
+            includes: { $0.hasPrefix("192.168.7.") }, profileID: nil
+        )
+        #expect(result.devices.isEmpty)
+        #expect(!result.fresh)
+    }
+
+    static let profile = NetworkProfile(
+        interfaceName: "en0", ipAddress: "192.168.7.100",
+        network: NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A80700, broadcastAddress: 0xC0A807FF, interfaceAddress: 0xC0A80764, netmask: 0xFFFFFF00
+        ),
+        connectionType: .wifi
+    )
+
+    func inventory(scanAge: TimeInterval = 10, answered: Bool = true) -> DeviceListPayload {
+        let member = MemberInfo(
+            id: UUID(), ipAddress: "192.168.7.60", macAddress: "AA:BB:CC:00:00:60", lastSeen: now, answeredLatestScan: answered,
+            scanTime: now, scanAge: scanAge, isPrimary: true
+        )
+        return DeviceListPayload(
+            devices: [DeviceInfo(
+                ipAddress: "192.168.7.60", macAddress: "AA:BB:CC:00:00:60", hostname: "tv", isOnline: answered, members: [member],
+                isDeviceOnline: true
+            )],
+            network: InventoryNetwork(subnet: "192.168.7.0/24", gatewayIP: "192.168.7.1", name: nil, scanAge: scanAge)
+        )
+    }
+
+    func inventorySightings(_ list: DeviceListPayload, link: CompanionLinkPath? = CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .wifi, interfaceName: "en0"),
+                            gateway: String? = "192.168.7.1", ownLastScan: Date? = nil) -> [String] {
+        let availability = MacInventory.availability(
+            list: list, receivedAt: now, link: link, phone: PhoneNetwork(profile: Self.profile, gatewayIP: gateway), viewing: Self.profile.id,
+            presence: PresenceSnapshot(lastScans: [:], now: now)
+        )
+        return DeviceDiscoveryService.inventorySightings(
+            list: list, availability: availability, receivedAt: now, profileID: Self.profile.id, ownLastScan: ownLastScan
+        ).map(\.ipAddress)
+    }
+
+    @Test func aLiveInventoryGivesItsAnswersAsSightings() {
+        #expect(inventorySightings(inventory()) == ["192.168.7.60"])
+        // Missed the Mac's latest scan: no answer to give, even while the Mac shows it online within
+        // its grace (#598: a grace-online member is never a fresh sighting).
+        #expect(inventorySightings(inventory(answered: false)).isEmpty)
+        // The Mac's scan is older than the phone's own: no newer answer (#619).
+        #expect(inventorySightings(inventory(scanAge: 60), ownLastScan: now.addingTimeInterval(-30)).isEmpty)
+    }
+
+    /// #624 verification C: the scan path uses the phone's current network, not the scanned or selected
+    /// profile. A selected "Office" with the same CIDR and gateway, scanned at home, refreshes nothing.
+    @Test func aSelectedProfileThatIsntTheCurrentNetworkRefreshesNothing() {
+        let office = NetworkProfile(
+            id: UUID(), interfaceName: "en0", ipAddress: "192.168.7.100", network: Self.profile.network, connectionType: .wifi,
+            name: "Office", gatewayIP: "192.168.7.1", subnet: "192.168.7.0/24", isLocal: false, discoveryMethod: .manual
+        )
+        func sightings(scanned: NetworkProfile) -> [String] {
+            DeviceDiscoveryService.inventoryMacSightings(
+                list: inventory(), receivedAt: now, link: CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .wifi, interfaceName: "en0"),
+                current: Self.profile, scanned: scanned, gateway: "192.168.7.1", ownLastScan: nil, now: now
+            ).map(\.ipAddress)
+        }
+        #expect(sightings(scanned: Self.profile) == ["192.168.7.60"])
+        #expect(sightings(scanned: office).isEmpty)
+    }
+
+    @Test func anInventoryThatIsntLiveGivesNothing() {
+        #expect(inventorySightings(inventory(), link: CompanionLinkPath(remoteAddress: "192.168.7.2", interface: .other, interfaceName: "en0")).isEmpty)
+        #expect(inventorySightings(inventory(), gateway: "192.168.7.254").isEmpty)
+        #expect(inventorySightings(inventory(scanAge: -1)).isEmpty)
+    }
+
     @Test func aListFromADisconnectedMacIsStale() {
         #expect(!sightings(receivedAt: now.addingTimeInterval(-30), connected: false).fresh)
         // A dropped link clears the receive time.
@@ -124,7 +204,7 @@ struct CompanionSightingsTests {
 
     @Test("The Mac's scan is placed on the phone's clock by its age at sending, so clock skew doesn't count (#619)")
     func clockSkewDoesNotCount() {
-        func sightings(macClockAhead skew: TimeInterval, scanAgeAtSend age: TimeInterval, ownLastScan: Date) -> [String] {
+        func sightings(macClockAhead skew: TimeInterval, scanAgeAtSend age: TimeInterval, ownLastScan: Date?) -> [String] {
             let member = MemberInfo(
                 id: UUID(), ipAddress: "192.168.7.40", macAddress: nil, lastSeen: now, answeredLatestScan: true,
                 scanTime: now.addingTimeInterval(skew - age), scanAge: age
@@ -140,9 +220,11 @@ struct CompanionSightingsTests {
         #expect(sightings(macClockAhead: 600, scanAgeAtSend: 60, ownLastScan: now.addingTimeInterval(-30)).isEmpty)
         // 10 minutes slow: its scan a minute ago is newer than the phone's two minutes ago.
         #expect(sightings(macClockAhead: -600, scanAgeAtSend: 60, ownLastScan: now.addingTimeInterval(-120)) == ["192.168.7.40"])
-        // A negative age is a scan at sending, not one in the phone's future.
-        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: now.addingTimeInterval(-1)) == ["192.168.7.40"])
-        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: now.addingTimeInterval(1)).isEmpty)
+        // A negative, non-finite or absurd age is rejected, not read as a scan at sending (#585 review):
+        // a Mac whose clock went back would otherwise have its old answers renewed by every list.
+        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: now.addingTimeInterval(-1)).isEmpty)
+        #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: nil).isEmpty)
+        #expect(sightings(macClockAhead: 0, scanAgeAtSend: 1e300, ownLastScan: nil).isEmpty)
     }
 
     @Test("Only the primary interface's sighting carries the device's name, so a secondary one without a MAC matches its own row (#619)")

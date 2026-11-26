@@ -404,7 +404,10 @@ final class BackgroundTaskService {
         // reconcile that applied it, this one's or the foreground updater's, posted by the
         // device-event notifier (#603, #619); the task waits for them before it ends.
         if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore {
-            reconcileSavedDevices(DeviceDiscoveryService.shared.completedScanDevices, scanDate: scanDate, network: network?.id)
+            reconcileSavedDevices(
+                DeviceDiscoveryService.shared.completedScanDevices, macSightings: DeviceDiscoveryService.shared.completedScanMacSightings,
+                scanDate: scanDate, network: network?.id
+            )
         }
         await deviceEventAlertsPosted()
     }
@@ -418,12 +421,14 @@ extension BackgroundTaskService {
     /// the app's own container, so the next look at a device shows this scan. A device that carries
     /// no network is `network`'s, the live network when the scan started; with none, nothing is
     /// saved. The foreground updater skips the same scan.
-    func reconcileSavedDevices(_ devices: [DiscoveredDevice], scanDate: Date, network: UUID?) {
+    func reconcileSavedDevices(_ devices: [DiscoveredDevice], macSightings: [DiscoveredDevice] = [], scanDate: Date, network: UUID?) {
         guard let container = AppModelStore.sharedContainer() else {
             Self.logger.error("Failed to open the store to save scanned devices")
             return
         }
-        Self.reconcileAndPublish(devices, scanDate: scanDate, network: network, in: container, dispatcher: DeviceEventDispatcher.shared)
+        Self.reconcileAndPublish(
+            devices, macSightings: macSightings, scanDate: scanDate, network: network, in: container, dispatcher: DeviceEventDispatcher.shared
+        )
     }
 
     /// Reconciles a background scan, then, once it saved, publishes each scanned network's
@@ -433,6 +438,7 @@ extension BackgroundTaskService {
     @discardableResult
     static func reconcileAndPublish(
         _ devices: [DiscoveredDevice],
+        macSightings: [DiscoveredDevice] = [],
         scanDate: Date,
         network: UUID?,
         in container: ModelContainer,
@@ -447,7 +453,9 @@ extension BackgroundTaskService {
         // device detail's unsaved edits in the main context.
         let context = ModelContext(container)
         let reconciler = ScanReconciler(context: context, history: history, dispatcher: dispatcher)
-        guard DeviceRecordUpdater.reconcile(devices, scanDate: scanDate, network: network, with: reconciler, now: now) else {
+        guard DeviceRecordUpdater.reconcile(
+            devices, macSightings: macSightings, scanDate: scanDate, network: network, with: reconciler, now: now
+        ) else {
             return false
         }
         summaries.publish(

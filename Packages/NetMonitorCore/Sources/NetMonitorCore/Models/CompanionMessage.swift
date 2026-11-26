@@ -1,4 +1,5 @@
 import Foundation
+import NetworkScanKit
 
 // MARK: - CompanionMessage
 /// Root message type for macOS ↔ iOS companion communication.
@@ -252,9 +253,69 @@ public struct TargetInfo: Codable, Sendable, Identifiable {
 
 public struct DeviceListPayload: Codable, Sendable {
     public let devices: [DeviceInfo]
+    /// The network the list covers and how old its latest scan was (#585). Nil from a Mac before
+    /// `inventory.v1`.
+    public let network: InventoryNetwork?
+    /// True when the Mac trimmed the list to fit one frame (#624); nil otherwise and from older Macs.
+    public let truncated: Bool?
 
-    public init(devices: [DeviceInfo]) {
+    public init(devices: [DeviceInfo], network: InventoryNetwork? = nil, truncated: Bool? = nil) {
         self.devices = devices
+        self.network = network
+        self.truncated = truncated
+    }
+}
+
+/// The network a Mac's device list covers (#585): the phone shows the list only on the same
+/// subnet. `scanAge` is how long before sending the Mac's latest scan of it was, on the Mac's
+/// clock alone, so the phone places the scan on its own clock (#619).
+public struct InventoryNetwork: Codable, Sendable, Equatable {
+    /// CIDR, as `NetworkProfile.subnetCIDR` writes it ("192.168.1.0/24"); nil when the Mac has no
+    /// network, and then the phone shows nothing from the list.
+    public let subnet: String?
+    /// The Mac's routed gateway on that network (not the profile's first-host guess); nil when its
+    /// route lookup failed.
+    public let gatewayIP: String?
+    public let name: String?
+    public let scanAge: TimeInterval?
+
+    public init(subnet: String?, gatewayIP: String?, name: String?, scanAge: TimeInterval?) {
+        self.subnet = subnet
+        self.gatewayIP = gatewayIP
+        self.name = name
+        self.scanAge = scanAge
+    }
+}
+
+/// A device's maker, model and friendly name as the Mac ranked them (#427, ADR-022), each with
+/// its source as a string: a source this build doesn't know reads as none instead of failing the
+/// list. Model suggestions are never sent (#449).
+public struct InventoryIdentity: Codable, Sendable, Equatable {
+    public struct Value: Codable, Sendable, Equatable {
+        public let value: String
+        public let source: String?
+    }
+
+    public let maker: Value?
+    public let model: Value?
+    public let friendlyName: Value?
+
+    public init(_ identity: DeviceIdentity) {
+        let sent = identity.withoutSuggestions
+        func value(_ item: IdentityValue?) -> Value? {
+            item.map { Value(value: $0.value, source: $0.source?.rawValue) }
+        }
+        maker = value(sent.maker)
+        model = value(sent.model)
+        friendlyName = value(sent.friendlyName)
+    }
+
+    /// The identity with its sources; an unknown source is none.
+    public var deviceIdentity: DeviceIdentity {
+        func value(_ item: Value?) -> IdentityValue? {
+            item.flatMap { IdentityValue($0.value, source: $0.source.flatMap(IdentitySource.init(rawValue:))) }
+        }
+        return DeviceIdentity(maker: value(maker), model: value(model), friendlyName: value(friendlyName))
     }
 }
 
@@ -297,6 +358,13 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
     /// What the Mac shows for the device (any interface online, within grace), apart from
     /// `isOnline`'s "answered the latest scan".
     public let isDeviceOnline: Bool?
+    /// How long before the list was sent any interface last answered, on the Mac's clock (#585).
+    public let lastSeenAge: TimeInterval?
+    /// How long before the list was sent the device last joined or left, from the Mac's event log;
+    /// nil when it has none (#585).
+    public let lastChangedAge: TimeInterval?
+    /// The primary's maker, model and friendly name with their sources (#427).
+    public let identity: InventoryIdentity?
 
     public init(
         id: UUID = UUID(),
@@ -307,7 +375,10 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         deviceType: String = "unknown",
         isOnline: Bool,
         members: [MemberInfo]? = nil,
-        isDeviceOnline: Bool? = nil
+        isDeviceOnline: Bool? = nil,
+        lastSeenAge: TimeInterval? = nil,
+        lastChangedAge: TimeInterval? = nil,
+        identity: InventoryIdentity? = nil
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -318,6 +389,9 @@ public struct DeviceInfo: Codable, Sendable, Identifiable {
         self.isOnline = isOnline
         self.members = members
         self.isDeviceOnline = isDeviceOnline
+        self.lastSeenAge = lastSeenAge
+        self.lastChangedAge = lastChangedAge
+        self.identity = identity
     }
 }
 
@@ -420,6 +494,9 @@ public struct HeartbeatPayload: Codable, Sendable {
 
     /// Whether the sender answers `insightRequest`s.
     public var offersInsight: Bool { capabilities?.contains(CompanionCapability.insight) == true }
+
+    /// Whether the sender pushes its device inventory (#585).
+    public var offersInventory: Bool { capabilities?.contains(CompanionCapability.inventory) == true }
 }
 
 /// Capabilities a peer advertises in `HeartbeatPayload.capabilities`. New message types are
@@ -427,6 +504,9 @@ public struct HeartbeatPayload: Codable, Sendable {
 public enum CompanionCapability {
     /// The Mac answers `insightRequest` with its on-device model (#457).
     public static let insight = "insight.v1"
+    /// The Mac sends its device inventory (`deviceList` with `network`, ages and identity) after
+    /// each scan, and the phone shows it as the Mac's (#585).
+    public static let inventory = "inventory.v1"
 }
 
 // MARK: - Logging

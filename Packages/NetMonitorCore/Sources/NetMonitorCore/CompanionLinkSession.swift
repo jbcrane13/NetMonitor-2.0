@@ -16,6 +16,9 @@ public struct CompanionLinkSession: Sendable {
 
     public private(set) var lastReceived: Date?
     public private(set) var reconnectAttempt: Int = 0
+    /// When the current link came up; the backoff resets once it has stayed up a heartbeat interval
+    /// and delivered a message.
+    public private(set) var connectedAt: Date?
 
     public init(heartbeatInterval: TimeInterval = 15, missedBeatsBeforeStale: Int = 3) {
         self.heartbeatInterval = heartbeatInterval
@@ -25,8 +28,13 @@ public struct CompanionLinkSession: Sendable {
     // MARK: - Liveness
 
     /// Records that a message was received from the companion at `instant`.
+    /// Resets the reconnect backoff once the link has stayed up for `heartbeatInterval` (#624): a
+    /// peer that greets and then misbehaves keeps backing off.
     public mutating func recordReceived(at instant: Date) {
         lastReceived = instant
+        if let connectedAt, instant.timeIntervalSince(connectedAt) >= heartbeatInterval {
+            reconnectAttempt = 0
+        }
     }
 
     /// Whether the link should still be considered alive as of `now`.
@@ -41,10 +49,10 @@ public struct CompanionLinkSession: Sendable {
 
     // MARK: - Reconnect
 
-    /// Records a successful connection at `instant`, resetting the reconnect attempt counter
-    /// and liveness tracking.
+    /// Records a link coming up at `instant` and resets liveness tracking. The reconnect backoff is
+    /// reset later, by a message on a link that has stayed up (`recordReceived(at:)`, #624).
     public mutating func recordConnected(at instant: Date) {
-        reconnectAttempt = 0
+        connectedAt = instant
         lastReceived = instant
     }
 
@@ -52,14 +60,22 @@ public struct CompanionLinkSession: Sendable {
     /// attempt, using the same capped-exponential-backoff-with-jitter formula as the original
     /// `MacConnectionService.reconnectDelay(attempt:jitterFraction:)`.
     public mutating func nextReconnectDelay(jitterFraction: Double) -> TimeInterval {
+        connectedAt = nil
         reconnectAttempt += 1
         return Self.reconnectDelay(attempt: reconnectAttempt, jitterFraction: jitterFraction)
+    }
+
+    /// Records that the link ended, by any path: a message after it never counts toward a stable
+    /// link, so the backoff keeps growing for a peer that greets and then fails (#624).
+    public mutating func linkEnded() {
+        connectedAt = nil
     }
 
     /// Resets reconnect and liveness state to its initial values.
     public mutating func reset() {
         reconnectAttempt = 0
         lastReceived = nil
+        connectedAt = nil
     }
 
     /// Capped exponential backoff with jitter: `min(60, 2^(attempt-1))` plus jitter of up to
