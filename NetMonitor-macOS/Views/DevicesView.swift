@@ -34,6 +34,9 @@ struct DevicesView: View {
 
     // Pro mode detail sheet
     @State private var selectedProDevice: LocalDevice?
+    /// Device detail's grouping actions and their undo toast (#594 PR2), above the detail view,
+    /// which grouping recreates.
+    @State private var grouping = DeviceGroupingViewModel()
 
     // Context menu action state
     @State private var deviceToPing: DeviceProjection?
@@ -185,6 +188,13 @@ struct DevicesView: View {
         .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in
             reloadDevices()
         }
+        // Grouping, separating or undoing changes the device's ID; select it by a row it kept.
+        .onChange(of: grouping.selection?.revision) {
+            if let rowID = grouping.selection?.rowID, viewMode != .pro {
+                selectedDeviceID = rowID
+            }
+        }
+        .environment(grouping)
         .onChange(of: coordinator?.isScanning) { _, isScanning in
             if isScanning == false {
                 reloadDevices()
