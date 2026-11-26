@@ -91,6 +91,9 @@ struct NetmonitorApp: App {
             UITestBootstrap.logTestEventIfRequested()
             return
         }
+        // New and missing device alerts from every applied scan, foreground or background, before
+        // any reconcile can run (#619).
+        BackgroundTaskService.shared.notifyDeviceEvents(from: DeviceEventDispatcher.shared)
         BackgroundTaskService.shared.registerTasks()
     }
 

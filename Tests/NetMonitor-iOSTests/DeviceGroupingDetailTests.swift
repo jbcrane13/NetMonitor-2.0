@@ -40,6 +40,12 @@ final class DeviceGroupingDetailTests {
         return viewModel
     }
 
+    /// "Same device as…" opened on `viewModel`, filtered by `query`, as the sheet shows it.
+    func picker(_ viewModel: DeviceDetailViewModel, matching query: String = "") -> [DeviceProjection] {
+        viewModel.loadSameDeviceCandidates()
+        return viewModel.sameDeviceCandidates(matching: query)
+    }
+
     /// The store's devices on the home network, read in a fresh context.
     func storedDevices() throws -> [DeviceProjection] {
         let home = home
@@ -108,11 +114,24 @@ final class DeviceGroupingDetailTests {
         try row("192.168.1.20", name: "alpha-printer")
         try row("192.168.1.30", name: "other-net", network: UUID())
         let viewModel = detail(wired)
-        let all = viewModel.sameDeviceCandidates()
+        let all = picker(viewModel)
         #expect(all.map(\.displayName) == ["studio-wifi", "alpha-printer"])
         #expect(all.map(viewModel.isSuggested) == [true, false])
         #expect(viewModel.sameDeviceCandidates(matching: "printer").map(\.displayName) == ["alpha-printer"])
         #expect(viewModel.sameDeviceCandidates(matching: "1.13").map(\.displayName) == ["studio-wifi"])
+    }
+
+    @Test("Same device as… loads its devices once when it opens; search filters them without reading the store again")
+    func pickerLoadsOnceWhenOpened() throws {
+        let wired = try row("192.168.1.60", name: "studio-wired")
+        try row("192.168.1.20", name: "alpha-printer")
+        let viewModel = detail(wired)
+        #expect(viewModel.sameDeviceCandidates().isEmpty, "nothing before the picker opens")
+        viewModel.loadSameDeviceCandidates()
+        try row("192.168.1.21", name: "beta-printer")
+        #expect(viewModel.sameDeviceCandidates(matching: "printer").map(\.displayName) == ["alpha-printer"], "the devices as it opened")
+        #expect(viewModel.sameDeviceCandidates(matching: "zzz").isEmpty)
+        #expect(picker(viewModel, matching: "printer").map(\.displayName) == ["alpha-printer", "beta-printer"], "opened again, read again")
     }
 
     @Test("Same device as… then Not the same device makes two devices again, with undo")
@@ -120,7 +139,7 @@ final class DeviceGroupingDetailTests {
         let laptop = try row("192.168.1.40", name: "laptop-wifi")
         let dock = try row("192.168.1.41", name: "laptop-dock")
         let viewModel = detail(laptop)
-        let pick = try #require(viewModel.sameDeviceCandidates().first { $0.id == dock.id })
+        let pick = try #require(picker(viewModel).first { $0.id == dock.id })
         viewModel.groupWith(pick)
         #expect(viewModel.interfaces.count == 2)
         #expect(try storedDevices().count == 1)
@@ -144,7 +163,7 @@ final class DeviceGroupingDetailTests {
         let dock = try row("192.168.1.41", name: "laptop-dock")
         try DeviceGroupWriter(container: container).exclude(laptop.id, dock.id)
         let viewModel = detail(laptop)
-        let pick = try #require(viewModel.sameDeviceCandidates().first { $0.id == dock.id })
+        let pick = try #require(picker(viewModel).first { $0.id == dock.id })
 
         viewModel.groupWith(pick)
         #expect(viewModel.grouping.pendingOverride?.id == dock.id)
@@ -167,7 +186,7 @@ final class DeviceGroupingDetailTests {
         let dock = try row("192.168.1.41", name: "laptop-dock")
         let third = try row("192.168.1.42", name: "laptop-usb")
         let viewModel = detail(laptop)
-        try viewModel.groupWith(#require(viewModel.sameDeviceCandidates().first { $0.id == dock.id }))
+        try viewModel.groupWith(#require(picker(viewModel).first { $0.id == dock.id }))
         // Something else joins the group after the action.
         try DeviceGroupWriter(container: container).group([laptop.id, third.id], primary: nil, source: .bonjour)
 
@@ -234,7 +253,7 @@ final class DeviceGroupingDetailTests {
         let groupID = try DeviceGroupWriter(container: container).group([wired.id, usb.id], primary: wired.id, source: .bonjour)
         let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
         viewModel.loadDevice(id: usb.id, context: context)
-        try viewModel.groupWith(#require(viewModel.sameDeviceCandidates().first { $0.id == wifi.id }))
+        try viewModel.groupWith(#require(picker(viewModel).first { $0.id == wifi.id }))
         #expect(viewModel.projection?.id == groupID)
         #expect(viewModel.device?.id == wired.id)
         let stored = try ModelContext(container).fetch(FetchDescriptor<LocalDevice>())
@@ -263,7 +282,7 @@ final class DeviceGroupingDetailTests {
         let dock = try row("192.168.1.41", name: "laptop-dock")
         dock.macAddress = "00:1B:A9:4C:00:41"
         try context.save()
-        #expect(detail(laptop).sameDeviceCandidates(matching: "4c:00").map(\.id) == [dock.id])
+        #expect(picker(detail(laptop), matching: "4c:00").map(\.id) == [dock.id])
     }
 
     // MARK: - Label
@@ -276,7 +295,7 @@ final class DeviceGroupingDetailTests {
         try DeviceGroupWriter(container: container).group([wired.id, wifi.id], primary: wired.id, source: .bonjour)
         let viewModel = detail(wired)
         #expect(viewModel.interfaces.map(viewModel.groupLabel) == ["Grouped by Bonjour name", "Grouped by Bonjour name"])
-        try viewModel.groupWith(#require(viewModel.sameDeviceCandidates().first { $0.id == usb.id }))
+        try viewModel.groupWith(#require(picker(viewModel).first { $0.id == usb.id }))
         let labels = Dictionary(uniqueKeysWithValues: viewModel.interfaces.map { ($0.id, viewModel.groupLabel(for: $0)) })
         #expect(labels[usb.id] == .some(nil))
         #expect(labels[wifi.id] == "Grouped by Bonjour name")

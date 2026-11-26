@@ -57,26 +57,35 @@ final class DeviceEventConsumerTests {
         seen("192.168.1.1", name: "router", mac: "00:1B:A9:00:00:01")
     }
 
-    /// A background scan's path: reconciled and published (`reconcileAndPublish`), its alerts from
-    /// the events delivered for it (`DeviceEventCollector`), posted by `notifyScanChanges`.
+    /// A background scan's path: reconciled and published (`reconcileAndPublish`); its alerts come
+    /// from the device-event notifier, as every applied reconcile's do, awaited as the task awaits them.
     func backgroundScan(_ devices: [DiscoveredDevice], at index: Int, alerts service: BackgroundTaskService) async {
-        let collector = DeviceEventCollector(dispatcher: dispatcher)
-        defer { collector.stop() }
         BackgroundTaskService.reconcileAndPublish(
             devices, scanDate: time(index), network: home, in: container, history: history, summaries: SavedDeviceSummaryModel(),
             defaults: defaults, reloadWidget: false, dispatcher: dispatcher, now: time(index)
         )
-        let diff = ScanDiff(events: collector.events(for: time(index)), networkProfileID: home, scannedAt: time(index))
-        await service.notifyScanChanges(diff, wordBodies: false)
+        await service.deviceEventAlertsPosted()
     }
 
+    /// The alerts service, notifying from this suite's dispatcher, as the app's does from launch.
     func alertService(_ poster: EventAlertPoster) -> BackgroundTaskService {
-        BackgroundTaskService(
+        let service = BackgroundTaskService(
             registerTask: { _, _, _ in false },
             notifications: NotificationService(poster: poster, defaults: defaults),
             insightService: MockInsightService(isAvailable: false),
             isScanning: { false }
         )
+        service.notifyDeviceEvents(from: dispatcher)
+        return service
+    }
+
+    /// Turns the scheduled-scan alert toggles on for one test.
+    func withScanAlertsOn(_ body: () async throws -> Void) async rethrows {
+        let keys = ["scheduledScan_notifyNew", "scheduledScan_notifyMissing"]
+        let originals = keys.map { UserDefaults.standard.object(forKey: $0) }
+        keys.forEach { UserDefaults.standard.set(true, forKey: $0) }
+        defer { zip(keys, originals).forEach { restoreDefault(.standard, key: $0, to: $1) } }
+        try await body()
     }
 
     func deviceEntries() -> [String] {
@@ -93,11 +102,7 @@ final class DeviceEventConsumerTests {
     func dhcpReuseJoinsThenLeaves() async throws {
         let poster = EventAlertPoster()
         let service = alertService(poster)
-        let keys = ["scheduledScan_notifyNew", "scheduledScan_notifyMissing"]
-        let originals = keys.map { UserDefaults.standard.object(forKey: $0) }
-        keys.forEach { UserDefaults.standard.set(true, forKey: $0) }
-        defer { zip(keys, originals).forEach { restoreDefault(.standard, key: $0, to: $1) } }
-
+        try await withScanAlertsOn {
         await backgroundScan([router, seen("192.168.1.30", name: "office-printer")], at: 0, alerts: service)
         #expect(deviceEntries().isEmpty, "the network's first scan is the baseline")
 
@@ -121,6 +126,58 @@ final class DeviceEventConsumerTests {
         #expect(left.deviceID == printer.id)
         #expect(poster.requests.map(\.content.title) == ["New Device Detected", "Target Down"], "one alert for each change")
         #expect(poster.requests.last?.content.body == "office-printer (192.168.1.30) is not responding")
+        }
+    }
+
+    // MARK: - Notifications from every applied reconcile (#619)
+
+    @Test("A device that joins in a foreground scan notifies once; the same scan in the background and the next one don't repeat it")
+    func foregroundJoinNotifiesOnce() async throws {
+        let poster = EventAlertPoster()
+        let service = alertService(poster)
+        try await withScanAlertsOn {
+            try reconcile([router], at: 0)
+            let scan = [router, seen("192.168.1.57", name: "pixel-8")]
+            try reconcile(scan, at: 1)
+            await service.deviceEventAlertsPosted()
+            #expect(poster.requests.map(\.content.title) == ["New Device Detected"], "the foreground scan notifies")
+
+            await backgroundScan(scan, at: 1, alerts: service)
+            await backgroundScan(scan, at: 2, alerts: service)
+            #expect(poster.requests.map(\.content.title) == ["New Device Detected"], "once")
+        }
+    }
+
+    @Test("A device crossing grace in a foreground scan notifies once; a following background scan doesn't repeat it")
+    func foregroundGraceNotifiesOnce() async throws {
+        let poster = EventAlertPoster()
+        let service = alertService(poster)
+        try await withScanAlertsOn {
+            let printer = seen("192.168.1.30", name: "office-printer", mac: "00:1B:A9:00:00:30")
+            try reconcile([router, printer], at: 0)
+            for index in 1 ... 3 {
+                try reconcile([router], at: index)
+            }
+            await service.deviceEventAlertsPosted()
+            #expect(poster.requests.map(\.content.title) == ["Target Down"])
+
+            await backgroundScan([router], at: 3, alerts: service)
+            await backgroundScan([router], at: 4, alerts: service)
+            #expect(poster.requests.map(\.content.title) == ["Target Down"], "once")
+        }
+    }
+
+    @Test("Scan alerts follow the user's toggles")
+    func alertsFollowToggles() async throws {
+        let poster = EventAlertPoster()
+        let service = alertService(poster)
+        let original = UserDefaults.standard.object(forKey: "scheduledScan_notifyNew")
+        UserDefaults.standard.set(false, forKey: "scheduledScan_notifyNew")
+        defer { restoreDefault(.standard, key: "scheduledScan_notifyNew", to: original) }
+        try reconcile([router], at: 0)
+        try reconcile([router, seen("192.168.1.57", name: "pixel-8")], at: 1)
+        await service.deviceEventAlertsPosted()
+        #expect(poster.requests.isEmpty)
     }
 
     @Test("A device back online is logged with the Mac's wording, once")
@@ -154,40 +211,39 @@ final class DeviceEventConsumerTests {
     func raceDeliversOnce() async throws {
         let poster = EventAlertPoster()
         let service = alertService(poster)
-        let original = UserDefaults.standard.object(forKey: "scheduledScan_notifyNew")
-        UserDefaults.standard.set(true, forKey: "scheduledScan_notifyNew")
-        defer { restoreDefault(.standard, key: "scheduledScan_notifyNew", to: original) }
-        try reconcile([router], at: 0)
+        try await withScanAlertsOn {
+            try reconcile([router], at: 0)
+            // The foreground updater gets there first; the background reconcile of the same scan is skipped.
+            let scan = [router, seen("192.168.1.57", name: "pixel-8")]
+            try reconcile(scan, at: 1)
+            let saved = BackgroundTaskService.reconcileAndPublish(
+                scan, scanDate: time(1), network: home, in: container, history: history, summaries: SavedDeviceSummaryModel(),
+                defaults: defaults, reloadWidget: false, dispatcher: dispatcher, now: time(1)
+            )
+            #expect(saved, "the background reconcile is skipped, not failed")
+            await service.deviceEventAlertsPosted()
 
-        // The background task listens from before its scan; the foreground updater gets there first.
-        let collector = DeviceEventCollector(dispatcher: dispatcher)
-        defer { collector.stop() }
-        let scan = [router, seen("192.168.1.57", name: "pixel-8")]
-        try reconcile(scan, at: 1)
-        let saved = BackgroundTaskService.reconcileAndPublish(
-            scan, scanDate: time(1), network: home, in: container, history: history, summaries: SavedDeviceSummaryModel(),
-            defaults: defaults, reloadWidget: false, dispatcher: dispatcher, now: time(1)
-        )
-        #expect(saved, "the background reconcile is skipped, not failed")
-        let events = collector.events(for: time(1))
-        await service.notifyScanChanges(ScanDiff(events: events, networkProfileID: home, scannedAt: time(1)), wordBodies: false)
-
-        #expect(deviceEntries() == ["Device Joined: pixel-8"])
-        #expect(poster.requests.map(\.content.title) == ["New Device Detected"])
+            #expect(deviceEntries() == ["Device Joined: pixel-8"])
+            #expect(poster.requests.map(\.content.title) == ["New Device Detected"])
+        }
     }
 
     // MARK: - Paths that log nothing
 
     @Test("A scan reconciled again (skipped) logs and alerts nothing")
-    func skippedReconcileIsQuiet() throws {
-        try reconcile([router], at: 0)
-        try reconcile([router, seen("192.168.1.57", name: "pixel-8")], at: 1)
-        let collector = DeviceEventCollector(dispatcher: dispatcher)
-        defer { collector.stop() }
-        let outcome = try reconcile([router, seen("192.168.1.58", name: "other")], at: 1)
-        #expect(outcome == .skipped)
-        #expect(collector.events(for: time(1)).isEmpty)
-        #expect(deviceEntries() == ["Device Joined: pixel-8"])
+    func skippedReconcileIsQuiet() async throws {
+        let poster = EventAlertPoster()
+        let service = alertService(poster)
+        try await withScanAlertsOn {
+            try reconcile([router], at: 0)
+            try reconcile([router, seen("192.168.1.57", name: "pixel-8")], at: 1)
+            await service.deviceEventAlertsPosted()
+            let outcome = try reconcile([router, seen("192.168.1.58", name: "other")], at: 1)
+            await service.deviceEventAlertsPosted()
+            #expect(outcome == .skipped)
+            #expect(deviceEntries() == ["Device Joined: pixel-8"])
+            #expect(poster.requests.map(\.content.title) == ["New Device Detected"], "nothing for the skipped reconcile")
+        }
     }
 
     @Test("A device held for detail (a row saved without a network at its address) makes no row and logs nothing")

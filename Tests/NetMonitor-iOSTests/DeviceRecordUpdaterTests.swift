@@ -262,7 +262,10 @@ extension DeviceRecordUpdaterTests {
         #expect(tools.lastScannedSubnet == nil)
 
         let scheduled = MockDeviceDiscoveryService()
-        await ScheduledScanViewModel(discovery: scheduled, currentNetwork: { network }).runScanNow()
+        await ScheduledScanViewModel(
+            scheduler: ScanSchedulerService(dispatcher: DeviceEventDispatcher()), discovery: scheduled, currentNetwork: { network },
+            dispatcher: DeviceEventDispatcher()
+        ).runScanNow()
         #expect(scheduled.lastScannedProfile?.id == home)
     }
 

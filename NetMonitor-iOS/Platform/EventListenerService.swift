@@ -222,17 +222,16 @@ final class EventListenerService {
     private func logDeviceEvents(_ batch: DeviceEventBatch) {
         for event in batch.events {
             let type: NetworkEventType
-            let prefix: String
             switch event.kind {
-            case .joined: (type, prefix) = (.deviceJoined, "Device Joined")
-            // The Mac's wording, which the change digest and Ask read as a return, not a newcomer.
-            case .cameOnline: (type, prefix) = (.deviceJoined, "Device Back Online")
-            case .wentOffline: (type, prefix) = (.deviceLeft, "Device Left")
+            case .joined, .cameOnline: type = .deviceJoined
+            case .wentOffline: type = .deviceLeft
             case .addressChanged, .renamed: continue
             }
+            // "Device Back Online" is the Mac's wording, which the change digest and Ask read as a return.
+            guard let prefix = DeviceTimelineTitle.prefix(for: event.kind) else { continue }
             eventService.log(
                 type: type,
-                title: "\(prefix): \(event.name)",
+                title: DeviceTimelineTitle.title(prefix, name: event.name),
                 details: event.name == event.ipAddress ? nil : event.ipAddress,
                 severity: type == .deviceJoined ? .success : .warning,
                 deviceID: event.rowID,

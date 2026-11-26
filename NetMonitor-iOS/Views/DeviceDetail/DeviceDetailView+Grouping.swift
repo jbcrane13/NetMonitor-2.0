@@ -43,12 +43,17 @@ struct GroupSuggestionBanner: View {
     }
 }
 
-/// Opens "Same device as…": pick another device on this network that is this one.
+/// Opens "Same device as…": pick another device on this network that is this one. Its devices
+/// are read as it opens, before the sheet's first frame.
 struct SameDeviceAsButton: View {
+    let viewModel: DeviceDetailViewModel
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            viewModel.loadSameDeviceCandidates()
+            action()
+        } label: {
             Label("Same device as…", systemImage: "rectangle.on.rectangle")
                 .font(.subheadline)
                 .frame(maxWidth: .infinity)
@@ -62,7 +67,7 @@ struct SameDeviceAsButton: View {
 }
 
 /// "Same device as…"'s picker: the other devices on this network, suggestions first, with search.
-/// A pick is handed back and grouped once the sheet is gone, so the override confirmation can show.
+/// Its devices are read once as it opens (`loadSameDeviceCandidates`); search filters them. A pick is handed back and grouped once the sheet is gone, so the override confirmation can show.
 struct SameDeviceAsSheet: View {
     let viewModel: DeviceDetailViewModel
     let onPick: (DeviceProjection) -> Void
@@ -116,7 +121,7 @@ struct SameDeviceAsSheet: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .accessibilityIdentifier("sameDeviceAs_row_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
+        .accessibilityIdentifier(DeviceGroupingChoices.AccessibilityID.sameDeviceAsRow(device.ipAddress))
     }
 }
 

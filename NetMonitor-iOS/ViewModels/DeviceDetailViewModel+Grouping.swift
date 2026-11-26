@@ -26,14 +26,25 @@ final class DeviceGroupingState {
     fileprivate(set) var pendingOverride: DeviceProjection?
     /// The undo toast after the user's last grouping action.
     fileprivate(set) var toast: DeviceGroupingToast?
+    /// "Same device as…"'s devices, read once as it opens, suggestions first.
+    fileprivate(set) var sameDeviceCandidates: [DeviceProjection] = []
 }
 
 extension DeviceDetailViewModel {
-    /// "Same device as…" (#594 PR2): this network's other devices, suggestions first, filtered by
-    /// `query` (`DeviceGroupingChoices`: name, and each interface's address, MAC and names).
+    /// Reads "Same device as…"'s devices (#594 PR2): this network's other devices, suggestions
+    /// first. Called as the picker opens, so its search never reads the store.
+    func loadSameDeviceCandidates() {
+        guard let projection else {
+            grouping.sameDeviceCandidates = []
+            return
+        }
+        grouping.sameDeviceCandidates = DeviceGroupingChoices.candidates(for: projection, among: networkRows(), now: clock())
+    }
+
+    /// The loaded devices filtered by `query` in memory (`DeviceGroupingChoices.matches`: name, and
+    /// each interface's address, MAC and names).
     func sameDeviceCandidates(matching query: String = "") -> [DeviceProjection] {
-        guard let projection else { return [] }
-        return DeviceGroupingChoices.candidates(for: projection, among: networkRows(), now: clock(), search: query)
+        grouping.sameDeviceCandidates.filter { DeviceGroupingChoices.matches($0, query) }
     }
 
     /// Whether `device` is among the suggestions, for the picker's section.

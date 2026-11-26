@@ -161,9 +161,9 @@ enum UITestBootstrap {
         let now = Date()
         // Seconds before now, so they fall under "Today" whatever time the test runs.
         let seeded: [(NetworkEventType, String, String?, TimeInterval)] = [
-            (.deviceJoined, "Device Joined: UITest Camera", "192.168.1.50", 30),
-            (.deviceJoined, "Device Joined: UITest Speaker", "192.168.1.51", 20),
-            (.deviceLeft, "Device Left: 192.168.1.30", nil, 10)
+            (.deviceJoined, DeviceTimelineTitle.title(DeviceTimelineTitle.joined, name: "UITest Camera"), "192.168.1.50", 30),
+            (.deviceJoined, DeviceTimelineTitle.title(DeviceTimelineTitle.joined, name: "UITest Speaker"), "192.168.1.51", 20),
+            (.deviceLeft, DeviceTimelineTitle.title(DeviceTimelineTitle.left, name: "192.168.1.30"), nil, 10)
         ]
         for (type, title, details, secondsAgo) in seeded {
             let severity: NetworkEventSeverity = type == .deviceLeft ? .warning : .success
