@@ -251,7 +251,8 @@ extension UITestBootstrap {
     }
 
     /// `--seed-timeline-device`: saves the first fixture device (its IP and MAC) on the UI-test
-    /// network as "UITest Office Printer", so its events are named by the custom name.
+    /// network as "UITest Office Printer", offline, so the next scan logs it back online (#603: a
+    /// saved device never "joins") under the custom name.
     static func seedTimelineDeviceIfNeeded(in context: ModelContext) {
         guard isUITesting, ProcessInfo.processInfo.arguments.contains("--seed-timeline-device"), !hasSeededTimelineDevice else { return }
         hasSeededTimelineDevice = true
@@ -261,6 +262,7 @@ extension UITestBootstrap {
             macAddress: fixture.macAddress ?? "",
             hostname: fixture.hostname,
             customName: timelineDeviceName,
+            status: .offline,
             networkProfileID: networkProfileID
         ))
         do {

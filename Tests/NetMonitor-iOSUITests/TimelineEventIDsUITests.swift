@@ -3,8 +3,10 @@ import XCTest
 /// #491 S4 user flow: a scan's events are named by the device's saved custom name.
 ///
 /// Launches with the fake discovery service (`UITEST_FAKE_DEVICES=1`), the event listener
-/// (`--uitesting-events`) and a saved row for the first fixture device named "UITest Office
-/// Printer" on the UI-test network (`--seed-timeline-device`). The scan runs from the Map tab
+/// (`--uitesting-events`) and a saved offline row for the first fixture device named "UITest Office
+/// Printer" on the UI-test network (`--seed-timeline-device`). Since #603 the Timeline's device
+/// entries are the reconciled scan's events: the saved device comes back online, and the network's
+/// first scan is a baseline, so the other fixture devices don't "join". The scan runs from the Map tab
 /// through the same fake service the listener watches, so nothing touches the real network.
 @MainActor
 final class TimelineEventIDsUITests: IOSUITestCase {
@@ -37,7 +39,7 @@ final class TimelineEventIDsUITests: IOSUITestCase {
 
     func testAScanLogsTheSavedCustomNameInTheTimeline() {
         relaunchRecordingEvents()
-        let joined = app.staticTexts["Device Joined: UITest Office Printer"]
+        let joined = app.staticTexts["Device Back Online: UITest Office Printer"]
 
         openTimeline()
         XCTAssertFalse(joined.exists, "No join is logged before the scan")
@@ -52,10 +54,14 @@ final class TimelineEventIDsUITests: IOSUITestCase {
         }
 
         openTimeline()
-        requireExists(joined, timeout: 10, message: "The scan's join should use the saved custom name")
+        requireExists(joined, timeout: 10, message: "The scan's return should use the saved custom name")
         let scanComplete = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Scan Complete'")).firstMatch
         requireExists(scanComplete, timeout: 5, message: "The scan should log Scan Complete")
-        XCTAssertFalse(app.staticTexts["Device Joined: uitest-device-0"].exists, "The fixture hostname must not replace the custom name")
+        XCTAssertFalse(app.staticTexts["Device Back Online: uitest-device-0"].exists, "The fixture hostname must not replace the custom name")
+        XCTAssertFalse(
+            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Device Joined'")).firstMatch.exists,
+            "The network's first scan is a baseline: nothing joins"
+        )
         XCTAssertEqual(app.state, .runningForeground)
         attachScreenshot(named: "timeline-custom-name")
 

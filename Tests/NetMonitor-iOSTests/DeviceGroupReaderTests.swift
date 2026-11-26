@@ -440,9 +440,6 @@ struct DeviceGroupReaderTests {
 extension DeviceGroupReaderTests {
     @Test func eventsAboutEitherInterfaceAreNamedByTheDevice() throws {
         let group = try seedGroup()
-        let saved = SavedDevices(network: group.rows, unassigned: [])
-        #expect(saved.name(of: group.member) == "Studio Mac")
-        #expect(saved.name(of: group.primary) == "Studio Mac")
         #expect(GroupedDeviceNames.byAddress(group.rows) == ["192.168.1.13": "Studio Mac", "192.168.1.60": "Studio Mac"])
         // A device of one row keeps the scan's name.
         let single = LocalDevice(ipAddress: "192.168.1.5", macAddress: "", customName: "Lamp", networkProfileID: home)
