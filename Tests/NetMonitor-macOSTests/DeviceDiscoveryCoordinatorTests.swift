@@ -188,9 +188,9 @@ struct DeviceDiscoveryCoordinatorTests {
             },
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
-            clock: { clock.now }
+            clock: { clock.now },
+            dispatcher: DeviceEventDispatcher()
         )
-        coordinator.changeTracker = DeviceChangeTracker(defaults: InMemoryDefaults())
 
         coordinator.startScan()
         await waitUntil(timeout: .seconds(30)) { coordinator.isScanning == false }

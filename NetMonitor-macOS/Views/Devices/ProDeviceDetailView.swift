@@ -61,6 +61,7 @@ struct ProDeviceDetailView: View {
                     // Risks first, where they are seen without scrolling (#454).
                     securitySection
                     detailColumns
+                    DeviceGroupingSection(device: projection)
                     if projection.isGroup {
                         DeviceInterfacesCard(device: projection, onRemove: removeInterface)
                     }
@@ -78,6 +79,7 @@ struct ProDeviceDetailView: View {
         .task { await loadData() }
         .wakeOnLanAlert(wolAction)
         .saveErrorAlert($saveError)
+        .deviceGroupingFeedback()
         .sheet(isPresented: $showPingSheet) {
             DevicePingSheet(device: projection.current, name: device.displayName, isPresented: $showPingSheet)
         }

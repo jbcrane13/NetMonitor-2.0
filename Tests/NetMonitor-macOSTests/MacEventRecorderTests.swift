@@ -434,8 +434,9 @@ struct AppConnectivityMonitorTests {
 @Suite("UITestScanFixture", .serialized)
 @MainActor
 struct UITestScanFixtureTests {
-    /// The `--uitesting --seed-test-device` path end to end: the real seed, an empty tracker, the
-    /// fixture pipeline and the recorder. The seeded row is the baseline, so only the printer is new.
+    /// The `--uitesting --seed-test-device` path end to end: the real seed and its baseline scan,
+    /// the fixture pipeline and the recorder. The seeded row is the baseline, so only the printer
+    /// joins (#603: the reconcile's event, named by the printer's row).
     @Test func aScanFromAnEmptyTrackerPlusTheSeedReportsOnlyThePrinterAndLogsIt() async throws {
         let schema = Schema([LocalDevice.self])
         let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
@@ -455,10 +456,11 @@ struct UITestScanFixtureTests {
             networkProfileManager: profiles,
             pipelineFactory: UITestScanFixture.pipelineFactory,
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         defer { coordinator.stopScan() }
-        coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
+        UITestScanFixture.recordBaseline(in: coordinator, profileID: networkID)
         let events = NetworkEventService()
         let recorder = MacEventRecorder(eventService: events)
         recorder.attach(to: coordinator)
@@ -500,10 +502,10 @@ struct UITestScanFixtureTests {
             networkProfileManager: profiles,
             pipelineFactory: UITestScanFixture.pipelineFactory,
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         defer { coordinator.stopScan() }
-        coordinator.changeTracker = DeviceChangeTracker(defaults: defaults)
         let events = NetworkEventService()
         var routedGateway = "192.0.2.1"
         let recorder = MacEventRecorder(eventService: events, gatewayOf: { _ in routedGateway })
