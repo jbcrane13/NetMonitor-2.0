@@ -68,6 +68,8 @@ struct DeviceGroupingViewModelTests {
         return manager
     }
 
+    static let viewer = UUID()
+
     func inGroup(_ manager: UndoManager, _ action: () -> Void) {
         manager.beginUndoGrouping()
         action()
@@ -81,7 +83,7 @@ struct DeviceGroupingViewModelTests {
         let model = DeviceGroupingViewModel(toastDuration: .seconds(60))
         let context = ModelContext(store.container)
         let studio = try #require(store.device(store.ethernet))
-        model.show(studio, in: context)
+        model.show(studio, in: context, viewer: Self.viewer)
         let suggestions = model.suggestions
         #expect(suggestions.map(\.primary.id) == [store.wifi], "Same Bonjour name as studio-wifi: same device?")
         let undo = makeUndoManager()
@@ -121,7 +123,7 @@ struct DeviceGroupingViewModelTests {
         try context.save()
         let model = DeviceGroupingViewModel()
         let studio = try #require(store.device(store.ethernet))
-        model.show(studio, in: ModelContext(store.container))
+        model.show(studio, in: ModelContext(store.container), viewer: Self.viewer)
         #expect(model.suggestions.isEmpty)
 
         // A scan's context saves the other row's host.
@@ -131,11 +133,79 @@ struct DeviceGroupingViewModelTests {
         scanned.bonjourHostSeenAt = Date()
         try scan.save()
 
-        let deadline = ContinuousClock.now + .seconds(5)
-        while model.suggestions.isEmpty, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        await waitUntil { !model.suggestions.isEmpty }
         #expect(model.suggestions.map(\.primary.id) == [store.wifi])
+    }
+
+    /// #619 review: the save observer reads only its own container's saves, not every
+    /// `ModelContext` in the process.
+    @Test func aSaveInAnotherStoreDoesNotRereadTheShownDevice() async throws {
+        let store = try makeStore()
+        let other = try makeStore()
+        let reads = Counter()
+        let model = DeviceGroupingViewModel(now: { reads.value += 1
+            return Date()
+        })
+        try model.show(#require(store.device(store.ethernet)), in: ModelContext(store.container), viewer: Self.viewer)
+        #expect(reads.value == 1)
+
+        try await save(in: other.container)
+        try await save(in: store.container)
+
+        #expect(reads.value == 2, "Only the shown store's save reads the device again")
+    }
+
+    /// #619 review: closing the detail forgets the device, so a later save reads nothing.
+    @Test func closingTheDetailClearsTheBannerAndStopsReading() async throws {
+        let store = try makeStore()
+        let reads = Counter()
+        let model = DeviceGroupingViewModel(now: { reads.value += 1
+            return Date()
+        })
+        try model.show(#require(store.device(store.ethernet)), in: ModelContext(store.container), viewer: Self.viewer)
+        #expect(!model.suggestions.isEmpty)
+
+        model.hide(viewer: Self.viewer)
+        try await save(in: store.container)
+
+        #expect(model.suggestions.isEmpty, "Closed: no banner")
+        #expect(reads.value == 1, "Closed: a save reads nothing")
+    }
+
+    /// A detail view the grouping recreated can close after its successor opened: that late close
+    /// must not forget the device the successor shows.
+    @Test func aReplacedDetailClosingLateKeepsTheShownDevice() throws {
+        let store = try makeStore()
+        let model = DeviceGroupingViewModel()
+        let studio = try #require(store.device(store.ethernet))
+        let (old, new) = (UUID(), UUID())
+        model.show(studio, in: ModelContext(store.container), viewer: old)
+        model.show(studio, in: ModelContext(store.container), viewer: new)
+
+        model.hide(viewer: old)
+
+        #expect(model.suggestions.map(\.primary.id) == [store.wifi])
+    }
+
+    /// #619 review: Edit › Undo's name comes from the action, not from the toast's wording.
+    @Test func theUndoNameComesFromTheAction() {
+        #expect(DeviceGroupingViewModel.Action.group.undoName == "Group Devices")
+        #expect(DeviceGroupingViewModel.Action.separate.undoName == "Separate Device")
+    }
+
+    /// Saves a change in a context of `container`, then waits until a later observer of the same
+    /// notification ran, so the model's observer has run too.
+    private func save(in container: ModelContainer) async throws {
+        let observed = Counter()
+        let observer = NotificationCenter.default.addObserver(forName: ModelContext.didSave, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { observed.value += 1 }
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let context = ModelContext(container)
+        let row = try #require(try context.fetch(FetchDescriptor<LocalDevice>()).first)
+        row.notes = UUID().uuidString
+        try context.save()
+        await waitUntil { observed.value > 0 }
     }
 
     @Test func notTheSameDeviceOnASuggestionRemovesItForGood() throws {
@@ -144,16 +214,16 @@ struct DeviceGroupingViewModelTests {
         let studio = try #require(store.device(store.ethernet))
         let wifi = try #require(store.device(store.wifi))
 
-        model.show(studio, in: ModelContext(store.container))
+        model.show(studio, in: ModelContext(store.container), viewer: Self.viewer)
         #expect(model.suggestions.count == 1)
         model.dismissSuggestion(wifi, for: studio, in: ModelContext(store.container))
 
         #expect(model.suggestions.isEmpty)
         let reread = try #require(store.device(store.ethernet))
-        model.show(reread, in: ModelContext(store.container))
+        model.show(reread, in: ModelContext(store.container), viewer: Self.viewer)
         #expect(model.suggestions.isEmpty, "It doesn't come back")
         let wifiAgain = try #require(store.device(store.wifi))
-        model.show(wifiAgain, in: ModelContext(store.container))
+        model.show(wifiAgain, in: ModelContext(store.container), viewer: Self.viewer)
         #expect(model.suggestions.isEmpty, "Neither side suggests the other")
         #expect(store.row(store.ethernet)?.notSameAsIDs == [store.wifi])
         #expect(store.devices.count == 3)
@@ -341,5 +411,16 @@ struct DeviceGroupingViewModelTests {
         #expect(store.row(store.ethernet)?.deviceGroupID == nil)
         #expect(store.row(store.wifi)?.deviceGroupID == nil)
         #expect(store.devices.count == 3)
+    }
+}
+
+@MainActor private final class Counter {
+    var value = 0
+}
+
+@MainActor private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool) async {
+    let deadline = ContinuousClock.now + timeout
+    while !condition(), ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(20))
     }
 }

@@ -20,7 +20,8 @@ struct IdentityPrecedenceMergeTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         return (container, container.mainContext, coordinator)
     }
@@ -201,7 +202,8 @@ struct ModelSuggestionMacTests {
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         let suggester = makeSuggester(MockInsightService(suggestion: Self.suggestion))
 
@@ -230,7 +232,8 @@ struct ModelSuggestionMacTests {
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         let service = MockInsightService(suggestion: Self.suggestion)
         let suggester = makeSuggester(service)
@@ -291,7 +294,8 @@ struct ModelSuggestionMacTests {
             // Empty pipeline: scans complete at once and keep the saved rows (#309).
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             suggester: suggester,
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         return (container, coordinator, local.id)
     }
@@ -391,7 +395,8 @@ struct ModelSuggestionMacTests {
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: container.mainContext, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         let device = LocalDevice(ipAddress: "192.168.1.17", macAddress: "", hostname: "box-17.lan")
         container.mainContext.insert(device)

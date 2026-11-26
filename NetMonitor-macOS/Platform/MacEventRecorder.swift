@@ -184,15 +184,14 @@ private struct DeviceEntry {
     private(set) var observedAt = Date.distantPast
 
     init?(_ change: DeviceChangeEvent, devices: [LocalDevice], profileID: UUID?) {
+        // The titles are Core's, shared with the iPhone's Timeline.
+        guard let prefix = DeviceTimelineTitle.prefix(for: change) else { return nil }
         let device: (ip: String, mac: String?, name: String?, id: UUID?)
-        let prefix: String
         switch change {
-        case let .firstSeen(seen):
-            (device, prefix, direction) = ((seen.ipAddress, seen.macAddress, seen.name, seen.deviceID), "Device Joined", .joined)
-        case let .cameOnline(seen):
-            (device, prefix, direction) = ((seen.ipAddress, seen.macAddress, seen.name, seen.deviceID), "Device Back Online", .joined)
+        case let .firstSeen(seen), let .cameOnline(seen):
+            (device, direction) = ((seen.ipAddress, seen.macAddress, seen.name, seen.deviceID), .joined)
         case let .wentOffline(known):
-            (device, prefix, direction) = ((known.ipAddress, known.macAddress, known.name, known.deviceID), "Device Left", .left)
+            (device, direction) = ((known.ipAddress, known.macAddress, known.name, known.deviceID), .left)
         case .changed:
             return nil
         }
@@ -202,7 +201,7 @@ private struct DeviceEntry {
         // primary row ID, which resolves to the device.
         let projection = row.map { MacRuleAlerts.device(of: $0) }
         let label = projection?.displayName ?? device.name.flatMap { $0.isEmpty ? nil : $0 } ?? ip
-        title = "\(prefix): \(label)"
+        title = DeviceTimelineTitle.title(prefix, name: label)
         details = label == ip ? nil : ip
         deviceID = device.id ?? row?.id
         self.profileID = profileID

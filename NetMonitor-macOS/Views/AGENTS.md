@@ -59,8 +59,8 @@ The logic, the reads and the toast state are in `ViewModels/DeviceGroupingViewMo
 
 | Control | Accessibility ID |
 |---|---|
-| Suggestion banner; its Same device / Not the same device | `deviceDetail_banner_suggestion`; `deviceDetail_button_suggestionSameDevice` / `deviceDetail_button_suggestionNotSameDevice` |
-| Open the picker; the sheet; its empty state; a row | `deviceDetail_button_sameDeviceAs`; `screen_sameDeviceAs`; `sameDeviceAs_label_empty`; `sameDeviceAs_row_<ip>` |
+| Suggestion banner (one per suggested device); its Same device / Not the same device | `deviceDetail_banner_suggestion_<device UUID>` (Core `AccessibilityID.suggestionBanner`); `deviceDetail_button_suggestionSameDevice_<device UUID>` / `deviceDetail_button_suggestionNotSameDevice_<device UUID>` |
+| Open the picker; the sheet; its empty state; a row | `deviceDetail_button_sameDeviceAs`; `screen_sameDeviceAs`; `sameDeviceAs_label_empty`; `sameDeviceAs_row_<ip, dots as underscores>` (Core `AccessibilityID.sameDeviceAsRow`, as on iOS) |
 | Override confirm / cancel | `deviceDetail_button_confirmGroupOverride` / `deviceDetail_button_cancelGroupOverride` |
 | Toast; its message, Undo, close | `deviceDetail_toast_undo` (not exposed on macOS 27); `deviceDetail_label_toastMessage`, `deviceDetail_button_undo`, `deviceDetail_button_dismissToast` |
 | Interface row: Not the same device; Bonjour label; Remove | `deviceDetail_button_notSameDevice_<ip>`; `deviceDetail_label_groupedByBonjour_<ip>`; `deviceDetail_button_removeInterface_<ip>` |

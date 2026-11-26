@@ -21,7 +21,8 @@ struct DeviceDiscoveryCoordinatorPresenceTests {
             networkProfileManager: NetworkProfileManager(),
             scanHistory: .forTesting(),
             clock: scanClock,
-            presenceClock: presenceClock
+            presenceClock: presenceClock,
+            dispatcher: DeviceEventDispatcher()
         )
     }
 

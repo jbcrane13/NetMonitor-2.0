@@ -175,7 +175,8 @@ struct MacAlertDispatcherTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting()
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher()
         )
         defer { withExtendedLifetime(container) {} }
         #expect(session.onTargetDown == nil)

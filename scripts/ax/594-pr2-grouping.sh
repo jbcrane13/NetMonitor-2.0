@@ -92,17 +92,27 @@ launch 2 --seed-group-suggestion
 expect "$("$AX" wait devices_card_192.168.77.80 15)" found "run 2: the laptop's card never showed"
 expect "$("$AX" wait devices_card_192.168.77.81 5)" found "run 2: the laptop's Wi-Fi card never showed"
 "$AX" click devices_card_192.168.77.80 > /dev/null
-expect "$("$AX" wait deviceDetail_banner_suggestion 10)" found "run 2: no suggestion banner"
-expect "$("$AX" textin deviceDetail_banner_suggestion "Same Bonjour name as uitest-laptop-wifi: same device?" 5)" "found text" \
+# One banner per suggested device, its ID ending in that device's ID (as do its buttons').
+BANNER=
+for _ in {1..20}; do
+  BANNER=$("$AX" ids | grep -m1 '^deviceDetail_banner_suggestion_' || true)
+  [[ -n $BANNER ]] && break
+  sleep 0.5
+done
+[[ -n $BANNER ]] || fail "run 2: no suggestion banner"
+SUGGESTED=${BANNER#deviceDetail_banner_suggestion_}
+expect "$("$AX" wait "deviceDetail_button_suggestionSameDevice_$SUGGESTED" 5)" found "run 2: the banner's Same device carries the device's ID"
+expect "$("$AX" wait "deviceDetail_button_suggestionNotSameDevice_$SUGGESTED" 5)" found "run 2: the banner's Not the same device carries the device's ID"
+expect "$("$AX" textin "$BANNER" "Same Bonjour name as uitest-laptop-wifi: same device?" 5)" "found text" \
   "run 2: the banner's question"
-"$AX" capture-union "$OUT/594pr2-4-banner.png" deviceDetail_banner_suggestion
-"$AX" press deviceDetail_button_suggestionSameDevice > /dev/null
+"$AX" capture-union "$OUT/594pr2-4-banner.png" "$BANNER"
+"$AX" press "deviceDetail_button_suggestionSameDevice_$SUGGESTED" > /dev/null
 expect "$("$AX" wait deviceDetail_label_toastMessage 10)" found "run 2: no undo toast after Same device"
 expect "$("$AX" text "Grouped with uitest-laptop-wifi" 5)" "found text" "run 2: the toast's message"
 "$AX" capture-union "$OUT/594pr2-5-toast-grouped.png" deviceDetail_label_toastMessage deviceDetail_button_undo deviceDetail_button_dismissToast
 expect "$("$AX" gone devices_card_192.168.77.81 5)" gone "run 2: Same device should leave one device"
 expect "$("$AX" wait deviceDetail_card_interfaces 10)" found "run 2: the device should list both interfaces"
-expect "$("$AX" gone deviceDetail_banner_suggestion 3)" gone "run 2: the banner should go once grouped"
+expect "$("$AX" gone "$BANNER" 3)" gone "run 2: the banner should go once grouped"
 "$AX" press deviceDetail_button_undo > /dev/null
 expect "$("$AX" wait devices_card_192.168.77.81 10)" found "run 2: Undo should make two devices again"
 expect "$("$AX" gone deviceDetail_card_interfaces 5)" gone "run 2: after Undo the laptop has one interface"
@@ -119,9 +129,9 @@ expect "$("$AX" wait devices_card_192.168.77.20 10)" found "run 3: the scan shou
 groupWithPrinter() {
   expect "$("$AX" wait deviceDetail_button_sameDeviceAs 10)" found "run 3: no Same device as… button"
   "$AX" press deviceDetail_button_sameDeviceAs > /dev/null
-  expect "$("$AX" wait sameDeviceAs_row_192.168.77.20 10)" found "run 3: the picker should list the printer"
+  expect "$("$AX" wait sameDeviceAs_row_192_168_77_20 10)" found "run 3: the picker should list the printer"
   [[ ${1:-} == capture ]] && "$AX" capture-in screen_sameDeviceAs "$OUT/594pr2-6-picker.png" > /dev/null
-  "$AX" press sameDeviceAs_row_192.168.77.20 > /dev/null
+  "$AX" press sameDeviceAs_row_192_168_77_20 > /dev/null
   expect "$("$AX" text "Grouped with uitest-printer" 10)" "found text" "run 3: the toast's message"
   expect "$("$AX" gone devices_card_192.168.77.77 5)" gone "run 3: the two should be one device"
   expect "$("$AX" textin devices_card_192.168.77.20 "uitest-device" 5)" "found text" "run 3: the device keeps uitest-device's name"

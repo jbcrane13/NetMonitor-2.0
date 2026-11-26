@@ -598,7 +598,8 @@ struct MenuBarPopoverView: View {
     let discovery = DeviceDiscoveryCoordinator(
         modelContext: context,
         bonjourScanner: BonjourDiscoveryService(),
-        networkProfileManager: profileManager
+        networkProfileManager: profileManager,
+        dispatcher: DeviceEventDispatcher()
     )
 
     return MenuBarPopoverView(session: session, deviceDiscovery: discovery, onClose: {})

@@ -12,6 +12,8 @@ struct DeviceGroupingSection: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.undoManager) private var undoManager
     @State private var showPicker = false
+    /// This view's token, so a late close of a view grouping replaced forgets nothing.
+    @State private var viewer = UUID()
 
     var body: some View {
         if let grouping {
@@ -30,8 +32,9 @@ struct DeviceGroupingSection: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             // Read again when the device or its interfaces change (a scan, an action).
             .task(id: refreshKey) {
-                grouping.show(device, in: modelContext)
+                grouping.show(device, in: modelContext, viewer: viewer)
             }
+            .onDisappear { grouping.hide(viewer: viewer) }
             .sheet(isPresented: $showPicker) {
                 // The detail window's undo manager: the sheet's goes with the sheet.
                 SameDeviceAsSheet(device: device, isPresented: $showPicker, undoManager: undoManager)
@@ -54,18 +57,18 @@ struct DeviceGroupingSection: View {
             Button("Not the same device") {
                 grouping.dismissSuggestion(other, for: device, in: modelContext)
             }
-            .accessibilityIdentifier("deviceDetail_button_suggestionNotSameDevice")
+            .accessibilityIdentifier("deviceDetail_button_suggestionNotSameDevice_\(other.id)")
             Button("Same device") {
                 grouping.group(device, with: other, in: modelContext, undoManager: undoManager)
             }
             .buttonStyle(.borderedProminent)
-            .accessibilityIdentifier("deviceDetail_button_suggestionSameDevice")
+            .accessibilityIdentifier("deviceDetail_button_suggestionSameDevice_\(other.id)")
         }
         .controlSize(.small)
         .padding(12)
         .background(MacTheme.Colors.info.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("deviceDetail_banner_suggestion")
+        .accessibilityIdentifier(DeviceGroupingChoices.AccessibilityID.suggestionBanner(other.id))
     }
 }
 
@@ -114,7 +117,7 @@ struct SameDeviceAsSheet: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier("sameDeviceAs_row_\(other.ipAddress)")
+                .accessibilityIdentifier(DeviceGroupingChoices.AccessibilityID.sameDeviceAsRow(other.ipAddress))
             }
             .frame(minHeight: 220)
             .overlay {
