@@ -227,6 +227,34 @@ struct DeviceGroupingViewModelTests {
         #expect(store.device(store.ethernet)?.memberIDs == [store.ethernet, store.wifi, store.printer])
     }
 
+    /// Codex stop review: the Pro sheet edits the row it shows. Grouping a device with one already
+    /// in a group can keep that group's primary, so after the action the sheet must show the
+    /// device's primary, never the row it opened on.
+    @Test func afterGroupingTheProDetailShowsTheDevicesPrimary() throws {
+        let store = try makeStore()
+        try DeviceGroupWriter(container: store.container).group([store.wifi, store.printer], primary: store.printer, source: .user)
+        let model = DeviceGroupingViewModel()
+        let context = ModelContext(store.container)
+        let studio = try #require(store.device(store.ethernet))
+        let group = try #require(store.device(store.wifi))
+
+        model.group(studio, with: group, in: context, undoManager: nil)
+
+        let anchor = try #require(model.selection?.rowID)
+        let primary = try #require(store.device(store.ethernet)?.primary.id)
+        #expect(DevicesView.proDetailRow(after: anchor, in: ModelContext(store.container))?.id == primary)
+        #expect(store.device(store.ethernet)?.memberIDs == [store.ethernet, store.wifi, store.printer])
+
+        // Separating the primary: the sheet moves to the device that remains, at its new primary.
+        let shown = try #require(store.device(store.ethernet))
+        let primaryRow = try #require(shown.members.first { $0.id == primary })
+        model.separate(primaryRow, from: shown, in: ModelContext(store.container), undoManager: nil)
+        let after = try #require(model.selection?.rowID)
+        let remaining = try #require(store.device(after))
+        #expect(!remaining.contains(primary))
+        #expect(DevicesView.proDetailRow(after: after, in: ModelContext(store.container))?.id == remaining.primary.id)
+    }
+
     @Test func aUserGroupHasNoBonjourLabel() throws {
         let store = try makeStore()
         try DeviceGroupWriter(container: store.container).group([store.ethernet, store.wifi], primary: store.ethernet, source: .user)
