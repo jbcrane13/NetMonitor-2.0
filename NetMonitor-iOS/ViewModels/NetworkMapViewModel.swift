@@ -67,6 +67,15 @@ final class NetworkMapViewModel {
         return scopedDevices(from: deviceDiscoveryService.cachedDevices(for: activeNetwork))
     }
 
+    /// The saved rows that are in a group (#594), from the view's query: the map shows each such
+    /// device once.
+    var groupedRows: [LocalDevice] = []
+
+    /// The map's nodes: the scan's devices, a saved device of several interfaces once (#594).
+    var nodes: [DiscoveredDevice] {
+        ScanDeviceGroups.onePerDevice(discoveredDevices, grouped: groupedRows)
+    }
+
     var isScanning: Bool {
         deviceDiscoveryService.isScanning
     }
@@ -102,7 +111,7 @@ final class NetworkMapViewModel {
     }
 
     var deviceCount: Int {
-        discoveredDevices.count
+        nodes.count
     }
 
     var gateway: GatewayInfo? {
@@ -117,7 +126,8 @@ final class NetworkMapViewModel {
     var activeNetworkDeviceCount: Int? {
         // The list on screen is the truth: an automatic rescan after a network change
         // fills it without writing the profile's scan metadata.
-        let live = scopedDevices(from: deviceDiscoveryService.discoveredDevices).count
+        let scanned = scopedDevices(from: deviceDiscoveryService.discoveredDevices)
+        let live = ScanDeviceGroups.onePerDevice(scanned, grouped: groupedRows).count
         return live > 0 ? live : activeNetwork?.deviceCount
     }
 

@@ -18,6 +18,8 @@ struct DeviceListView: View {
     let networkID: UUID?
     let isScanning: Bool
     @Query private var savedDevices: [LocalDevice]
+    /// The grouped rows, so every listed device has all its interfaces (#594).
+    @Query private var groupedDevices: [LocalDevice]
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @State private var sortOrder: SavedDeviceList.Sort = .ip
     /// Past devices (unseen for a week) are hidden each time the list opens, never remembered
@@ -31,12 +33,14 @@ struct DeviceListView: View {
         self.networkID = networkID
         self.isScanning = isScanning
         _savedDevices = Query(SavedDeviceList.fetchDescriptor(network: networkID))
+        _groupedDevices = Query(SavedDeviceList.groupedDescriptor(network: networkID))
     }
 
     var body: some View {
         // The presence model refreshes after each saved scan and every minute.
         let list = SavedDeviceList(
-            saved: savedDevices, live: discoveredDevices, network: networkID, sort: sortOrder, showPast: showPastDevices,
+            saved: SavedDeviceList.completing(savedDevices, with: groupedDevices), live: discoveredDevices, network: networkID,
+            sort: sortOrder, showPast: showPastDevices,
             presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
         )
         ScrollView {
@@ -112,7 +116,7 @@ struct DeviceListView: View {
         .padding(.vertical, Theme.Layout.smallCornerRadius)
     }
 
-    private func savedLink(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
+    private func savedLink(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
         NavigationLink(value: SavedDeviceList.Entry.saved(device).destination) {
             if isProMode {
                 savedProModeRow(device, in: list)
@@ -140,10 +144,10 @@ struct DeviceListView: View {
         .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
     }
 
-    private func savedRow(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
+    private func savedRow(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
         GlassCard {
             HStack(spacing: Theme.Layout.itemSpacing) {
-                Image(systemName: device.deviceType.iconName)
+                Image(systemName: device.primary.deviceType.iconName)
                     .foregroundStyle(Theme.Colors.accent)
                     .font(.title2)
                     .frame(width: 40)
@@ -181,7 +185,7 @@ struct DeviceListView: View {
         }
     }
 
-    private func savedProModeRow(_ device: LocalDevice, in list: SavedDeviceList) -> some View {
+    private func savedProModeRow(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
         GlassCard(padding: 10) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
@@ -193,7 +197,7 @@ struct DeviceListView: View {
                     if let latency = list.latencyText(device) {
                         Text(latency)
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(latencyColor(device.lastLatency))
+                            .foregroundStyle(latencyColor(device.current.lastLatency))
                     }
                 }
                 Text(device.displayName)

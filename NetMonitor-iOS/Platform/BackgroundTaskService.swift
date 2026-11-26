@@ -406,7 +406,8 @@ final class BackgroundTaskService {
         let diff = ScanSchedulerService.shared.computeDiff(current: devices)
         Self.logger.info("Scan diff: \(diff.newDevices.count) new, \(diff.removedDevices.count) removed")
 
-        await notifyScanChanges(diff, wordBodies: !taskCancelled)
+        let names = AppModelStore.sharedContainer().map { GroupedDeviceNames.byAddress(network: network?.id, in: ModelContext($0)) } ?? [:]
+        await notifyScanChanges(diff, wordBodies: !taskCancelled, groupNames: names)
     }
 
 }
@@ -451,8 +452,9 @@ extension BackgroundTaskService {
     }
 
     /// Alerts for a scheduled scan's new and missing devices, with the user's toggles applied.
-    /// The UI-test notification demo calls this too.
-    func notifyScanChanges(_ diff: ScanDiff, wordBodies: Bool = true) async {
+    /// The UI-test notification demo calls this too. `groupNames` names an interface of a saved
+    /// device of several by its device (#594, `GroupedDeviceNames`); still one alert per address.
+    func notifyScanChanges(_ diff: ScanDiff, wordBodies: Bool = true, groupNames: [String: String] = [:]) async {
         let notifyNew     = (UserDefaults.standard.object(forKey: "scheduledScan_notifyNew") as? Bool) ?? true
         let notifyMissing = (UserDefaults.standard.object(forKey: "scheduledScan_notifyMissing") as? Bool) ?? true
 
@@ -460,7 +462,7 @@ extension BackgroundTaskService {
         if notifyNew, notifications.isNewDeviceAlertEnabled {
             alerts += diff.newDevices.map { device in
                 let event = NotificationEvent.newDevice(
-                    NotificationDevice(name: device.displayName, ipAddress: device.ipAddress, maker: device.maker)
+                    NotificationDevice(name: groupNames[device.ipAddress] ?? device.displayName, ipAddress: device.ipAddress, maker: device.maker)
                 )
                 return (event, { [notifications] body in
                     notifications.notifyNewDevice(ipAddress: device.ipAddress, hostname: device.hostname, generatedBody: body)
@@ -469,8 +471,9 @@ extension BackgroundTaskService {
         }
         if notifyMissing, notifications.isTargetDownAlertEnabled {
             alerts += diff.removedDevices.map { device in
-                (.targetDown(name: device.displayName, host: device.ipAddress), { [notifications] body in
-                    notifications.notifyTargetDown(name: device.displayName, host: device.ipAddress, generatedBody: body)
+                let name = groupNames[device.ipAddress] ?? device.displayName
+                return (.targetDown(name: name, host: device.ipAddress), { [notifications] body in
+                    notifications.notifyTargetDown(name: name, host: device.ipAddress, generatedBody: body)
                 })
             }
         }

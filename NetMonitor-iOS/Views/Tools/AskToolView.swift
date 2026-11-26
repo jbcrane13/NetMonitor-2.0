@@ -14,9 +14,11 @@ struct AskToolView: View {
     @State private var openDevice: UUID?
     @State private var openEvent: AskAnswer.EventCitation?
     @Query(AskToolView.devicesDescriptor) private var devices: [LocalDevice]
+    @Environment(\.modelContext) private var modelContext
     private let env: AppEnvironment
 
-    /// The rows Ask reads: the most recently seen first, capped.
+    /// The rows Ask reads: the most recently seen first, capped; their groups are completed before
+    /// Ask reads them (#594).
     static var devicesDescriptor: FetchDescriptor<LocalDevice> {
         var descriptor = FetchDescriptor<LocalDevice>(sortBy: [SortDescriptor(\.lastSeen, order: .reverse)])
         descriptor.fetchLimit = AskIntentRunner.deviceLimit
@@ -47,7 +49,7 @@ struct AskToolView: View {
         .accessibilityIdentifier("screen_ask")
         // A rename or a scan changes what the tools read.
         .task(id: devices.map(\.displayName) + devices.map(\.ipAddress)) {
-            viewModel.update(devices: devices)
+            viewModel.update(devices: (try? DeviceGroups.completingGroups(devices, in: modelContext)) ?? devices)
         }
         .navigationDestination(item: $openDevice) { id in
             DeviceDetailView(deviceID: id)

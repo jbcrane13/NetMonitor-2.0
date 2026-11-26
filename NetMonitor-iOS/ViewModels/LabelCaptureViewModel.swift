@@ -35,7 +35,10 @@ final class LabelCaptureViewModel {
     private let isScanning: @MainActor () -> Bool
     private let liveScan: @MainActor () -> [DiscoveredDevice]
     private let testImage: @MainActor () -> CGImage?
+    /// The device's primary row (#594): the maker, model and serial are written here.
     private var device: LocalDevice?
+    /// The interface the MAC is written to: the device's current member, or the device itself.
+    private var macTarget: LocalDevice?
     private var context: ModelContext?
 
     init(
@@ -59,9 +62,12 @@ final class LabelCaptureViewModel {
         )
     }
 
-    /// The device the label belongs to, and the store its fields are saved in.
-    func configure(device: LocalDevice, context: ModelContext) {
+    /// The device the label belongs to, and the store its fields are saved in. For a device of
+    /// several interfaces (#594), `device` is its primary and `current` the member the MAC is
+    /// written to.
+    func configure(device: LocalDevice, current: LocalDevice? = nil, context: ModelContext) {
         self.device = device
+        macTarget = current ?? device
         self.context = context
     }
 
@@ -130,9 +136,21 @@ final class LabelCaptureViewModel {
     // MARK: - MAC
 
     /// What Save would do with the MAC, checked against the saved devices and the latest scan.
+    /// Another interface of the same device having it isn't another device's MAC (#594).
     var macOutcome: LabelCapture.MACOutcome {
-        guard let device else { return .none }
-        return LabelCapture.macOutcome(for: values.mac, on: device, among: savedRows(), scanned: scan(for: device))
+        guard let device, let macTarget else { return .none }
+        let rows = savedRows()
+        let outcome = LabelCapture.macOutcome(for: values.mac, on: macTarget, among: rows, scanned: scan(for: macTarget))
+        guard case let .belongsTo(owner) = outcome else { return outcome }
+        let members = DeviceGroupResolver(rows: rows).device(for: device.id)?.members ?? [device]
+        switch owner {
+        case let .saved(id) where members.contains { $0.id == id }:
+            return .unchanged
+        case let .scanned(ipAddress) where members.contains { $0.ipAddress == ipAddress }:
+            return .unchanged
+        default:
+            return outcome
+        }
     }
 
     /// Save is off while the MAC field holds text that isn't a MAC.
@@ -144,7 +162,7 @@ final class LabelCaptureViewModel {
     var ownerName: String? {
         guard case let .belongsTo(owner) = macOutcome, let device else { return nil }
         switch owner {
-        case let .saved(id): return savedRows().first { $0.id == id }?.displayName
+        case let .saved(id): return DeviceGroupResolver(rows: savedRows()).device(for: id)?.displayName
         case let .scanned(ipAddress):
             let found = scan(for: device).first { $0.ipAddress == ipAddress }
             return found?.hostname ?? ipAddress
@@ -153,10 +171,18 @@ final class LabelCaptureViewModel {
 
     // MARK: - Saving
 
-    /// Saves the reviewed fields to the device. Returns whether the sheet can close.
+    /// Saves the reviewed fields to the device: the maker, model and serial to its primary, the
+    /// MAC (when it is written) to the current member only (#594). Returns whether the sheet can
+    /// close.
     func save() -> Bool {
-        guard canSave, let device else { return false }
-        LabelCapture.save(values, to: device, among: savedRows(), scanned: scan(for: device))
+        guard canSave, let device, let macTarget else { return false }
+        let rows = savedRows()
+        var identity = values
+        identity.mac = ""
+        LabelCapture.save(identity, to: device, among: rows, scanned: scan(for: device))
+        if macOutcome == .written {
+            LabelCapture.save(LabelValues(mac: values.mac), to: macTarget, among: rows, scanned: scan(for: macTarget))
+        }
         return persist()
     }
 
@@ -168,7 +194,8 @@ final class LabelCaptureViewModel {
         let target: LocalDevice?
         switch owner {
         case let .saved(id):
-            target = savedRows().first { $0.id == id }
+            // The owner's device, whichever interface has the MAC: its primary takes the fields.
+            target = DeviceGroupResolver(rows: savedRows()).device(for: id)?.primary
         case let .scanned(ipAddress):
             let network = scan(for: device)
             target = network.first { $0.ipAddress == ipAddress }.map { observed in
@@ -181,7 +208,7 @@ final class LabelCaptureViewModel {
         guard let target else { return }
         LabelCapture.save(values, to: target, among: savedRows(), scanned: scan(for: target))
         if persist() {
-            phase = .savedToOther(name: target.displayName)
+            phase = .savedToOther(name: DeviceGroupResolver(rows: savedRows()).device(for: target.id)?.displayName ?? target.displayName)
         }
     }
 

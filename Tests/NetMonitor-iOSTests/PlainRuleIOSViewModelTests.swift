@@ -51,7 +51,7 @@ struct PlainRuleIOSViewModelTests {
 
         await model.submit(devices: [printer, homeNAS()], targets: [], networkID: office, isScanning: false, context: rowStore.mainContext)
 
-        #expect(model.composer.outcome == .portScan(device: RuleDevice(printer), preset: .web))
+        #expect(model.composer.outcome == .portScan(device: RuleDevice(DeviceGroups.project([printer])[0]), preset: .web))
         #expect(model.takePortScan() == PortScanRequest(host: "192.168.1.20", preset: .web))
     }
 

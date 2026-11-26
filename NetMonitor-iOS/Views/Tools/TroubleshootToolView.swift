@@ -54,7 +54,9 @@ struct TroubleshootToolView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .accessibilityIdentifier("screen_troubleshootTool")
-        .task(id: InputsKey(devices: devices.map(TroubleshootDevice.init), latestSpeedTest: speedTests.first?.id)) {
+        .task(id: InputsKey(
+            devices: TroubleshootToolViewModel.devices(devices, networkProfileID: networkProfileID), latestSpeedTest: speedTests.first?.id
+        )) {
             viewModel.update(devices: devices, networkProfileID: networkProfileID, latestDownload: speedTests.first?.downloadSpeed)
         }
         .onDisappear { state.cancel() }

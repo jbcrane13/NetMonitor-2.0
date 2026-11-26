@@ -88,8 +88,8 @@ struct SavedDeviceListTests {
         let online = row("192.168.1.10", network: home, lastSeen: scan, latency: 4)
         let offline = row("192.168.1.11", network: home, status: .offline, lastSeen: scan - 3600, latency: 9)
         let list = SavedDeviceList(saved: [online, offline], network: home, sort: .ip, showPast: false, presence: presence)
-        #expect(list.latencyText(online) == "4 ms")
-        #expect(list.latencyText(offline) == nil)
+        #expect(list.latencyText(DeviceGroups.project([online])[0]) == "4 ms")
+        #expect(list.latencyText(DeviceGroups.project([offline])[0]) == nil)
     }
 
     // MARK: - The scan's devices not saved yet
@@ -206,7 +206,7 @@ struct DevicePresenceModelTests {
             reconciler: ScanReconciler(context: container.mainContext, history: history),
             currentNetworkProfileID: { home },
             clock: { now },
-            onSaved: { model.refresh() }
+            onSaved: { _ in model.refresh() }
         )
         discovery.isScanning = true
         updater.handleScanChange()

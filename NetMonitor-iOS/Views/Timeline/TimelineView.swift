@@ -10,6 +10,7 @@ struct TimelineView: View {
     @State private var hasFocused = false
     /// Summaries name devices through their saved rows and compare speed tests (#453).
     @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
+    @Environment(\.modelContext) private var modelContext
     @Query(Self.speedTestsDescriptor) private var speedTests: [SpeedTestResult]
 
     private static var savedDevicesDescriptor: FetchDescriptor<LocalDevice> {
@@ -167,7 +168,9 @@ struct TimelineView: View {
             // Hidden where the on-device model is unavailable, and while a summary is on its way.
             if viewModel.canSummarize, viewModel.summary(for: label) != .loading {
                 Button {
-                    Task { await viewModel.summarize(label, savedDevices: savedDevices, speedTests: speedTests) }
+                    // Every member of each group the bounded fetch holds (#594).
+                    let saved = (try? DeviceGroups.completingGroups(savedDevices, in: modelContext)) ?? savedDevices
+                    Task { await viewModel.summarize(label, savedDevices: saved, speedTests: speedTests) }
                 } label: {
                     Label("Summarize", systemImage: "sparkles")
                         .font(.caption.weight(.semibold))

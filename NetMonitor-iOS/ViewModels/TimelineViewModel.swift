@@ -151,7 +151,8 @@ final class TimelineViewModel {
 
     /// Summarizes the day section labelled `label`, with the current type filter.
     /// - Parameters:
-    ///   - savedDevices: name devices through `LocalDevice.displayName`.
+    ///   - savedDevices: name devices through `LocalDevice.displayName`; complete groups, so an
+    ///     event about any interface names its device (#594).
     ///   - speedTests: saved speed tests, newest first or in any order; the day's latest is
     ///     compared with the one before it.
     func summarize(_ label: String, savedDevices: [LocalDevice], speedTests: [SpeedTestResult]) async {
@@ -163,6 +164,8 @@ final class TimelineViewModel {
         guard !isScanning(), let request = ChangeDigestBuilder.request(
             events: events, from: start, to: end, filter: filter,
             deviceNames: ChangeDigestBuilder.deviceNames(savedDevices),
+            deviceNamesByID: ChangeDigestBuilder.deviceNamesByID(savedDevices),
+            deviceKeysByID: ChangeDigestBuilder.deviceKeysByID(savedDevices),
             speedTests: speedTests,
             subject: ChangeDigestBuilder.daySubject(start, filter: filter, calendar: calendar)
         ) else {

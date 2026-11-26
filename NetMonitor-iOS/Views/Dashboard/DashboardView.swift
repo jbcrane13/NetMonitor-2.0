@@ -12,6 +12,7 @@ struct DashboardView: View {
     @State private var changeBrief = ChangeBriefViewModel.dashboard
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @Query(Self.savedDevicesDescriptor) private var savedDevices: [LocalDevice]
+    @Environment(\.modelContext) private var modelContext
     @Query(Self.recentSpeedTestsDescriptor) private var recentSpeedTests: [SpeedTestResult]
     // periphery:ignore
     @State private var isAddNetworkSheetPresented = false
@@ -138,7 +139,8 @@ struct DashboardView: View {
     private func refreshChangeBrief() async {
         await changeBrief.refresh(
             scanned: viewModel.discoveredDevices,
-            saved: savedDevices,
+            // Every member of each group the bounded fetch holds (#594).
+            saved: (try? DeviceGroups.completingGroups(savedDevices, in: modelContext)) ?? savedDevices,
             networkProfileID: viewModel.activeNetwork?.id,
             speedTests: recentSpeedTests,
             presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans,
@@ -721,12 +723,15 @@ struct LocalDevicesCard: View {
     @Bindable var viewModel: DashboardViewModel
     /// The network's saved rows (#583), with their presence, plus the scan's devices not saved yet.
     @Query private var savedDevices: [LocalDevice]
+    /// The grouped rows, so every device shown has all its interfaces (#594).
+    @Query private var groupedDevices: [LocalDevice]
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
         _savedDevices = Query(SavedDeviceList.fetchDescriptor(network: viewModel.deviceNetworkID))
+        _groupedDevices = Query(SavedDeviceList.groupedDescriptor(network: viewModel.deviceNetworkID))
     }
 
     /// Show all devices on iPad, cap at 5 on iPhone
@@ -736,7 +741,8 @@ struct LocalDevicesCard: View {
 
     var body: some View {
         let list = SavedDeviceList(
-            saved: savedDevices, live: viewModel.discoveredDevices, network: viewModel.deviceNetworkID, sort: .status, showPast: false,
+            saved: SavedDeviceList.completing(savedDevices, with: groupedDevices), live: viewModel.discoveredDevices,
+            network: viewModel.deviceNetworkID, sort: .status, showPast: false,
             presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
         )
         NavigationLink(value: DeviceListRoute()) {
@@ -815,10 +821,11 @@ struct LocalDevicesCard: View {
     }
 }
 
-/// A saved row on the dashboard card (#583): its presence dot, the latency only while online, else
-/// its state, and always how long ago it was last seen.
+/// A saved device on the dashboard card (#583): its presence dot, the latency only while online,
+/// else its state, and always how long ago it was last seen. A group of interfaces is one row
+/// (#594): the primary's name and icon, the current member's address.
 struct SavedDeviceRow: View {
-    let device: LocalDevice
+    let device: DeviceProjection
     let list: SavedDeviceList
 
     var body: some View {
@@ -833,7 +840,7 @@ struct SavedDeviceRow: View {
                             .stroke(Theme.Colors.divider, lineWidth: 1)
                     )
 
-                Image(systemName: device.deviceType.iconName)
+                Image(systemName: device.primary.deviceType.iconName)
                     .font(.system(size: 16))
                     .foregroundStyle(Theme.Colors.accent)
             }
