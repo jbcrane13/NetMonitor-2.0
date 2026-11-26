@@ -42,19 +42,10 @@ struct LabelCaptureView: View {
             viewModel.configure(device: device, current: current, context: modelContext)
             await viewModel.start()
         }
-        .onChange(of: photoItem) { _, item in
-            guard let item else { return }
-            photoItem = nil
-            Task { await viewModel.readPhoto { try? await item.loadTransferable(type: Data.self) } }
-        }
-        .fullScreenCover(isPresented: $showsCamera) {
-            CameraCapture { image in
-                showsCamera = false
-                Task { await viewModel.readCameraPhoto(image) }
-            } onCancel: {
-                showsCamera = false
-            }
-            .ignoresSafeArea()
+        .photoIntake(photoItem: $photoItem, showsCamera: $showsCamera) { load in
+            Task { await viewModel.readPhoto(load) }
+        } onCamera: { image in
+            Task { await viewModel.readCameraPhoto(image) }
         }
         .alert("Couldn't Save", isPresented: Binding(
             get: { viewModel.saveError != nil },
@@ -100,38 +91,15 @@ struct LabelCaptureView: View {
     // MARK: - Choosing a photo
 
     private var chooser: some View {
-        VStack(spacing: Theme.Layout.sectionSpacing) {
-            Image(systemName: "text.viewfinder")
-                .font(.system(size: 48))
-                .foregroundStyle(Theme.Colors.accent)
-            Text("Take or choose a photo of the label on the device. The text is read on this device.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .accessibilityIdentifier("labelCapture_label_instructions")
-            if let error = viewModel.photoError {
-                Text(error)
-                    .foregroundStyle(Theme.Colors.error)
-                    .accessibilityIdentifier("labelCapture_label_photoError")
-            }
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                Button {
-                    showsCamera = true
-                } label: {
-                    Label("Take Photo", systemImage: "camera")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("labelCapture_button_camera")
-            }
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                Label("Choose Photo", systemImage: "photo.on.rectangle")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("labelCapture_button_photoLibrary")
+        PhotoChooser(
+            screen: "labelCapture",
+            systemImage: "text.viewfinder",
+            instructions: "Take or choose a photo of the label on the device. The text is read on this device.",
+            error: viewModel.photoError,
+            photoItem: $photoItem
+        ) {
+            showsCamera = true
         }
-        .tint(Theme.Colors.accent)
-        .padding(Theme.Layout.screenPadding)
     }
 
     private func progress(_ text: String, id: String) -> some View {
@@ -239,46 +207,5 @@ struct LabelCaptureView: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
         }
         .padding(Theme.Layout.screenPadding)
-    }
-}
-
-/// The system camera, for one photo of a label.
-struct CameraCapture: UIViewControllerRepresentable {
-    var onCapture: (UIImage) -> Void
-    var onCancel: () -> Void
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onCapture: onCapture, onCancel: onCancel)
-    }
-
-    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let onCapture: (UIImage) -> Void
-        let onCancel: () -> Void
-
-        init(onCapture: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
-            self.onCapture = onCapture
-            self.onCancel = onCancel
-        }
-
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            if let image = info[.originalImage] as? UIImage {
-                onCapture(image)
-            } else {
-                onCancel()
-            }
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            onCancel()
-        }
     }
 }

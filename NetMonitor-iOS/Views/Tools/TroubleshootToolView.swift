@@ -10,6 +10,7 @@ struct TroubleshootToolView: View {
     @State private var viewModel: TroubleshootToolViewModel
     @State private var symptom = ""
     @State private var host = ""
+    @State private var showsModemLights = false
     @Query private var devices: [LocalDevice]
     /// Only the latest saved test: its download is the baseline.
     @Query private var speedTests: [SpeedTestResult]
@@ -60,6 +61,9 @@ struct TroubleshootToolView: View {
             viewModel.update(devices: devices, networkProfileID: networkProfileID, latestDownload: speedTests.first?.downloadSpeed)
         }
         .onDisappear { state.cancel() }
+        .sheet(isPresented: $showsModemLights) {
+            ModemLightsView()
+        }
     }
 
     // MARK: - Symptom
@@ -96,7 +100,28 @@ struct TroubleshootToolView: View {
                     .accessibilityIdentifier("troubleshoot_button_cancel")
             }
             kindButtons
+            if ModemLightsViewModel.isAvailable {
+                modemLightsButton
+            }
         }
+    }
+
+    /// Reads the modem's status lights from a photo (#558). Here because the lights describe the
+    /// connection as a whole, which is what the troubleshooter checks; Scan Label on device detail
+    /// saves one device's details instead.
+    private var modemLightsButton: some View {
+        Button {
+            showsModemLights = true
+        } label: {
+            Label("Read the modem's lights from a photo", systemImage: "camera.viewfinder")
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .glassCard()
+        }
+        .buttonStyle(.plain)
+        .disabled(state.isRunning)
+        .accessibilityIdentifier("troubleshoot_button_modemLights")
     }
 
     private var kindButtons: some View {

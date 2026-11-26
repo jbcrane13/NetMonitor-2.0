@@ -641,6 +641,18 @@ public protocol LabelFieldExtractorProtocol: Sendable {
     func extractFields(from lines: [String]) async -> LabelFields?
 }
 
+// MARK: - Modem lights (#558)
+
+/// Reads each status light's label and colour from a photo with the on-device model (#558).
+/// The app uses ``ModemLightServices/extractor``.
+public protocol ModemLightExtractorProtocol: Sendable {
+    /// Whether this device's own model can look at images. Not a paired Mac: the photo never
+    /// leaves the device.
+    var isAvailable: Bool { get }
+    /// The lights the model read in `image`, or nil when it can't answer.
+    func readLights(in image: CGImage) async -> ModemPanelAnswer?
+}
+
 // MARK: - Companion secret storage (#590)
 
 /// Raw secret storage for the companion link, one item per account: the Keychain
