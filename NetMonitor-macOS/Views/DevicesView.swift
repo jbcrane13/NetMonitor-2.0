@@ -110,8 +110,10 @@ struct DevicesView: View {
                             selectedDeviceID = remaining
                         }
                         // A new device starts with fresh edit state, so a draft can't be
-                        // saved onto a device an alert selected (#478).
-                        .id(device.id)
+                        // saved onto a device an alert selected (#478). So does a new primary
+                        // (#594): after Remove this interface, a draft of the removed row's name
+                        // or notes must not be saved onto the interface that takes its place.
+                        .id([device.id, device.primary.id])
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ContentUnavailableView(

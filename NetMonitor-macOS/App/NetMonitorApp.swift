@@ -645,10 +645,19 @@ enum UITestScanFixture {
         )
         member.notes = "Wi-Fi when undocked"
         member.lastSeen = primary.lastSeen
-        context.insert(primary)
-        context.insert(member)
+        var rows = [primary, member]
+        // UITEST_GROUP_THIRD=1: a third interface, so the group outlives removing the primary.
+        if ProcessInfo.processInfo.environment["UITEST_GROUP_THIRD"] == "1" {
+            let third = LocalDevice(
+                ipAddress: "192.168.77.62", macAddress: "02:00:00:77:00:62", hostname: "uitest-studio",
+                deviceType: .computer, status: .offline, networkProfileID: profileID
+            )
+            third.lastSeen = primary.lastSeen
+            rows.append(third)
+        }
+        rows.forEach(context.insert)
         try? context.save()
-        try? DeviceGroupWriter(context: context).group([primary.id, member.id], primary: primary.id, source: .user)
+        try? DeviceGroupWriter(context: context).group(rows.map(\.id), primary: primary.id, source: .user)
     }
 
     /// `--seed-test-events`: one event today and one ten days ago, for the Timeline's ranges.

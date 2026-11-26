@@ -12,7 +12,8 @@
 #      at the Ethernet address, still named.
 # Run 2 removes the Ethernet interface (the primary, the row the detail shows) instead; run 3 does
 # that from the Pro detail sheet. Both leave one device at the Wi-Fi address, and the app
-# keeps running.
+# keeps running. Run 4 seeds a third interface, starts editing the device, removes the primary and
+# presses Done: the removed primary's name draft must not be saved onto the new primary.
 # Screenshots are the app window cropped to the elements: fixture devices only, no WAN or DNS.
 # Never touches an installed /Applications copy: it drives only the process it started.
 # On macOS 27 two Debug apps break AX for both: run under the AX lock, e.g.
@@ -133,5 +134,21 @@ sleep 1
 expect "$("$AX" wait networkDevicesPanel_row_$WIFI 10)" found "run 3: the Wi-Fi interface should remain"
 expect "$("$AX" gone networkDevicesPanel_row_$ETHERNET 3)" gone "run 3: the removed primary must be gone"
 alive "run 3"
+quit
+# MARK: Run 4: a draft never moves to the new primary
+
+UITEST_GROUP_THIRD=1 launch 4 Consumer
+scan
+expect "$("$AX" wait devices_card_$WIFI 10)" found "run 4: the device should show at its Wi-Fi address"
+"$AX" click devices_card_$WIFI > /dev/null
+expect "$("$AX" wait deviceDetail_card_interfaces 10)" found "run 4: the detail should list the interfaces"
+"$AX" press deviceDetail_button_edit > /dev/null
+"$AX" press deviceDetail_button_removeInterface_$ETHERNET > /dev/null
+confirmRemoval $ETHERNET
+expect "$("$AX" wait deviceDetail_card_interfaces 10)" found "run 4: two interfaces remain, still a group"
+"$AX" press deviceDetail_button_edit > /dev/null
+sleep 1
+expect "$("$AX" notextin devices_card_$WIFI "$NAME" 3)" "no text" "run 4: the removed primary's name was saved onto the new primary"
+alive "run 4"
 quit
 echo PASS
