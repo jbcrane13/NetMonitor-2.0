@@ -12,11 +12,22 @@ rm -f "$OUT"/457-*.png(N)
 AX=$OUT/axdrive
 swiftc -O "${0:A:h}/axdrive.swift" -o "$AX" 2>/dev/null
 
-# A fresh launch: nothing stored for the key, so the default decides.
-defaults delete com.netmonitor.NetMonitor netmonitor.companion.answersInsight 2>/dev/null || true
+# The app has no isolated-defaults launch argument, so the check needs the key unset in the app's
+# real preferences domain. Never lose the owner's saved choice: remember it, and put it back on every
+# exit path (success, failure, signal).
+DOMAIN=com.netmonitor.NetMonitor
+KEY=netmonitor.companion.answersInsight
+SAVED=$(defaults read $DOMAIN $KEY 2>/dev/null || true)
+restore() {
+    [[ -n ${PID:-} ]] && kill $PID 2>/dev/null || true
+    [[ -n $SAVED ]] && defaults write $DOMAIN $KEY -bool "$([[ $SAVED == 1 ]] && echo YES || echo NO)"
+    return 0
+}
+trap restore EXIT
+if [[ -n $SAVED ]]; then echo "saved value $SAVED, restoring on exit"; fi
+defaults delete $DOMAIN $KEY 2>/dev/null || true
 "$APP/Contents/MacOS/NetMonitor-macOS" --uitesting --in-memory-store --reset-history-files > "$OUT/app-457.log" 2>&1 &
 PID=$!
-trap 'kill $PID 2>/dev/null || true' EXIT
 export AX_PID=$PID
 
 fail() { echo "FAIL: $1"; exit 1; }
