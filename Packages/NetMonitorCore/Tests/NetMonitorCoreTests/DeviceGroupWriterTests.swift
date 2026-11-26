@@ -5,7 +5,8 @@ import Testing
 @testable import NetMonitorCore
 
 /// #594 (design v3.1 §1, §4): the only code that writes the group fields or deletes rows. Every
-/// operation fetches the rows freshly, checks them at commit and saves once, or rolls back.
+/// operation works in its own context: it fetches the rows freshly, checks them at commit and saves
+/// once, or rolls back. The tests read results in a fresh context, as callers must.
 @Suite("Device group writer", .serialized)
 @MainActor
 struct DeviceGroupWriterTests {
@@ -29,20 +30,26 @@ struct DeviceGroupWriterTests {
         return row
     }
 
+    /// Every row as the store has it now (a fresh context, not the main context's cached objects).
     func all() throws -> [LocalDevice] {
-        try context.fetch(FetchDescriptor<LocalDevice>())
+        try ModelContext(container).fetch(FetchDescriptor<LocalDevice>())
+    }
+
+    /// `row` as the store has it now.
+    func fresh(_ row: LocalDevice) throws -> LocalDevice {
+        let id = row.id
+        return try #require(try ModelContext(container).fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })).first)
     }
 
     @Test("Grouping mints a group ID, sets the primary on every member and records the source")
     func groups() throws {
         let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40")
         let id = try writer.group([alpha.id, bravo.id], primary: alpha.id, source: .user)
-        for member in [alpha, bravo] {
+        for member in try [fresh(alpha), fresh(bravo)] {
             #expect(member.deviceGroupID == id)
             #expect(member.groupPrimaryID == alpha.id)
             #expect(member.groupSource == "user")
         }
-        #expect(!context.hasChanges, "saved")
         #expect(try DeviceGroups.project(all()).count == 1)
     }
 
@@ -51,8 +58,9 @@ struct DeviceGroupWriterTests {
         let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40"), charlie = try row("10.0.0.41")
         let id = try writer.group([alpha.id, bravo.id], primary: alpha.id, source: .user)
         #expect(try writer.group([charlie.id, bravo.id], primary: nil, source: .bonjour) == id)
-        #expect(charlie.deviceGroupID == id && charlie.groupPrimaryID == alpha.id && charlie.groupSource == "bonjour")
-        #expect(bravo.groupSource == "user", "an existing member's source stays")
+        let joined = try fresh(charlie)
+        #expect(joined.deviceGroupID == id && joined.groupPrimaryID == alpha.id && joined.groupSource == "bonjour")
+        #expect(try fresh(bravo).groupSource == "user", "an existing member's source stays")
     }
 
     @Test("Excluded pairs, other networks and unknown rows are refused, and nothing changes")
@@ -65,7 +73,6 @@ struct DeviceGroupWriterTests {
         #expect(throws: DeviceGroupWriter.Refusal.differentNetworks) { try writer.group([alpha.id, charlie.id], primary: nil, source: .user) }
         #expect(throws: DeviceGroupWriter.Refusal.notFound) { try writer.group([alpha.id, UUID()], primary: nil, source: .user) }
         #expect(try all().allSatisfy { $0.deviceGroupID == nil })
-        #expect(!context.hasChanges)
     }
 
     @Test("An exclusion against any member of the other group refuses the union")
@@ -84,11 +91,11 @@ struct DeviceGroupWriterTests {
         try writer.exclude(alpha.id, bravo.id)
         try writer.exclude(alpha.id, charlie.id)
         try writer.exclude(alpha.id, bravo.id)
-        #expect(Set(alpha.notSameAsIDs ?? []) == [bravo.id, charlie.id])
-        #expect(bravo.notSameAsIDs == [alpha.id])
+        #expect(try Set(fresh(alpha).notSameAsIDs ?? []) == [bravo.id, charlie.id])
+        #expect(try fresh(bravo).notSameAsIDs == [alpha.id])
         try writer.include(alpha.id, bravo.id)
-        #expect(alpha.notSameAsIDs == [charlie.id])
-        #expect(bravo.notSameAsIDs == nil)
+        #expect(try fresh(alpha).notSameAsIDs == [charlie.id])
+        #expect(try fresh(bravo).notSameAsIDs == nil)
     }
 
     @Test("Ungrouping a member excludes it from the rest; a group of one is cleared")
@@ -96,10 +103,11 @@ struct DeviceGroupWriterTests {
         let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40")
         _ = try writer.group([alpha.id, bravo.id], primary: alpha.id, source: .user)
         try writer.ungroup(bravo.id)
-        for member in [alpha, bravo] {
+        for member in try [fresh(alpha), fresh(bravo)] {
             #expect(member.deviceGroupID == nil && member.groupPrimaryID == nil && member.groupSource == nil)
         }
-        #expect(alpha.notSameAsIDs == [bravo.id] && bravo.notSameAsIDs == [alpha.id])
+        #expect(try fresh(alpha).notSameAsIDs == [bravo.id])
+        #expect(try fresh(bravo).notSameAsIDs == [alpha.id])
     }
 
     @Test("Removing the primary interface re-keys the group to user content, then the earliest first seen; the group ID stays")
@@ -110,10 +118,12 @@ struct DeviceGroupWriterTests {
         let id = try writer.group([alpha.id, bravo.id, charlie.id], primary: alpha.id, source: .user)
         try writer.removeInterface(alpha.id)
         #expect(try all().count == 2)
-        #expect(bravo.deviceGroupID == id && charlie.deviceGroupID == id)
-        #expect(bravo.groupPrimaryID == charlie.id && charlie.groupPrimaryID == charlie.id)
+        let (left, spare) = try (fresh(bravo), fresh(charlie))
+        #expect(left.deviceGroupID == id && spare.deviceGroupID == id)
+        #expect(left.groupPrimaryID == charlie.id && spare.groupPrimaryID == charlie.id)
         try writer.removeInterface(charlie.id)
-        #expect(bravo.deviceGroupID == nil && bravo.groupPrimaryID == nil, "one member left: not a group")
+        let last = try fresh(bravo)
+        #expect(last.deviceGroupID == nil && last.groupPrimaryID == nil, "one member left: not a group")
     }
 
     @Test("Deleting a device deletes every member, and nothing else")
@@ -163,8 +173,10 @@ struct DeviceGroupWriterTests {
         lone.groupPrimaryID = lone.id
         try context.save()
         try writer.repair()
-        #expect(alpha.groupPrimaryID == alpha.id && bravo.groupPrimaryID == alpha.id)
-        #expect(lone.deviceGroupID == nil && lone.groupPrimaryID == nil)
+        #expect(try fresh(alpha).groupPrimaryID == alpha.id)
+        #expect(try fresh(bravo).groupPrimaryID == alpha.id)
+        let single = try fresh(lone)
+        #expect(single.deviceGroupID == nil && single.groupPrimaryID == nil)
     }
 
     @Test("A failed save rolls back and throws")
@@ -173,7 +185,119 @@ struct DeviceGroupWriterTests {
         struct SaveFailed: Error {}
         let failing = DeviceGroupWriter(context: context, save: { _ in throw SaveFailed() })
         #expect(throws: SaveFailed.self) { try failing.group([alpha.id, bravo.id], primary: nil, source: .user) }
-        #expect(alpha.deviceGroupID == nil && bravo.deviceGroupID == nil)
-        #expect(!context.hasChanges)
+        #expect(try fresh(alpha).deviceGroupID == nil)
+        #expect(try fresh(bravo).deviceGroupID == nil)
+    }
+
+    // MARK: Review round (#615)
+
+    @Test("A group needs two rows: one row alone is refused")
+    func refusesAGroupOfOne() throws {
+        let alpha = try row("10.0.0.10")
+        #expect(throws: DeviceGroupWriter.Refusal.tooFewMembers) { try writer.group([alpha.id], primary: nil, source: .user) }
+        #expect(try fresh(alpha).deviceGroupID == nil)
+    }
+
+    @Test("A refused operation leaves another context's unsaved edit alone")
+    func refusalKeepsUnsavedEdits() throws {
+        let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40")
+        try writer.exclude(alpha.id, bravo.id)
+        alpha.customName = "Draft name, not saved yet"
+        #expect(throws: DeviceGroupWriter.Refusal.self) { try writer.group([alpha.id, bravo.id], primary: nil, source: .user) }
+        #expect(context.hasChanges)
+        #expect(alpha.customName == "Draft name, not saved yet")
+    }
+
+    @Test("Removing an interface moves its references to the device's primary, only while interfaces remain")
+    func removalRepointsReferences() throws {
+        let primary = try row("10.0.0.10", notes: "Mac mini"), wifi = try row("10.0.0.40"), other = try row("10.0.0.50")
+        let spare = try row("10.0.0.41")
+        _ = try writer.group([primary.id, wifi.id, spare.id], primary: primary.id, source: .user)
+        let rules = RecordingReferences()
+        let referencing = DeviceGroupWriter(container: container, references: [rules])
+        try referencing.removeInterface(primary.id)
+        let newPrimary = try #require(try fresh(wifi).groupPrimaryID)
+        #expect(rules.moves == [Move(from: primary.id, to: newPrimary)])
+        try referencing.removeInterface(other.id)
+        #expect(rules.moves.count == 1, "a device of one row leaves nothing to point at")
+    }
+
+    @Test("Deleting a primary that a rule, a Timeline entry and an open detail name keeps them on the device")
+    func deletingThePrimaryKeepsReferences() throws {
+        let primary = try row("10.0.0.10", notes: "Mac mini"), wifi = try row("10.0.0.40")
+        let id = try writer.group([primary.id, wifi.id], primary: primary.id, source: .user)
+        let rules = RecordingReferences(holding: [primary.id])
+        let events = NetworkEventService()
+        events.log(NetworkEvent(type: .deviceJoined, title: "Device Joined: Mac mini", deviceID: primary.id))
+        let openDetail = id
+        try DeviceGroupWriter(container: container, references: [rules, events]).removeInterface(primary.id)
+        let rows = try all()
+        let resolver = DeviceGroupResolver(rows: rows)
+        // The rule still names a row of the device, so it still fires for the device.
+        #expect(rules.held.allSatisfy { held in resolver.device(for: held)?.contains(wifi.id) == true })
+        // The Timeline entry names a row that exists.
+        #expect(events.events.first?.deviceID == wifi.id)
+        let named = try #require(events.events.first?.deviceID)
+        #expect(resolver.device(for: named) != nil)
+        // An open detail keyed by the device's ID finds what is left (a device of one row now).
+        #expect(resolver.device(for: openDetail) == nil && resolver.device(for: wifi.id)?.members.count == 1)
+    }
+
+    @Test("The newest devices: 250 two-interface groups in the newest 500 rows still give 500 devices")
+    func recentDevicesCountDevicesNotRows() throws {
+        var groups: [[UUID]] = []
+        for index in 0..<250 {
+            let wired = try row("10.1.\(index / 200).\(index % 200)", firstSeen: 0)
+            let wifi = try row("10.2.\(index / 200).\(index % 200)", firstSeen: 0)
+            for member in [wired, wifi] {
+                member.lastSeen = Date(timeIntervalSince1970: 1_900_000_000 + Double(index))
+            }
+            groups.append([wired.id, wifi.id])
+        }
+        for index in 0..<400 {
+            let single = try row("10.3.\(index / 200).\(index % 200)")
+            single.lastSeen = Date(timeIntervalSince1970: 1_800_000_000 + Double(index))
+        }
+        try context.save()
+        for pair in groups {
+            try writer.group(pair, primary: pair[0], source: .user)
+        }
+        let devices = try DeviceGroups.recentDevices(network: home, limit: 500, in: ModelContext(container))
+        #expect(devices.count == 500)
+        #expect(devices.prefix(250).allSatisfy { $0.isGroup })
+        #expect(devices.dropFirst(250).allSatisfy { !$0.isGroup })
+    }
+
+    @Test("A rule device's ports are those measured at its current address only")
+    func ruleDevicePortsAreTheCurrentInterfaces() throws {
+        let wired = try row("10.0.0.10"), wifi = try row("10.0.0.40")
+        wired.openPorts = [22]
+        wired.lastSeen = Date(timeIntervalSince1970: 1_800_000_000)
+        wifi.lastSeen = Date(timeIntervalSince1970: 1_800_000_600)
+        try context.save()
+        try writer.group([wired.id, wifi.id], primary: wired.id, source: .user)
+        let device = try #require(try DeviceGroups.project(all()).first)
+        #expect(device.ipAddress == "10.0.0.40")
+        #expect(RuleDevice(device).openPorts.isEmpty, "no Wi-Fi:22 target from the Ethernet port")
+    }
+}
+
+private struct Move: Equatable {
+    let from: UUID
+    let to: UUID
+}
+
+@MainActor
+private final class RecordingReferences: DeviceReferenceStore {
+    private(set) var moves: [Move] = []
+    private(set) var held: [UUID]
+
+    init(holding held: [UUID] = []) {
+        self.held = held
+    }
+
+    func repoint(from removed: UUID, to device: UUID) {
+        moves.append(Move(from: removed, to: device))
+        held = held.map { $0 == removed ? device : $0 }
     }
 }

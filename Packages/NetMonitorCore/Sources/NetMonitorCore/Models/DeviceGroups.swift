@@ -43,6 +43,20 @@ public struct DeviceProjection: Identifiable {
     }
 }
 
+/// What makes rows one device (#594): the same group on the same network; a row outside a group is
+/// a device of its own. The one key projection, repair and the bounded fetch share.
+public struct DeviceGroupKey: Hashable, Sendable {
+    public let groupID: UUID?
+    public let rowID: UUID?
+    public let network: UUID?
+
+    public init(_ row: LocalDevice) {
+        groupID = row.deviceGroupID
+        rowID = row.deviceGroupID == nil ? row.id : nil
+        network = row.networkProfileID
+    }
+}
+
 /// Builds ``DeviceProjection``s (#594, design v3.1 §4, §6). Readers scope rows to a network, make
 /// groups complete (``completingGroups(_:in:)``), project, and only then search, filter or limit.
 public enum DeviceGroups {
@@ -50,10 +64,10 @@ public enum DeviceGroups {
     /// `deviceGroupID` on the same network are one device; a group's primary is the member its
     /// `groupPrimaryID` names, else ``preferredPrimary(among:)``.
     public static func project(_ rows: [LocalDevice]) -> [DeviceProjection] {
-        var order: [GroupKey] = []
-        var membersByKey: [GroupKey: [LocalDevice]] = [:]
+        var order: [DeviceGroupKey] = []
+        var membersByKey: [DeviceGroupKey: [LocalDevice]] = [:]
         for row in rows {
-            let key = GroupKey(row)
+            let key = DeviceGroupKey(row)
             if membersByKey[key] == nil {
                 order.append(key)
             }
@@ -70,29 +84,81 @@ public enum DeviceGroups {
         }
     }
 
-    /// `rows` plus every other member of the groups they belong to, so a bounded fetch (the 500
-    /// most recent rows) never projects a group without its primary.
+    /// `rows` plus every other member of the groups they belong to, on the same network, so a
+    /// bounded fetch never projects a group without its primary. Fetches only those groups.
     public static func completingGroups(_ rows: [LocalDevice], in context: ModelContext) throws -> [LocalDevice] {
-        let groupIDs = Set(rows.compactMap(\.deviceGroupID))
-        guard !groupIDs.isEmpty else { return rows }
+        let selected = Set(rows.filter { $0.deviceGroupID != nil }.map(DeviceGroupKey.init))
+        guard !selected.isEmpty else { return rows }
         let have = Set(rows.map(\.id))
-        let grouped = try context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.deviceGroupID != nil }))
-        return rows + grouped.filter { member in member.deviceGroupID.map(groupIDs.contains) == true && !have.contains(member.id) }
+        let members = try self.members(ofGroups: Set(selected.compactMap(\.groupID)), in: context)
+        return rows + members.filter { !have.contains($0.id) && selected.contains(DeviceGroupKey($0)) }
+    }
+
+    /// Every row of the groups `groupIDs`, by predicate.
+    public static func members(ofGroups groupIDs: Set<UUID>, in context: ModelContext) throws -> [LocalDevice] {
+        guard !groupIDs.isEmpty else { return [] }
+        // SwiftData's SQL can't translate `??` or optional binding here; the unwrap is guarded.
+        return try context.fetch(FetchDescriptor<LocalDevice>(
+            // swiftlint:disable:next force_unwrapping
+            predicate: #Predicate { $0.deviceGroupID != nil && groupIDs.contains($0.deviceGroupID!) }
+        ))
+    }
+
+    /// The device `row` belongs to: its group's complete membership, projected; the row alone
+    /// when it is in no group.
+    public static func device(of row: LocalDevice, in context: ModelContext) throws -> DeviceProjection {
+        guard let groupID = row.deviceGroupID else { return project([row])[0] }
+        let members = try members(ofGroups: [groupID], in: context).filter { $0.networkProfileID == row.networkProfileID }
+        return project(members.contains { $0.id == row.id } ? members : members + [row]).first { $0.contains(row.id) }
+            ?? project([row])[0]
     }
 
     /// The `limit` most recently seen devices on `network` (every network's when nil), each with
-    /// all its members, most recent first: the bounded fetch every capped reader uses (#594).
+    /// all its members, most recent first: the bounded fetch every capped reader uses (#594). Pages
+    /// through the rows, newest first, until `limit` distinct devices are chosen (a group's
+    /// interfaces count once) or the rows run out, then completes their groups.
     public static func recentDevices(network: UUID?, limit: Int, in context: ModelContext) throws -> [DeviceProjection] {
-        var descriptor: FetchDescriptor<LocalDevice>
-        if let network {
-            descriptor = FetchDescriptor(predicate: #Predicate { $0.networkProfileID == network })
-        } else {
-            descriptor = FetchDescriptor()
+        var selected: [LocalDevice] = []
+        var chosen = Set<DeviceGroupKey>()
+        var offset = 0
+        while chosen.count < limit {
+            var descriptor: FetchDescriptor<LocalDevice>
+            if let network {
+                descriptor = FetchDescriptor(predicate: #Predicate { $0.networkProfileID == network })
+            } else {
+                descriptor = FetchDescriptor()
+            }
+            descriptor.sortBy = [SortDescriptor(\.lastSeen, order: .reverse), SortDescriptor(\.ipAddress)]
+            descriptor.fetchOffset = offset
+            descriptor.fetchLimit = limit
+            let page = try context.fetch(descriptor)
+            for row in page {
+                let key = DeviceGroupKey(row)
+                if chosen.contains(key) || chosen.count < limit {
+                    chosen.insert(key)
+                    selected.append(row)
+                }
+            }
+            offset += page.count
+            if page.count < limit {
+                break
+            }
         }
-        descriptor.sortBy = [SortDescriptor(\.lastSeen, order: .reverse)]
-        descriptor.fetchLimit = limit
-        let rows = try completingGroups(context.fetch(descriptor), in: context)
-        return Array(project(rows).prefix(limit))
+        return try Array(project(completingGroups(selected, in: context)).prefix(limit))
+    }
+
+    /// What deleting an interface takes with it, for the confirmation both apps show (#594):
+    /// "This deletes 192.168.1.60 from this device, with its custom name and its notes. The rule
+    /// ‘Studio down’ names it and will follow the device's other interfaces." `references` are the
+    /// rules and targets naming the row, already worded ("the rule ‘Studio down’").
+    public static func removalMessage(for row: LocalDevice, references: [String] = []) -> String {
+        let content = userContent(of: row)
+        var message = "This deletes \(row.ipAddress) from this device"
+        message += content.isEmpty ? "." : ", with \(ListFormatter.localizedString(byJoining: content))."
+        guard !references.isEmpty else { return message }
+        let named = ListFormatter.localizedString(byJoining: references)
+        let verb = references.count == 1 ? "names it and" : "name it and"
+        return message + " \(named.prefix(1).uppercased() + named.dropFirst()) \(verb) will follow the device's other interfaces."
     }
 
     /// The primary to use when a group's `groupPrimaryID` names no member, or a member leaves:
@@ -155,30 +221,13 @@ public enum DeviceGroups {
         if lhsMAC != rhsMAC {
             return lhsMAC
         }
-        let lhsIP = ipv4Value(lhs.ipAddress), rhsIP = ipv4Value(rhs.ipAddress)
+        let lhsIP = NetworkUtilities.ipv4ToUInt32(lhs.ipAddress), rhsIP = NetworkUtilities.ipv4ToUInt32(rhs.ipAddress)
         if lhsIP != rhsIP {
             return (lhsIP ?? .max) < (rhsIP ?? .max)
         }
         return lhs.id.uuidString < rhs.id.uuidString
     }
 
-    static func ipv4Value(_ address: String) -> UInt32? {
-        let parts = address.split(separator: ".").compactMap { UInt8($0) }
-        guard parts.count == 4 else { return nil }
-        return parts.reduce(0) { $0 << 8 | UInt32($1) }
-    }
-
-    private struct GroupKey: Hashable {
-        let groupID: UUID?
-        let rowID: UUID?
-        let network: UUID?
-
-        init(_ row: LocalDevice) {
-            groupID = row.deviceGroupID
-            rowID = row.deviceGroupID == nil ? row.id : nil
-            network = row.networkProfileID
-        }
-    }
 }
 
 /// Finds the device a stored ID names (#594): a group's ID or any member row's ID, as rules,

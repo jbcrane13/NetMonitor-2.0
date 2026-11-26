@@ -63,14 +63,8 @@ public enum SerialNotesMigration {
     private static func applying(
         in context: ModelContext, save: (ModelContext) throws -> Void, _ change: ([LocalDevice]) -> Void
     ) throws {
-        do {
+        try context.commitOrRollback(save: save) {
             try change(context.fetch(FetchDescriptor<LocalDevice>()))
-            if context.hasChanges {
-                try save(context)
-            }
-        } catch {
-            context.rollback()
-            throw error
         }
     }
 }

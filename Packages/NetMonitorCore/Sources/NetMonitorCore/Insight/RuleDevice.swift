@@ -41,7 +41,7 @@ public struct RuleDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiab
 
     /// A saved device as rules see it (#594: a device, not a row): the primary's stable identity
     /// (`LocalDevice.id`) and the identity seam's name, type and maker, the current member's
-    /// address and every member's open ports. The maker leaves out model suggestions, as alert
+    /// address and that member's open ports (the address a target checks). The maker leaves out model suggestions, as alert
     /// rules do (#449).
     public init(_ device: DeviceProjection) {
         let primary = device.primary
@@ -53,7 +53,8 @@ public struct RuleDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiab
             maker: primary.makerExcludingSuggestions ?? device.members.lazy.compactMap(\.makerExcludingSuggestions).first,
             ipAddress: device.ipAddress,
             macAddress: device.realMACs.first,
-            openPorts: Set(device.members.flatMap { $0.openPorts ?? [] }).sorted()
+            // Only ports measured at the address a target would check (#594 review).
+            openPorts: (device.current.openPorts ?? []).sorted()
         )
         memberIDs = device.memberIDs
         addresses = Set(device.members.map(\.ipAddress))

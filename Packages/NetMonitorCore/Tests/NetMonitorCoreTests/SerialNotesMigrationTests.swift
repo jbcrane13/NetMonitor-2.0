@@ -90,4 +90,42 @@ struct SerialNotesMigrationTests {
         #expect(row.notes == "Serial: S1")
         #expect(!context.hasChanges)
     }
+
+    @Test("The launch pass runs once per store: a Serial line typed later stays in the notes")
+    func runsOncePerStore() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "serial-once-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let suite = "SerialNotesMigrationTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let schema = Schema([LocalDevice.self])
+        let configuration = ModelConfiguration(schema: schema, url: directory.appending(path: "default.store"), cloudKitDatabase: .none)
+        let disk = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(disk)
+        let row = LocalDevice(ipAddress: "192.168.4.2", macAddress: "", notes: "Serial: OLD")
+        context.insert(row)
+        try context.save()
+        let id = row.id
+        func stored() throws -> LocalDevice {
+            try #require(try ModelContext(disk).fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })).first)
+        }
+
+        DeviceStoreMaintenance.runAtLaunch(on: disk, defaults: defaults)
+        #expect(try stored().serialNumber == "OLD")
+        #expect(try stored().notes == nil)
+
+        // A device added later, whose notes the user starts with a Serial line: not a label
+        // capture's line, so it stays.
+        let later = LocalDevice(ipAddress: "192.168.4.3", macAddress: "", notes: "Serial: TYPED-LATER")
+        let laterContext = ModelContext(disk)
+        laterContext.insert(later)
+        try laterContext.save()
+        let laterID = later.id
+        DeviceStoreMaintenance.runAtLaunch(on: disk, defaults: defaults)
+        let typed = try #require(try ModelContext(disk).fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == laterID })).first)
+        #expect(typed.notes == "Serial: TYPED-LATER")
+        #expect(typed.serialNumber == nil)
+        #expect(try stored().serialNumber == "OLD")
+    }
 }
