@@ -24,6 +24,9 @@ final class CompanionMessageHandler {
     private let insightResponder: CompanionInsightResponder
     /// The log each device's last change is read from (#585).
     private let eventService: any NetworkEventServiceProtocol
+    /// The network's routed gateway, nil when the lookup fails: the phone tells networks apart by it
+    /// (#585), so never the profile's first-host guess.
+    private let routedGateway: @MainActor (NetworkProfile) -> String?
 
     /// Settings key for "Answer model requests from iPhone"; on when unset.
     nonisolated static let answersInsightKey = "netmonitor.companion.answersInsight"
@@ -45,9 +48,11 @@ final class CompanionMessageHandler {
         icmpService: ICMPMonitorService,
         networkProfileManager: NetworkProfileManager,
         insightService: any InsightServiceProtocol = InsightService.shared,
-        eventService: any NetworkEventServiceProtocol = NetworkEventService.shared
+        eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
+        routedGateway: @escaping @MainActor (NetworkProfile) -> String? = { CompanionMessageHandler.routedGateway(for: $0) }
     ) {
         self.eventService = eventService
+        self.routedGateway = routedGateway
         self.modelContext = modelContext
         self.monitoringSession = monitoringSession
         self.deviceDiscovery = deviceDiscovery
@@ -200,14 +205,41 @@ final class CompanionMessageHandler {
             )
         }
 
-        return .deviceList(DeviceListPayload(devices: deviceInfos, network: inventoryNetwork(presence: presence, sentAt: sentAt)))
+        return .deviceList(Self.fitting(DeviceListPayload(devices: deviceInfos, network: inventoryNetwork(presence: presence, sentAt: sentAt))))
+    }
+
+    /// The most a list may hold, and the frame budget it must fit (#585 review 12): under the
+    /// phone's 1 MiB frame cap with room to spare.
+    nonisolated static let maximumListedDevices = 1000
+    nonisolated static let frameBudget = CompanionFrameDecoder.defaultMaximumFrameSize * 7 / 8
+
+    /// `list` trimmed to the most recently seen devices (they come latest first) until its frame
+    /// fits `frameBudget`.
+    nonisolated static func fitting(_ list: DeviceListPayload) -> DeviceListPayload {
+        var count = min(list.devices.count, maximumListedDevices)
+        while count > 0 {
+            let trimmed = DeviceListPayload(devices: Array(list.devices.prefix(count)), network: list.network)
+            if let frame = try? CompanionMessage.deviceList(trimmed).encodeLengthPrefixed(), frame.count <= frameBudget {
+                return trimmed
+            }
+            count = count * 3 / 4
+        }
+        return DeviceListPayload(devices: [], network: list.network)
+    }
+
+    /// The default route's gateway when it is on `profile`'s network, else nil.
+    static func routedGateway(for profile: NetworkProfile) -> String? {
+        NetworkUtilities.detectRoutedGateway().flatMap { profile.network.contains(ipAddress: $0) ? $0 : nil }
     }
 
     /// The network the list covers and how old its latest scan is (#585).
-    private func inventoryNetwork(presence: PresenceSnapshot, sentAt: Date) -> InventoryNetwork? {
-        guard let profile = deviceDiscovery.networkProfile else { return nil }
+    private func inventoryNetwork(presence: PresenceSnapshot, sentAt: Date) -> InventoryNetwork {
+        // Always sent, so the phone knows an inventory Mac by its list alone (#585 review 10).
+        guard let profile = deviceDiscovery.networkProfile else {
+            return InventoryNetwork(subnet: nil, gatewayIP: nil, name: nil, scanAge: nil)
+        }
         return InventoryNetwork(
-            subnet: profile.subnetCIDR, gatewayIP: profile.gatewayIP, name: profile.name,
+            subnet: profile.subnetCIDR, gatewayIP: routedGateway(profile), name: profile.name,
             scanAge: presence.lastScan(for: profile.id).map { sentAt.timeIntervalSince($0) }
         )
     }

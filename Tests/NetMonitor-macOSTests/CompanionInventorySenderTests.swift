@@ -39,13 +39,15 @@ struct CompanionInventorySenderTests {
         displayName: "Test Network"
     )
 
-    private func makeFixture() throws -> Fixture {
+    private func makeFixture(
+        profiles: [NetworkProfile] = [Self.profile], gateway: String? = "192.168.77.254"
+    ) throws -> Fixture {
         let schema = Schema([NetworkTarget.self, TargetMeasurement.self, SessionRecord.self, LocalDevice.self])
         let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
         let context = container.mainContext
         let profile = Self.profile
-        let manager = NetworkProfileManager(userDefaults: InMemoryDefaults(), activeProfilesProvider: { [profile] })
+        let manager = NetworkProfileManager(userDefaults: InMemoryDefaults(), activeProfilesProvider: { profiles })
         let discovery = DeviceDiscoveryCoordinator(
             modelContext: context, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: manager,
             scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
@@ -54,7 +56,7 @@ struct CompanionInventorySenderTests {
         let handler = CompanionMessageHandler(
             modelContext: context, monitoringSession: MonitoringSession(modelContext: context), deviceDiscovery: discovery,
             wakeOnLanService: WakeOnLANService(), icmpService: ICMPMonitorService(), networkProfileManager: manager,
-            insightService: UnavailableInsightService(), eventService: events
+            insightService: UnavailableInsightService(), eventService: events, routedGateway: { _ in gateway }
         )
         return Fixture(container: container, handler: handler, discovery: discovery, profile: profile, events: events)
     }
@@ -84,6 +86,36 @@ struct CompanionInventorySenderTests {
         #expect(network.name == "Test Network")
         let age = try #require(network.scanAge)
         #expect(age >= 89 && age < 120)
+    }
+
+    /// #585 review: the phone tells the network by the routed gateway, not the profile's first-host
+    /// guess, and reads an inventory Mac from the list's `network`, so it is always sent.
+    @Test func theListCarriesTheRoutedGatewayAndAlwaysANetwork() throws {
+        let fixture = try makeFixture()
+        #expect(try deviceList(fixture.handler).network?.gatewayIP == "192.168.77.254")
+        let unknown = try makeFixture(gateway: nil)
+        #expect(try deviceList(unknown.handler).network?.gatewayIP == nil)
+        let noNetwork = try makeFixture(profiles: [])
+        let network = try #require(try deviceList(noNetwork.handler).network)
+        #expect(network.subnet == nil)
+    }
+
+    /// #585 review 12: a large store still fits one frame, most recently seen devices first.
+    @Test func aLargeInventoryFitsOneFrame() throws {
+        let fixture = try makeFixture()
+        let scan = (0..<1500).map { index in
+            LocalDiscoveredDevice(
+                ipAddress: "10.\(index / 250).\(index % 250).1", macAddress: String(format: "02:00:00:00:%02X:%02X", index / 256, index % 256),
+                hostname: "device-\(index)-" + String(repeating: "x", count: 600)
+            )
+        }
+        fixture.discovery.reconcileScan(scan, profileID: fixture.profile.id, now: Date().addingTimeInterval(-60))
+        let message = fixture.handler.generateDeviceList()
+        let frame = try message.encodeLengthPrefixed()
+        #expect(frame.count <= CompanionFrameDecoder.defaultMaximumFrameSize)
+        guard case .deviceList(let list) = message else { throw Missing() }
+        #expect(!list.devices.isEmpty)
+        #expect(list.devices.count < 1500)
     }
 
     @Test func eachDeviceCarriesItsAgesAndIdentity() throws {
