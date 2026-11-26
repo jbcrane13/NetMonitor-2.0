@@ -59,7 +59,10 @@ struct CompanionSightingsTests {
             scanTime: now, scanAge: scanAge, isPrimary: true
         )
         return DeviceListPayload(
-            devices: [DeviceInfo(ipAddress: "192.168.7.60", macAddress: "AA:BB:CC:00:00:60", hostname: "tv", isOnline: answered, members: [member])],
+            devices: [DeviceInfo(
+                ipAddress: "192.168.7.60", macAddress: "AA:BB:CC:00:00:60", hostname: "tv", isOnline: answered, members: [member],
+                isDeviceOnline: true
+            )],
             network: InventoryNetwork(subnet: "192.168.7.0/24", gatewayIP: "192.168.7.1", name: nil, scanAge: scanAge)
         )
     }
@@ -77,7 +80,8 @@ struct CompanionSightingsTests {
 
     @Test func aLiveInventoryGivesItsAnswersAsSightings() {
         #expect(inventorySightings(inventory()) == ["192.168.7.60"])
-        // Missed the Mac's latest scan: no answer to give.
+        // Missed the Mac's latest scan: no answer to give, even while the Mac shows it online within
+        // its grace (#598: a grace-online member is never a fresh sighting).
         #expect(inventorySightings(inventory(answered: false)).isEmpty)
         // The Mac's scan is older than the phone's own: no newer answer (#619).
         #expect(inventorySightings(inventory(scanAge: 60), ownLastScan: now.addingTimeInterval(-30)).isEmpty)

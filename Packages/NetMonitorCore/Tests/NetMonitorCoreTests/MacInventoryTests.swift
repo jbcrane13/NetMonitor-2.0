@@ -174,11 +174,14 @@ struct MacInventoryTests {
 
     // MARK: - Records
 
-    @Test func onlineOnlyWhenTheDeviceAnsweredTheMacsLatestScan() throws {
+    /// Lead on #585 item 7, after #583's grace decision: while the Mac's scan is within grace the
+    /// phone mirrors what the Mac app shows. A device that missed the Mac's latest scan but is inside
+    /// the Mac's grace reads Online with its real last seen, never "Not checked recently".
+    @Test func theRecordMirrorsTheMacsOwnState() throws {
         let inventory = try Self.live(Self.list([
             Self.device("192.168.77.20", online: true, lastSeenAge: 90, lastChangedAge: 7200),
-            // Missed the Mac's latest scan but still inside the Mac's grace: not "Online".
-            Self.device("192.168.77.21", online: false, deviceOnline: true, lastSeenAge: 400),
+            // Missed the Mac's latest scan, inside the Mac's grace: Online, last seen 6 min ago.
+            Self.device("192.168.77.21", online: false, deviceOnline: true, lastSeenAge: 360),
             Self.device("192.168.77.22", online: false, deviceOnline: false, lastSeenAge: 4000)
         ]))
         func record(_ ip: String) -> MacInventory.Record? {
@@ -187,7 +190,8 @@ struct MacInventoryTests {
         #expect(record("192.168.77.20")?.state == .online)
         #expect(record("192.168.77.20")?.lastSeen == Self.now.addingTimeInterval(-90))
         #expect(record("192.168.77.20")?.lastChanged == Self.now.addingTimeInterval(-7200))
-        #expect(record("192.168.77.21")?.state == .notCheckedRecently)
+        #expect(record("192.168.77.21")?.state == .online)
+        #expect(record("192.168.77.21")?.statusText(now: Self.now) == "Online · from your Mac · Last seen 6 min ago")
         #expect(record("192.168.77.22")?.state == .offline)
     }
 

@@ -9,7 +9,8 @@ import XCTest
 ///
 /// Against the in-app fake Mac (`--fake-mac-pairing`, #590) with `UITEST_FAKE_MAC_INVENTORY=1`,
 /// which advertises `inventory.v1` and answers `refreshDevices` with uitest-device-0 (offline, last
-/// seen 20 minutes before) and a doorbell only it knows (online). The test makes it leave with the
+/// seen 20 minutes before), uitest-device-2 (online inside the Mac's grace) and a doorbell only it
+/// knows (online). The test makes it leave with the
 /// Debug-only Settings control. The phone's rows come from the UI-test scan (`UITEST_FAKE_DEVICES=1`).
 /// Screenshots are cropped to rows and labels; every device is a fixture.
 @MainActor
@@ -53,6 +54,12 @@ final class MacInventoryUITests: PresenceUITestCase {
         requireExists(phoneOnly, timeout: 5, message: "A device only the phone knows should be listed")
         XCTAssertFalse(value(phoneOnly).contains("from your Mac"), "The phone's own state: \(value(phoneOnly))")
         XCTAssertTrue(value(phoneOnly).contains("Seen by this iPhone at"), "Labelled as the phone's: \(value(phoneOnly))")
+
+        // Missed the Mac's latest scan but inside the Mac's grace: as the Mac app shows it, Online with
+        // its real last seen, never "Not checked recently" (#583 grace, lead on item 7).
+        let inGrace = row("192.168.1.12")
+        requireExists(inGrace, timeout: 5, message: "The device inside the Mac's grace should be listed")
+        expectValue(inGrace, startsWith: "Online, from your Mac, last seen 6 min ago", "The Mac's grace state")
         captureElement(banner, named: "585-01-banner-from-your-mac")
         captureElement(shared, named: "585-02-device-both-know")
         captureElement(phoneOnly, named: "585-03-device-only-the-phone-knows")

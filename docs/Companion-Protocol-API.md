@@ -342,7 +342,7 @@ The phone reads a list that carries `network` as an inventory Mac's, whatever it
 - the Mac's scan, placed on the phone's clock as `receivedAt - scanAge`, is within the phone's grace interval.
 
 While it holds:
-- A device reads **Online** from the Mac only when it answered the Mac's latest scan, **Offline** when the Mac has it offline, and otherwise (missed that scan, inside the Mac's own grace) **Not checked recently**, always with "from your Mac".
+- A device reads as the Mac app shows it (`isDeviceOnline`), always with "from your Mac" and its real last seen: **Online** when it answered the Mac's latest scan or missed it inside the Mac's grace (#583), **Offline** when the Mac has it offline. The list is live only while the Mac's scan is within grace, so "Not checked recently" never comes from the Mac. Which interfaces answered that scan (`answeredLatestScan`) alone decides what refreshes the phone's saved rows; a grace-online interface is never a fresh sighting (#598).
 - "Seen by this iPhone at …" shows only for devices the phone's own latest scan saw, with that scan's time.
 - Devices only the Mac knows are listed and never saved. The Mac's maker and model show where the phone has none, never saved.
 - The phone matches its devices to the Mac's by the `PresenceMatch` rule: a real MAC on both sides decides; two different names are two devices; an unknown name matches only a row seen at that address within grace or by the phone's previous scan; a past device only by MAC.

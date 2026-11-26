@@ -79,8 +79,11 @@ public struct MacInventory: Sendable, Equatable {
         public let matchName: String?
         public let ipAddress: String
         public let members: [Member]
-        /// Online when it answered the Mac's latest scan; offline when the Mac has it offline;
-        /// otherwise (missed that scan, inside the Mac's grace) not checked recently.
+        /// What the Mac app shows (#583's grace rule, lead on #585): Online when the Mac has it online
+        /// (it answered the Mac's latest scan, or missed it inside the Mac's grace), shown with its real
+        /// last seen; Offline when the Mac has it offline. Only a live list has records, so the Mac's
+        /// scan is within grace. Which interfaces answered that scan (and so refresh the phone's rows)
+        /// is decided per member, never from this.
         public let state: PresenceFreshness
         public let lastSeen: Date?
         public let lastChanged: Date?
@@ -244,7 +247,7 @@ public struct MacInventory: Sendable, Equatable {
             members.map { Record.Member(ipAddress: $0.ipAddress, macAddress: $0.macAddress, isPrimary: $0.isPrimary ?? (members.count == 1)) }
         } ?? [Record.Member(ipAddress: device.ipAddress, macAddress: device.macAddress, isPrimary: true)]
         let matchName = [device.hostname, identity.friendlyName?.value].compactMap { $0 }.first { !$0.isEmpty }
-        let state: PresenceFreshness = device.isOnline ? .online : device.isDeviceOnline == true ? .notCheckedRecently : .offline
+        let state: PresenceFreshness = (device.isDeviceOnline ?? device.isOnline) ? .online : .offline
         return Record(
             id: device.id,
             name: [identity.friendlyName?.value, device.hostname].compactMap { $0 }.first { !$0.isEmpty } ?? device.ipAddress,
