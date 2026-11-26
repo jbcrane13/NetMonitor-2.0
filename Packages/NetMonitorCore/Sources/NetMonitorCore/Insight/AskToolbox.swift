@@ -419,7 +419,9 @@ extension AskToolbox {
     ///   interface and subnet, so a same-subnet LAN reads as the same network until one runs;
     /// - for an address outside the network this device is on now;
     /// - for a device that wasn't Online (or in grace) at that scan: its address may be someone
-    ///   else's now.
+    ///   else's now;
+    /// - for a device whose address another saved device was seen at since (DHCP reuse): a reply
+    ///   would be the other device's.
     /// Every outcome is kept for the question, so a repeat neither pings nor refuses again. The
     /// result is the app's line, never saved as presence.
     public func pingDevice(_ id: String) async -> String {
@@ -465,6 +467,12 @@ extension AskToolbox {
             return refusal("it didn't answer the last scan; it was last seen at this address \(ago).",
                            "last seen at this address \(ago)")
         }
+        let holder = snapshot.devices.first {
+            $0.id != device.id && $0.addresses.contains(device.ipAddress) && $0.lastSeen >= device.lastSeen
+        }
+        if let holder {
+            return refusal("another saved device, \(self.name(holder)), has its address now.", "\(self.name(holder)) has this address now")
+        }
         let outcome = await live.ping(device.ipAddress)
         guard outcome != .cancelled else { return ("\(label): not measured, cancelled.", nil) }
         let (fact, shown) = Self.describe(outcome)
@@ -499,7 +507,8 @@ extension AskToolbox {
                                                      measuredAt: nil))
         }
         let connection = await live.connection()
-        guard let type = connection.type, type != .none else {
+        // nil is no connection; `.none` is a connected path of no recognised interface type (a tunnel).
+        guard let type = connection.type else {
             let line = AskMeasurement(deviceID: nil, text: "No network connection", measuredAt: live.now())
             return ("No network connection. Nothing was pinged.", line)
         }
@@ -510,8 +519,9 @@ extension AskToolbox {
         }
         let internetOutcome = await internet
         guard internetOutcome != .cancelled, gatewayOutcome != .cancelled else { return ("Connection: not measured, cancelled.", nil) }
-        var facts = ["Connection: \(type.displayName)."]
-        var shown = [type.displayName]
+        let typeName = type == .none ? "Connected" : type.displayName
+        var facts = ["Connection: \(typeName)."]
+        var shown = [typeName]
         if let gateway = connection.gatewayIP, let gatewayOutcome {
             let (fact, line) = Self.describe(gatewayOutcome)
             facts.append("Gateway at \(InsightRequest.line(gateway, limit: 60)): \(fact).")

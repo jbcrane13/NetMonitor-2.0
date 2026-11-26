@@ -92,6 +92,8 @@ public struct AskLiveTools: Sendable {
     /// Pings `address` `pingCount` times, inside `deadline`; `PingService.calculateStatistics` works
     /// out the replies and average. Never throws: a tool error would roll back the model's turn.
     func ping(_ address: String) async -> PingOutcome {
+        // A cancelled question starts no probe.
+        guard !Task.isCancelled else { return .cancelled }
         let pinger = pinger
         let results = await Self.within(deadline) { () -> [PingResult]? in
             var results: [PingResult] = []

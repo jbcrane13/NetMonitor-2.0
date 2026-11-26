@@ -212,6 +212,25 @@ struct AskLiveToolsTests {
         #expect(pinger.hosts.isEmpty)
     }
 
+    /// DHCP gave Alice's phone's address to Bob's TV (#627 review): the scan made Bob's row, and
+    /// Alice's stays Online in grace. A reply from that address is Bob's, so Alice isn't pinged.
+    @Test func aDeviceWhoseAddressAnotherDeviceHoldsNowIsNotPinged() async {
+        let alice = Fix.device("Alice's iPhone", .phone, ip: "192.168.1.50", lastSeen: Fix.now.addingTimeInterval(-600))
+        let bob = Fix.device("Bob's TV", .tv, ip: "192.168.1.50")
+        let snapshot = AskSnapshot(devices: [alice, bob], events: [], networkProfileID: Live.network.id, lastScan: Fix.now, now: Fix.now,
+                                   calendar: Fix.calendar)
+        let pinger = ScriptedPinger(["192.168.1.50": .times([3, 3, 3])])
+        let toolbox = Live.toolbox(Live.live(pinger), snapshot: snapshot)
+        #expect(await toolbox.pingDevice("Alice's iPhone")
+            == "Alice's iPhone was not pinged: another saved device, Bob's TV, has its address now.")
+        #expect(toolbox.record.measurements.map(\.text)
+            == ["Alice's iPhone (192.168.1.50): not pinged, Bob's TV has this address now"])
+        #expect(pinger.hosts.isEmpty)
+        // The device that holds the address is pinged.
+        #expect(await toolbox.pingDevice("Bob's TV") == "Pinged Bob's TV (192.168.1.50): 3 of 3 replies, average 3 ms.")
+        #expect(pinger.hosts == ["192.168.1.50"])
+    }
+
     /// #594: a device of two interfaces is pinged on its current one and named once.
     @Test func aGroupedDeviceIsPingedOnItsCurrentInterface() async {
         let laptop = AskDevice(
@@ -318,6 +337,17 @@ struct AskLiveToolsTests {
         #expect(pinger.hosts.isEmpty)
     }
 
+    /// A connected path of no recognised interface type (a tunnel) is `.none`, not disconnected
+    /// (#627 review): only a nil type is no connection.
+    @Test func networkStatusOnAConnectionOfUnknownTypeStillPingsTheInternet() async {
+        let pinger = ScriptedPinger([AskLiveTools.internetHost: .times([20, 20, 20])])
+        let toolbox = Live.toolbox(Live.live(pinger, connection: .init(type: ConnectionType.none, gatewayIP: nil)))
+        #expect(await toolbox.networkStatus() == "Connection: Connected. Gateway: not found, so not pinged. "
+            + "Internet (pinged the public address 8.8.8.8): 3 of 3 replies, average 20 ms.")
+        #expect(pinger.hosts == [AskLiveTools.internetHost])
+        #expect(toolbox.record.measurements.map(\.text) == ["Connected · gateway: not found · internet (8.8.8.8): 3 of 3 replies, 20 ms average"])
+    }
+
     @Test func networkStatusWithoutAGatewayStillPingsTheInternet() async {
         let pinger = ScriptedPinger([AskLiveTools.internetHost: .times([20, 20, 20])])
         let toolbox = Live.toolbox(Live.live(pinger, connection: .init(type: .cellular, gatewayIP: nil)))
@@ -359,7 +389,10 @@ struct AskNetworkLiveTests {
     /// Codex review of #627: paraphrases with no presence word still asserted the live result,
     /// and "3 ms" passed grounding because 3 is the probe count. Once a live tool ran, the app's
     /// line is the answer: no model sentence with a digit or the live vocabulary is shown.
-    @Test(arguments: ["It pinged fine.", "The ping succeeded.", "It got a reply in 4 ms.", "Its average latency is 3 ms."])
+    @Test(arguments: [
+        "It pinged fine.", "The ping succeeded.", "It got a reply in 4 ms.", "Its average latency is 3 ms.",
+        "Synology DS920 did not reply to 3 pings."
+    ])
     func aModelSentenceAboutTheLiveResultIsDropped(_ sentence: String) async {
         let pinger = ScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
         let answer = await ask([.pingDevice("dev-b")], answer: sentence + " It is a storage device.", pinger: pinger)
@@ -465,6 +498,8 @@ struct AskNetworkLiveTests {
         let answer = await task.value
         #expect(answer.text == nil)
         #expect(answer.measurements.isEmpty)
+        // The follow-up connection check started no probe.
+        #expect(pinger.hosts == ["192.168.1.20"])
     }
 }
 
