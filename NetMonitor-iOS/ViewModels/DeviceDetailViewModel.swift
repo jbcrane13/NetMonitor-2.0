@@ -32,10 +32,14 @@ final class DeviceDetailViewModel {
     private let suggester: DeviceSuggester
     private let wakeService: any WakeOnLANServiceProtocol
     /// Stores that name rows by ID; removing an interface re-points them to the device (#594).
-    private let references: [any DeviceReferenceStore]
+    let references: [any DeviceReferenceStore]
     /// The reconciled scans, for "seen by the previous scan" in the row match (#596).
     private let scanHistory: ScanHistory
-    private var modelContext: ModelContext?
+    /// "Now" for the 30-day window of grouping suggestions (#594 PR2).
+    let clock: @MainActor () -> Date
+    /// Suggestions, the override confirmation and the undo toast (#594 PR2).
+    let grouping = DeviceGroupingState()
+    private(set) var modelContext: ModelContext?
     /// The running suggestion. Cancelled on reload and when the view model goes away, so it
     /// never writes to a row that has been replaced or deleted.
     nonisolated(unsafe) private(set) var suggestionTask: Task<Void, Never>?
@@ -63,7 +67,8 @@ final class DeviceDetailViewModel {
         suggester: DeviceSuggester = DeviceSuggester(service: UITestFakeDeviceFeed.insightService, store: DeviceSuggestionStore()),
         wakeService: any WakeOnLANServiceProtocol = WakeOnLANService(),
         references: [any DeviceReferenceStore] = [NetworkEventService.shared],
-        scanHistory: ScanHistory = ScanHistory()
+        scanHistory: ScanHistory = ScanHistory(),
+        clock: @escaping @MainActor () -> Date = Date.init
     ) {
         self.macLookupService = macLookupService
         self.nameResolver = nameResolver
@@ -74,6 +79,7 @@ final class DeviceDetailViewModel {
         self.wakeService = wakeService
         self.references = references
         self.scanHistory = scanHistory
+        self.clock = clock
     }
 
     deinit {
@@ -200,7 +206,7 @@ final class DeviceDetailViewModel {
         suggestedType = suggester.suggestedType(for: device)
     }
 
-    private func saveContext() {
+    func saveContext() {
         try? modelContext?.save()
     }
 
@@ -595,11 +601,13 @@ extension DeviceDetailViewModel {
         guard let row else {
             device = nil
             projection = nil
+            refreshGroupSuggestions()
             return
         }
         let shown = modelContext.flatMap { try? DeviceGroups.device(of: row, in: $0) } ?? DeviceGroups.project([row]).first
         projection = shown
         device = shown?.primary ?? row
+        refreshGroupSuggestions()
     }
 
     /// "Remove this interface": deletes the member's row through `DeviceGroupWriter`, which works in
