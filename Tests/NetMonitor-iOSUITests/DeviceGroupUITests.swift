@@ -36,14 +36,21 @@ final class DeviceGroupUITests: PresenceUITestCase {
         let memberNotes = ui("deviceDetail_textfield_interfaceNotes_192_168_1_13")
         requireExists(memberNotes, timeout: 5, message: "The Wi-Fi interface's notes are on its row")
         XCTAssertEqual(value(memberNotes), "Wi-Fi interface")
-        keepCroppedEvidence(interfaces, named: "594-ios-detail-interfaces")
+        let wifiRow = ui("deviceDetail_row_interface_192_168_1_13")
+        moveAboveTabBar(memberNotes)
+        keepCroppedEvidence(wifiRow, named: "594-ios-detail-interface-wifi")
+        keepCroppedEvidence(memberNotes, named: "594-ios-detail-interface-wifi-notes")
+        let wiredRow = ui("deviceDetail_row_interface_192_168_1_60")
+        moveAboveTabBar(wiredRow)
+        keepCroppedEvidence(wiredRow, named: "594-ios-detail-interface-wired")
 
         let notes = ui("deviceDetail_textfield_notes")
         scrollToElement(notes)
         requireExists(notes, timeout: 5, message: "The primary's notes stay in Notes")
         XCTAssertEqual(value(notes), "Wired port in the studio")
         XCTAssertEqual(ui("deviceDetail_label_notesInterface").label, "192.168.1.60", "The notes say which interface they're about")
-        keepCroppedEvidence(ui("deviceDetail_label_notesTitle"), named: "594-ios-detail-notes-title")
+        moveAboveTabBar(notes)
+        keepCroppedEvidence(ui("deviceDetail_label_notesInterface"), named: "594-ios-detail-notes-interface")
         keepCroppedEvidence(notes, named: "594-ios-detail-primary-notes")
 
         // Remove the wired interface: it has a name and notes, so the app asks first.
@@ -68,5 +75,13 @@ final class DeviceGroupUITests: PresenceUITestCase {
         requireExists(remaining, timeout: 8, message: "The remaining interface is still one device")
         XCTAssertFalse(row("192.168.1.60").exists, "The removed interface is gone")
         keepCroppedEvidence(remaining, named: "594-ios-after-remove")
+    }
+
+    /// Scrolls until `element` sits in the top half, clear of the floating tab bar, for its screenshot.
+    private func moveAboveTabBar(_ element: XCUIElement) {
+        let limit = app.windows.firstMatch.frame.height * 0.55
+        for _ in 0 ..< 4 where element.frame.maxY > limit {
+            app.swipeUp(velocity: .slow)
+        }
     }
 }
