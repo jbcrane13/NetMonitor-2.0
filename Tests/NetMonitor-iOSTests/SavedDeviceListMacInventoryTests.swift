@@ -55,6 +55,20 @@ struct SavedDeviceListMacInventoryTests {
         #expect(list.sourceText == "From your Mac · scanned 1 min ago")
     }
 
+    /// The phone measured a latency, but the Mac has the device offline: no latency beside "Offline".
+    @Test func noLatencyBesideTheMacsOffline() throws {
+        let tv = row("192.168.77.20", lastSeen: now)
+        tv.lastLatency = 12
+        let phoneScan = PresenceSnapshot(lastScans: [home: now], now: now)
+        let list = SavedDeviceList(
+            saved: [tv], network: home, sort: .ip, showPast: false, presence: phoneScan,
+            inventory: inventory([macDevice("192.168.77.20", name: "tv", online: false)])
+        )
+        let device = try #require(DeviceGroups.project([tv]).first)
+        #expect(list.freshness(of: device) == .offline)
+        #expect(list.latencyText(device) == nil)
+    }
+
     @Test func aDeviceOnlyThePhoneKnowsKeepsItsOwnState() throws {
         let printer = row("192.168.77.30", lastSeen: now - 3600)
         let list = SavedDeviceList(
@@ -99,5 +113,39 @@ struct SavedDeviceListMacInventoryTests {
         #expect(list.statusText(device) == presence.statusText(device))
         #expect(list.phoneSightingText(device) == nil)
         #expect(list.sourceText == nil)
+    }
+
+    // MARK: - Device detail agrees with the list
+
+    /// A row saved without a network is listed with the current network, so detail looks the Mac's
+    /// record up there too, among the same rows.
+    @Test func detailFindsTheSameRecordAsTheList() throws {
+        let unfiled = LocalDevice(ipAddress: "192.168.77.20", macAddress: "", hostname: "tv")
+        let rows = [unfiled, row("192.168.77.30", lastSeen: now)]
+        let availability = inventory([macDevice("192.168.77.20", name: "tv", online: true)])
+        let list = SavedDeviceList(saved: rows, network: home, sort: .ip, showPast: false, presence: presence, inventory: availability)
+        let device = try #require(DeviceGroups.project([unfiled]).first)
+        #expect(list.macRecord(for: device)?.name == "tv")
+        #expect(MacConnectionService.macRecord(of: device, availability: availability, rows: rows)?.name == "tv")
+    }
+
+    @Test func detailUsesTheRowsNetworkOrTheCurrentOneForRowsWithout() throws {
+        let local = NetworkProfile(
+            interfaceName: "en0", ipAddress: "192.168.77.100",
+            network: NetworkUtilities.IPv4Network(
+                networkAddress: 0xC0A84D00, broadcastAddress: 0xC0A84DFF, interfaceAddress: 0xC0A84D64, netmask: 0xFFFFFF00
+            ),
+            connectionType: .wifi
+        )
+        // swiftlint:disable:next force_unwrapping
+        let defaults = UserDefaults(suiteName: "test.inventory.\(UUID().uuidString)")!
+        let service = MacConnectionService(
+            insightClient: CompanionInsightClient(send: { _ in false }),
+            networkProfileManager: NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [local] }),
+            macStore: PairedMacStore(backing: InMemoryCompanionSecretStore()), defaults: defaults
+        )
+        #expect(service.profile(for: local.id)?.subnetCIDR == "192.168.77.0/24")
+        #expect(service.profile(for: nil)?.id == local.id)
+        #expect(service.profile(for: UUID()) == nil)
     }
 }

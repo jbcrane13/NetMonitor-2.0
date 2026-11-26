@@ -22,18 +22,26 @@ extension MacConnectionService {
         )
     }
 
-    /// The Mac's record of `device`, matched among the saved devices of its network as the list
-    /// matches them, so detail and the list agree (#585).
+    /// The Mac's record of `device`, matched among the saved devices the list shows with it, as the
+    /// list matches them, so detail and the list agree (#585).
     func macRecord(of device: DeviceProjection, in context: ModelContext, now: Date) -> MacInventory.Record? {
         let networkID = device.primary.networkProfileID
-        guard case .live(let inventory) = inventory(for: profile(for: networkID), now: now) else { return nil }
-        let rows = SavedDeviceList.recentRows(network: networkID, in: context)
+        return Self.macRecord(
+            of: device, availability: inventory(for: profile(for: networkID), now: now),
+            rows: SavedDeviceList.recentRows(network: networkID, in: context)
+        )
+    }
+
+    /// `device`'s record among `rows` (the network's saved rows and those without a network).
+    static func macRecord(of device: DeviceProjection, availability: MacInventory.Availability, rows: [LocalDevice]) -> MacInventory.Record? {
+        guard case .live(let inventory) = availability else { return nil }
         return inventory.matches(DeviceGroups.project(rows)).record(for: device)
     }
 
-    /// A saved network's profile; the UI-test network stands for the current one.
-    private func profile(for networkID: UUID?) -> NetworkProfile? {
-        if UITestFakeDeviceFeed.isEnabled, networkID == UITestBootstrap.networkProfileID {
+    /// The profile of a saved network, as the list picks it: rows saved without a network, and the
+    /// UI-test network, are listed with the current network.
+    func profile(for networkID: UUID?) -> NetworkProfile? {
+        guard let networkID, !(UITestFakeDeviceFeed.isEnabled && networkID == UITestBootstrap.networkProfileID) else {
             return networkProfileManager.activeProfile
         }
         return networkProfileManager.profiles.first { $0.id == networkID }

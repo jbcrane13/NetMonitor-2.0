@@ -181,8 +181,9 @@ struct SavedDeviceList {
     }
 
     /// The current member's last latency, only while the device is online: an old one is no news.
+    /// Never beside the Mac's "Offline" (#585).
     func latencyText(_ device: DeviceProjection) -> String? {
-        guard let latency = presence.currentLatency(device) else { return nil }
+        guard freshness(of: device).isOnline, let latency = presence.currentLatency(device) else { return nil }
         return latency < 1 ? "<1 ms" : "\(Int(latency.rounded())) ms"
     }
 

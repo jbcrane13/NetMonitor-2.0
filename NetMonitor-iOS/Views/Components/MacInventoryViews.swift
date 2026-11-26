@@ -37,6 +37,8 @@ struct MacInventoryBanner: View {
 struct MacOnlyDeviceRow: View {
     let record: MacInventory.Record
     let now: Date
+    /// The screen's identifier prefix: `deviceList` or `dashboard`.
+    var screen = "deviceList"
 
     var body: some View {
         HStack(spacing: Theme.Layout.itemSpacing) {
@@ -59,14 +61,20 @@ struct MacOnlyDeviceRow: View {
                 }
                 PresenceLine(freshness: record.state, text: record.statusText(now: now))
                     .accessibilityHidden(true)
+                if let changed = record.changedText(now: now) {
+                    Text(changed)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.Colors.textTertiary)
+                        .accessibilityHidden(true)
+                }
             }
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .opacity(record.state.isOnline ? 1 : 0.7)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(record.accessibilityText(now: now))
-        .accessibilityIdentifier("deviceList_row_device_\(record.ipAddress.replacingOccurrences(of: ".", with: "_"))")
+        .accessibilityValue([record.accessibilityText(now: now), record.changedText(now: now)].compactMap { $0 }.joined(separator: ". "))
+        .accessibilityIdentifier("\(screen)_row_device_\(record.ipAddress.replacingOccurrences(of: ".", with: "_"))")
     }
 }
 

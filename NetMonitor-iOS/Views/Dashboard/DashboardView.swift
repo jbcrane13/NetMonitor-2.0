@@ -775,7 +775,7 @@ struct LocalDevicesCard: View {
                             DeviceRow(device: device, isOnline: list.freshness(of: device).isOnline)
                                 .accessibilityValue(list.foundText(device))
                         case .mac(let record):
-                            MacOnlyDeviceRow(record: record, now: list.presence.now)
+                            MacOnlyDeviceRow(record: record, now: list.presence.now, screen: "dashboard")
                         }
                         if entry.id != entries.last?.id {
                             Divider()

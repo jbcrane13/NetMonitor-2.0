@@ -27,6 +27,13 @@ struct DeviceDetailStatusView: View {
         )
         .accessibilityIdentifier("deviceDetail_label_status")
 
+        if let changed = macRecord?.changedText(now: presence.now) {
+            Text(changed)
+                .font(.caption)
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .accessibilityIdentifier("deviceDetail_label_macChanged")
+        }
+
         if macRecord != nil, let projection {
             Label(MacInventory.phoneSightingText(projection.lastSeen, now: presence.now), systemImage: "iphone")
                 .font(.caption)

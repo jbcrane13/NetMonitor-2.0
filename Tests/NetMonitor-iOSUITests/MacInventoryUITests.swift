@@ -2,12 +2,14 @@ import XCTest
 
 /// #585 user flow: with the paired Mac connected, the device list shows the Mac's inventory. The
 /// banner says so, a device both know reads the Mac's state "from your Mac" with "Seen by this
-/// iPhone at …" apart, and a device only the Mac knows is listed. When the link drops, the list
-/// falls back to the phone's own scans: no banner, no Mac-only device, no "from your Mac".
+/// iPhone at …" apart, detail adds when it last changed, and a device only the Mac knows is listed.
+/// When the link drops, the list falls back to the phone's own scans: no banner, no Mac-only device,
+/// no "from your Mac". The Mac has the shared device offline while the phone finds it, so a frozen
+/// Mac state can't pass for the fallback.
 ///
 /// Against the in-app fake Mac (`--fake-mac-pairing`, #590) with `UITEST_FAKE_MAC_INVENTORY=1`,
-/// which advertises `inventory.v1` and answers `refreshDevices` with uitest-device-0 (online) and
-/// a doorbell only it knows, and stops `UITEST_FAKE_MAC_STOP_AFTER` seconds after sending it.
+/// which advertises `inventory.v1` and answers `refreshDevices` with uitest-device-0 (offline, last
+/// seen 20 minutes before) and a doorbell only it knows (online), and stops `UITEST_FAKE_MAC_STOP_AFTER` seconds after sending it.
 /// The phone's rows come from the UI-test scan (`UITEST_FAKE_DEVICES=1`). Screenshots are cropped
 /// to the list's rows and banner; every device is a fixture.
 @MainActor
@@ -27,6 +29,17 @@ final class MacInventoryUITests: PresenceUITestCase {
         scan()
         pairWithFakeMac()
         let sentAt = Date()
+        app.tabBars.buttons["Dashboard"].tap()
+        app.tabBars.buttons["Dashboard"].tap()
+        let link = ui("dashboard_link_devices")
+        scrollToElement(link)
+        requireExists(link, timeout: 10, message: "The dashboard's devices card should exist")
+        // The phone's five devices and the doorbell only the Mac knows.
+        let six = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value CONTAINS %@", "6 devices"), object: link)
+        XCTAssertEqual(XCTWaiter().wait(for: [six], timeout: 10), .completed, "The card counts the Mac's device: \(value(link))")
+        // Clear of the tab bar: the card's header and first rows.
+        app.swipeUp(velocity: .slow)
+        captureElement(link, named: "585-00-dashboard-card")
         openDeviceList()
 
         // Connected: the list is the Mac's.
@@ -36,7 +49,7 @@ final class MacInventoryUITests: PresenceUITestCase {
 
         let shared = row("192.168.1.10")
         requireExists(shared, timeout: 5, message: "The device both know should be listed")
-        expectValue(shared, startsWith: "Online, from your Mac, last seen", "The Mac's state, with its source")
+        expectValue(shared, startsWith: "Offline, from your Mac, last seen 20 min ago", "The Mac's state, with its source")
         XCTAssertTrue(value(shared).contains("Seen by this iPhone at"), "The phone's own sighting, apart: \(value(shared))")
 
         let phoneOnly = row("192.168.1.11")
@@ -51,6 +64,7 @@ final class MacInventoryUITests: PresenceUITestCase {
         scrollToElement(doorbell)
         requireExists(doorbell, timeout: 5, message: "A device only the Mac knows should be listed")
         XCTAssertTrue(value(doorbell).hasPrefix("Online, from your Mac"), "The Mac's state: \(value(doorbell))")
+        XCTAssertTrue(value(doorbell).contains("Last changed 1 hour ago, from your Mac"), "When it changed: \(value(doorbell))")
         captureElement(doorbell, named: "585-04-device-only-the-mac-knows")
         doorbell.tap()
         XCTAssertFalse(ui("deviceDetail_label_status").waitForExistence(timeout: 2), "A device only the Mac knows opens nothing")
@@ -60,16 +74,18 @@ final class MacInventoryUITests: PresenceUITestCase {
         shared.tap()
         let status = ui("deviceDetail_label_status")
         requireExists(status, timeout: 8, message: "Device detail should open")
-        XCTAssertTrue(status.label.hasPrefix("Online, from your Mac"), "Detail status: \(status.label)")
-        requireExists(ui("deviceDetail_label_phoneSighting"), message: "Detail shows the phone's own sighting apart")
-        captureElement(status, named: "585-05-detail-status-from-your-mac")
+        XCTAssertTrue(status.label.hasPrefix("Offline, from your Mac, last seen 20 min ago"), "Detail status: \(status.label)")
+        let changed = requireExists(ui("deviceDetail_label_macChanged"), message: "Detail says when the device last changed")
+        XCTAssertEqual(changed.label, "Last changed 30 min ago, from your Mac")
+        let sighting = requireExists(ui("deviceDetail_label_phoneSighting"), message: "Detail shows the phone's own sighting apart")
+        captureRegion(from: ui("deviceDetail_label_displayName"), to: sighting, named: "585-05-detail-status-from-your-mac")
         app.navigationBars.buttons.firstMatch.tap()
 
         // The link drops (the fake Mac stops): back to the phone's own data, never a frozen "Online".
         let remaining = Self.dropAfter - Date().timeIntervalSince(sentAt)
         XCTAssertTrue(waitForDisappearance(banner, timeout: max(remaining, 0) + 30), "The banner goes when the link drops")
         requireExists(shared, timeout: 5, message: "The phone's row stays")
-        XCTAssertFalse(value(shared).contains("from your Mac"), "No Mac state after the drop: \(value(shared))")
+        expectValue(shared, startsWith: "Online, last seen", "The phone's own state after the drop, not the Mac's frozen one")
         XCTAssertFalse(value(shared).contains("Seen by this iPhone"), "Only one source again: \(value(shared))")
         XCTAssertFalse(row("192.168.1.60").exists, "The device only the Mac knew is gone")
         captureElement(shared, named: "585-06-fallback-after-link-drop")
@@ -104,6 +120,20 @@ final class MacInventoryUITests: PresenceUITestCase {
             app.navigationBars.firstMatch.swipeDown(velocity: .fast)
         }
         XCTAssertTrue(waitForDisappearance(app.byID("screen_macPairing"), timeout: 5), "The pairing sheet closes")
+    }
+
+    /// A screenshot of the strip from `top` to `bottom`, full width: the repo is public.
+    private func captureRegion(from top: XCUIElement, to bottom: XCUIElement, named name: String) {
+        let screenshot = XCUIScreen.main.screenshot().image
+        guard let cgImage = screenshot.cgImage else { return }
+        let scale = CGFloat(cgImage.height) / screenshot.size.height
+        let minY = top.frame.minY - 8, maxY = bottom.frame.maxY + 8
+        let rect = CGRect(x: 0, y: minY * scale, width: CGFloat(cgImage.width), height: (maxY - minY) * scale)
+        guard let cropped = cgImage.cropping(to: rect) else { return }
+        let attachment = XCTAttachment(image: UIImage(cgImage: cropped))
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     /// A screenshot of one element only: the repo is public.

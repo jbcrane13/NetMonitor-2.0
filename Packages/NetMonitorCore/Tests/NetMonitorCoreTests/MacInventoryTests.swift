@@ -119,6 +119,22 @@ struct MacInventoryTests {
         #expect(unseen.statusText(now: Self.now) == "Offline · from your Mac")
     }
 
+    /// The phone's presence clock ticks once a minute, so `now` can be a little before the list
+    /// arrived; the Mac's ages are never read as younger than they were when sent.
+    @Test func agesNeverReadYoungerThanSent() throws {
+        let inventory = try Self.live(Self.list([Self.device("192.168.77.20", lastSeenAge: 120, lastChangedAge: 3600)], scanAge: 60))
+        let earlier = Self.now.addingTimeInterval(-50)
+        #expect(inventory.sourceText(now: earlier) == "From your Mac · scanned 1 min ago")
+        let record = try #require(inventory.records.first)
+        #expect(record.statusText(now: earlier) == "Online · from your Mac · last seen 2 min ago")
+        #expect(record.changedText(now: earlier) == "Last changed 1 hour ago, from your Mac")
+    }
+
+    @Test func aRecordWithoutALoggedChangeSaysNothingOfIt() throws {
+        let inventory = try Self.live(Self.list([Self.device("192.168.77.20", lastChangedAge: nil)]))
+        #expect(try #require(inventory.records.first).changedText(now: Self.now) == nil)
+    }
+
     @Test func thePhonesOwnSightingSaysWhenThisIPhoneSawIt() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "UTC"))

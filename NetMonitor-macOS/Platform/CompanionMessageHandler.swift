@@ -192,7 +192,8 @@ final class CompanionMessageHandler {
                 isDeviceOnline: presence.freshness(of: device).isOnline,
                 // Ages on this clock, never dates, so the phone never compares clocks (#585, #619).
                 lastSeenAge: sentAt.timeIntervalSince(device.lastSeen),
-                lastChangedAge: device.members.compactMap { lastChanges[$0.id] }.max().map { sentAt.timeIntervalSince($0) },
+                lastChangedAge: ([device.id] + device.members.map(\.id)).compactMap { lastChanges[$0] }.max()
+                    .map { sentAt.timeIntervalSince($0) },
                 identity: InventoryIdentity(primary.identity)
             )
         }

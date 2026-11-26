@@ -302,8 +302,9 @@ enum UITestFakeMacPairing {
     }()
 
     /// The inventory the fake Mac sends with `UITEST_FAKE_MAC_INVENTORY=1` (#585), for the phone's
-    /// current network: uitest-device-0 (the UI-test scan's 192.168.1.10, by MAC) online, and a
-    /// doorbell only the Mac knows. The other scanned devices are the phone's alone.
+    /// current network: uitest-device-0 (the UI-test scan's 192.168.1.10, by MAC), which the Mac
+    /// last saw 20 minutes ago and has offline while the phone finds it, so a frozen Mac state
+    /// would show; and a doorbell only the Mac knows. The other scanned devices are the phone's.
     static let macOnlyDoorbellIP = "192.168.1.60"
 
     private static var inventoryFixture: DeviceListPayload {
@@ -312,12 +313,12 @@ enum UITestFakeMacPairing {
         return DeviceListPayload(
             devices: [
                 DeviceInfo(
-                    ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:00", hostname: "uitest-device-0", isOnline: true,
-                    isDeviceOnline: true, lastSeenAge: 120
+                    ipAddress: "192.168.1.10", macAddress: "AA:BB:CC:DD:EE:00", hostname: "uitest-device-0", isOnline: false,
+                    isDeviceOnline: false, lastSeenAge: 1200, lastChangedAge: 1800
                 ),
                 DeviceInfo(
                     ipAddress: macOnlyDoorbellIP, macAddress: "", hostname: "uitest-mac-doorbell", deviceType: "iot",
-                    isOnline: true, isDeviceOnline: true, lastSeenAge: 120, identity: InventoryIdentity(doorbell)
+                    isOnline: true, isDeviceOnline: true, lastSeenAge: 120, lastChangedAge: 3600, identity: InventoryIdentity(doorbell)
                 )
             ],
             network: InventoryNetwork(subnet: subnet, gatewayIP: nil, name: "UITest Network", scanAge: 60)

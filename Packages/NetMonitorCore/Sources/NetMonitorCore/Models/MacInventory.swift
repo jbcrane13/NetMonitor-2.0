@@ -34,17 +34,29 @@ public struct MacInventory: Sendable, Equatable {
         public let maker: String?
         public let model: String?
         public let deviceType: DeviceType
+        /// When the list arrived, on the phone's clock: ages are read from no earlier than this.
+        public let receivedAt: Date
 
         /// "Online · from your Mac · last seen 2 min ago": the state with its source.
         public func statusText(now: Date) -> String {
-            let seen = lastSeen.map { " · last seen \(PresenceFreshness.relativeText(since: $0, now: now))" } ?? ""
+            let seen = lastSeen.map { " · last seen \(Self.ago($0, now: max(now, receivedAt)))" } ?? ""
             return "\(state.label) · from your Mac\(seen)"
         }
 
         /// "Online, from your Mac, last seen 2 min ago", for VoiceOver.
         public func accessibilityText(now: Date) -> String {
-            let seen = lastSeen.map { ", last seen \(PresenceFreshness.relativeText(since: $0, now: now))" } ?? ""
+            let seen = lastSeen.map { ", last seen \(Self.ago($0, now: max(now, receivedAt)))" } ?? ""
             return "\(state.label), from your Mac\(seen)"
+        }
+
+        /// "Last changed 1 hour ago, from your Mac": when the device last joined or left, from the
+        /// Mac's event log; nil when the log has nothing.
+        public func changedText(now: Date) -> String? {
+            lastChanged.map { "Last changed \(Self.ago($0, now: max(now, receivedAt))), from your Mac" }
+        }
+
+        private static func ago(_ date: Date, now: Date) -> String {
+            PresenceFreshness.relativeText(since: date, now: now)
         }
     }
 
@@ -63,6 +75,8 @@ public struct MacInventory: Sendable, Equatable {
 
     /// When the Mac's latest scan was, on the phone's clock.
     public let scanTime: Date
+    /// When the list arrived, on the phone's clock.
+    public let receivedAt: Date
     public let records: [Record]
 
     public static func availability(
@@ -74,12 +88,12 @@ public struct MacInventory: Sendable, Equatable {
         guard network.subnet == subnet else { return .otherNetwork(name: network.name) }
         let scanTime = receivedAt.addingTimeInterval(-max(scanAge, 0))
         guard PresenceFreshness.isRecent(scanTime, now: now, policy: policy) else { return .unavailable }
-        return .live(MacInventory(scanTime: scanTime, records: list.devices.map { record($0, receivedAt: receivedAt) }))
+        return .live(MacInventory(scanTime: scanTime, receivedAt: receivedAt, records: list.devices.map { record($0, receivedAt: receivedAt) }))
     }
 
     /// "From your Mac · scanned 2 min ago".
     public func sourceText(now: Date) -> String {
-        "From your Mac · scanned \(PresenceFreshness.relativeText(since: scanTime, now: now))"
+        "From your Mac · scanned \(PresenceFreshness.relativeText(since: scanTime, now: max(now, receivedAt)))"
     }
 
     // MARK: - Matching
@@ -155,7 +169,8 @@ public struct MacInventory: Sendable, Equatable {
             lastChanged: device.lastChangedAge.map { receivedAt.addingTimeInterval(-max($0, 0)) },
             maker: identity.resolvedMaker(macPrefixMaker: device.vendor),
             model: identity.model?.value,
-            deviceType: DeviceType(rawValue: device.deviceType) ?? .unknown
+            deviceType: DeviceType(rawValue: device.deviceType) ?? .unknown,
+            receivedAt: receivedAt
         )
     }
 }
