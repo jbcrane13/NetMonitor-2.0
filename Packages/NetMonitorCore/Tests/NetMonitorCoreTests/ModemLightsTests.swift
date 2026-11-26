@@ -3,9 +3,13 @@ import Testing
 @testable import NetMonitorCore
 
 /// #558: the app's reading of a modem's status lights. The model only names each light's label
-/// and colour; everything here is the app's own table. The real model is never called.
+/// and colour; every line the user sees is the app's own text. The real model is never called.
 @Suite("Modem lights")
 struct ModemLightsTests {
+    private func report(_ lights: [(String, ModemLightColor)]) -> ModemPanelReport {
+        ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: lights.map { ModemLightReading(label: $0.0, color: $0.1) }))
+    }
+
     // MARK: - Labels
 
     @Test("Printed labels map to the app's light kinds", arguments: [
@@ -22,7 +26,7 @@ struct ModemLightsTests {
     }
 
     @Test("Labels that only contain a known word are not that light", arguments: [
-        "USB", "WLAN-WPS", "WPS", "LINK", "ADSL ERROR", "Internet Explorer", "DSLAM", "LANE", "Status", ""
+        "USB", "WLAN-WPS", "WPS", "LINK", "ADSL ERROR", "Internet Explorer", "DSLAM", "LANE", "Status", "2.4G", ""
     ])
     func unknownLabels(label: String) {
         // USB is not US, DSL is not DS, WLAN is not LAN, WAN is not WLAN: whole words only.
@@ -39,11 +43,11 @@ struct ModemLightsTests {
         #expect(ModemLightKind(label: "US") == .upstream)
     }
 
-    // MARK: - On or off
+    // MARK: - Colours
 
     @Test("A colour is lit, off is unlit, and an unclear colour is undetermined")
     func onOffFromColour() {
-        for color in [ModemLightColor.green, .amber, .red, .blue, .white] {
+        for color in [ModemLightColor.green, .amber, .red, .blue, .white, .purple] {
             #expect(color.isLit == true)
         }
         #expect(ModemLightColor.off.isLit == false)
@@ -56,41 +60,42 @@ struct ModemLightsTests {
         #expect(ModemLightColor(modelValue: "Amber") == .amber)
         #expect(ModemLightColor(modelValue: "orange") == .amber)
         #expect(ModemLightColor(modelValue: "unlit") == .off)
-        #expect(ModemLightColor(modelValue: "purple") == .unknown)
+        #expect(ModemLightColor(modelValue: "magenta") == .purple)
+        #expect(ModemLightColor(modelValue: "teal") == .unknown)
+    }
+
+    @Test("Purple is shown as read and has no meaning in the table")
+    func purpleAsRead() {
+        let verdict = ModemLightVerdict(label: "INTERNET", color: .purple)
+        #expect(verdict.reading == "INTERNET: purple")
+        #expect(verdict.meaning == nil)
     }
 
     // MARK: - Meanings
 
-    @Test("A red Internet light means no internet connection, and is a problem")
-    func redInternet() throws {
-        let verdict = ModemLightVerdict(label: "INTERNET", color: .red)
-        let meaning = try #require(verdict.meaning)
-        #expect(meaning.severity == .problem)
-        #expect(meaning.text == "Internet light is red: the modem has no internet connection.")
-    }
-
-    @Test("Literal meanings for the common lights", arguments: [
-        ("POWER", ModemLightColor.green, ModemLightSeverity.normal, "Power light is green: the modem has power."),
+    @Test("Hedged meanings: lit lines say what the light normally means, red is stated as read", arguments: [
+        ("POWER", ModemLightColor.green, ModemLightSeverity.normal, "Power light is green: this normally means the modem has power."),
+        ("POWER", .red, .problem, "Power light reads as red: this normally means a hardware fault or a failed start-up."),
         ("POWER", .off, .attention, "Power reads as off. If it is dark, the modem has no power: check its power cable and outlet."),
-        ("DSL", .green, .normal, "Broadband light is green: the line from your provider is connected."),
+        ("DSL", .green, .normal, "Broadband light is green: this normally means the line from your provider is connected."),
         ("DSL", .off, .attention,
          "Broadband reads as off. If it is dark, the modem has no line from your provider: check the cable to the wall socket."),
-        ("INTERNET", .off, .attention, "Internet reads as off. If it is dark, the modem isn't online."),
-        ("INTERNET", .green, .normal, "Internet light is green: the modem is connected to the internet."),
+        ("INTERNET", .green, .normal, "Internet light is green: this normally means the modem is online."),
+        ("INTERNET", .red, .problem, "Internet light reads as red: this normally means the modem has no internet connection."),
         ("INTERNET", .amber, .attention, "Internet light is amber: on many modems this means it reaches your provider but isn't online."),
+        ("INTERNET", .off, .attention, "Internet reads as off. If it is dark, the modem isn't online."),
         ("LAN 2", .off, .note, "Ethernet 2 reads as off. If it is dark, nothing is connected to that port, or the connected device is off."),
         ("LAN 4", .amber, .attention, "Ethernet 4 light is amber: on many modems this means a device is connected at a slower speed."),
         ("WLAN", .off, .note, "Wi-Fi reads as off. If it is dark, Wi-Fi is turned off on this unit. That is expected if you use a separate router."),
         ("WAN", .green, .normal,
-         "WAN light is green: the router has a link to the modem or provider. That alone doesn't show the internet is working."),
+         "WAN light is green: this normally means the router has a link to the modem or provider. That alone doesn't show the internet is working."),
         ("WAN", .off, .attention, "WAN reads as off. If it is dark, nothing is connected to the WAN port, or the modem it connects to is off."),
-        ("WLAN 2.4G", .green, .normal, "Wi-Fi 2.4G light is green: that Wi-Fi band is on."),
+        ("WLAN 2.4G", .green, .normal, "Wi-Fi 2.4G light is green: this normally means that Wi-Fi band is on."),
         ("WLAN 5G", .off, .note, "Wi-Fi 5G reads as off. If it is dark, that Wi-Fi band is turned off on this unit."),
-        ("WiFi 5 GHz", .off, .note, "Wi-Fi 5GHZ reads as off. If it is dark, that Wi-Fi band is turned off on this unit."),
+        ("US", .red, .problem, "Upstream light reads as red: this normally means the modem has no upstream connection to your provider."),
         ("US", .off, .attention, "Upstream reads as off. If it is dark, the modem has no upstream connection to your provider."),
-        ("PHONE", .off, .note, "Phone reads as off. If it is dark, phone service is off or not set up. That is expected if you don't use it."),
-        ("US", .red, .problem, "Upstream light is red: the modem has no upstream connection to your provider."),
-        ("DS", .blue, .normal, "Downstream light is blue: the modem is connected to your provider's downstream channels.")
+        ("DS", .blue, .normal, "Downstream light is blue: this normally means the modem is connected to your provider's downstream channels."),
+        ("PHONE", .off, .note, "Phone reads as off. If it is dark, phone service is off or not set up. That is expected if you don't use it.")
     ])
     func meanings(label: String, color: ModemLightColor, severity: ModemLightSeverity, text: String) throws {
         let meaning = try #require(ModemLightVerdict(label: label, color: color).meaning)
@@ -123,38 +128,28 @@ struct ModemLightsTests {
 
     @Test("Problems come first in the key points; unknown lights stay out of them")
     func keyPointOrder() {
-        let report = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
-            .init(label: "POWER", color: .green),
-            .init(label: "USB", color: .green),
-            .init(label: "LAN 2", color: .off),
-            .init(label: "INTERNET", color: .red)
-        ]))
+        let report = report([("POWER", .green), ("USB", .green), ("LAN 2", .off), ("INTERNET", .red)])
         #expect(report.isPanel)
         #expect(report.keyPoints == [
-            "Internet light is red: the modem has no internet connection.",
+            "Internet light reads as red: this normally means the modem has no internet connection.",
             "Ethernet 2 reads as off. If it is dark, nothing is connected to that port, or the connected device is off.",
-            "Power light is green: the modem has power."
+            "Power light is green: this normally means the modem has power."
         ])
         #expect(report.worst == .problem)
         #expect(report.verdicts.map(\.label) == ["POWER", "USB", "LAN 2", "INTERNET"])
     }
 
-    @Test("A power light read as off while other lights are lit gets no verdict")
+    @Test("A power light read as off while other lights are lit is shown as colour not clear")
     func powerOffContradiction() {
         // Real-model probe, white case: a lit white POWER light was read as off.
-        let report = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
-            .init(label: "POWER", color: .off), .init(label: "DS", color: .blue)
-        ]))
+        let report = report([("POWER", .off), ("DS", .blue)])
         #expect(report.verdicts[0].meaning == nil)
+        #expect(report.verdicts[0].reading == "POWER: colour not clear")
         #expect(report.verdicts[0].note == "Other lights are lit, so this light may not show clearly in the photo.")
-        #expect(report.keyPoints == ["Downstream light is blue: the modem is connected to your provider's downstream channels."])
-        let dark = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
-            .init(label: "POWER", color: .off), .init(label: "DSL", color: .off)
-        ]))
+        #expect(report.headline == "No light shows a problem. 1 known light wasn't clear in the photo.")
+        let dark = self.report([("POWER", .off), ("DSL", .off)])
         #expect(dark.verdicts[0].meaning?.severity == .attention)
         #expect(dark.verdicts[0].note == nil)
-        // The model is told the colour isn't clear, not the reading the app distrusts.
-        #expect(report.insightRequest?.facts.first == "Light labelled POWER: colour not clear")
     }
 
     @Test("Unsupported ignores every light the model filled in anyway")
@@ -163,80 +158,69 @@ struct ModemLightsTests {
         #expect(!report.isPanel)
         #expect(report.verdicts.isEmpty)
         #expect(report.keyPoints.isEmpty)
-        #expect(report.insightRequest == nil)
     }
 
     @Test("A panel with no lights read is not a reading")
     func noLights() {
-        let report = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [.init(label: "  ", color: .green)]))
-        #expect(!report.isPanel)
-        #expect(report.insightRequest == nil)
+        #expect(!report([("  ", .green)]).isPanel)
     }
 
-    @Test("Labels are model output: flattened, capped and at most 16 lights")
+    @Test("Labels are model output: flattened and capped")
     func labelHygiene() {
         let long = String(repeating: "X", count: 60)
-        let lights = [ModemLightReading(label: "INTER\nNET", color: .red), .init(label: long, color: .green)]
-            + (0 ..< 20).map { ModemLightReading(label: "LAN \($0)", color: .green) }
-        let report = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: lights))
-        #expect(report.verdicts.count == 16)
+        let report = report([("INTER\nNET", .red), (long, .green)])
         #expect(report.verdicts[0].label == "INTER NET")
         #expect(report.verdicts[1].label.count == ModemPanelReport.labelLimit)
     }
 
-    @Test("The model is given the key points and every light as read")
-    func insightRequest() throws {
-        let report = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
-            .init(label: "POWER", color: .green), .init(label: "USB", color: .white), .init(label: "INTERNET", color: .red),
-            .init(label: "LAN 2", color: .off)
-        ]))
-        let request = try #require(report.insightRequest)
-        #expect(request.subject == "Modem status lights read from a photo")
-        #expect(request.observations == [
-            "Internet light is red: the modem has no internet connection.",
-            "Ethernet 2 reads as off. If it is dark, nothing is connected to that port, or the connected device is off.",
-            "Power light is green: the modem has power."
-        ])
-        // An off reading goes to the model as one to check, so the wording can't assert a fault.
-        #expect(request.facts == [
-            "Light labelled POWER: green",
-            "Light labelled USB: white",
-            "Light labelled INTERNET: red",
-            "Light labelled LAN 2: reads as off (check)",
-            "Whether a light is blinking can't be seen in one photo"
-        ])
+    @Test("More than 16 lights: the first 16 are kept and the reading says it is partial")
+    func partialReading() {
+        let full = report((0 ..< 16).map { ("LAN \($0)", .green) })
+        #expect(full.verdicts.count == 16)
+        #expect(full.notices.isEmpty)
+        let more = report((0 ..< 17).map { ("LAN \($0)", .green) })
+        #expect(more.verdicts.count == 16)
+        #expect(more.notices == ["The photo shows more lights than the app reads at once. Only the first 16 are listed."])
     }
 
-    @Test("While a light needs a check the model words nothing: in the probe it turned 'reads as off (check)' into a fault")
-    func noWordingWithChecks() {
-        let report = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
-            .init(label: "POWER", color: .green), .init(label: "INTERNET", color: .off)
-        ]))
-        #expect(report.isPanel)
-        #expect(report.keyPoints.first == "Internet reads as off. If it is dark, the modem isn't online.")
-        #expect(report.insightRequest == nil)
+    @Test("Two power lights: the photo may show more than one device")
+    func severalDevices() {
+        let report = report([("POWER", .green), ("INTERNET", .green), ("POWER", .green), ("DSL", .green)])
+        #expect(report.notices == ["This photo may show more than one device."])
+        #expect(self.report([("POWER", .green), ("INTERNET", .green)]).notices.isEmpty)
     }
+
+    // MARK: - Headline
 
     @Test("Without a problem the summary line says so; with one it names how many")
     func headline() {
-        let fine = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [.init(label: "POWER", color: .green)]))
-        #expect(fine.headline == "No light shows a problem.")
-        let bad = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
-            .init(label: "INTERNET", color: .red), .init(label: "DSL", color: .off), .init(label: "LAN 1", color: .amber)
-        ]))
-        // Off lights are counted as lights to check, never as problems.
-        #expect(bad.headline == "1 light shows a problem. 1 light reads as off: check it.")
-        let offOnly = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
-            .init(label: "POWER", color: .off), .init(label: "DSL", color: .off),
-            .init(label: "INTERNET", color: .off), .init(label: "LAN 1", color: .off)
-        ]))
-        #expect(offOnly.headline == "No light shows a problem. 3 lights read as off: check them.")
-        #expect(offOnly.worst == .attention)
-        let odd = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [.init(label: "LAN 1", color: .amber)]))
-        #expect(odd.headline == "1 light needs a look.")
-        let unclear = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
-            .init(label: "POWER", color: .green), .init(label: "ONLINE", color: .unknown)
-        ]))
-        #expect(unclear.headline == "No light shows a problem. 1 known light wasn't clear in the photo.")
+        #expect(report([("POWER", .green)]).headline == "No light shows a problem.")
+        #expect(report([("INTERNET", .red), ("DSL", .off), ("LAN 1", .amber)]).headline
+            == "1 light shows a problem. 1 light reads as off: check it. 1 light needs a look.")
+        #expect(report([("LAN 1", .amber)]).headline == "1 light needs a look.")
+        #expect(report([("POWER", .green), ("ONLINE", .unknown)]).headline
+            == "No light shows a problem. 1 known light wasn't clear in the photo.")
+    }
+
+    @Test("Off lights lead the headline; no all-clear while any light reads as off")
+    func darkPanel() {
+        #expect(report([("POWER", .off), ("DSL", .off), ("INTERNET", .off), ("LAN 1", .off)]).headline
+            == "4 lights read as off: check them.")
+        #expect(report([("POWER", .green), ("INTERNET", .green), ("LAN 2", .off)]).headline
+            == "1 light reads as off: check it.")
+    }
+
+    @Test("An unknown red light is named, never hidden behind an all-clear")
+    func unknownRed() {
+        #expect(report([("POWER", .green), ("PON", .green), ("LOS", .red)]).headline
+            == "1 light is red: LOS. The app doesn't know this light; check your modem's guide.")
+        #expect(report([("POWER", .green), ("SERVICE", .red)]).headline
+            == "1 light is red: SERVICE. The app doesn't know this light; check your modem's guide.")
+        #expect(report([("POWER", .green), ("ALARM", .red), ("2.4G", .amber)]).headline
+            == "2 lights are red or amber: ALARM, 2.4G. The app doesn't know these lights; check your modem's guide.")
+        #expect(report([("POWER", .green), ("2.4G", .amber)]).headline
+            == "1 light is amber: 2.4G. The app doesn't know this light; check your modem's guide.")
+        // A green unknown light is shown as read; it doesn't stop the all-clear.
+        #expect(report([("POWER", .green), ("USB", .green)]).headline == "No light shows a problem.")
     }
 }

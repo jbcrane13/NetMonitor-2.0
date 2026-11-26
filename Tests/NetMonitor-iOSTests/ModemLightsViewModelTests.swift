@@ -44,62 +44,43 @@ struct ModemLightsViewModelTests {
         }
     }
 
-    private func viewModel(
-        _ extractor: ScriptedExtractor,
-        wording: (any InsightServiceProtocol)? = nil,
-        scanning: Bool = false
-    ) -> ModemLightsViewModel {
-        ModemLightsViewModel(
-            extractor: extractor,
-            insight: wording ?? UnavailableInsightService(),
-            isScanning: { scanning },
-            testImage: { nil }
-        )
+    private func viewModel(_ extractor: ScriptedExtractor, scanning: Bool = false) -> ModemLightsViewModel {
+        ModemLightsViewModel(extractor: extractor, isScanning: { scanning }, testImage: { nil })
     }
 
-    @Test("A red Internet light is shown with the app's meaning first, and the model's wording under it")
+    @Test("A red Internet light is shown with the app's own lines; nothing is model-written")
     func redInternetReading() async throws {
-        let wording = "The Internet light is red, so the modem has no internet connection."
-        let viewModel = viewModel(ScriptedExtractor(Self.redInternet), wording: FixedAnswerInsightService(answer: wording))
-        try await viewModel.read(Self.image)
-        guard case let .result(report) = viewModel.phase else {
-            Issue.record("Expected a result, got \(viewModel.phase)")
-            return
-        }
-        #expect(report.headline == "1 light shows a problem.")
-        #expect(report.keyPoints.first == "Internet light is red: the modem has no internet connection.")
-        #expect(viewModel.wording == .written(wording))
-    }
-
-    @Test("An Internet light read as off is a light to check, not a problem, and isn't worded")
-    func offInternetIsACheck() async throws {
-        let answer = ModemPanelAnswer(status: .panel, lights: [.init(label: "POWER", color: .green), .init(label: "INTERNET", color: .off)])
-        let viewModel = viewModel(ScriptedExtractor(answer), wording: FixedAnswerInsightService(answer: "The modem is not online."))
-        try await viewModel.read(Self.image)
-        guard case let .result(report) = viewModel.phase else {
-            Issue.record("Expected a result, got \(viewModel.phase)")
-            return
-        }
-        #expect(report.headline == "No light shows a problem. 1 light reads as off: check it.")
-        #expect(report.keyPoints.first == "Internet reads as off. If it is dark, the modem isn't online.")
-        // The model isn't asked, so it can't turn the check into a fault.
-        #expect(viewModel.wording == .none)
-    }
-
-    @Test("Wording that states a number the app didn't is dropped; the app's lines stay")
-    func ungroundedWording() async throws {
-        let viewModel = viewModel(ScriptedExtractor(Self.redInternet), wording: FixedAnswerInsightService(answer: "4 of your lights are fine."))
-        try await viewModel.read(Self.image)
-        #expect(viewModel.wording == .none)
-        #expect(viewModel.phase == .result(ModemPanelReport(answer: Self.redInternet)))
-    }
-
-    @Test("Without the text model the reading still shows, unworded")
-    func unavailableWording() async throws {
         let viewModel = viewModel(ScriptedExtractor(Self.redInternet))
         try await viewModel.read(Self.image)
-        #expect(viewModel.phase == .result(ModemPanelReport(answer: Self.redInternet)))
-        #expect(viewModel.wording == .none)
+        guard case let .result(report) = viewModel.phase else {
+            Issue.record("Expected a result, got \(viewModel.phase)")
+            return
+        }
+        #expect(report.headline == "1 light shows a problem. 1 light reads as off: check it.")
+        #expect(report.keyPoints.first == "Internet light reads as red: this normally means the modem has no internet connection.")
+    }
+
+    @Test("An Internet light read as off is a light to check, not a problem")
+    func offInternetIsACheck() async throws {
+        let answer = ModemPanelAnswer(status: .panel, lights: [.init(label: "POWER", color: .green), .init(label: "INTERNET", color: .off)])
+        let viewModel = viewModel(ScriptedExtractor(answer))
+        try await viewModel.read(Self.image)
+        guard case let .result(report) = viewModel.phase else {
+            Issue.record("Expected a result, got \(viewModel.phase)")
+            return
+        }
+        #expect(report.headline == "1 light reads as off: check it.")
+        #expect(report.keyPoints.first == "Internet reads as off. If it is dark, the modem isn't online.")
+    }
+
+    @Test("A photo that can't be opened leaves the user choosing another, with the shared message")
+    func unreadablePhoto() async {
+        let extractor = ScriptedExtractor(Self.redInternet)
+        let viewModel = viewModel(extractor)
+        await viewModel.readPhoto { Data("not an image".utf8) }
+        #expect(extractor.calls == 0)
+        #expect(viewModel.phase == .choosing)
+        #expect(viewModel.errorMessage == "That photo couldn't be opened. Try another one.")
     }
 
     @Test("During a network scan the model isn't asked, and the user is told to wait")
@@ -109,7 +90,7 @@ struct ModemLightsViewModelTests {
         try await viewModel.read(Self.image)
         #expect(extractor.calls == 0)
         #expect(viewModel.phase == .choosing)
-        #expect(viewModel.photoError == "A network scan is running. Try again when it finishes.")
+        #expect(viewModel.errorMessage == "A network scan is running. Try again when it finishes.")
     }
 
     @Test("A photo that isn't a panel says so")
@@ -124,27 +105,24 @@ struct ModemLightsViewModelTests {
         let viewModel = viewModel(ScriptedExtractor(nil))
         try await viewModel.read(Self.image)
         #expect(viewModel.phase == .choosing)
-        #expect(viewModel.photoError == "The lights couldn't be read. Try another photo.")
+        #expect(viewModel.errorMessage == "The lights couldn't be read. Try another photo.")
     }
 
-    @Test("Closing the sheet mid-read stops the reading: no result, no wording")
+    @Test("Closing the sheet mid-read stops the reading: no result")
     func cancelledRead() async throws {
-        let wording = FixedAnswerInsightService(answer: "The Internet light is red.")
-        let viewModel = viewModel(ScriptedExtractor(Self.redInternet, delay: .seconds(5)), wording: wording)
+        let viewModel = viewModel(ScriptedExtractor(Self.redInternet, delay: .seconds(5)))
         let task = try viewModel.takePhoto(UIImage(cgImage: Self.image))
         viewModel.cancel()
         await task.value
         #expect(viewModel.phase != .result(ModemPanelReport(answer: Self.redInternet)))
-        #expect(viewModel.wording == .none)
     }
 
-    @Test("Retake drops the reading and its wording")
+    @Test("Retake drops the reading")
     func retake() async throws {
-        let viewModel = viewModel(ScriptedExtractor(Self.redInternet), wording: FixedAnswerInsightService(answer: "The Internet light is red."))
+        let viewModel = viewModel(ScriptedExtractor(Self.redInternet))
         try await viewModel.read(Self.image)
         viewModel.retake()
         #expect(viewModel.phase == .choosing)
-        #expect(viewModel.wording == .none)
-        #expect(viewModel.photoError == nil)
+        #expect(viewModel.errorMessage == nil)
     }
 }

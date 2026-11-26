@@ -404,10 +404,6 @@ extension UITestBootstrap {
         .init(label: "WI-FI", color: .green), .init(label: "LAN 1", color: .green), .init(label: "LAN 2", color: .off)
     ]
 
-    /// The stand-in model's wording; it states nothing the app's facts don't, so it passes the checks.
-    static let testModemWording = "The Internet light is red, so the modem has no internet connection. "
-        + "The power, broadband and Wi-Fi lights look normal."
-
     /// `UITEST_MODEM_IMAGE=1`: the modem sheet reads ``testModemImage`` instead of asking for a
     /// photo, since the simulator has no camera.
     static var usesTestModemImage: Bool {
@@ -418,27 +414,13 @@ extension UITestBootstrap {
         #endif
     }
 
-    /// `UITEST_MODEM_MODEL`: "answer" reads ``testModemLights`` and words them with
-    /// ``testModemWording``; "unwritten" reads them but writes nothing; "unavailable" offers no
-    /// reader. Nil otherwise, and always in release builds.
+    /// `UITEST_MODEM_MODEL`: "answer" reads ``testModemLights``; "unavailable" offers no reader.
+    /// Nil otherwise, and always in release builds.
     static var modemLightExtractor: (any ModemLightExtractorProtocol)? {
         #if DEBUG
         guard isUITesting, let mode = ProcessInfo.processInfo.environment["UITEST_MODEM_MODEL"] else { return nil }
         guard mode != "unavailable" else { return FixedModemLightExtractor(answer: nil, isAvailable: false) }
         return FixedModemLightExtractor(answer: ModemPanelAnswer(status: .panel, lights: testModemLights))
-        #else
-        return nil
-        #endif
-    }
-
-    static var modemLightsInsightService: (any InsightServiceProtocol)? {
-        #if DEBUG
-        guard isUITesting else { return nil }
-        switch ProcessInfo.processInfo.environment["UITEST_MODEM_MODEL"] {
-        case "answer": return FixedAnswerInsightService(answer: testModemWording)
-        case "unwritten", "unavailable": return UnavailableInsightService()
-        default: return nil
-        }
         #else
         return nil
         #endif

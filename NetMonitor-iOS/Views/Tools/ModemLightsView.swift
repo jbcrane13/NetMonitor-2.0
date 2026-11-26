@@ -1,10 +1,10 @@
 import NetMonitorCore
 import PhotosUI
 import SwiftUI
-import UIKit
 
 /// Reads a modem's status lights from a photo (#558), opened from Troubleshoot. Each light is
-/// shown as read with the app's meaning; the on-device model only words those meanings.
+/// shown as read with the app's meaning; the on-device model only reads labels and colours, and
+/// writes nothing the user sees.
 struct ModemLightsView: View {
     @State private var viewModel = ModemLightsViewModel()
     @State private var photoItem: PhotosPickerItem?
@@ -35,59 +35,26 @@ struct ModemLightsView: View {
         }
         .task { await viewModel.start() }
         .onDisappear { viewModel.cancel() }
-        .onChange(of: photoItem) { _, item in
-            guard let item else { return }
-            photoItem = nil
-            viewModel.choosePhoto { try? await item.loadTransferable(type: Data.self) }
-        }
-        .fullScreenCover(isPresented: $showsCamera) {
-            CameraCapture { image in
-                showsCamera = false
-                viewModel.takePhoto(image)
-            } onCancel: {
-                showsCamera = false
-            }
-            .ignoresSafeArea()
+        .photoIntake(photoItem: $photoItem, showsCamera: $showsCamera) { load in
+            viewModel.choosePhoto(load)
+        } onCamera: { image in
+            viewModel.takePhoto(image)
         }
     }
 
     // MARK: - Choosing a photo
 
     private var chooser: some View {
-        VStack(spacing: Theme.Layout.sectionSpacing) {
-            Image(systemName: "camera.viewfinder")
-                .font(.system(size: 48))
-                .foregroundStyle(Theme.Colors.accent)
-            Text("Take or choose a photo of the front of your modem or router, with its lights in view. "
-                + "The photo is read on this iPhone and isn't saved.")
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .accessibilityIdentifier("modemLights_label_instructions")
-            if let error = viewModel.photoError {
-                Text(error)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Theme.Colors.error)
-                    .accessibilityIdentifier("modemLights_label_photoError")
-            }
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                Button {
-                    showsCamera = true
-                } label: {
-                    Label("Take Photo", systemImage: "camera")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("modemLights_button_camera")
-            }
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                Label("Choose Photo", systemImage: "photo.on.rectangle")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("modemLights_button_photoLibrary")
+        PhotoChooser(
+            screen: "modemLights",
+            systemImage: "camera.viewfinder",
+            instructions: "Take or choose a photo of the front of your modem or router, with its lights in view. "
+                + "The photo is read on this iPhone and isn't saved.",
+            error: viewModel.errorMessage,
+            photoItem: $photoItem
+        ) {
+            showsCamera = true
         }
-        .tint(Theme.Colors.accent)
-        .padding(Theme.Layout.screenPadding)
     }
 
     private func progress(_ text: String, id: String) -> some View {
@@ -111,25 +78,23 @@ struct ModemLightsView: View {
                         .foregroundStyle(Theme.Colors.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("modemLights_label_headline")
+                    ForEach(Array(report.notices.enumerated()), id: \.offset) { index, notice in
+                        Label(notice, systemImage: "exclamationmark.triangle")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.Colors.warning)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("modemLights_label_notice_\(index)")
+                    }
                     ForEach(report.verdicts) { verdict in
                         lightRow(verdict)
                     }
-                    Label(ModemPanelReport.blinkingNote + ". A blinking light can mean the modem is busy or still starting.",
-                          systemImage: "info.circle")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("modemLights_label_blinking")
-                    Label(ModemPanelReport.whiteLightNote, systemImage: "lightbulb")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("modemLights_label_whiteNote")
+                    caption(ModemPanelReport.blinkingNote + ". A blinking light can mean the modem is busy or still starting.",
+                            systemImage: "info.circle", id: "modemLights_label_blinking")
+                    caption(ModemPanelReport.whiteLightNote, systemImage: "lightbulb", id: "modemLights_label_whiteNote")
                 }
                 .glassCard()
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("modemLights_list_lights")
-                wordingSection
                 Button("Retake Photo") { viewModel.retake() }
                     .tint(Theme.Colors.accent)
                     .accessibilityIdentifier("modemLights_button_retake")
@@ -138,10 +103,21 @@ struct ModemLightsView: View {
         }
     }
 
+    private func caption(_ text: String, systemImage: String, id: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(.caption)
+            .foregroundStyle(Theme.Colors.textSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier(id)
+    }
+
+    /// One light: its colour as read, then the app's meaning. The meaning's weight shows as an icon
+    /// with a spoken name as well as a colour, so it doesn't rest on colour alone.
     private func lightRow(_ verdict: ModemLightVerdict) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        let tone = Tone(verdict.meaning?.severity)
+        return HStack(alignment: .top, spacing: 10) {
             Circle()
-                .fill(swatch(verdict.color))
+                .fill(swatch(verdict.note == nil ? verdict.color : .unknown))
                 .overlay(Circle().stroke(Theme.Colors.textTertiary, lineWidth: 1))
                 .frame(width: 14, height: 14)
                 .padding(.top, 3)
@@ -152,13 +128,33 @@ struct ModemLightsView: View {
                     .foregroundStyle(Theme.Colors.textPrimary)
                 Text(verdict.meaning?.text ?? verdict.note ?? "The app doesn't know what this light means.")
                     .font(.caption)
-                    .foregroundStyle(tone(verdict.meaning?.severity))
+                    .foregroundStyle(tone.color)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
+            Image(systemName: tone.symbol)
+                .foregroundStyle(tone.color)
+                .accessibilityLabel(tone.name)
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("modemLights_row_\(verdict.id)")
+    }
+
+    /// How a meaning's weight is shown: icon, spoken name and colour together.
+    private struct Tone {
+        let symbol: String
+        let name: String
+        let color: Color
+
+        init(_ severity: ModemLightSeverity?) {
+            switch severity {
+            case .problem: (symbol, name, color) = ("exclamationmark.octagon.fill", "Problem", Theme.Colors.error)
+            case .attention: (symbol, name, color) = ("exclamationmark.triangle.fill", "Check", Theme.Colors.warning)
+            case .note: (symbol, name, color) = ("info.circle", "Note", Theme.Colors.textSecondary)
+            case .normal: (symbol, name, color) = ("checkmark.circle", "Normal", Theme.Colors.textSecondary)
+            case nil: (symbol, name, color) = ("questionmark.circle", "Not judged", Theme.Colors.textSecondary)
+            }
+        }
     }
 
     private func swatch(_ color: ModemLightColor) -> Color {
@@ -168,48 +164,8 @@ struct ModemLightsView: View {
         case .red: .red
         case .blue: .blue
         case .white: .white
+        case .purple: .purple
         case .off, .unknown: .clear
-        }
-    }
-
-    private func tone(_ severity: ModemLightSeverity?) -> Color {
-        switch severity {
-        case .problem: Theme.Colors.error
-        case .attention: Theme.Colors.warning
-        default: Theme.Colors.textSecondary
-        }
-    }
-
-    @ViewBuilder
-    private var wordingSection: some View {
-        switch viewModel.wording {
-        case .none:
-            EmptyView()
-        case .writing:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Writing an explanation…")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-            }
-            .accessibilityIdentifier("modemLights_label_writing")
-        case let .written(text):
-            VStack(alignment: .leading, spacing: 8) {
-                Label("Explanation", systemImage: "sparkles")
-                    .font(.headline)
-                    .foregroundStyle(Theme.Colors.textPrimary)
-                Text(text)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.Colors.textPrimary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("modemLights_label_explanation")
-                Text("Written by the on-device model from the lights above. Check it against them.")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.Colors.textSecondary)
-                    .accessibilityIdentifier("modemLights_label_generated")
-            }
-            .glassCard()
         }
     }
 

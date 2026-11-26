@@ -64,8 +64,8 @@ public struct SystemModemLightExtractor: ModemLightExtractorProtocol {
     public func readLights(in image: CGImage) async -> ModemPanelAnswer? {
         do {
             let session = LanguageModelSession(instructions: Self.instructions)
-            // Greedy: the same photo gets the same reading. 16 lights fit well inside the cap,
-            // so a reading isn't cut off and lost.
+            // Greedy: the same photo gets the same reading. One light past the app's limit is
+            // allowed, so the app can say the reading is partial; 17 lights fit well inside the cap.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 600)
             let response = try await session.respond(generating: GeneratedPanel.self, options: options) {
                 Self.prompt
@@ -88,7 +88,7 @@ private struct GeneratedPanel {
         .anyOf(ModemPanelAnswer.Status.allCases.map(\.rawValue))
     )
     var status: String
-    @Guide(description: "Every labelled status light in order, lit or off", .maximumCount(ModemPanelReport.lightLimit))
+    @Guide(description: "Every labelled status light in order, lit or off", .maximumCount(ModemPanelReport.lightLimit + 1))
     var lights: [GeneratedLight]
 
     var answer: ModemPanelAnswer {

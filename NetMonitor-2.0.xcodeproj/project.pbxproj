@@ -282,6 +282,7 @@
 		6702198645885A973FB2BCCF /* UITestHeatmapAdvisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEAF9A5DA25499A909D51F9B /* UITestHeatmapAdvisor.swift */; };
 		67275F43A6AD4590D44AB5E9 /* LiquidGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A2AA1B3D6772A984C97A02 /* LiquidGlass.swift */; };
 		674187D78DDE9125D8319F40 /* SidebarNavigationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A25C5D0780F206AB35BE558 /* SidebarNavigationUITests.swift */; };
+		677E49F5869D665B99C704BD /* PhotoReading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC996619B7B36489351E472 /* PhotoReading.swift */; };
 		67A14F64E06F67AD2C5D5442 /* MockInsightService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDBC54CC8C6F54BD8561FBAD /* MockInsightService.swift */; };
 		68C056F3B5447DD36C94ABDF /* WiFiSignalCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D23643E8F3DE1CC6C6B2B195 /* WiFiSignalCard.swift */; };
 		68D9A9FF7937E73FE6F19BAF /* NetMonitorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756B774BD29446B68DEA41E3 /* NetMonitorApp.swift */; };
@@ -652,6 +653,7 @@
 		F485CCB7C3EB378B6A319C86 /* ToolsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B2E1F20FD28A5768AD703B /* ToolsViewModelTests.swift */; };
 		F4969E54575ED2E18A124A8B /* NetworkDetailViewScanRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E741B69FB618DF2FC6B4D0A /* NetworkDetailViewScanRegressionTests.swift */; };
 		F4B0D82A9C6EB02A5A998F14 /* TroubleshootToolViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D06BEFF5D13AB04413ED57E5 /* TroubleshootToolViewModelTests.swift */; };
+		F528916B6E78118F405B4228 /* PhotoIntake.swift in Sources */ = {isa = PBXBuildFile; fileRef = A32262DE68F5FCA661C5DCF2 /* PhotoIntake.swift */; };
 		F5DE399022FAAC1FF0DEDC82 /* DashboardFunctionalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 742CE9B6F8AC7DA0FC675F4A /* DashboardFunctionalUITests.swift */; };
 		F6A0097193D5AB17E285F940 /* AsyncTimeout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CC6DF5682728D19E7A44738 /* AsyncTimeout.swift */; };
 		F6C65057555A7B3848C63A35 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFFC1B4D003723AC37ADE9E /* ContentView.swift */; };
@@ -1023,6 +1025,7 @@
 		6C0DF201357AA064F74B3442 /* GeoTraceViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoTraceViewModelTests.swift; sourceTree = "<group>"; };
 		6C12ED300523E8DD7E761D48 /* CompanionPairingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionPairingSheet.swift; sourceTree = "<group>"; };
 		6C3E1EF9892EF0E721B4E8F7 /* RoomPlanTaskTimeout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomPlanTaskTimeout.swift; sourceTree = "<group>"; };
+		6CC996619B7B36489351E472 /* PhotoReading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoReading.swift; sourceTree = "<group>"; };
 		6D069092C7D3C2D477739790 /* BlueprintRoundTripContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueprintRoundTripContractTests.swift; sourceTree = "<group>"; };
 		6DA713685A5D01F84A2D34A6 /* ConnectionSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSettingsSection.swift; sourceTree = "<group>"; };
 		6EBC131061CB2EF8420343A0 /* ToolClearButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolClearButton.swift; sourceTree = "<group>"; };
@@ -1166,6 +1169,7 @@
 		A02DB6EA4594C1AC7060BBB0 /* HealthGaugeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthGaugeCard.swift; sourceTree = "<group>"; };
 		A242FEF3FDE1E77C8561270B /* DeviceDiscoveryCoordinatorFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorFixtures.swift; sourceTree = "<group>"; };
 		A250E7592344D3DD67910685 /* DataSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSettingsView.swift; sourceTree = "<group>"; };
+		A32262DE68F5FCA661C5DCF2 /* PhotoIntake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoIntake.swift; sourceTree = "<group>"; };
 		A3A26AEE62C6261706D57D1A /* GeoFenceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoFenceSettingsView.swift; sourceTree = "<group>"; };
 		A5380F904D8A46DD9A585ACA /* CardStateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStateViews.swift; sourceTree = "<group>"; };
 		A5BBB0D11B556509F1B7A9C6 /* v2.4-pr1-default.store */ = {isa = PBXFileReference; path = "v2.4-pr1-default.store"; sourceTree = "<group>"; };
@@ -1568,6 +1572,7 @@
 				04C7FA2561E26185AE834BE0 /* NetworkHealthScoreViewModel.swift */,
 				6FDAF5C6CCC826144F4C40C1 /* NetworkMapViewModel.swift */,
 				D31EE1D61CCC126139E23D09 /* PairWithMacViewModel.swift */,
+				6CC996619B7B36489351E472 /* PhotoReading.swift */,
 				65DD482FB958FC0A76B656CE /* PingToolViewModel.swift */,
 				8D7AAE0445651E59CC33832C /* PlainRuleIOSViewModel.swift */,
 				83FE883399BD31C021DC7BEF /* PortScannerToolViewModel.swift */,
@@ -1773,6 +1778,7 @@
 				E341ADAA34259EFA992ADC62 /* MacInventoryViews.swift */,
 				2C3943143B99D5243073376A /* MetricCard.swift */,
 				AEA7544FC741B6E9B70E195F /* PersistenceRecoveryView.swift */,
+				A32262DE68F5FCA661C5DCF2 /* PhotoIntake.swift */,
 				584A4B9F8060D674343A8D04 /* PresenceViews.swift */,
 				9B99C2ADF1978B8883811B44 /* RawResponseCard.swift */,
 				EE0A10C8D0A4922F6690C62B /* StatusBadge.swift */,
@@ -3288,6 +3294,8 @@
 				0D7C94240714E1A2EFF6916E /* PhoneInsight.swift in Sources */,
 				BFCB4E4EE0DD5A07ED6B4281 /* PhonePairingController.swift in Sources */,
 				EF6CFDF775E3B59BA16A86B5 /* PhonePairingFlow.swift in Sources */,
+				F528916B6E78118F405B4228 /* PhotoIntake.swift in Sources */,
+				677E49F5869D665B99C704BD /* PhotoReading.swift in Sources */,
 				78D18A801FB2DE49FD86FDE9 /* PingIntent.swift in Sources */,
 				4C606703D8CFF77BAB7C6C3A /* PingToolView.swift in Sources */,
 				75D12772A3AB65312C865EA3 /* PingToolViewModel.swift in Sources */,

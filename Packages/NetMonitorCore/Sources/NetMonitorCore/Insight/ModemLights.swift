@@ -7,6 +7,8 @@ import Foundation
 /// answers wrong.
 public enum ModemLightColor: String, Sendable, CaseIterable {
     case green, amber, red, blue, white
+    /// Purple or magenta: lit, but no modem's table entry the app knows, so shown as read.
+    case purple
     /// Dark or unlit.
     case off
     /// The model couldn't tell.
@@ -15,14 +17,14 @@ public enum ModemLightColor: String, Sendable, CaseIterable {
     /// True for a colour, false for off, nil when the colour isn't clear.
     public var isLit: Bool? {
         switch self {
-        case .green, .amber, .red, .blue, .white: true
+        case .green, .amber, .red, .blue, .white, .purple: true
         case .off: false
         case .unknown: nil
         }
     }
 
     /// The words the model may answer with, `unknown` first.
-    public static let modelValues = ["unknown", "off", "green", "amber", "orange", "yellow", "red", "blue", "white"]
+    public static let modelValues = ["unknown", "off", "green", "amber", "orange", "yellow", "red", "blue", "white", "purple", "magenta"]
 
     /// The colour for one of the model's words; anything outside the set is unknown.
     public init(modelValue: String) {
@@ -32,6 +34,7 @@ public enum ModemLightColor: String, Sendable, CaseIterable {
         case "red": self = .red
         case "blue": self = .blue
         case "white": self = .white
+        case "purple", "magenta", "violet": self = .purple
         case "off", "unlit", "dark": self = .off
         default: self = .unknown
         }
@@ -212,58 +215,66 @@ public struct ModemLightVerdict: Sendable, Equatable, Identifiable {
         }
     }
 
-    /// The light as read: "USB: green", "INTERNET: colour not clear", "LAN 2: reads as off".
+    /// The light as read: "USB: green", "INTERNET: colour not clear", "LAN 2: reads as off". A
+    /// power light the app distrusts (`note`) is "colour not clear".
     public var reading: String {
-        "\(label): \(color == .off ? "reads as off" : color.word)"
+        let word = note != nil ? ModemLightColor.unknown.word : color == .off ? "reads as off" : color.word
+        return "\(label): \(word)"
     }
 
-    /// The table. Amber, blue and white mean different things across makers, so those are
-    /// worded "on many modems" and kept from `problem`. Off is never a problem (#558 option A):
-    /// it is a check worded as a question, since a lit white light on a light case reads as off.
+    /// The table. One steady colour in one photo can't prove a link is up, so lit lines say what
+    /// the light normally means and red is stated as read. Amber means different things across
+    /// makers, so it is worded "on many modems" and kept from `problem`. Off is never a problem
+    /// (#558 option A): it is a check worded as a question, since a lit white light on a light
+    /// case reads as off. Purple has no entry.
     static func meaning(kind: ModemLightKind, qualifier: String?, color: ModemLightColor) -> ModemLightMeaning? {
-        guard color != .unknown else { return nil }
+        guard color != .unknown, color != .purple else { return nil }
         let name = kind.name + (qualifier.map { " " + $0 } ?? "")
         if color == .off {
             let (severity, clause) = offMeaning(kind: kind, isBand: qualifier != nil)
             return ModemLightMeaning(severity: severity, text: "\(name) reads as off. If it is dark, \(clause)", readsAsOff: true)
         }
-        let lit = color == .green || color == .blue || color == .white
-        let amber = color == .amber
-        let entry: (ModemLightSeverity, String)
+        let (lit, amber, red) = clauses(kind: kind, isBand: qualifier != nil)
+        switch color {
+        case .amber:
+            return ModemLightMeaning(severity: .attention, text: "\(name) light is amber: \(amber)")
+        case .red:
+            // Phone service is the one red that isn't the connection itself.
+            return ModemLightMeaning(severity: kind == .phone ? .attention : .problem, text: "\(name) light reads as red: this normally means \(red)")
+        default:
+            return ModemLightMeaning(severity: .normal, text: "\(name) light is \(color.rawValue): this normally means \(lit)")
+        }
+    }
+
+    /// What each light normally means when lit, amber and red.
+    private static func clauses(kind: ModemLightKind, isBand: Bool) -> (lit: String, amber: String, red: String) {
         switch kind {
         case .power:
-            entry = lit ? (.normal, "the modem has power.")
-                : amber ? (.attention, "on many modems this means it is starting up or has a fault.")
-                : (.problem, "on most modems this means a hardware fault or a failed start-up.")
+            ("the modem has power.", "on many modems this means it is starting up or has a fault.", "a hardware fault or a failed start-up.")
         case .broadband:
-            entry = lit ? (.normal, "the line from your provider is connected.")
-                : amber ? (.attention, "on many modems this means the line is still connecting or is weak.")
-                : (.problem, "the modem has no line from your provider.")
+            ("the line from your provider is connected.", "on many modems this means the line is still connecting or is weak.",
+             "the modem has no line from your provider.")
         case .internet:
-            entry = lit ? (.normal, "the modem is connected to the internet.")
-                : amber ? (.attention, "on many modems this means it reaches your provider but isn't online.")
-                : (.problem, "the modem has no internet connection.")
+            ("the modem is online.", "on many modems this means it reaches your provider but isn't online.", "the modem has no internet connection.")
         case .wifi:
-            entry = lit ? (.normal, qualifier == nil ? "Wi-Fi is on." : "that Wi-Fi band is on.")
-                : amber ? (.attention, "on many modems this means Wi-Fi is pairing a device (WPS) or has a fault.")
-                : (.problem, "on most modems this means Wi-Fi has a fault.")
+            (isBand ? "that Wi-Fi band is on." : "Wi-Fi is on.", "on many modems this means Wi-Fi is pairing a device (WPS) or has a fault.",
+             "Wi-Fi has a fault.")
         case .ethernet:
-            entry = lit ? (.normal, "a device is connected to that port.")
-                : amber ? (.attention, "on many modems this means a device is connected at a slower speed.")
-                : (.problem, "on many modems this means a fault on that port.")
+            ("a device is connected to that port.", "on many modems this means a device is connected at a slower speed.", "a fault on that port.")
         case .phone:
-            entry = lit ? (.normal, "phone service is ready.") : (.attention, "on many modems this means phone service has a problem.")
+            ("phone service is ready.", "on many modems this means phone service has a problem.", "phone service has a problem.")
         case .wan:
-            entry = lit ? (.normal, "the router has a link to the modem or provider. That alone doesn't show the internet is working.")
-                : amber ? (.attention, "on many routers this means the WAN link is up but the internet isn't.")
-                : (.problem, "on most routers this means there is no internet connection on the WAN port.")
+            ("the router has a link to the modem or provider. That alone doesn't show the internet is working.",
+             "on many routers this means the WAN link is up but the internet isn't.", "there is no internet connection on the WAN port.")
         case .upstream, .downstream:
-            let direction = kind == .upstream ? "upstream" : "downstream"
-            entry = lit ? (.normal, "the modem is connected to your provider's \(direction) channels.")
-                : amber ? (.attention, "on many modems this means it is still connecting, or connected on fewer channels.")
-                : (.problem, "the modem has no \(direction) connection to your provider.")
+            kind == .upstream
+                ? ("the modem is connected to your provider's upstream channels.",
+                   "on many modems this means it is still connecting, or connected on fewer channels.",
+                   "the modem has no upstream connection to your provider.")
+                : ("the modem is connected to your provider's downstream channels.",
+                   "on many modems this means it is still connecting, or connected on fewer channels.",
+                   "the modem has no downstream connection to your provider.")
         }
-        return ModemLightMeaning(severity: entry.0, text: "\(name) light is \(color.rawValue): \(entry.1)")
     }
 
     /// What a dark light would mean: a check for the lights that matter, a note where off is often expected.
@@ -285,13 +296,13 @@ public struct ModemLightVerdict: Sendable, Equatable, Identifiable {
 
 // MARK: - Report
 
-/// The app's reading of a photo of a modem's lights (#558): each light as read, the app's
-/// meanings, and the request the model words them from. Pure.
+/// The app's reading of a photo of a modem's lights (#558): each light as read and the app's
+/// meanings. Every line shown is the app's own text; the model only reads labels and colours. Pure.
 public struct ModemPanelReport: Sendable, Equatable {
     /// Most lights kept, and the longest label.
     public static let lightLimit = 16
     public static let labelLimit = 24
-    /// Shown under every reading, and given to the model as a fact.
+    /// Shown under every reading.
     public static let blinkingNote = "Whether a light is blinking can't be seen in one photo"
     /// Shown under every reading: the real-model probe read lit white lights on a light case as off.
     public static let whiteLightNote = "White lights on a light-coloured case may read as off."
@@ -299,11 +310,14 @@ public struct ModemPanelReport: Sendable, Equatable {
     /// False when the model said the photo isn't a panel of status lights, or read none.
     public let isPanel: Bool
     public let verdicts: [ModemLightVerdict]
+    /// The model listed more lights than the app keeps.
+    public let isPartial: Bool
 
     public init(answer: ModemPanelAnswer) {
         guard answer.status == .panel else {
             isPanel = false
             verdicts = []
+            isPartial = false
             return
         }
         let lights = answer.lights.compactMap { light -> ModemLightReading? in
@@ -313,6 +327,7 @@ public struct ModemPanelReport: Sendable, Equatable {
             return ModemLightReading(label: String(label.prefix(Self.labelLimit)), color: light.color)
         }
         let kept = Array(lights.prefix(Self.lightLimit))
+        isPartial = lights.count > Self.lightLimit
         verdicts = kept.enumerated().map { index, light in
             let othersLit = kept.indices.contains { $0 != index && kept[$0].color.isLit == true }
             return ModemLightVerdict(id: index, label: light.label, color: light.color, othersLit: othersLit)
@@ -332,55 +347,50 @@ public struct ModemPanelReport: Sendable, Equatable {
         verdicts.compactMap(\.meaning?.severity).max()
     }
 
-    /// One line over the lights. Off lights that matter are counted as lights to check, never as
-    /// problems; known lights without a verdict are counted, so neither hides behind an all-clear.
+    /// Lines shown above the lights when the reading itself is in doubt.
+    public var notices: [String] {
+        var notices: [String] = []
+        if isPartial {
+            notices.append("The photo shows more lights than the app reads at once. Only the first \(Self.lightLimit) are listed.")
+        }
+        if verdicts.count(where: { $0.kind == .power }) > 1 {
+            notices.append("This photo may show more than one device.")
+        }
+        return notices
+    }
+
+    /// One line over the lights, worst first. It says "No light shows a problem" only when no
+    /// light is red, amber, read as off, or an unknown light lit red or amber; known lights without
+    /// a verdict are counted too, so nothing hides behind an all-clear.
     public var headline: String {
         let meanings = verdicts.compactMap(\.meaning)
         let problems = meanings.count(where: { $0.severity == .problem })
+        let off = meanings.count(where: \.readsAsOff)
         let attention = meanings.count(where: { $0.severity == .attention && !$0.readsAsOff })
-        let checks = meanings.count(where: { $0.severity == .attention && $0.readsAsOff })
+        let unknownColoured = verdicts.filter { $0.kind == nil && ($0.color == .red || $0.color == .amber) }
         let unclear = verdicts.count(where: { $0.kind != nil && $0.meaning == nil })
-        var line = if problems > 0 {
-            problems == 1 ? "1 light shows a problem." : "\(problems) lights show a problem."
-        } else if attention > 0 {
-            attention == 1 ? "1 light needs a look." : "\(attention) lights need a look."
-        } else if meanings.isEmpty {
-            "The app doesn't know these lights."
-        } else {
-            "No light shows a problem."
+        var parts: [String] = []
+        if problems > 0 {
+            parts.append(problems == 1 ? "1 light shows a problem." : "\(problems) lights show a problem.")
         }
-        if checks > 0 {
-            line += checks == 1 ? " 1 light reads as off: check it." : " \(checks) lights read as off: check them."
+        if let first = unknownColoured.first {
+            let labels = unknownColoured.map(\.label).joined(separator: ", ")
+            parts.append(unknownColoured.count == 1
+                ? "1 light is \(first.color.rawValue): \(labels). The app doesn't know this light; check your modem's guide."
+                : "\(unknownColoured.count) lights are red or amber: \(labels). The app doesn't know these lights; check your modem's guide.")
+        }
+        if off > 0 {
+            parts.append(off == 1 ? "1 light reads as off: check it." : "\(off) lights read as off: check them.")
+        }
+        if attention > 0 {
+            parts.append(attention == 1 ? "1 light needs a look." : "\(attention) lights need a look.")
+        }
+        if parts.isEmpty {
+            parts.append(meanings.isEmpty ? "The app doesn't know these lights." : "No light shows a problem.")
         }
         if unclear > 0 {
-            line += unclear == 1 ? " 1 known light wasn't clear in the photo." : " \(unclear) known lights weren't clear in the photo."
+            parts.append(unclear == 1 ? "1 known light wasn't clear in the photo." : "\(unclear) known lights weren't clear in the photo.")
         }
-        return line
-    }
-
-    private static func factColor(_ verdict: ModemLightVerdict) -> String {
-        if verdict.note != nil {
-            return ModemLightColor.unknown.word
-        }
-        return verdict.color == .off ? "reads as off (check)" : verdict.color.word
-    }
-
-    /// Whether a light that matters reads as off, which the user has to check.
-    public var hasChecks: Bool {
-        verdicts.contains { $0.meaning?.readsAsOff == true && $0.meaning?.severity == .attention }
-    }
-
-    /// What the model is asked to word, or nil when there is nothing to word. Nil too while a light
-    /// needs a check: in the real-model probe, "reads as off (check)" came back as "the modem is not
-    /// online" and "no power is supplied", so only the app's own lines are shown then.
-    public var insightRequest: InsightRequest? {
-        guard isPanel, !hasChecks else { return nil }
-        return InsightRequest(
-            subject: "Modem status lights read from a photo",
-            // A light the app distrusts (`note`) is given as unclear, and an off reading as one to
-            // check, so the wording can't state the one or assert a fault from the other.
-            facts: verdicts.map { "Light labelled \($0.label): \(Self.factColor($0))" } + [Self.blinkingNote],
-            observations: keyPoints
-        )
+        return parts.joined(separator: " ")
     }
 }

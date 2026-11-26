@@ -9,7 +9,7 @@ import UIKit
 /// Nothing is written until ``save()`` or ``saveToOwner()``.
 @MainActor
 @Observable
-final class LabelCaptureViewModel {
+final class LabelCaptureViewModel: PhotoReading {
     enum Phase: Equatable {
         /// Waiting for a photo.
         case choosing
@@ -85,28 +85,16 @@ final class LabelCaptureViewModel {
 
     // MARK: - Reading
 
-    /// Reads a photo from the library; `load` returns its data, or nil when Photos can't.
-    func readPhoto(_ load: @Sendable () async -> Data?) async {
+    // `readPhoto` and `readCameraPhoto` come from `PhotoReading`.
+
+    func photoLoading() {
         photoError = nil
         phase = .loading
-        guard let data = await load(), let image = await LabelPhoto.upright(data: data) else {
-            photoError = "That photo couldn't be opened. Try another one."
-            phase = .choosing
-            return
-        }
-        await read(image)
     }
 
-    /// Reads a photo from the camera.
-    func readCameraPhoto(_ photo: UIImage) async {
-        photoError = nil
-        phase = .loading
-        guard let image = await LabelPhoto.upright(photo) else {
-            photoError = "That photo couldn't be opened. Try again."
-            phase = .choosing
-            return
-        }
-        await read(image)
+    func photoFailed(_ message: String) {
+        photoError = message
+        phase = .choosing
     }
 
     /// Reads `image`. While a network scan runs the model isn't asked (#447); the app's own
@@ -242,36 +230,5 @@ final class LabelCaptureViewModel {
         case .serial: values.serial
         case .mac: values.mac
         }
-    }
-}
-
-// MARK: - Photo input
-
-/// Photos as Vision should see them: upright, and no larger than it needs. Drawn off the
-/// main actor; a 12-megapixel photo takes a moment.
-enum LabelPhoto {
-    static let maxDimension: CGFloat = 2048
-
-    static func upright(data: Data) async -> CGImage? {
-        await Task.detached(priority: .userInitiated) {
-            UIImage(data: data).flatMap(draw)
-        }.value
-    }
-
-    static func upright(_ image: UIImage) async -> CGImage? {
-        await Task.detached(priority: .userInitiated) {
-            draw(image)
-        }.value
-    }
-
-    nonisolated private static func draw(_ image: UIImage) -> CGImage? {
-        let scale = min(1, maxDimension / max(image.size.width, image.size.height, 1))
-        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        guard size.width >= 1, size.height >= 1 else { return nil }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }.cgImage
     }
 }

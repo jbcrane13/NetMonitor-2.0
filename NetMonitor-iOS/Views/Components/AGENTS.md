@@ -14,6 +14,7 @@ Reusable SwiftUI components implementing the Liquid Glass design system.
 | `MetricCard.swift` | Compact card for displaying a single metric with label and icon |
 | `StatusBadge.swift` | Colored badge for connection/status indicators |
 | `EmptyStateView.swift` | Placeholder for empty lists/results with icon and message |
+| `PhotoIntake.swift` | Take or choose a photo: `PhotoChooser`, the `.photoIntake(photoItem:showsCamera:onPhoto:onCamera:)` modifier and `CameraCapture`, shared by Scan Label (#456) and Modem Lights (#558). Reading steps are `ViewModels/PhotoReading.swift` (`PhotoReading`, `UprightPhoto`) |
 | `ToolInputField.swift` | Styled text input for tool host/address entry with icon |
 | `ToolRunButton.swift` | Execute button for network tools with loading state |
 | `ToolResultRow.swift` | Single result row for tool output lists |
