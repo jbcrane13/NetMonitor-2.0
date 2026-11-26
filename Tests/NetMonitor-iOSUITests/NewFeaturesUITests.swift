@@ -20,7 +20,7 @@ final class NewFeaturesUITests: IOSUITestCase {
 
     func testOfflineBannerDoesNotAppearWhenConnected() {
         // Banner only shows when offline — when connected, it must not appear
-        requireExists(app.descendants(matching: .any)["screen_dashboard"],
+        requireExists(app.byID("screen_dashboard"),
                       message: "Dashboard should be visible")
         let banner = app.descendants(matching: .any)["dashboard_label_offline"]
         XCTAssertFalse(banner.waitForExistence(timeout: 3),
@@ -30,20 +30,20 @@ final class NewFeaturesUITests: IOSUITestCase {
     // MARK: - Speed Test Quick Card (#68)
 
     func testSpeedTestCardExistsOnDashboard() {
-        let card = app.descendants(matching: .any)["dashboard_card_speedTest"]
+        let card = app.byID("dashboard_card_speedTest")
         scrollToElement(card)
         requireExists(card, timeout: 8, message: "Speed Test quick card should exist on the dashboard")
     }
 
     func testSpeedTestCardNavigatesToSpeedTestScreen() {
-        let card = app.descendants(matching: .any)["dashboard_card_speedTest"]
+        let card = app.byID("dashboard_card_speedTest")
         scrollToElement(card)
         guard card.waitForExistence(timeout: 8) else {
             XCTFail("Speed Test card did not appear within timeout")
             return
         }
         card.tap()
-        requireExists(app.descendants(matching: .any)["screen_speedTestTool"], timeout: 10,
+        requireExists(app.byID("screen_speedTestTool"), timeout: 10,
                       message: "Tapping Speed Test card should navigate to the Speed Test tool screen")
     }
 
@@ -52,7 +52,7 @@ final class NewFeaturesUITests: IOSUITestCase {
     func testShareButtonExistsInDeviceDetail() {
         // Navigate to Network Map and tap the first available device row
         app.tabBars.buttons["Map"].tap()
-        requireExists(app.descendants(matching: .any)["screen_networkMap"], timeout: 8,
+        requireExists(app.byID("screen_networkMap"), timeout: 8,
                       message: "Network Map screen should appear")
 
         let deviceRow = app.descendants(matching: .any)
@@ -75,7 +75,7 @@ final class NewFeaturesUITests: IOSUITestCase {
     func testColorSchemePickerExistsInSettings() {
         requireExists(app.buttons["dashboard_button_settings"],
                       message: "Settings button should exist").tap()
-        requireExists(app.descendants(matching: .any)["screen_settings"], timeout: 8,
+        requireExists(app.byID("screen_settings"), timeout: 8,
                       message: "Settings screen should appear")
 
         let picker = app.descendants(matching: .any)["settings_picker_colorScheme"]
@@ -88,7 +88,7 @@ final class NewFeaturesUITests: IOSUITestCase {
     func testNewDeviceAlertToggleExistsAndToggles() {
         requireExists(app.buttons["dashboard_button_settings"],
                       message: "Settings button should exist").tap()
-        requireExists(app.descendants(matching: .any)["screen_settings"], timeout: 8,
+        requireExists(app.byID("screen_settings"), timeout: 8,
                       message: "Settings screen should appear")
 
         let toggle = app.switches["settings_toggle_newDeviceAlert"]
@@ -107,7 +107,7 @@ final class NewFeaturesUITests: IOSUITestCase {
 
     func testTopologyMapRendersInNetworkMap() {
         app.tabBars.buttons["Map"].tap()
-        requireExists(app.descendants(matching: .any)["screen_networkMap"], timeout: 8,
+        requireExists(app.byID("screen_networkMap"), timeout: 8,
                       message: "Network Map screen should appear after tapping Map tab")
 
         let topology = app.descendants(matching: .any)["networkMap_topology"]
@@ -120,7 +120,7 @@ final class NewFeaturesUITests: IOSUITestCase {
 
     func testNetworkProfileMenuExistsInNetworkMap() {
         app.tabBars.buttons["Map"].tap()
-        requireExists(app.descendants(matching: .any)["screen_networkMap"], timeout: 8,
+        requireExists(app.byID("screen_networkMap"), timeout: 8,
                       message: "Network Map screen should appear")
 
         let menuButton = app.descendants(matching: .any)["networkMap_menu_networks"]

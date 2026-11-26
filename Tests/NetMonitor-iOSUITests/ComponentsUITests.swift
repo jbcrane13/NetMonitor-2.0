@@ -14,20 +14,20 @@ final class ComponentsUITests: XCTestCase {
     }
 
     private func ui(_ identifier: String) -> XCUIElement {
-        app.descendants(matching: .any)[identifier]
+        app.byID(identifier)
     }
 
     // MARK: - StatusBadge (Dashboard connection status)
 
     func testStatusBadgeDisplaysStatusText() throws {
         // The dashboard connection status header uses StatusBadge
-        let header = app.otherElements["dashboard_label_connectionStatus"]
+        let header = app.byID("dashboard_label_connectionStatus")
         XCTAssertTrue(header.waitForExistence(timeout: 5),
                      "Status badge header should exist on dashboard")
         // FUNCTIONAL: status badge should display a status text value
         let statusTexts = header.staticTexts
         XCTAssertTrue(
-            statusTexts.count > 0 || header.label.count > 0,
+            !statusTexts.hasNoMatches || !header.label.isEmpty,
             "Status badge should display a connection status value (e.g., Monitoring, Offline)"
         )
     }
@@ -68,11 +68,11 @@ final class ComponentsUITests: XCTestCase {
         XCTAssertTrue(wifiCard.exists, "WiFi card should exist on dashboard")
         // FUNCTIONAL: cards should contain visible text content
         XCTAssertTrue(
-            sessionCard.staticTexts.count > 0,
+            !sessionCard.staticTexts.hasNoMatches,
             "Session card should contain metric text content"
         )
         XCTAssertTrue(
-            wifiCard.staticTexts.count > 0,
+            !wifiCard.staticTexts.hasNoMatches,
             "WiFi card should contain metric text content"
         )
     }
@@ -92,7 +92,7 @@ final class ComponentsUITests: XCTestCase {
         // FUNCTIONAL: if empty state is shown, it should contain instructional text
         if emptyState.exists {
             XCTAssertTrue(
-                emptyState.staticTexts.count > 0 || emptyState.label.count > 0,
+                !emptyState.staticTexts.hasNoMatches || !emptyState.label.isEmpty,
                 "Empty state view should contain instructional text"
             )
         }
@@ -260,7 +260,7 @@ final class ComponentsUITests: XCTestCase {
                      "WiFi card should exist on dashboard")
         // FUNCTIONAL: WiFi card should contain metric text data
         XCTAssertTrue(
-            wifiCard.staticTexts.count > 0,
+            !wifiCard.staticTexts.hasNoMatches,
             "WiFi card should contain result/metric text content"
         )
     }
@@ -283,7 +283,7 @@ final class ComponentsUITests: XCTestCase {
                          "Statistics card should appear after ping completes")
             // FUNCTIONAL: statistics card should contain min/avg/max data
             XCTAssertTrue(
-                statsCard.staticTexts.count > 0,
+                !statsCard.staticTexts.hasNoMatches,
                 "Statistics card should contain ping statistics text (min/avg/max)"
             )
         }

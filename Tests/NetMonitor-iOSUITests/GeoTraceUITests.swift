@@ -6,7 +6,7 @@ final class GeoTraceUITests: IOSUITestCase {
     func testGeoTraceScreenOpensFromToolsGrid() {
         openGeoTrace()
         requireExists(
-            app.descendants(matching: .any)["screen_geoTrace"],
+            app.byID("screen_geoTrace"),
             timeout: 8,
             message: "Geo Trace screen should open from tools grid"
         )
@@ -121,12 +121,12 @@ final class GeoTraceUITests: IOSUITestCase {
     private func openGeoTrace() {
         requireExists(app.tabBars.buttons["Tools"], message: "Tools tab should exist").tap()
         requireExists(
-            app.descendants(matching: .any)["screen_tools"],
+            app.byID("screen_tools"),
             timeout: 8,
             message: "Tools root should be visible"
         )
 
-        let card = app.descendants(matching: .any)["tools_card_geo_trace"]
+        let card = app.byID("tools_card_geo_trace")
         scrollToElement(card)
         requireExists(card, timeout: 8, message: "Geo Trace tool card should exist").tap()
     }

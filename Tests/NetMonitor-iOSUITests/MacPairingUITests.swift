@@ -7,7 +7,7 @@ final class MacPairingUITests: IOSUITestCase {
 
     func testSettingsScreenExists() throws {
         openSettings()
-        XCTAssertTrue(app.otherElements["screen_settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.byID("screen_settings").waitForExistence(timeout: 5))
     }
 
     // MARK: - Mac Pairing Sheet
@@ -17,14 +17,14 @@ final class MacPairingUITests: IOSUITestCase {
         let pairButton = app.buttons["settings_button_connectMac"]
         if pairButton.waitForExistence(timeout: 5) {
             pairButton.tap()
-            XCTAssertTrue(app.otherElements["screen_macPairing"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.byID("screen_macPairing").waitForExistence(timeout: 5))
         }
     }
 
     func testPairingScreenElements() throws {
         openSettings()
         openPairingSheet()
-        if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
+        if app.byID("screen_macPairing").waitForExistence(timeout: 5) {
             XCTAssertTrue(app.buttons["pairing_button_cancel"].exists)
             XCTAssertTrue(app.navigationBars["Connect to Mac"].exists)
         }
@@ -33,9 +33,9 @@ final class MacPairingUITests: IOSUITestCase {
     func testSearchingIndicator() throws {
         openSettings()
         openPairingSheet()
-        if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
-            let searching = app.otherElements["pairing_label_searching"]
-            let empty = app.otherElements["pairing_label_empty"]
+        if app.byID("screen_macPairing").waitForExistence(timeout: 5) {
+            let searching = app.byID("pairing_label_searching")
+            let empty = app.byID("pairing_label_empty")
             let macList = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'pairing_mac_'")).firstMatch
             XCTAssertTrue(searching.waitForExistence(timeout: 5) || empty.exists || macList.exists)
         }
@@ -44,14 +44,14 @@ final class MacPairingUITests: IOSUITestCase {
     func testManualConnectionToggle() throws {
         openSettings()
         openPairingSheet()
-        if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
+        if app.byID("screen_macPairing").waitForExistence(timeout: 5) {
             let manualToggle = app.buttons["pairing_toggle_manual"]
             if manualToggle.waitForExistence(timeout: 5) {
                 manualToggle.tap()
                 XCTAssertTrue(app.textFields["macPairing_textfield_host"].waitForExistence(timeout: 3))
                 XCTAssertTrue(app.textFields["macPairing_textfield_port"].exists)
                 XCTAssertTrue(app.buttons["pairing_button_manualConnect"].exists ||
-                              app.otherElements["pairing_button_manualConnect"].exists)
+                              app.byID("pairing_button_manualConnect").exists)
             }
         }
     }
@@ -59,7 +59,7 @@ final class MacPairingUITests: IOSUITestCase {
     func testManualHostInput() throws {
         openSettings()
         openPairingSheet()
-        if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
+        if app.byID("screen_macPairing").waitForExistence(timeout: 5) {
             let manualToggle = app.buttons["pairing_toggle_manual"]
             if manualToggle.waitForExistence(timeout: 5) {
                 manualToggle.tap()
@@ -76,9 +76,9 @@ final class MacPairingUITests: IOSUITestCase {
     func testCancelDismissesPairingSheet() throws {
         openSettings()
         openPairingSheet()
-        if app.otherElements["screen_macPairing"].waitForExistence(timeout: 5) {
+        if app.byID("screen_macPairing").waitForExistence(timeout: 5) {
             app.buttons["pairing_button_cancel"].tap()
-            XCTAssertTrue(app.otherElements["screen_settings"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.byID("screen_settings").waitForExistence(timeout: 5))
         }
     }
 
@@ -91,15 +91,15 @@ final class MacPairingUITests: IOSUITestCase {
         guard pairButton.waitForExistence(timeout: 5) else { return }
         pairButton.tap()
 
-        guard app.otherElements["screen_macPairing"].waitForExistence(timeout: 8) else {
+        guard app.byID("screen_macPairing").waitForExistence(timeout: 8) else {
             XCTFail("Mac pairing screen should appear after tapping Connect to Mac")
             return
         }
 
         let cancelButton = app.buttons["pairing_button_cancel"]
-        let searchingIndicator = app.otherElements["pairing_label_searching"]
-        let emptyState = app.otherElements["pairing_label_empty"]
-        let qrCode = app.otherElements["pairing_qrCode"]
+        let searchingIndicator = app.byID("pairing_label_searching")
+        let emptyState = app.byID("pairing_label_empty")
+        let qrCode = app.byID("pairing_qrCode")
 
         XCTAssertTrue(
             cancelButton.exists || searchingIndicator.exists || emptyState.exists || qrCode.exists,
@@ -114,7 +114,7 @@ final class MacPairingUITests: IOSUITestCase {
         guard pairButton.waitForExistence(timeout: 5) else { return }
         pairButton.tap()
 
-        guard app.otherElements["screen_macPairing"].waitForExistence(timeout: 8) else {
+        guard app.byID("screen_macPairing").waitForExistence(timeout: 8) else {
             XCTFail("Mac pairing screen should appear after tapping Connect to Mac")
             return
         }
@@ -124,7 +124,7 @@ final class MacPairingUITests: IOSUITestCase {
         cancelButton.tap()
 
         XCTAssertTrue(
-            app.otherElements["screen_settings"].waitForExistence(timeout: 5),
+            app.byID("screen_settings").waitForExistence(timeout: 5),
             "Settings screen should reappear after cancelling Mac pairing"
         )
     }
@@ -141,7 +141,7 @@ final class MacPairingUITests: IOSUITestCase {
             requireExists(app.navigationBars.buttons.firstMatch, message: "A navigation bar button should exist for settings").tap()
         }
 
-        requireExists(app.otherElements["screen_settings"], timeout: 8, message: "Settings screen should open")
+        requireExists(app.byID("screen_settings"), timeout: 8, message: "Settings screen should open")
     }
 
     private func openPairingSheet() {

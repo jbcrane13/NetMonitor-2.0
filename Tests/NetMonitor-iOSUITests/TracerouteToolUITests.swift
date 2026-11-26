@@ -5,18 +5,18 @@ final class TracerouteToolUITests: IOSUITestCase {
 
     private func navigateToTracerouteTool() {
         app.tabBars.buttons["Tools"].tap()
-        let tracerouteCard = app.otherElements["tools_card_traceroute"]
+        let tracerouteCard = app.byID("tools_card_traceroute")
         scrollToElement(tracerouteCard)
         requireExists(tracerouteCard, timeout: 8, message: "Traceroute tool card should exist")
         tracerouteCard.tap()
-        requireExists(app.otherElements["screen_tracerouteTool"], timeout: 8, message: "Traceroute tool screen should appear")
+        requireExists(app.byID("screen_tracerouteTool"), timeout: 8, message: "Traceroute tool screen should appear")
     }
 
     // MARK: - Screen Existence
 
     func testTracerouteScreenExistsAndShowsControls() throws {
         navigateToTracerouteTool()
-        let screen = app.otherElements["screen_tracerouteTool"]
+        let screen = app.byID("screen_tracerouteTool")
         XCTAssertTrue(screen.waitForExistence(timeout: 5), "Traceroute screen should exist")
         // FUNCTIONAL: screen should contain input and run button
         XCTAssertTrue(
@@ -49,12 +49,12 @@ final class TracerouteToolUITests: IOSUITestCase {
     func testMaxHopsPickerExistsAndIsInteractive() throws {
         navigateToTracerouteTool()
         let pickerExists = app.buttons["tracerouteTool_picker_maxHops"].waitForExistence(timeout: 5)
-            || app.otherElements["tracerouteTool_picker_maxHops"].waitForExistence(timeout: 3)
+            || app.byID("tracerouteTool_picker_maxHops").waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Max hops picker should exist")
         // FUNCTIONAL: picker should be tappable
         let activePicker = app.buttons["tracerouteTool_picker_maxHops"].exists
             ? app.buttons["tracerouteTool_picker_maxHops"]
-            : app.otherElements["tracerouteTool_picker_maxHops"]
+            : app.byID("tracerouteTool_picker_maxHops")
         activePicker.tap()
         XCTAssertTrue(activePicker.waitForExistence(timeout: 3), "Max hops picker should remain accessible after tap")
     }
@@ -84,7 +84,7 @@ final class TracerouteToolUITests: IOSUITestCase {
         navigateToTracerouteTool()
         clearAndTypeText("1.1.1.1", into: app.textFields["tracerouteTool_input_host"])
         app.buttons["tracerouteTool_button_run"].tap()
-        let hopsSection = app.otherElements["tracerouteTool_section_hops"]
+        let hopsSection = app.byID("tracerouteTool_section_hops")
         let stopButton = app.buttons["Stop Trace"]
         XCTAssertTrue(
             waitForEither([hopsSection, stopButton], timeout: 15),
@@ -102,11 +102,11 @@ final class TracerouteToolUITests: IOSUITestCase {
         navigateToTracerouteTool()
         clearAndTypeText("1.1.1.1", into: app.textFields["tracerouteTool_input_host"])
         app.buttons["tracerouteTool_button_run"].tap()
-        let firstHop = app.otherElements["tracerouteTool_row_1"]
+        let firstHop = app.byID("tracerouteTool_row_1")
         XCTAssertTrue(firstHop.waitForExistence(timeout: 15), "First hop row should appear")
         // FUNCTIONAL: hop row should contain address or latency data
         XCTAssertTrue(
-            firstHop.staticTexts.count > 0 || firstHop.exists,
+            !firstHop.staticTexts.hasNoMatches || firstHop.exists,
             "First hop row should contain hop data (address/latency)"
         )
     }
@@ -115,7 +115,7 @@ final class TracerouteToolUITests: IOSUITestCase {
         navigateToTracerouteTool()
         clearAndTypeText("1.1.1.1", into: app.textFields["tracerouteTool_input_host"])
         app.buttons["tracerouteTool_button_run"].tap()
-        let hopsSection = app.otherElements["tracerouteTool_section_hops"]
+        let hopsSection = app.byID("tracerouteTool_section_hops")
         if hopsSection.waitForExistence(timeout: 15) {
             let clearButton = app.buttons["tracerouteTool_button_clear"]
             if clearButton.waitForExistence(timeout: 30) {
@@ -134,7 +134,7 @@ final class TracerouteToolUITests: IOSUITestCase {
     func testMaxHopsPickerExistsOnScreen() throws {
         navigateToTracerouteTool()
         let pickerButton = app.buttons["tracerouteTool_picker_maxHops"]
-        let pickerElement = app.otherElements["tracerouteTool_picker_maxHops"]
+        let pickerElement = app.byID("tracerouteTool_picker_maxHops")
         let pickerExists = pickerButton.waitForExistence(timeout: 5) || pickerElement.waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Max hops picker should be visible on the traceroute tool screen")
     }
@@ -146,7 +146,7 @@ final class TracerouteToolUITests: IOSUITestCase {
         clearAndTypeText("1.1.1.1", into: app.textFields["tracerouteTool_input_host"])
         app.buttons["tracerouteTool_button_run"].tap()
 
-        let hopsSection = app.otherElements["tracerouteTool_section_hops"]
+        let hopsSection = app.byID("tracerouteTool_section_hops")
         let stopButton = app.buttons["Stop Trace"]
 
         XCTAssertTrue(
@@ -155,14 +155,14 @@ final class TracerouteToolUITests: IOSUITestCase {
         )
 
         if hopsSection.exists {
-            let firstHop = app.otherElements["tracerouteTool_row_1"]
+            let firstHop = app.byID("tracerouteTool_row_1")
             XCTAssertTrue(
                 firstHop.waitForExistence(timeout: 10),
                 "At least one hop row should appear in the hops section"
             )
             // FUNCTIONAL: hop row should have content
             XCTAssertTrue(
-                firstHop.staticTexts.count > 0,
+                !firstHop.staticTexts.hasNoMatches,
                 "Hop row should contain hop number, address, or latency data"
             )
             captureScreenshot(named: "Traceroute_HopRows")

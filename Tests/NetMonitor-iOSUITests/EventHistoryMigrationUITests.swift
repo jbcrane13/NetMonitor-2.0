@@ -29,7 +29,7 @@ final class EventHistoryMigrationUITests: IOSUITestCase {
     private func expectTimelineShowsMigratedAndNewEvents(screenshot name: String) {
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10), "App should launch to foreground")
         requireExists(app.tabBars.buttons["Timeline"], message: "Timeline tab should exist").tap()
-        requireExists(app.descendants(matching: .any)["screen_networkTimeline"], timeout: 8, message: "Timeline should open")
+        requireExists(app.byID("screen_networkTimeline"), timeout: 8, message: "Timeline should open")
         requireExists(app.staticTexts[newTitle], timeout: 8, message: "The event logged at first launch should be listed")
         for title in legacyTitles {
             requireExists(app.staticTexts[title], message: "The migrated event \"\(title)\" should be listed")

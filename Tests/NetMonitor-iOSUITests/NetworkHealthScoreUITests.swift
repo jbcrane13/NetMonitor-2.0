@@ -6,14 +6,14 @@ final class NetworkHealthScoreUITests: IOSUITestCase {
     func testHealthScoreCardAppearsOnDashboard() {
         // Dashboard is the default tab
         requireExists(
-            app.descendants(matching: .any)["dashboard_card_healthScore"],
+            app.byID("dashboard_card_healthScore"),
             timeout: 8,
             message: "Health score card should be visible on dashboard"
         )
     }
 
     func testHealthScoreGaugeVisible() {
-        let card = app.descendants(matching: .any)["dashboard_card_healthScore"]
+        let card = app.byID("dashboard_card_healthScore")
         guard card.waitForExistence(timeout: 8) else { return }
 
         // Gauge or loading state should be present
@@ -25,7 +25,7 @@ final class NetworkHealthScoreUITests: IOSUITestCase {
     }
 
     func testRefreshButtonExists() {
-        guard app.descendants(matching: .any)["dashboard_card_healthScore"].waitForExistence(timeout: 8) else {
+        guard app.byID("dashboard_card_healthScore").waitForExistence(timeout: 8) else {
             return
         }
 
@@ -35,21 +35,21 @@ final class NetworkHealthScoreUITests: IOSUITestCase {
     }
 
     func testRefreshButtonTappable() {
-        guard app.descendants(matching: .any)["dashboard_card_healthScore"].waitForExistence(timeout: 8) else {
+        guard app.byID("dashboard_card_healthScore").waitForExistence(timeout: 8) else {
             return
         }
         let btn = app.buttons["healthScore_button_refresh"]
         guard btn.waitForExistence(timeout: 5) else { return }
         btn.tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["dashboard_card_healthScore"].exists,
+            app.byID("dashboard_card_healthScore").exists,
             "Health score card should remain after refresh"
         )
     }
 
     func testHealthScoreDisplaysGradeText() {
         // Find health score card on dashboard
-        guard app.descendants(matching: .any)["dashboard_card_healthScore"].waitForExistence(timeout: 8) else {
+        guard app.byID("dashboard_card_healthScore").waitForExistence(timeout: 8) else {
             return
         }
 
@@ -85,7 +85,7 @@ final class NetworkHealthScoreUITests: IOSUITestCase {
 
     func testRefreshButtonUpdatesTimestamp() {
         // Find health score card
-        guard app.descendants(matching: .any)["dashboard_card_healthScore"].waitForExistence(timeout: 8) else {
+        guard app.byID("dashboard_card_healthScore").waitForExistence(timeout: 8) else {
             return
         }
 
@@ -98,7 +98,7 @@ final class NetworkHealthScoreUITests: IOSUITestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(1.0))
 
         // Verify card still exists and is populated (gauge or grade visible)
-        let card = app.descendants(matching: .any)["dashboard_card_healthScore"]
+        let card = app.byID("dashboard_card_healthScore")
         XCTAssertTrue(card.exists, "Health score card should still be visible after refresh")
 
         let gauge = app.descendants(matching: .any)["healthScore_label_gauge"]
@@ -110,7 +110,7 @@ final class NetworkHealthScoreUITests: IOSUITestCase {
 
     func testHealthScoreCardContainsMetrics() {
         // Find health score card
-        guard app.descendants(matching: .any)["dashboard_card_healthScore"].waitForExistence(timeout: 8) else {
+        guard app.byID("dashboard_card_healthScore").waitForExistence(timeout: 8) else {
             return
         }
 
@@ -128,7 +128,8 @@ final class NetworkHealthScoreUITests: IOSUITestCase {
 
         // Fallback: look for staticTexts within the card area by common metric keywords
         let metricByLabel = app.staticTexts.matching(NSPredicate(format:
-            "label CONTAINS[c] 'latency' OR label CONTAINS[c] 'loss' OR label CONTAINS[c] 'DNS' OR label CONTAINS[c] 'signal' OR label CONTAINS[c] 'jitter'"
+            "label CONTAINS[c] 'latency' OR label CONTAINS[c] 'loss' OR label CONTAINS[c] 'DNS' "
+                + "OR label CONTAINS[c] 'signal' OR label CONTAINS[c] 'jitter'"
         )).firstMatch.exists
 
         XCTAssertTrue(

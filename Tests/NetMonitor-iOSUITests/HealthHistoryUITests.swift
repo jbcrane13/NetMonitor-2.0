@@ -3,7 +3,7 @@ import XCTest
 // MARK: - Shared steps
 
 private extension IOSUITestCase {
-    var healthCard: XCUIElement { app.descendants(matching: .any)["dashboard_card_healthScore"] }
+    var healthCard: XCUIElement { app.byID("dashboard_card_healthScore") }
     /// The sparkline row's caption, which only exists while the chart does.
     var trendLabel: XCUIElement { app.staticTexts["TREND"] }
 

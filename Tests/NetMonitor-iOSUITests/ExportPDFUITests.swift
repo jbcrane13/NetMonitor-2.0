@@ -41,7 +41,7 @@ final class ExportPDFUITests: IOSUITestCase {
         // We accept any of these as a valid success outcome; if none appear the app must at
         // minimum remain on the settings screen without crashing.
         let shareSheetAppeared =
-            app.otherElements["ActivityListView"].waitForExistence(timeout: 25) ||
+            app.byID("ActivityListView").waitForExistence(timeout: 25) ||
             app.sheets.firstMatch.waitForExistence(timeout: 3) ||
             app.navigationBars["sharing"].waitForExistence(timeout: 3)
 
@@ -55,7 +55,7 @@ final class ExportPDFUITests: IOSUITestCase {
         }
 
         // Either the share sheet appeared or the app gracefully stayed on settings — both are valid
-        let settingsStillVisible = app.descendants(matching: .any)["screen_settings"].waitForExistence(timeout: 5)
+        let settingsStillVisible = app.byID("screen_settings").waitForExistence(timeout: 5)
         XCTAssertTrue(
             shareSheetAppeared || settingsStillVisible,
             "After tapping PDF export, either a share sheet should appear or settings screen should remain visible"
@@ -72,7 +72,7 @@ final class ExportPDFUITests: IOSUITestCase {
 
         // Dismiss share sheet if one appeared
         let shareSheetAppeared =
-            app.otherElements["ActivityListView"].waitForExistence(timeout: 25) ||
+            app.byID("ActivityListView").waitForExistence(timeout: 25) ||
             app.sheets.firstMatch.waitForExistence(timeout: 3)
 
         if shareSheetAppeared {
@@ -113,7 +113,7 @@ private extension IOSUITestCase {
     }
 
     func ui(_ id: String) -> XCUIElement {
-        app.descendants(matching: .any)[id]
+        app.byID(id)
     }
 
     /// Taps Export Full Report as PDF, waits for the share sheet (the summary may take up to
@@ -123,7 +123,7 @@ private extension IOSUITestCase {
         scrollToElement(button)
         requireExists(button, timeout: 8, message: "PDF export button should exist").tap()
 
-        let shareSheet = app.otherElements["ActivityListView"]
+        let shareSheet = app.byID("ActivityListView")
         requireExists(shareSheet, timeout: 30, message: "The share sheet should open with the exported report")
         // Let the sheet finish presenting before it is screenshotted or dismissed.
         _ = app.buttons["Close"].waitForExistence(timeout: 3)

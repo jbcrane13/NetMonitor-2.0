@@ -7,7 +7,7 @@ final class ScheduledScanUITests: IOSUITestCase {
         openSettings()
 
         // Look for the scheduled scan navigation link
-        let settingsScreen = app.descendants(matching: .any)["screen_settings"]
+        let settingsScreen = app.byID("screen_settings")
         if !settingsScreen.waitForExistence(timeout: 3) {
             // Try navigating to Settings tab
             let settingsTab = app.tabBars.buttons["Settings"]
@@ -27,7 +27,7 @@ final class ScheduledScanUITests: IOSUITestCase {
         navigateToScheduledScan()
 
         XCTAssertTrue(
-            app.descendants(matching: .any)["screen_scheduledScan"].waitForExistence(timeout: 5) ||
+            app.byID("screen_scheduledScan").waitForExistence(timeout: 5) ||
             app.navigationBars.firstMatch.waitForExistence(timeout: 3),
             "Scheduled scan settings screen should be visible"
         )
@@ -197,7 +197,7 @@ final class ScheduledScanUITests: IOSUITestCase {
             requireExists(app.navigationBars.buttons.firstMatch, message: "A navigation bar button should exist for settings").tap()
         }
 
-        requireExists(app.descendants(matching: .any)["screen_settings"], timeout: 8, message: "Settings screen should open")
+        requireExists(app.byID("screen_settings"), timeout: 8, message: "Settings screen should open")
     }
 
     private func navigateToScheduledScan() {

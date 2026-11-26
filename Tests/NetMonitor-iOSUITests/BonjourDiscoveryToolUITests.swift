@@ -5,18 +5,18 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
 
     private func navigateToBonjourTool() {
         app.tabBars.buttons["Tools"].tap()
-        let bonjourCard = app.otherElements["tools_card_bonjour"]
+        let bonjourCard = app.byID("tools_card_bonjour")
         scrollToElement(bonjourCard)
         requireExists(bonjourCard, timeout: 8, message: "Bonjour tool card should exist")
         bonjourCard.tap()
-        requireExists(app.otherElements["screen_bonjourTool"], timeout: 8, message: "Bonjour tool screen should appear")
+        requireExists(app.byID("screen_bonjourTool"), timeout: 8, message: "Bonjour tool screen should appear")
     }
 
     // MARK: - Screen Existence
 
     func testBonjourScreenExistsAndShowsControls() throws {
         navigateToBonjourTool()
-        let screen = app.otherElements["screen_bonjourTool"]
+        let screen = app.byID("screen_bonjourTool")
         XCTAssertTrue(screen.waitForExistence(timeout: 5), "Bonjour screen should exist")
         // FUNCTIONAL: screen should contain run button
         XCTAssertTrue(
@@ -47,8 +47,8 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         let runButton = requireExists(app.buttons["bonjour_button_run"], message: "Run button should exist")
         runButton.tap()
 
-        let services = app.otherElements["bonjour_section_services"]
-        let emptyState = app.otherElements["bonjour_label_noServices"]
+        let services = app.byID("bonjour_section_services")
+        let emptyState = app.byID("bonjour_label_noServices")
         let discovering = app.staticTexts["Discovering services..."]
         XCTAssertTrue(
             waitForEither([services, emptyState, discovering], timeout: 10),
@@ -67,8 +67,8 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         runButton.tap()
 
         let discovering = app.staticTexts["Discovering services..."]
-        let services = app.otherElements["bonjour_section_services"]
-        let emptyState = app.otherElements["bonjour_label_noServices"]
+        let services = app.byID("bonjour_section_services")
+        let emptyState = app.byID("bonjour_label_noServices")
         XCTAssertTrue(
             waitForEither([discovering, services, emptyState], timeout: 10),
             "Bonjour should enter running state"
@@ -76,7 +76,7 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
 
         runButton.tap()
         // FUNCTIONAL: screen should still be visible and functional after stopping
-        requireExists(app.otherElements["screen_bonjourTool"], message: "Bonjour screen should remain visible after stopping")
+        requireExists(app.byID("screen_bonjourTool"), message: "Bonjour screen should remain visible after stopping")
         XCTAssertTrue(runButton.exists, "Run button should be accessible after stopping")
     }
 
@@ -85,8 +85,8 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         let runButton = requireExists(app.buttons["bonjour_button_run"], message: "Run button should exist")
         runButton.tap()
 
-        let services = app.otherElements["bonjour_section_services"]
-        let emptyState = app.otherElements["bonjour_label_noServices"]
+        let services = app.byID("bonjour_section_services")
+        let emptyState = app.byID("bonjour_label_noServices")
         _ = waitForEither([services, emptyState], timeout: 10)
 
         runButton.tap()
@@ -107,8 +107,8 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         let runButton = requireExists(app.buttons["bonjour_button_run"], message: "Run button should exist")
         runButton.tap()
 
-        let services = app.otherElements["bonjour_section_services"]
-        let emptyState = app.otherElements["bonjour_label_noServices"]
+        let services = app.byID("bonjour_section_services")
+        let emptyState = app.byID("bonjour_label_noServices")
         _ = waitForEither([services, emptyState], timeout: 10)
 
         runButton.tap()
@@ -120,7 +120,7 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         )
         if emptyState.exists {
             XCTAssertTrue(
-                emptyState.staticTexts.count > 0,
+                !emptyState.staticTexts.hasNoMatches,
                 "Empty state should contain descriptive text"
             )
         }
@@ -132,7 +132,7 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         navigateToBonjourTool()
 
         let pickerButton = app.buttons["bonjour_picker_serviceType"]
-        let pickerElement = app.otherElements["bonjour_picker_serviceType"]
+        let pickerElement = app.byID("bonjour_picker_serviceType")
         let segmentedControl = app.segmentedControls.firstMatch
 
         let pickerExists = pickerButton.waitForExistence(timeout: 5)
@@ -142,8 +142,12 @@ final class BonjourDiscoveryToolUITests: IOSUITestCase {
         XCTAssertTrue(pickerExists, "Bonjour service type picker or filter control should exist on the screen")
         // FUNCTIONAL: picker/control should be interactive
         let activeControl: XCUIElement = {
-            if pickerButton.exists { return pickerButton }
-            if pickerElement.exists { return pickerElement }
+            if pickerButton.exists {
+                return pickerButton
+            }
+            if pickerElement.exists {
+                return pickerElement
+            }
             return segmentedControl
         }()
         XCTAssertTrue(activeControl.isEnabled, "Service type picker should be interactive")

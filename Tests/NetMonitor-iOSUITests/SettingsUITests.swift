@@ -109,7 +109,7 @@ final class SettingsUITests: XCTestCase {
 
     func testAutoRefreshIntervalPickerExistsAndShowsValue() throws {
         app.swipeUp()
-        let pickerElement = app.otherElements["settings_picker_autoRefreshInterval"]
+        let pickerElement = app.byID("settings_picker_autoRefreshInterval")
         let pickerButton = app.buttons["settings_picker_autoRefreshInterval"]
         XCTAssertTrue(
             pickerElement.waitForExistence(timeout: 5) ||
@@ -176,7 +176,7 @@ final class SettingsUITests: XCTestCase {
     func testDataRetentionPickerExistsAndShowsValue() throws {
         app.swipeUp()
         app.swipeUp()
-        let pickerElement = app.otherElements["settings_picker_dataRetention"]
+        let pickerElement = app.byID("settings_picker_dataRetention")
         let pickerButton = app.buttons["settings_picker_dataRetention"]
         XCTAssertTrue(
             pickerElement.waitForExistence(timeout: 5) ||
@@ -233,7 +233,7 @@ final class SettingsUITests: XCTestCase {
             || app.staticTexts.matching(
                 NSPredicate(format: "label CONTAINS[c] 'cleared'")
             ).firstMatch.waitForExistence(timeout: 3)
-            || app.otherElements["screen_settings"].exists
+            || app.byID("screen_settings").exists
         XCTAssertTrue(
             hasResponse,
             "Clear cache should show confirmation alert, success message, or remain on settings"
@@ -403,7 +403,7 @@ final class SettingsUITests: XCTestCase {
     }
 
     func testPingCountStepperChangesValue() throws {
-        let stepper = app.otherElements["settings_stepper_pingCount"]
+        let stepper = app.byID("settings_stepper_pingCount")
         guard stepper.waitForExistence(timeout: 5) else { return }
 
         // Get initial value from the associated label near the stepper
