@@ -113,6 +113,8 @@ enum UITestBootstrap {
             }
             let backgroundTask = UIApplication.shared.beginBackgroundTask()
             let service = BackgroundTaskService(registerTask: { _, _, _ in false }, insightService: insight, isScanning: { false })
+            // The demo is a scheduled scan's alert, which needs scheduled scanning on (#619).
+            UserDefaults.standard.set(true, forKey: "scheduledScan_enabled")
             await service.notifyScanChanges(ScanDiff(newDevices: [], removedDevices: [demoDevice], changedDevices: []))
             UIApplication.shared.endBackgroundTask(backgroundTask)
         }

@@ -81,7 +81,7 @@ final class DeviceEventConsumerTests {
 
     /// Turns the scheduled-scan alert toggles on for one test.
     func withScanAlertsOn(_ body: () async throws -> Void) async rethrows {
-        let keys = ["scheduledScan_notifyNew", "scheduledScan_notifyMissing"]
+        let keys = ["scheduledScan_enabled", "scheduledScan_notifyNew", "scheduledScan_notifyMissing"]
         let originals = keys.map { UserDefaults.standard.object(forKey: $0) }
         keys.forEach { UserDefaults.standard.set(true, forKey: $0) }
         defer { zip(keys, originals).forEach { restoreDefault(.standard, key: $0, to: $1) } }
@@ -171,13 +171,26 @@ final class DeviceEventConsumerTests {
     func alertsFollowToggles() async throws {
         let poster = EventAlertPoster()
         let service = alertService(poster)
-        let original = UserDefaults.standard.object(forKey: "scheduledScan_notifyNew")
-        UserDefaults.standard.set(false, forKey: "scheduledScan_notifyNew")
-        defer { restoreDefault(.standard, key: "scheduledScan_notifyNew", to: original) }
-        try reconcile([router], at: 0)
-        try reconcile([router, seen("192.168.1.57", name: "pixel-8")], at: 1)
-        await service.deviceEventAlertsPosted()
-        #expect(poster.requests.isEmpty)
+        try await withScanAlertsOn {
+            UserDefaults.standard.set(false, forKey: "scheduledScan_notifyNew")
+            try reconcile([router], at: 0)
+            try reconcile([router, seen("192.168.1.57", name: "pixel-8")], at: 1)
+            await service.deviceEventAlertsPosted()
+            #expect(poster.requests.isEmpty)
+        }
+    }
+
+    @Test("Without scheduled scanning on, a foreground join notifies nothing, as on main (#619)")
+    func scanAlertsNeedScheduledScanning() async throws {
+        let poster = EventAlertPoster()
+        let service = alertService(poster)
+        try await withScanAlertsOn {
+            UserDefaults.standard.set(false, forKey: "scheduledScan_enabled")
+            try reconcile([router], at: 0)
+            try reconcile([router, seen("192.168.1.57", name: "pixel-8")], at: 1)
+            await service.deviceEventAlertsPosted()
+            #expect(poster.requests.isEmpty)
+        }
     }
 
     @Test("A device back online is logged with the Mac's wording, once")

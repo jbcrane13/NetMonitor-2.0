@@ -131,7 +131,7 @@ struct ScheduledScanAlertTextTests {
     )
 
     private func run(available: Bool, scanning: Bool = false) async -> ([UNNotificationRequest], Int) {
-        let keys = ["scheduledScan_notifyNew", "scheduledScan_notifyMissing"]
+        let keys = ["scheduledScan_enabled", "scheduledScan_notifyNew", "scheduledScan_notifyMissing"]
         let originals = keys.map { UserDefaults.standard.object(forKey: $0) }
         keys.forEach { UserDefaults.standard.set(true, forKey: $0) }
         defer { zip(keys, originals).forEach { restoreDefault(.standard, key: $0, to: $1) } }
