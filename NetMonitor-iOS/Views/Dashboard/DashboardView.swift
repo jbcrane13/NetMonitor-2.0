@@ -730,10 +730,11 @@ struct LocalDevicesCard: View {
     }
 
     var body: some View {
+        let presence = presenceModel?.snapshot ?? DevicePresenceModel.noScans
         let list = SavedDeviceList(
             saved: saved.rows, live: viewModel.discoveredDevices,
-            network: viewModel.deviceNetworkID, sort: .status, showPast: false,
-            presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
+            network: viewModel.deviceNetworkID, sort: .status, showPast: false, presence: presence,
+            inventory: MacConnectionService.shared.inventory(for: viewModel.activeNetwork, now: presence.now)
         )
         NavigationLink(value: DeviceListRoute()) {
             card(list)
@@ -773,6 +774,8 @@ struct LocalDevicesCard: View {
                         case .found(let device):
                             DeviceRow(device: device, isOnline: list.freshness(of: device).isOnline)
                                 .accessibilityValue(list.foundText(device))
+                        case .mac(let record):
+                            MacOnlyDeviceRow(record: record, now: list.presence.now)
                         }
                         if entry.id != entries.last?.id {
                             Divider()
@@ -820,7 +823,7 @@ struct SavedDeviceRow: View {
     let list: SavedDeviceList
 
     var body: some View {
-        let freshness = list.presence.freshness(of: device)
+        let freshness = list.freshness(of: device)
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
@@ -862,7 +865,7 @@ struct SavedDeviceRow: View {
                             .accessibilityHidden(true)
                     }
                 }
-                Text(list.presence.relativeLastSeen(device))
+                Text(list.relativeLastSeen(device))
                     .font(.system(.caption2, design: .rounded))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .accessibilityHidden(true)
@@ -871,7 +874,7 @@ struct SavedDeviceRow: View {
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         // The state and last seen once, from the one place that words them.
-        .accessibilityValue(list.presence.accessibilityText(device))
+        .accessibilityValue(list.accessibilityText(device))
         .accessibilityIdentifier("dashboard_device_row_\(device.ipAddress)")
     }
 }

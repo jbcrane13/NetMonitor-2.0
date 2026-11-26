@@ -198,6 +198,27 @@ struct MacConnectionServiceTests {
         #expect(service.lastDeviceList?.devices.count == 1)
     }
 
+    /// #585: a Mac that advertises `inventory.v1` is the phone's source until the link ends, by any
+    /// path, so a dropped link never leaves its list shown as the Mac's.
+    @Test("a Mac offering its inventory is the source until the link drops")
+    func inventoryCapabilityLastsForTheLink() async throws {
+        let service = MacConnectionService.shared
+        service.disconnect()
+        #expect(!service.macOffersInventory)
+
+        let plain = try CompanionMessage.heartbeat(HeartbeatPayload()).encodeLengthPrefixed()
+        await service.processIncomingDataForTesting(plain)
+        #expect(!service.macOffersInventory)
+
+        let offered = try CompanionMessage.heartbeat(HeartbeatPayload(capabilities: [CompanionCapability.inventory]))
+            .encodeLengthPrefixed()
+        await service.processIncomingDataForTesting(offered)
+        #expect(service.macOffersInventory)
+
+        service.dropLinkForTesting()
+        #expect(!service.macOffersInventory)
+    }
+
     @Test("reconnect policy uses capped exponential backoff")
     func reconnectBackoffPolicy() {
         // Backoff now lives on CompanionLinkSession (Packages/NetMonitorCore); this test

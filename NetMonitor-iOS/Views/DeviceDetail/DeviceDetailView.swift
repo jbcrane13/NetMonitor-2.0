@@ -199,15 +199,31 @@ struct DeviceDetailView: View {
 
             // What the saved status means now (#583); the presence model refreshes every minute.
             // A device of several interfaces is online while any member is (#594).
+            // While the connected Mac's inventory is shown, its state with that source, and this
+            // iPhone's own sighting apart from it (#585).
+            let macRecord = viewModel.projection.flatMap {
+                MacConnectionService.shared.macRecord(of: $0, in: modelContext, now: presence.now)
+            }
             HStack(spacing: 8) {
-                PresenceDot(freshness: viewModel.freshness(presence))
-                Text(viewModel.projection.map { presence.statusText($0) } ?? presence.statusText(device))
+                PresenceDot(freshness: macRecord?.state ?? viewModel.freshness(presence))
+                Text(macRecord?.statusText(now: presence.now) ?? viewModel.projection.map { presence.statusText($0) } ?? presence.statusText(device))
                     .font(.subheadline)
                     .foregroundStyle(Theme.Colors.textSecondary)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(viewModel.projection.map { presence.accessibilityText($0) } ?? presence.accessibilityText(device))
+            .accessibilityLabel(
+                macRecord?.accessibilityText(now: presence.now)
+                    ?? viewModel.projection.map { presence.accessibilityText($0) } ?? presence.accessibilityText(device)
+            )
             .accessibilityIdentifier("deviceDetail_label_status")
+
+            if macRecord != nil, let projection = viewModel.projection {
+                Label(MacInventory.phoneSightingText(projection.lastSeen, now: presence.now), systemImage: "iphone")
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("deviceDetail_label_phoneSighting")
+            }
 
             if let maker = device.maker {
                 Text(maker)

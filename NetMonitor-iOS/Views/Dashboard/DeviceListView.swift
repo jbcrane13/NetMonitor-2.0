@@ -35,9 +35,10 @@ struct DeviceListView: View {
 
     var body: some View {
         // The presence model refreshes after each saved scan and every minute.
+        let presence = presenceModel?.snapshot ?? DevicePresenceModel.noScans
         let list = SavedDeviceList(
             saved: saved.rows, live: discoveredDevices, network: networkID, sort: sortOrder, showPast: showPastDevices,
-            presence: presenceModel?.snapshot ?? DevicePresenceModel.noScans
+            presence: presence, inventory: MacConnectionService.shared.inventory(for: networkProfile, now: presence.now)
         )
         ScrollView {
             if saved.isLoaded, list.entries.isEmpty, list.pastCount == 0, !isScanning {
@@ -75,6 +76,7 @@ struct DeviceListView: View {
     private func content(_ list: SavedDeviceList) -> some View {
         VStack(spacing: Theme.Layout.itemSpacing) {
             header(count: "\(list.onlineCount) online · \(list.entries.count) devices")
+            MacInventoryBanner(list: list)
 
             if isScanning {
                 HStack(spacing: 8) {
@@ -96,6 +98,8 @@ struct DeviceListView: View {
                     savedLink(device, in: list)
                 case .found(let device):
                     foundLink(device, in: list)
+                case .mac(let record):
+                    GlassCard { MacOnlyDeviceRow(record: record, now: list.presence.now) }
                 }
             }
 
@@ -121,9 +125,9 @@ struct DeviceListView: View {
                 savedRow(device, in: list)
             }
         }
-        .opacity(list.presence.freshness(of: device).isOnline ? 1 : 0.7)
+        .opacity(list.freshness(of: device).isOnline ? 1 : 0.7)
         // The row's value says the state once; the visible status line is hidden from VoiceOver.
-        .accessibilityValue(list.presence.accessibilityText(device))
+        .accessibilityValue([list.accessibilityText(device), list.phoneSightingText(device)].compactMap { $0 }.joined(separator: ". "))
         .accessibilityIdentifier("deviceList_row_device_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
     }
 
@@ -166,10 +170,11 @@ struct DeviceListView: View {
                     }
 
                     PresenceLine(
-                        freshness: list.presence.freshness(of: device), text: list.presence.statusText(device),
+                        freshness: list.freshness(of: device), text: list.statusText(device),
                         accessibilityID: "deviceList_label_presence_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))"
                     )
                         .accessibilityHidden(true)
+                    phoneSighting(device, in: list)
                 }
 
                 Spacer()
@@ -186,7 +191,7 @@ struct DeviceListView: View {
         GlassCard(padding: 10) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    PresenceDot(freshness: list.presence.freshness(of: device))
+                    PresenceDot(freshness: list.freshness(of: device))
                     Text(device.ipAddress)
                         .font(.system(size: 13, weight: .bold, design: .monospaced))
                         .foregroundStyle(Theme.Colors.textPrimary)
@@ -201,13 +206,27 @@ struct DeviceListView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .lineLimit(1)
-                Text(list.presence.statusText(device))
+                Text(list.statusText(device))
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Theme.Colors.textTertiary)
                     .lineLimit(1)
                     .accessibilityHidden(true)
+                phoneSighting(device, in: list)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// "Seen by this iPhone at 10:42 AM" while the Mac's inventory is shown (#585).
+    @ViewBuilder
+    private func phoneSighting(_ device: DeviceProjection, in list: SavedDeviceList) -> some View {
+        if let text = list.phoneSightingText(device) {
+            Label(text, systemImage: "iphone")
+                .font(.caption2)
+                .foregroundStyle(Theme.Colors.textTertiary)
+                .lineLimit(1)
+                .accessibilityHidden(true)
+                .accessibilityIdentifier("deviceList_label_phoneSighting_\(device.ipAddress.replacingOccurrences(of: ".", with: "_"))")
         }
     }
 

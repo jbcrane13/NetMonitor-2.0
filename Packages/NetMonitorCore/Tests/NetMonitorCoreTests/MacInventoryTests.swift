@@ -106,6 +106,32 @@ struct MacInventoryTests {
         #expect(record.model == "Era 100")
     }
 
+    // MARK: - Wording
+
+    @Test func aRecordSaysItsStateComesFromTheMac() throws {
+        let inventory = try Self.live(Self.list([
+            Self.device("192.168.77.20", online: true, lastSeenAge: 120), Self.device("192.168.77.21", online: false, lastSeenAge: nil)
+        ]))
+        let seen = try #require(inventory.records.first { $0.ipAddress == "192.168.77.20" })
+        #expect(seen.statusText(now: Self.now) == "Online · from your Mac · last seen 2 min ago")
+        #expect(seen.accessibilityText(now: Self.now) == "Online, from your Mac, last seen 2 min ago")
+        let unseen = try #require(inventory.records.first { $0.ipAddress == "192.168.77.21" })
+        #expect(unseen.statusText(now: Self.now) == "Offline · from your Mac")
+    }
+
+    @Test func thePhonesOwnSightingSaysWhenThisIPhoneSawIt() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+        let locale = Locale(identifier: "en_US")
+        // 2026-09-21 14:13:20 UTC.
+        // The formatter puts a narrow no-break space before "PM".
+        func text(_ date: Date) -> String {
+            MacInventory.phoneSightingText(date, now: Self.now, calendar: calendar, locale: locale).replacingOccurrences(of: "\u{202F}", with: " ")
+        }
+        #expect(text(Self.now - 600) == "Seen by this iPhone at 2:03 PM")
+        #expect(text(Self.now - 2 * 86400) == "Seen by this iPhone on Sep 19 at 2:13 PM")
+    }
+
     // MARK: - Matching
 
     @Test func matchesByMACWhenBothHaveOne() throws {

@@ -34,6 +34,31 @@ public struct MacInventory: Sendable, Equatable {
         public let maker: String?
         public let model: String?
         public let deviceType: DeviceType
+
+        /// "Online · from your Mac · last seen 2 min ago": the state with its source.
+        public func statusText(now: Date) -> String {
+            let seen = lastSeen.map { " · last seen \(PresenceFreshness.relativeText(since: $0, now: now))" } ?? ""
+            return "\(state.label) · from your Mac\(seen)"
+        }
+
+        /// "Online, from your Mac, last seen 2 min ago", for VoiceOver.
+        public func accessibilityText(now: Date) -> String {
+            let seen = lastSeen.map { ", last seen \(PresenceFreshness.relativeText(since: $0, now: now))" } ?? ""
+            return "\(state.label), from your Mac\(seen)"
+        }
+    }
+
+    /// "Seen by this iPhone at 10:42 AM", or "… on Nov 24 at 10:42 AM" before today: the phone's
+    /// own sighting, apart from the Mac's (#585).
+    public static func phoneSightingText(
+        _ date: Date, now: Date, calendar: Calendar = .current, locale: Locale = .current
+    ) -> String {
+        var time = Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, calendar: calendar)
+        time.timeZone = calendar.timeZone
+        guard !calendar.isDate(date, inSameDayAs: now) else { return "Seen by this iPhone at \(date.formatted(time))" }
+        var day = Date.FormatStyle(locale: locale, calendar: calendar).month(.abbreviated).day()
+        day.timeZone = calendar.timeZone
+        return "Seen by this iPhone on \(date.formatted(day)) at \(date.formatted(time))"
     }
 
     /// When the Mac's latest scan was, on the phone's clock.
