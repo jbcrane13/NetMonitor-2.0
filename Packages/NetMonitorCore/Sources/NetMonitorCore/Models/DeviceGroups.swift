@@ -112,9 +112,27 @@ public enum DeviceGroups {
 
     /// A custom name, notes, a serial or a value the user confirmed.
     public static func hasUserContent(_ row: LocalDevice) -> Bool {
+        !userContent(of: row).isEmpty
+    }
+
+    /// What the user entered on a row, worded for a confirmation ("This deletes … with its
+    /// custom name and its notes."): the one list both apps show before removing an interface.
+    public static func userContent(of row: LocalDevice) -> [String] {
         let identity = row.identity
-        return !(row.customName ?? "").isEmpty || !(row.notes ?? "").isEmpty || !(row.serialNumber ?? "").isEmpty
-            || [identity.maker, identity.model, identity.serial].contains { $0?.source == .userConfirmed }
+        var parts: [String] = []
+        if !(row.customName ?? "").isEmpty {
+            parts.append("its custom name")
+        }
+        if !(row.notes ?? "").isEmpty {
+            parts.append("its notes")
+        }
+        if !(row.serialNumber ?? "").isEmpty {
+            parts.append("its serial number")
+        }
+        if [identity.maker, identity.model].contains(where: { $0?.source == .userConfirmed }) {
+            parts.append("the maker and model you confirmed")
+        }
+        return parts
     }
 
     static func primary(of members: [LocalDevice]) -> LocalDevice {

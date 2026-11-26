@@ -126,6 +126,31 @@ struct DeviceGroupWriterTests {
         #expect(try all().isEmpty)
     }
 
+    @Test("Deleting several devices deletes every member of each in one save, once each")
+    func deletesSeveralDevices() throws {
+        let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40"), charlie = try row("10.0.0.50"), kept = try row("10.0.0.60")
+        let id = try writer.group([alpha.id, bravo.id], primary: alpha.id, source: .user)
+        var saves = 0
+        let counting = DeviceGroupWriter(context: context, save: { saves += 1
+            try $0.save()
+        })
+        try counting.deleteDevices([id, bravo.id, charlie.id, UUID()])
+        #expect(try all().map(\.id) == [kept.id])
+        #expect(saves == 1)
+    }
+
+    @Test("A row's user content is listed in the words a confirmation uses")
+    func userContentWording() throws {
+        let plain = try row("10.0.0.10")
+        #expect(DeviceGroups.userContent(of: plain).isEmpty && !DeviceGroups.hasUserContent(plain))
+        let noted = try row("10.0.0.40", notes: "desk")
+        noted.customName = "Mac"
+        noted.identity = DeviceIdentity(
+            model: IdentityValue("Mac16,10", source: .userConfirmed), serial: IdentityValue("C02", source: .userConfirmed)
+        )
+        #expect(DeviceGroups.userContent(of: noted) == ["its custom name", "its notes", "its serial number", "the maker and model you confirmed"])
+    }
+
     @Test("Repair gives a group with a stale primary a member primary, and dissolves a group of one")
     func repairs() throws {
         let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40", firstSeen: 100), lone = try row("10.0.0.50")

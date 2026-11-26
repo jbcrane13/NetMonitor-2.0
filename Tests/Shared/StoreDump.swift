@@ -16,6 +16,8 @@ struct StoreDump: Equatable, CustomStringConvertible {
         var db: OpaquePointer?
         guard sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { throw DumpError.open(url.path) }
         defer { sqlite3_close(db) }
+        // SwiftData may still be closing its own connection to the store.
+        sqlite3_busy_timeout(db, 5000)
         let tables = try Self.query(db, "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'Z%' AND name NOT LIKE 'Z\\_%' ESCAPE '\\'")
             .compactMap { $0["name"] }
         var columns: [String: [String]] = [:]
@@ -46,7 +48,9 @@ struct StoreDump: Equatable, CustomStringConvertible {
 
     private static func query(_ db: OpaquePointer?, _ sql: String) throws -> [[String: String]] {
         var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { throw DumpError.query(sql) }
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw DumpError.query("\(sql): \(String(cString: sqlite3_errmsg(db)))")
+        }
         defer { sqlite3_finalize(statement) }
         var result: [[String: String]] = []
         while sqlite3_step(statement) == SQLITE_ROW {

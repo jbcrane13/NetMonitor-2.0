@@ -128,14 +128,15 @@ extension RulesForm {
     /// Whether an enabled monitoring target checks the device, by the draft's rule.
     private func deviceHasTarget(_ deviceID: UUID?) -> Bool {
         guard let deviceID else { return false }
-        let device = ruleDevices.first { $0.memberIDs.contains(deviceID) }
+        // Any interface of the device counts (#594).
+        let device = DeviceGroupResolver(rows: LocalDeviceQueries.completed(ruleDevices, in: modelContext)).device(for: deviceID)
         return PlainRuleMacViewModel.isMonitored(
             deviceID: deviceID,
             address: device?.ipAddress,
             targets: targets,
             linkedDevice: store.device(forTarget:),
             memberIDs: device?.memberIDs ?? [],
-            addresses: device?.addresses ?? []
+            addresses: Set(device?.members.map(\.ipAddress) ?? [])
         )
     }
 }

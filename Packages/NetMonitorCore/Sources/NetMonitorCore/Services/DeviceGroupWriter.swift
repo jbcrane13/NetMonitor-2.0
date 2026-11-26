@@ -131,6 +131,19 @@ public struct DeviceGroupWriter {
         }
     }
 
+    /// "Delete device" for several devices at once (a list's Clear): every member of each, in one
+    /// save. IDs that name no device are skipped.
+    public func deleteDevices(_ ids: [UUID]) throws {
+        try committing {
+            let resolver = try DeviceGroupResolver(rows: fetchAll())
+            var deleted = Set<UUID>()
+            for id in ids {
+                guard let device = resolver.device(for: id), deleted.insert(device.id).inserted else { continue }
+                device.members.forEach(context.delete)
+            }
+        }
+    }
+
     /// Deletes every device row (Settings › clear saved devices).
     public func deleteAll() throws {
         try committing {
