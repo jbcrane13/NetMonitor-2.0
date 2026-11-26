@@ -85,6 +85,58 @@ struct SchemaV4MigrationTests {
         #expect(reread.bonjourHost == "studio.local")
     }
 
+    /// V2 → V3 rebuilds `vendor` from the MAC prefix and may move the old vendor into
+    /// `manufacturer` (#462); every other stored value must survive the whole chain.
+    @Test("2.2 and 2.2.3 stores keep every stored value through V4, except the vendor rebuild", arguments: ["v2.2-default", "v2.2.3-default"])
+    func olderStoresKeepEveryValue(name: String) throws {
+        let (directory, url) = try copyFixture(name)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        var compared = try StoreDump(url).columns
+        compared["ZLOCALDEVICE"] = compared["ZLOCALDEVICE"]?.filter { !["ZVENDOR", "ZMANUFACTURER"].contains($0) }
+        let before = try StoreDump(url, onlyColumns: compared)
+        #expect(before.rowCount > 0)
+        let outcome = try MacPersistence.makeOutcome(storeURL: url, inMemory: false)
+        #expect(!outcome.isDegraded, "fell back: \(outcome.recovery?.diagnosticText ?? "")")
+        withExtendedLifetime(outcome.store) {}
+        #expect(try StoreDump(url, onlyColumns: compared) == before)
+    }
+
+    @Test("A 5,000-device V2 store migrates through V3 and V4 with every device kept")
+    func largeV2StoreMigrates() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "netmonitor-v4-large-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appending(path: "default.store")
+        do {
+            let schema = Schema(versionedSchema: SchemaV2.self)
+            let container = try ModelContainer(
+                for: schema, migrationPlan: OnlyV2Plan.self,
+                configurations: [ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none)]
+            )
+            let context = ModelContext(container)
+            context.autosaveEnabled = false
+            for index in 0..<5000 {
+                let mac = String(format: "00:11:22:%02X:%02X:%02X", (index >> 16) & 0xFF, (index >> 8) & 0xFF, index & 0xFF)
+                let row = SchemaV2.LocalDevice(ipAddress: "10.\(index / 65536).\((index / 256) % 256).\(index % 256)", macAddress: mac, vendor: "Acme")
+                row.notes = index == 0 ? "Serial: BIG1" : nil
+                context.insert(row)
+            }
+            try context.save()
+        }
+        let started = Date()
+        let outcome = try MacPersistence.makeOutcome(storeURL: url, inMemory: false)
+        let elapsed = Date().timeIntervalSince(started)
+        #expect(!outcome.isDegraded, "fell back: \(outcome.recovery?.diagnosticText ?? "")")
+        let context = ModelContext(outcome.store)
+        #expect(try context.fetchCount(FetchDescriptor<LocalDevice>()) == 5000)
+        #expect(try context.fetchCount(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.manufacturer == "Acme" })) == 5000,
+                "the vendor rebuild ran on every row (Acme isn't the 00:11:22 prefix's maker)")
+        #expect(elapsed < 60, "migrating 5,000 devices took \(elapsed) s")
+        DeviceStoreMaintenance.runAtLaunch(on: outcome.store)
+        #expect(try ModelContext(outcome.store).fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.serialNumber != nil })).count == 1)
+    }
+
     @Test("The V4 schema adds only optional LocalDevice fields to V3")
     func v4AddsOnlyOptionalFields() throws {
         let v3 = try #require(Schema(versionedSchema: SchemaV3.self).entities.first { $0.name == "LocalDevice" })
@@ -100,6 +152,12 @@ struct SchemaV4MigrationTests {
         #expect(Set(v3.storedPropertiesByName.keys).isSubset(of: v4.storedPropertiesByName.keys))
         #expect(SchemaV3.versionIdentifier != SchemaV4.versionIdentifier)
     }
+}
+
+/// Writes a store as 2.2.2–2.2.3 did.
+private enum OnlyV2Plan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] { [SchemaV2.self] }
+    static var stages: [MigrationStage] { [] }
 }
 
 /// Opens a store only if it already is V3 (no stages), so the hash comparison is exact.
