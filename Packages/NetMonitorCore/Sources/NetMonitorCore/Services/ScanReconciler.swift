@@ -139,7 +139,7 @@ public struct ScanReconciler {
     private let holdsUnassignedForDetail: Bool
     private let save: @MainActor (ModelContext) throws -> Void
     private let fetch: @MainActor (ModelContext) throws -> [LocalDevice]
-    private let dispatcher: (any DeviceEventDispatching)?
+    private let dispatcher: (any DeviceEventDispatcherProtocol)?
 
     /// Reads every saved row; the default for `fetch`.
     public static let fetchAllRows: @MainActor (ModelContext) throws -> [LocalDevice] = { try $0.fetch(FetchDescriptor<LocalDevice>()) }
@@ -157,7 +157,7 @@ public struct ScanReconciler {
         holdsUnassignedForDetail: Bool = true,
         save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
         fetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows,
-        dispatcher: (any DeviceEventDispatching)? = nil
+        dispatcher: (any DeviceEventDispatcherProtocol)? = nil
     ) {
         self.context = context
         self.history = history

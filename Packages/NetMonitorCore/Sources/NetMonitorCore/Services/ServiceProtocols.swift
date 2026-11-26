@@ -419,6 +419,22 @@ public protocol NetworkHealthScoreServiceProtocol: AnyObject, Sendable {
     func calculateScore() async -> NetworkHealthScore
 }
 
+/// Where device events go (#603): the reconcile that applied a scan, and the user's grouping
+/// actions, deliver; Timeline, alerts and notifications subscribe. `DeviceEventDispatcher.shared`
+/// is the app's one; tests make their own.
+@MainActor
+public protocol DeviceEventDispatcherProtocol: AnyObject, Sendable {
+    /// Calls `handler` with every later batch until `unsubscribe` is called with the returned token.
+    @discardableResult
+    func subscribe(_ handler: @escaping DeviceEventDispatcher.Handler) -> UUID
+    /// Calls `handler` with every later batch while `owner` exists (or until `unsubscribe`): the
+    /// subscription ends with its owner, so the owner needs no deinit to end it.
+    @discardableResult
+    func subscribe(owner: AnyObject, _ handler: @escaping DeviceEventDispatcher.Handler) -> UUID
+    func unsubscribe(_ token: UUID)
+    func deliver(_ batch: DeviceEventBatch)
+}
+
 /// Protocol for scheduling recurring scans and reading the last scan's changes.
 @MainActor
 public protocol ScanSchedulerServiceProtocol: AnyObject, Sendable {

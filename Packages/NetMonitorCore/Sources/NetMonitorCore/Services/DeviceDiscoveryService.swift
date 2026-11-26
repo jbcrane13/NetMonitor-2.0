@@ -391,10 +391,10 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     ) -> (devices: [DiscoveredDevice], fresh: Bool) {
         guard let list else { return ([], false) }
         let fresh = macConnected && receivedAt.map { now.timeIntervalSince($0) < companionListFreshness } == true
-        func sighting(ipAddress: String, macAddress: String?, of device: DeviceInfo) -> DiscoveredDevice {
+        func sighting(ipAddress: String, macAddress: String?, of device: DeviceInfo, named: Bool = true) -> DiscoveredDevice {
             DiscoveredDevice(
                 ipAddress: ipAddress,
-                hostname: device.hostname,
+                hostname: named ? device.hostname : nil,
                 vendor: device.vendor,
                 macAddress: (macAddress ?? "").isEmpty ? nil : macAddress,
                 latency: nil,
@@ -416,7 +416,12 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
                 let scannedHere = member.scanAge.map { (receivedAt ?? now).addingTimeInterval(-max($0, 0)) }
                 return member.answeredLatestScan && includes(member.ipAddress)
                     && (ownLastScan.map { own in scannedHere.map { $0 > own } ?? false } ?? true)
-            }.map { sighting(ipAddress: $0.ipAddress, macAddress: $0.macAddress, of: device) }
+            }.map { member in
+                // The device's name is its primary's: another interface's sighting carries none, so
+                // one without a MAC still matches the phone's own row at its address (#619).
+                let isPrimary = member.isPrimary ?? (members.count == 1)
+                return sighting(ipAddress: member.ipAddress, macAddress: member.macAddress, of: device, named: isPrimary)
+            }
         }
         return (devices, fresh)
     }

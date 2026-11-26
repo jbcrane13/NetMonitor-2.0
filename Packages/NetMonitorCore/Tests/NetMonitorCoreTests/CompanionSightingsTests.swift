@@ -145,6 +145,43 @@ struct CompanionSightingsTests {
         #expect(sightings(macClockAhead: 0, scanAgeAtSend: -3600, ownLastScan: now.addingTimeInterval(1)).isEmpty)
     }
 
+    @Test("Only the primary interface's sighting carries the device's name, so a secondary one without a MAC matches its own row (#619)")
+    @MainActor
+    func secondaryInterfaceSightingHasNoBorrowedName() throws {
+        let home = UUID()
+        let primary = MemberInfo(
+            id: UUID(), ipAddress: "192.168.7.10", macAddress: "AA:BB:CC:00:00:10", lastSeen: now, answeredLatestScan: true,
+            scanTime: now, scanAge: 0, isPrimary: true
+        )
+        let secondary = MemberInfo(
+            id: UUID(), ipAddress: "192.168.7.40", macAddress: nil, lastSeen: now, answeredLatestScan: true, scanTime: now, scanAge: 0,
+            isPrimary: false
+        )
+        let list = DeviceListPayload(devices: [DeviceInfo(
+            ipAddress: "192.168.7.10", macAddress: "AA:BB:CC:00:00:10", hostname: "studio", isOnline: true,
+            members: [primary, secondary], isDeviceOnline: true
+        )])
+        let sightings = DeviceDiscoveryService.companionSightings(
+            list: list, receivedAt: now, macConnected: true, now: now, includes: { _ in true }, profileID: home
+        ).devices
+        #expect(sightings.map(\.hostname) == ["studio", nil])
+
+        // The phone already has the Wi-Fi interface as its own row, named by its own scan.
+        let container = try ModelContainer(for: LocalDevice.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let wifi = LocalDevice(ipAddress: "192.168.7.40", macAddress: "", hostname: "studio-wifi", networkProfileID: home)
+        wifi.lastSeen = now.addingTimeInterval(-600)
+        context.insert(wifi)
+        try context.save()
+        let suite = "CompanionSecondary.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        _ = try ScanReconciler(context: context, history: ScanHistory(defaults: defaults))
+            .reconcile(sightings, networkProfileID: home, scanDate: now, now: now)
+        let rows = try ModelContext(container).fetch(FetchDescriptor<LocalDevice>()).filter { $0.ipAddress == "192.168.7.40" }
+        #expect(rows.map(\.id) == [wifi.id], "the sighting is the phone's row, not a duplicate")
+    }
+
     @Test func oldAndNewPayloadsDecodeBothWays() throws {
         // A Mac before #594 PR2 sends no members: a new phone reads nil.
         let old = #"{"devices":[{"id":"\#(UUID().uuidString)","ipAddress":"192.168.7.60","macAddress":"","hostname":"tv","deviceType":"tv","isOnline":true}]}"#

@@ -38,7 +38,7 @@ final class DeviceDetailViewModel {
     /// "Now" for the 30-day window of grouping suggestions (#594 PR2).
     let clock: @MainActor () -> Date
     /// Where grouping actions report a device coming back online (#619); nil reports nothing.
-    let dispatcher: (any DeviceEventDispatching)?
+    let dispatcher: (any DeviceEventDispatcherProtocol)?
     /// Suggestions, the override confirmation and the undo toast (#594 PR2).
     let grouping = DeviceGroupingState()
     private(set) var modelContext: ModelContext?
@@ -71,7 +71,7 @@ final class DeviceDetailViewModel {
         references: [any DeviceReferenceStore] = [NetworkEventService.shared],
         scanHistory: ScanHistory = ScanHistory(),
         clock: @escaping @MainActor () -> Date = Date.init,
-        dispatcher: (any DeviceEventDispatching)? = nil
+        dispatcher: (any DeviceEventDispatcherProtocol)? = nil
     ) {
         self.dispatcher = dispatcher
         self.macLookupService = macLookupService

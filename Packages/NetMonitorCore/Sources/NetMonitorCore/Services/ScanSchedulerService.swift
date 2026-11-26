@@ -14,19 +14,13 @@ public final class ScanSchedulerService: ScanSchedulerServiceProtocol {
     public private(set) var cachedDiff: ScanDiff?
 
     private var scheduledDate: Date?
-    private let dispatcher: any DeviceEventDispatching
+    private let dispatcher: any DeviceEventDispatcherProtocol
     private var subscription: UUID?
 
-    public init(dispatcher: any DeviceEventDispatching) {
+    public init(dispatcher: any DeviceEventDispatcherProtocol) {
         self.dispatcher = dispatcher
-        subscription = dispatcher.subscribe { [weak self] batch in
+        subscription = dispatcher.subscribe(owner: self) { [weak self] batch in
             self?.cachedDiff = ScanDiff(batch)
-        }
-    }
-
-    isolated deinit {
-        if let subscription {
-            dispatcher.unsubscribe(subscription)
         }
     }
 

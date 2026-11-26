@@ -317,6 +317,7 @@ Sent by the macOS app with discovered local network devices.
 | `answeredLatestScan` | Boolean | Whether it answered the Mac's latest scan of the network |
 | `scanTime` | Date? | When that scan was reconciled, on the Mac's clock; nil when the Mac has none |
 | `scanAge` | Number? | Seconds between that scan and sending this list, on the Mac's clock (#619) |
+| `isPrimary` | Boolean? | Whether this is the device's primary interface, the one `hostname` names (#619). The phone names only that member's sighting |
 
 The iPhone counts an interface as a sighting only when it answered the Mac's latest scan and that scan is newer than the phone's own last scan. It places the Mac's scan on its own clock as `receivedAt - scanAge`, so the two clocks are never compared. It never groups interfaces on the Mac's word: grouping needs its own Bonjour evidence. Both directions are compatible: an older phone ignores the new keys, and a newer phone reads a list without them as one address per device.
 

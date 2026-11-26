@@ -64,46 +64,57 @@ public struct DeviceEventBatch: Sendable, Equatable {
     }
 }
 
-/// Where device events go (#603): the reconcile that applied a scan delivers; Timeline, alerts and
-/// notifications subscribe. ``DeviceEventDispatcher/shared`` is the app's one; tests make their own.
-@MainActor
-public protocol DeviceEventDispatching: AnyObject {
-    /// Calls `handler` with every later batch until `unsubscribe` is called with the returned token.
-    @discardableResult
-    func subscribe(_ handler: @escaping DeviceEventDispatcher.Handler) -> UUID
-    func unsubscribe(_ token: UUID)
-    func deliver(_ batch: DeviceEventBatch)
-}
-
 /// The one delivery owner for device events (#603): only a reconcile that applied a scan delivers,
 /// so a foreground and a background reconcile of the same scan deliver once. Timeline, alerts and
 /// notifications subscribe here.
 @MainActor
-public final class DeviceEventDispatcher: DeviceEventDispatching {
+public final class DeviceEventDispatcher: DeviceEventDispatcherProtocol {
     public static let shared = DeviceEventDispatcher()
     public typealias Handler = @MainActor (DeviceEventBatch) -> Void
 
-    private var handlers: [UUID: Handler] = [:]
+    private struct Subscription {
+        /// The object the subscription lasts as long as; nil for one ended only by `unsubscribe`.
+        weak var owner: AnyObject?
+        let isOwned: Bool
+        let handler: Handler
+    }
+
+    private var subscriptions: [UUID: Subscription] = [:]
 
     public init() {}
 
-    /// Calls `handler` with every later batch until `unsubscribe` is called with the returned token.
     @discardableResult
     public func subscribe(_ handler: @escaping Handler) -> UUID {
-        let token = UUID()
-        handlers[token] = handler
-        return token
+        add(Subscription(owner: nil, isOwned: false, handler: handler))
+    }
+
+    @discardableResult
+    public func subscribe(owner: AnyObject, _ handler: @escaping Handler) -> UUID {
+        add(Subscription(owner: owner, isOwned: true, handler: handler))
     }
 
     public func unsubscribe(_ token: UUID) {
-        handlers[token] = nil
+        subscriptions[token] = nil
     }
 
     public func deliver(_ batch: DeviceEventBatch) {
+        // An owner that went away ended its subscription; no deinit has to (#619 CI: Swift 6.1).
+        subscriptions = subscriptions.filter { !$0.value.isOwned || $0.value.owner != nil }
         guard !batch.events.isEmpty else { return }
-        for handler in handlers.values {
-            handler(batch)
+        for subscription in subscriptions.values {
+            subscription.handler(batch)
         }
+    }
+
+    /// The live subscriptions, for tests.
+    var count: Int {
+        subscriptions.values.count { !$0.isOwned || $0.owner != nil }
+    }
+
+    private func add(_ subscription: Subscription) -> UUID {
+        let token = UUID()
+        subscriptions[token] = subscription
+        return token
     }
 }
 

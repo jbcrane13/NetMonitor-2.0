@@ -70,14 +70,15 @@ import SwiftData
     private let now: () -> Date
     /// Where a grouping action reports a device coming back online (an offline device grouped
     /// into an online one, #619): the app's dispatcher; nil reports nothing.
-    private let dispatcher: (any DeviceEventDispatching)?
+    private let dispatcher: (any DeviceEventDispatcherProtocol)?
 
     /// Re-reads the shown device's suggestions after a save in its container: a scan can record
     /// the Bonjour host on the *other* device, which changes nothing the detail view keys on.
-    private var saveObserver: (any NSObjectProtocol)?
+    /// Set once in `init` and read once in `deinit`, which runs on no actor before Swift 6.2.
+    nonisolated(unsafe) private var saveObserver: (any NSObjectProtocol)?
 
     init(
-        toastDuration: Duration = .seconds(10), now: @escaping () -> Date = Date.init, dispatcher: (any DeviceEventDispatching)? = nil
+        toastDuration: Duration = .seconds(10), now: @escaping () -> Date = Date.init, dispatcher: (any DeviceEventDispatcherProtocol)? = nil
     ) {
         self.toastDuration = toastDuration
         self.now = now
@@ -89,7 +90,7 @@ import SwiftData
         }
     }
 
-    isolated deinit {
+    deinit {
         if let saveObserver {
             NotificationCenter.default.removeObserver(saveObserver)
         }
@@ -173,7 +174,13 @@ import SwiftData
     /// "Same device" on a suggestion, or a pick in "Same device as…": `other` joins `device`, which
     /// keeps its group and primary (the anchor). An exclusion between them asks first
     /// (`pendingOverride`).
-    func group(_ device: DeviceProjection, with other: DeviceProjection, in context: ModelContext, undoManager: UndoManager?) {
+    /// `commitEdits` saves a draft the detail is editing first (#619): grouping can change the
+    /// device's identity, which recreates the detail and would drop it.
+    func group(
+        _ device: DeviceProjection, with other: DeviceProjection, in context: ModelContext, undoManager: UndoManager?,
+        commitEdits: () -> Void = {}
+    ) {
+        commitEdits()
         self.undoManager = undoManager
         let rowIDs = DeviceGroupingChoices.rowIDs(joining: other, to: device)
         do {
@@ -188,8 +195,9 @@ import SwiftData
     }
 
     /// "Group them anyway": the exclusions between the two devices are cleared and they group.
-    func confirmOverride(in context: ModelContext) {
+    func confirmOverride(in context: ModelContext, commitEdits: () -> Void = {}) {
         guard let pending = pendingOverride else { return }
+        commitEdits()
         pendingOverride = nil
         do {
             let undo = try DeviceGroupWriter(context: context, dispatcher: dispatcher)
@@ -217,7 +225,11 @@ import SwiftData
 
     /// "Not the same device" on an interface of a group: it becomes a device of its own, excluded
     /// from the rest so no scan regroups it. The list keeps showing the device it left.
-    func separate(_ member: LocalDevice, from device: DeviceProjection, in context: ModelContext, undoManager: UndoManager?) {
+    func separate(
+        _ member: LocalDevice, from device: DeviceProjection, in context: ModelContext, undoManager: UndoManager?,
+        commitEdits: () -> Void = {}
+    ) {
+        commitEdits()
         self.undoManager = undoManager
         let address = member.ipAddress
         let remaining = device.members.first { $0.id != member.id }?.id ?? member.id

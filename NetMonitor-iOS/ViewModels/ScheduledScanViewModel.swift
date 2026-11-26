@@ -74,7 +74,7 @@ final class ScheduledScanViewModel {
     /// The network a scan started here is about (#582).
     private let currentNetwork: @MainActor () -> NetworkProfile?
     private let discovery: any DeviceDiscoveryServiceProtocol
-    private let dispatcher: any DeviceEventDispatching
+    private let dispatcher: any DeviceEventDispatcherProtocol
     private var subscription: UUID?
 
     // MARK: - Init
@@ -83,7 +83,8 @@ final class ScheduledScanViewModel {
         scheduler: any ScanSchedulerServiceProtocol = ScanSchedulerService.shared,
         discovery: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         currentNetwork: @escaping @MainActor () -> NetworkProfile? = { CurrentNetwork.detected() },
-        dispatcher: any DeviceEventDispatching
+        dispatcher: any DeviceEventDispatcherProtocol,
+        latestScan: (@MainActor () -> Date?)? = nil
     ) {
         self.scheduler = scheduler
         self.discovery = discovery
@@ -97,17 +98,19 @@ final class ScheduledScanViewModel {
         notifyOnMissingDevices = (UserDefaults.standard.object(forKey: Keys.notifyMissing) as? Bool) ?? true
         triggerOnWiFiChange   = (UserDefaults.standard.object(forKey: Keys.triggerOnWiFiChange) as? Bool) ?? false
 
-        lastDiff = scheduler.getLastScanDiff()
+        // The scheduler keeps the last diff with changes (a change-free scan delivers no events), so
+        // a later reconciled scan of this network is the latest one, with no changes (#619).
+        let latest = latestScan?() ?? ScanHistory().lastScanTime(for: currentNetwork()?.id)
+        let cached = scheduler.getLastScanDiff()
+        if let latest, latest > (cached?.scannedAt ?? .distantPast) {
+            lastDiff = ScanDiff(newDevices: [], removedDevices: [], changedDevices: [], scannedAt: latest)
+        } else {
+            lastDiff = cached
+        }
         // Each applied scan's device events, foreground or background (#603), as the scheduler's
         // diff is built: the reconcile, not this view model, decides what changed.
-        subscription = dispatcher.subscribe { [weak self] batch in
+        subscription = dispatcher.subscribe(owner: self) { [weak self] batch in
             self?.record(ScanDiff(batch))
-        }
-    }
-
-    isolated deinit {
-        if let subscription {
-            dispatcher.unsubscribe(subscription)
         }
     }
 

@@ -18,6 +18,7 @@ struct DeviceInterfacesCard: View {
     @Environment(DeviceGroupingViewModel.self) private var grouping: DeviceGroupingViewModel?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.commitDeviceDetailEdits) private var commitEdits
     @Query private var targets: [NetworkTarget]
     @State private var pendingRemoval: LocalDevice?
     @State private var removalError: String?
@@ -123,7 +124,7 @@ struct DeviceInterfacesCard: View {
 
             Button {
                 // The member becomes a device of its own, with an undo toast.
-                grouping?.separate(member, from: device, in: modelContext, undoManager: undoManager)
+                grouping?.separate(member, from: device, in: modelContext, undoManager: undoManager, commitEdits: commitEdits)
             } label: {
                 Label("Not the same device", systemImage: "link.badge.minus")
             }

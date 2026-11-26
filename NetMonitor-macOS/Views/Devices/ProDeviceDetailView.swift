@@ -17,6 +17,10 @@ struct ProDeviceDetailView: View {
     @Environment(DeviceDiscoveryCoordinator.self) private var coordinator: DeviceDiscoveryCoordinator?
 
     @State private var isEditing = false
+    /// Device detail's grouping actions (#594 PR2): the Devices list's, else this detail's own, so
+    /// a detail opened from the dashboard, Ask or Security Readout can group and separate (#619).
+    @Environment(DeviceGroupingViewModel.self) private var installedGrouping: DeviceGroupingViewModel?
+    @State private var ownGrouping = DeviceGroupingViewModel(dispatcher: DeviceEventDispatcher.shared)
     @State private var editedName: String = ""
     @State private var editedNotes: String = ""
     @State private var editedMemberNotes: [UUID: String] = [:]
@@ -77,6 +81,14 @@ struct ProDeviceDetailView: View {
         .frame(minWidth: 640, minHeight: 480)
         .macThemedBackground()
         .task { await loadData() }
+        // Grouping can change the device's identity, which recreates this view: its draft is
+        // saved first (#619).
+        .environment(\.commitDeviceDetailEdits) {
+            if isEditing {
+                saveChanges()
+                isEditing = false
+            }
+        }
         .wakeOnLanAlert(wolAction)
         .saveErrorAlert($saveError)
         .deviceGroupingFeedback()
@@ -94,6 +106,7 @@ struct ProDeviceDetailView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen_deviceDetail")
+        .environment(installedGrouping ?? ownGrouping)
     }
 }
 

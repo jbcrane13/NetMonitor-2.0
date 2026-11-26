@@ -28,8 +28,8 @@ final class DeviceEventConsumerTests {
         listener.start()
     }
 
-    isolated deinit {
-        listener.stop()
+    deinit {
+        // The listener's subscription ends with it (owner-tied), so no stop is needed here.
         UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
     }
 
@@ -300,7 +300,7 @@ final class DeviceEventConsumerTests {
         var listener: EventListenerService? = EventListenerService(
             eventService: gone, discoveryService: MockDeviceDiscoveryService(), dispatcher: dispatcher
         )
-        weak let released = listener
+        weak var released = listener
         listener = nil
         #expect(released == nil)
         try reconcile([router], at: 0)
@@ -464,6 +464,26 @@ final class ScheduledScanDiffTests {
         #expect(viewModel.scanHistory.count == 1)
         updater.handleScanChange()
         #expect(viewModel.scanHistory.count == 1, "a scan already reconciled adds nothing")
+    }
+
+    @Test("Reopened after a change-free scan, the screen shows that scan with no changes, not the older diff (#619)")
+    func reopenedAfterQuietScanShowsItsTime() throws {
+        let history = try ScanHistory(defaults: #require(UserDefaults(suiteName: suiteName)))
+        let reconciler = ScanReconciler(context: ModelContext(container), history: history, dispatcher: dispatcher)
+        let scheduler = ScanSchedulerService(dispatcher: dispatcher)
+        try reconciler.reconcile([device("192.168.1.1", "router")], networkProfileID: home, scanDate: start, now: start)
+        let joined = start.addingTimeInterval(600), quiet = start.addingTimeInterval(1200)
+        let scan = [device("192.168.1.1", "router"), device("192.168.1.57", "pixel-8")]
+        try reconciler.reconcile(scan, networkProfileID: home, scanDate: joined, now: joined)
+        try reconciler.reconcile(scan, networkProfileID: home, scanDate: quiet, now: quiet)
+        #expect(scheduler.getLastScanDiff()?.scannedAt == joined, "the scheduler keeps the last diff with changes")
+
+        let viewModel = ScheduledScanViewModel(
+            scheduler: scheduler, discovery: MockDeviceDiscoveryService(), currentNetwork: { nil }, dispatcher: dispatcher,
+            latestScan: { [home] in history.lastScanTime(for: home) }
+        )
+        #expect(viewModel.lastDiff?.scannedAt == quiet)
+        #expect(viewModel.lastDiff?.hasChanges == false)
     }
 
     @Test("A diff that arrives before Run Scan Now returns is kept")

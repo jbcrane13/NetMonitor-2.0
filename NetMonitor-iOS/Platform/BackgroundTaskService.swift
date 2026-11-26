@@ -440,7 +440,7 @@ extension BackgroundTaskService {
         summaries: SavedDeviceSummaryModel = .shared,
         defaults: UserDefaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard,
         reloadWidget: Bool = true,
-        dispatcher: any DeviceEventDispatching,
+        dispatcher: any DeviceEventDispatcherProtocol,
         now: Date = Date()
     ) -> Bool {
         // Its own context on the app's container: a failed save rolls back only this scan, never
@@ -465,23 +465,17 @@ extension BackgroundTaskService {
 final class DeviceEventNotifier {
     typealias Post = @MainActor (ScanDiff) async -> Void
 
-    private let dispatcher: any DeviceEventDispatching
+    private let dispatcher: any DeviceEventDispatcherProtocol
     private let post: Post
     private var subscription: UUID?
     /// The last queued post; each waits for the one before it.
     private var queue: Task<Void, Never>?
 
-    init(dispatcher: any DeviceEventDispatching, post: @escaping Post) {
+    init(dispatcher: any DeviceEventDispatcherProtocol, post: @escaping Post) {
         self.dispatcher = dispatcher
         self.post = post
-        subscription = dispatcher.subscribe { [weak self] batch in
+        subscription = dispatcher.subscribe(owner: self) { [weak self] batch in
             self?.enqueue(ScanDiff(batch))
-        }
-    }
-
-    isolated deinit {
-        if let subscription {
-            dispatcher.unsubscribe(subscription)
         }
     }
 
@@ -526,7 +520,7 @@ extension BackgroundTaskService {
 
     /// Notifies the scan alerts of every reconcile `dispatcher` delivers from now on (#619), once;
     /// the app calls it at launch with the shared dispatcher.
-    func notifyDeviceEvents(from dispatcher: any DeviceEventDispatching) {
+    func notifyDeviceEvents(from dispatcher: any DeviceEventDispatcherProtocol) {
         guard deviceEventNotifier == nil else { return }
         deviceEventNotifier = DeviceEventNotifier(dispatcher: dispatcher) { [weak self] diff in
             await self?.notifyScanChanges(diff)

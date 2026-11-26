@@ -53,12 +53,12 @@ public struct DeviceGroupWriter {
     private let save: @MainActor (ModelContext) throws -> Void
     /// Where the user's grouping actions report a device's presence changing (#619 verification):
     /// an offline device grouped into an online one comes back online, once.
-    private let dispatcher: (any DeviceEventDispatching)?
+    private let dispatcher: (any DeviceEventDispatcherProtocol)?
 
     public init(
         container: ModelContainer,
         references: [any DeviceReferenceStore] = [],
-        dispatcher: (any DeviceEventDispatching)? = nil,
+        dispatcher: (any DeviceEventDispatcherProtocol)? = nil,
         save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) {
         self.container = container
@@ -71,7 +71,7 @@ public struct DeviceGroupWriter {
     public init(
         context: ModelContext,
         references: [any DeviceReferenceStore] = [],
-        dispatcher: (any DeviceEventDispatching)? = nil,
+        dispatcher: (any DeviceEventDispatcherProtocol)? = nil,
         save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
     ) {
         self.init(container: context.container, references: references, dispatcher: dispatcher, save: save)

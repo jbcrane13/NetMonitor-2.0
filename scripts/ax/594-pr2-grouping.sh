@@ -13,6 +13,8 @@
 #   3. Manual: after a scan, "Same device as…" on uitest-device (192.168.77.77) picks
 #      uitest-printer (.20): one device, named uitest-device. Edit › Undo makes two. Grouped again,
 #      "Not the same device" on the printer's interface splits them, and a scan keeps them apart.
+#   4. Dashboard (#619): the device opened from the dashboard's device list (a sheet with no
+#      Devices list above it) separates the Wi-Fi interface too, with its toast.
 # macOS 27 stamps no identifier on the toast's container (deviceDetail_toast_undo), so the toast is
 # found and cropped by its message, Undo and close button.
 # Screenshots are the app window cropped to the elements: fixture devices only, no WAN or DNS.
@@ -153,5 +155,23 @@ scan
 expect "$("$AX" wait devices_card_192.168.77.77 5)" found "run 3: a scan regrouped them"
 expect "$("$AX" wait devices_card_192.168.77.20 5)" found "run 3: the printer is gone"
 alive "run 3"
+quit
+
+# MARK: Run 4 (#619): the detail opened from the dashboard's device list can separate too
+
+UITEST_SCAN_BONJOUR_PAIR=1 "$APP/Contents/MacOS/NetMonitor-macOS" --uitesting --in-memory-store --reset-history-files \
+  --seed-test-device > "$OUT/app-4.log" 2>&1 &
+PID=$!
+export AX_PID=$PID
+expect "$("$AX" wait networkDetail_section_devices 40)" found "run 4: the dashboard never appeared"
+"$AX" resize 1700 1000 > /dev/null
+scan
+expect "$("$AX" wait networkDevicesPanel_row_192.168.77.70 10)" found "run 4: the dashboard should list the workstation"
+"$AX" click networkDevicesPanel_row_192.168.77.70 > /dev/null
+expect "$("$AX" wait deviceDetail_button_notSameDevice_192.168.77.71 10)" found "run 4: the dashboard's detail shows no Not the same device"
+"$AX" press deviceDetail_button_notSameDevice_192.168.77.71 > /dev/null
+expect "$("$AX" text "192.168.77.71 is a separate device" 10)" "found text" "run 4: Not the same device did nothing in the dashboard's detail"
+"$AX" capture-union "$OUT/594pr2-8-dashboard-separate.png" deviceDetail_label_toastMessage deviceDetail_button_undo deviceDetail_button_dismissToast
+alive "run 4"
 quit
 echo PASS

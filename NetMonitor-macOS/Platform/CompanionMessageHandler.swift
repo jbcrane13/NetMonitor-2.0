@@ -159,7 +159,7 @@ final class CompanionMessageHandler {
                 MemberInfo(
                     id: member.id, ipAddress: member.ipAddress, macAddress: member.macAddress.isEmpty ? nil : member.macAddress,
                     lastSeen: member.lastSeen, answeredLatestScan: presence.answeredLatestScan(member), scanTime: scanTime,
-                    scanAge: scanTime.map { sentAt.timeIntervalSince($0) }
+                    scanAge: scanTime.map { sentAt.timeIntervalSince($0) }, isPrimary: member.id == primary.id
                 )
             }
             return DeviceInfo(

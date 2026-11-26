@@ -67,7 +67,7 @@ final class EventListenerService {
     private let discoveryService: any DeviceDiscoveryServiceProtocol
     /// The network events are about when a device doesn't say which it was scanned on.
     private let currentNetworkProfileID: @MainActor () -> UUID?
-    private let dispatcher: any DeviceEventDispatching
+    private let dispatcher: any DeviceEventDispatcherProtocol
 
     // MARK: - Tracking state
 
@@ -87,7 +87,7 @@ final class EventListenerService {
         networkMonitor: NetworkMonitorService = NetworkMonitorService.shared,
         discoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         currentNetworkProfileID: @escaping @MainActor () -> UUID? = { nil },
-        dispatcher: any DeviceEventDispatching
+        dispatcher: any DeviceEventDispatcherProtocol
     ) {
         self.eventService = eventService
         self.networkMonitor = networkMonitor
@@ -97,13 +97,6 @@ final class EventListenerService {
         // From creation, not from `start()`: the app makes the listener at launch, so a scan a
         // background launch reconciles before any view appears still reaches the Timeline.
         subscribeToDeviceEvents()
-    }
-
-    isolated deinit {
-        monitorTask?.cancel()
-        if let subscription {
-            dispatcher.unsubscribe(subscription)
-        }
     }
 
     /// Whether `start()` is watching connectivity and scans.
@@ -156,7 +149,7 @@ final class EventListenerService {
 
     private func subscribeToDeviceEvents() {
         guard subscription == nil else { return }
-        subscription = dispatcher.subscribe { [weak self] batch in
+        subscription = dispatcher.subscribe(owner: self) { [weak self] batch in
             self?.logDeviceEvents(batch)
         }
     }

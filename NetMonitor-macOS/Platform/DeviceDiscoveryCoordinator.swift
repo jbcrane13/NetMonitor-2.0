@@ -35,7 +35,7 @@ final class DeviceDiscoveryCoordinator {
     private(set) var scanCompletedHandlers: [ScanCompletedHandler] = []
     /// Where the reconciler delivers each applied scan's device events (#603); `.shared` in the
     /// app, a fresh one per test.
-    private let dispatcher: any DeviceEventDispatching
+    private let dispatcher: any DeviceEventDispatcherProtocol
     /// This coordinator's subscription to `dispatcher`, ended when it goes.
     private var dispatcherSubscription: UUID?
     /// Batches delivered while a reconcile runs, handed to the handlers once the rows are
@@ -137,7 +137,7 @@ final class DeviceDiscoveryCoordinator {
         clock: @escaping @MainActor () -> Date = Date.init,
         presenceClock: @escaping @MainActor () -> Date = Date.init,
         reconcilerFetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows,
-        dispatcher: any DeviceEventDispatching
+        dispatcher: any DeviceEventDispatcherProtocol
     ) {
         self.modelContext = modelContext
         self.bonjourScanner = bonjourScanner
@@ -158,14 +158,8 @@ final class DeviceDiscoveryCoordinator {
         self.networkProfile = networkProfileManager.activeProfile
         loadPersistedDevices(for: effectiveProfileID())
         // The one subscription (#603): every batch goes to this coordinator's handlers.
-        dispatcherSubscription = dispatcher.subscribe { [weak self] batch in
+        dispatcherSubscription = dispatcher.subscribe(owner: self) { [weak self] batch in
             self?.received(batch)
-        }
-    }
-
-    isolated deinit {
-        if let dispatcherSubscription {
-            dispatcher.unsubscribe(dispatcherSubscription)
         }
     }
 

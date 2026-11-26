@@ -120,7 +120,7 @@ final class ScanSchedulerServiceTests {
     @Test("A scheduler that went away stops listening")
     func unsubscribesWhenReleased() throws {
         var service: ScanSchedulerService? = ScanSchedulerService(dispatcher: dispatcher)
-        weak let released = service
+        weak var released = service
         service = nil
         #expect(released == nil)
         try reconcile([router], at: 0)
@@ -150,5 +150,18 @@ final class ScanSchedulerServiceTests {
         defaults.set(Data([1]), forKey: "scanScheduler_baseline")
         LegacyDeviceChangeRegistry.clearOnce(defaults: defaults)
         #expect(defaults.object(forKey: "scanScheduler_baseline") != nil, "only once")
+    }
+
+    @Test("A subscription tied to an owner ends when the owner goes, without a deinit (#619 CI)")
+    func ownerTiedSubscriptionEnds() {
+        final class Owner {}
+        var owner: Owner? = Owner()
+        var calls = 0
+        dispatcher.subscribe(owner: owner!) { _ in calls += 1 } // swiftlint:disable:this force_unwrapping
+        let open = dispatcher.count
+        owner = nil
+        dispatcher.deliver(DeviceEventBatch(networkProfileID: nil, scanDate: time(0), events: []))
+        #expect(dispatcher.count == open - 1)
+        #expect(calls == 0)
     }
 }

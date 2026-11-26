@@ -440,3 +440,46 @@ struct DeviceGroupingViewModelTests {
 @MainActor private final class Counter {
     var value = 0
 }
+
+// MARK: - Unsaved detail edits (#619)
+
+extension DeviceGroupingViewModelTests {
+    /// #619 Devin thread: a draft being edited in device detail is committed before a grouping
+    /// action changes the device's identity (which recreates the detail), so it isn't lost.
+    @Test func groupingCommitsTheDetailsDraftFirst() throws {
+        let store = try makeStore()
+        let context = ModelContext(store.container)
+        let model = DeviceGroupingViewModel(toastDuration: .seconds(60))
+        let studio = try #require(store.device(store.ethernet))
+        let wifi = try #require(store.device(store.wifi))
+        var groupedWhenCommitted: Bool?
+        let ethernetID = store.ethernet
+
+        model.group(studio, with: wifi, in: context, undoManager: nil) {
+            // The detail's save: the draft goes to the store, before the writer runs.
+            groupedWhenCommitted = store.row(ethernetID)?.deviceGroupID != nil
+            let row = try? context.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == ethernetID })).first
+            row?.notes = "Desk, by the window"
+            try? context.save()
+        }
+
+        #expect(groupedWhenCommitted == false, "committed before the device changed")
+        #expect(store.row(store.ethernet)?.notes == "Desk, by the window")
+        #expect(store.row(store.ethernet)?.deviceGroupID != nil)
+    }
+
+    @Test func separatingCommitsTheDetailsDraftFirst() throws {
+        let store = try makeStore()
+        let context = ModelContext(store.container)
+        let model = DeviceGroupingViewModel(toastDuration: .seconds(60))
+        try model.group(#require(store.device(store.ethernet)), with: #require(store.device(store.wifi)), in: context, undoManager: nil)
+        let grouped = try #require(store.device(store.ethernet))
+        let wifiRow = try #require(grouped.members.first { $0.id == store.wifi })
+        var commits = 0
+
+        model.separate(wifiRow, from: grouped, in: context, undoManager: nil) { commits += 1 }
+
+        #expect(commits == 1)
+        #expect(store.row(store.wifi)?.deviceGroupID == nil)
+    }
+}

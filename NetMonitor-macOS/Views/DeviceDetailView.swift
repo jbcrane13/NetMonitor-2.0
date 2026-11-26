@@ -24,6 +24,10 @@ struct DeviceDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var isEditing = false
+    /// Device detail's grouping actions (#594 PR2): the Devices list's, else this detail's own, so
+    /// a detail opened from the dashboard, Ask or Security Readout can group and separate (#619).
+    @Environment(DeviceGroupingViewModel.self) private var installedGrouping: DeviceGroupingViewModel?
+    @State private var ownGrouping = DeviceGroupingViewModel(dispatcher: DeviceEventDispatcher.shared)
     @State private var editedName: String = ""
     @State private var editedNotes: String = ""
     /// Drafts of the other members' notes, by row ID, while editing.
@@ -80,6 +84,14 @@ struct DeviceDetailView: View {
             .padding()
         }
         .navigationTitle(device.displayName)
+        // Grouping can change the device's identity, which recreates this view: its draft is
+        // saved first (#619).
+        .environment(\.commitDeviceDetailEdits) {
+            if isEditing {
+                saveChanges()
+                isEditing = false
+            }
+        }
         .toolbar {
             if isSheet {
                 ToolbarItem(placement: .cancellationAction) {
@@ -122,6 +134,7 @@ struct DeviceDetailView: View {
         .sheet(isPresented: $showPortScanSheet) {
             portScanSheetView
         }
+        .environment(installedGrouping ?? ownGrouping)
     }
 
     // MARK: - Header Card

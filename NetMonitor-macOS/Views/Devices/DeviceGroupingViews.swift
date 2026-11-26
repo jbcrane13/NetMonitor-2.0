@@ -11,6 +11,7 @@ struct DeviceGroupingSection: View {
     @Environment(DeviceGroupingViewModel.self) private var grouping: DeviceGroupingViewModel?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.commitDeviceDetailEdits) private var commitEdits
     @State private var showPicker = false
     /// This view's token, so a late close of a view grouping replaced forgets nothing.
     @State private var viewer = UUID()
@@ -37,7 +38,7 @@ struct DeviceGroupingSection: View {
             .onDisappear { grouping.hide(viewer: viewer) }
             .sheet(isPresented: $showPicker) {
                 // The detail window's undo manager: the sheet's goes with the sheet.
-                SameDeviceAsSheet(device: device, isPresented: $showPicker, undoManager: undoManager)
+                SameDeviceAsSheet(device: device, isPresented: $showPicker, undoManager: undoManager, commitEdits: commitEdits)
             }
         }
     }
@@ -59,7 +60,7 @@ struct DeviceGroupingSection: View {
             }
             .accessibilityIdentifier("deviceDetail_button_suggestionNotSameDevice_\(other.id)")
             Button("Same device") {
-                grouping.group(device, with: other, in: modelContext, undoManager: undoManager)
+                grouping.group(device, with: other, in: modelContext, undoManager: undoManager, commitEdits: commitEdits)
             }
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("deviceDetail_button_suggestionSameDevice_\(other.id)")
@@ -78,6 +79,8 @@ struct SameDeviceAsSheet: View {
     @Binding var isPresented: Bool
     /// Where Edit › Undo is registered: the window the sheet was opened from.
     let undoManager: UndoManager?
+    /// Saves the detail's draft before grouping (#619), from the detail the sheet was opened on.
+    var commitEdits: () -> Void = {}
 
     @Environment(DeviceGroupingViewModel.self) private var grouping: DeviceGroupingViewModel?
     @Environment(\.modelContext) private var modelContext
@@ -97,7 +100,7 @@ struct SameDeviceAsSheet: View {
             List(candidates, id: \.id) { other in
                 Button {
                     isPresented = false
-                    grouping?.group(device, with: other, in: modelContext, undoManager: undoManager)
+                    grouping?.group(device, with: other, in: modelContext, undoManager: undoManager, commitEdits: commitEdits)
                 } label: {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -148,6 +151,7 @@ struct SameDeviceAsSheet: View {
 struct DeviceGroupingFeedback: ViewModifier {
     @Environment(DeviceGroupingViewModel.self) private var grouping: DeviceGroupingViewModel?
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.commitDeviceDetailEdits) private var commitEdits
 
     func body(content: Content) -> some View {
         content
@@ -175,7 +179,7 @@ struct DeviceGroupingFeedback: ViewModifier {
                 )
             ) {
                 Button("Group Them Anyway") {
-                    grouping?.confirmOverride(in: modelContext)
+                    grouping?.confirmOverride(in: modelContext, commitEdits: commitEdits)
                 }
                 .accessibilityIdentifier("deviceDetail_button_confirmGroupOverride")
                 Button("Cancel", role: .cancel) {
@@ -239,4 +243,10 @@ struct DeviceGroupToastView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("deviceDetail_toast_undo")
     }
+}
+
+extension EnvironmentValues {
+    /// Saves a draft the device detail is editing (#619): grouping actions call it first, since
+    /// they can change the device's identity, which recreates the detail. Nothing outside detail.
+    @Entry var commitDeviceDetailEdits: @MainActor () -> Void = {}
 }

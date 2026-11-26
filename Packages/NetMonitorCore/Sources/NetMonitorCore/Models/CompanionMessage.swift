@@ -337,10 +337,13 @@ public struct MemberInfo: Codable, Sendable, Equatable, Identifiable {
     /// phone places the scan on its own clock as `receivedAt - scanAge`, so the two devices' wall
     /// clocks are never compared (#619).
     public let scanAge: TimeInterval?
+    /// Whether this is the device's primary interface, the one its `hostname` names (#619). The
+    /// phone gives the name to this member's sighting only. Nil from a Mac that doesn't say.
+    public let isPrimary: Bool?
 
     public init(
         id: UUID, ipAddress: String, macAddress: String?, lastSeen: Date, answeredLatestScan: Bool, scanTime: Date?,
-        scanAge: TimeInterval? = nil
+        scanAge: TimeInterval? = nil, isPrimary: Bool? = nil
     ) {
         self.id = id
         self.ipAddress = ipAddress
@@ -349,6 +352,7 @@ public struct MemberInfo: Codable, Sendable, Equatable, Identifiable {
         self.answeredLatestScan = answeredLatestScan
         self.scanTime = scanTime
         self.scanAge = scanAge
+        self.isPrimary = isPrimary
     }
 }
 
