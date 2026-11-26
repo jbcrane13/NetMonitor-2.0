@@ -138,3 +138,76 @@ final class TroubleshootCancelUITests: IOSUITestCase {
         captureScreenshot(named: "troubleshoot-cancelled-screen")
     }
 }
+
+// MARK: - Modem lights from a photo (#558)
+
+/// The simulator has no camera, so `UITEST_MODEM_IMAGE=1` gives the sheet a drawn modem panel
+/// (POWER, DSL, WI-FI and LAN 1 green, INTERNET red, LAN 2 off), and `UITEST_MODEM_MODEL=answer`
+/// stands in for the on-device model: it reads those lights and words the app's meanings. The
+/// wording still goes through `InsightSummarizer`'s checks.
+@MainActor
+final class ModemLightsUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_TROUBLESHOOT": "answer", "UITEST_MODEM_IMAGE": "1", "UITEST_MODEM_MODEL": "answer"]
+    }
+
+    func testAPhotoOfTheModemNamesTheRedInternetLight() {
+        openTroubleshooter()
+        let entry = ui("troubleshoot_button_modemLights")
+        scrollTo(entry)
+        requireExists(entry, timeout: 5, message: "Troubleshoot should offer to read the modem's lights").tap()
+
+        let headline = ui("modemLights_label_headline")
+        requireExists(headline, timeout: 15, message: "The lights should be read from the photo")
+        XCTAssertEqual(headline.label, "1 light shows a problem.")
+        let internet = ui("modemLights_row_2")
+        XCTAssertTrue(internet.label.contains("INTERNET: red"), "Row 3: \(internet.label)")
+        XCTAssertTrue(internet.label.contains("Internet light is red: the modem has no internet connection."), "Row 3: \(internet.label)")
+        XCTAssertTrue(ui("modemLights_row_5").label.contains("nothing is connected to that port"), "LAN 2: \(ui("modemLights_row_5").label)")
+        XCTAssertTrue(ui("modemLights_label_blinking").label.contains("blinking can't be seen in one photo"))
+
+        let explanation = ui("modemLights_label_explanation")
+        requireExists(explanation, timeout: 15, message: "The model's wording should show")
+        XCTAssertTrue(explanation.label.contains("no internet connection"), "Explanation: \(explanation.label)")
+        let marker = ui("modemLights_label_generated")
+        XCTAssertTrue(marker.label.contains("Written by the on-device model"), "Marker: \(marker.label)")
+
+        keep([headline, ui("modemLights_label_blinking")], named: "modem-lights-reading")
+        let screen = ui("modemLights_button_retake")
+        scrollTo(screen)
+        keep([explanation, marker], named: "modem-lights-explanation")
+        captureScreenshot(named: "modem-lights-screen")
+    }
+}
+
+@MainActor
+final class ModemLightsUnwrittenUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_TROUBLESHOOT": "answer", "UITEST_MODEM_IMAGE": "1", "UITEST_MODEM_MODEL": "unwritten"]
+    }
+
+    func testWithoutWordingTheAppsLinesStillShow() {
+        openTroubleshooter()
+        let entry = ui("troubleshoot_button_modemLights")
+        scrollTo(entry)
+        requireExists(entry, timeout: 5, message: "The reader should be offered").tap()
+        let headline = ui("modemLights_label_headline")
+        requireExists(headline, timeout: 15, message: "The lights should be read")
+        XCTAssertTrue(ui("modemLights_row_2").label.contains("the modem has no internet connection"))
+        XCTAssertFalse(ui("modemLights_label_explanation").exists, "Nothing is worded without the text model")
+        keep([headline, ui("modemLights_label_blinking")], named: "modem-lights-unworded")
+    }
+}
+
+@MainActor
+final class ModemLightsUnavailableUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_TROUBLESHOOT": "answer", "UITEST_MODEM_MODEL": "unavailable"]
+    }
+
+    func testWithoutAVisionModelTheReaderIsHidden() {
+        openTroubleshooter()
+        scrollTo(ui("troubleshoot_button_kind_websiteNotLoading"))
+        XCTAssertFalse(ui("troubleshoot_button_modemLights").exists, "No reader without a model that sees images")
+    }
+}
