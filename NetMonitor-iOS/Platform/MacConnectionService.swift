@@ -1,7 +1,6 @@
 import Foundation
 import NetMonitorCore
 import Network
-import SwiftData
 import os
 import UIKit
 
@@ -33,8 +32,9 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     /// When `lastDeviceList` arrived over the current link; nil once the link drops (#598).
     private(set) var lastDeviceListReceivedAt: Date?
     /// Whether the Mac on this link advertised `inventory.v1` (#585): the phone then shows its
-    /// device list as the Mac's and adds none of it to its own scans. False once the link ends.
-    private(set) var macOffersInventory = false
+    /// device list as the Mac's and adds none of it to its own scans. False once the link ends; set
+    /// only by `receivedInventoryOffer(_:)` and the link's teardown.
+    var macOffersInventory = false
     /// The Mac this phone is paired with (#590).
     private(set) var pairedMac: PairedMacRecord?
     private(set) var linkProblem: MacLinkProblem?
@@ -63,7 +63,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     private var lastConnectedMacName: String?
     private var shouldAutoReconnect = false
     private var linkSession = CompanionLinkSession(heartbeatInterval: MacConnectionService.heartbeatInterval)
-    private let networkProfileManager: NetworkProfileManager
+    let networkProfileManager: NetworkProfileManager
     private let macStore: PairedMacStore
     private let defaults: UserDefaults
     /// How long an attempt may take to reach the Mac's serverHello before it counts as failed.
@@ -420,12 +420,7 @@ extension MacConnectionService {
         case .heartbeat(let payload):
             Self.logger.debug("Heartbeat received")
             insightClient.received(heartbeat: payload)
-            // The first heartbeat offering the inventory on a link asks for it at once; the Mac
-            // then sends it after each scan (#585).
-            if payload.offersInventory, !macOffersInventory {
-                macOffersInventory = true
-                Task { await send(command: CommandPayload(action: .refreshDevices)) }
-            }
+            receivedInventoryOffer(payload)
         case .insightResponse(let payload):
             insightClient.received(payload)
         case .command, .insightRequest, .pairRequest, .unpair, .serverHello, .pairChallenge, .pairResult:
@@ -673,36 +668,6 @@ extension MacConnectionService {
             defaults.set(true, forKey: Self.pendingForgetKey)
             forgetError = "This iPhone couldn't delete the Mac's key. It won't be used, and NetMonitor will try again."
         }
-    }
-}
-
-// MARK: - The Mac's inventory (#585)
-
-extension MacConnectionService {
-    /// The connected Mac's inventory for `network`, as of `now`: live only over the current link,
-    /// from a Mac that offered it, for the same subnet, with a recent scan.
-    func inventory(for network: NetworkProfile?, now: Date) -> MacInventory.Availability {
-        MacInventory.availability(
-            list: lastDeviceList, receivedAt: lastDeviceListReceivedAt, connected: connectionState.isConnected,
-            offersInventory: macOffersInventory, subnet: network?.subnetCIDR, now: now
-        )
-    }
-
-    /// The Mac's record of `device`, matched among the saved devices of its network as the list
-    /// matches them, so detail and the list agree (#585).
-    func macRecord(of device: DeviceProjection, in context: ModelContext, now: Date) -> MacInventory.Record? {
-        let networkID = device.primary.networkProfileID
-        guard case .live(let inventory) = inventory(for: profile(for: networkID), now: now) else { return nil }
-        let rows = SavedDeviceList.recentRows(network: networkID, in: context)
-        return inventory.matches(DeviceGroups.project(rows)).record(for: device)
-    }
-
-    /// A saved network's profile; the UI-test network stands for the current one.
-    private func profile(for networkID: UUID?) -> NetworkProfile? {
-        if UITestFakeDeviceFeed.isEnabled, networkID == UITestBootstrap.networkProfileID {
-            return networkProfileManager.activeProfile
-        }
-        return networkProfileManager.profiles.first { $0.id == networkID }
     }
 }
 
