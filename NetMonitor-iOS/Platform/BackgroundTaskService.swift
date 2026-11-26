@@ -424,11 +424,36 @@ extension BackgroundTaskService {
             Self.logger.error("Failed to open the store to save scanned devices")
             return
         }
+        Self.reconcileAndPublish(devices, scanDate: scanDate, network: network, in: container)
+    }
+
+    /// Reconciles a background scan, then, once it saved, publishes each scanned network's
+    /// saved-device summary and so the widget (#594), as the foreground updater's `onSaved` does.
+    /// Returns whether the scan saved.
+    @discardableResult
+    static func reconcileAndPublish(
+        _ devices: [DiscoveredDevice],
+        scanDate: Date,
+        network: UUID?,
+        in container: ModelContainer,
+        history: ScanHistory = ScanHistory(),
+        summaries: SavedDeviceSummaryModel = .shared,
+        defaults: UserDefaults = UserDefaults(suiteName: AppSettings.appGroupSuiteName) ?? .standard,
+        reloadWidget: Bool = true,
+        now: Date = Date()
+    ) -> Bool {
         // Its own context on the app's container: a failed save rolls back only this scan, never
         // device detail's unsaved edits in the main context.
-        DeviceRecordUpdater.reconcile(
-            devices, scanDate: scanDate, network: network, with: ScanReconciler(context: ModelContext(container)), now: Date()
-        )
+        let context = ModelContext(container)
+        let reconciler = ScanReconciler(context: context, history: history)
+        guard DeviceRecordUpdater.reconcile(devices, scanDate: scanDate, network: network, with: reconciler, now: now) else {
+            return false
+        }
+        let presence = history.presenceSnapshot(now: now)
+        for scanned in Set(devices.compactMap { $0.networkProfileID ?? network }) {
+            summaries.refresh(network: scanned, in: context, presence: presence, defaults: defaults, reloadWidget: reloadWidget)
+        }
+        return true
     }
 }
 

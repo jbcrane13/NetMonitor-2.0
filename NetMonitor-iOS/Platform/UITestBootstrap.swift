@@ -497,10 +497,10 @@ extension UITestBootstrap {
 
 extension UITestBootstrap {
     /// The device `UITEST_SEED_DEVICE_GROUP=1` saves: its primary's address and name, and its other
-    /// interface, which is the UI-test scan's uitest-device-3. Fixture values only.
+    /// interface, which is the UI-test scan's uitest-device-3; the primary has a serial. Fixture values only.
     static let groupDevice = (
         name: "UITest Studio Mac", primaryIP: "192.168.1.60", primaryNotes: "Wired port in the studio",
-        memberIP: "192.168.1.13", memberNotes: "Wi-Fi interface"
+        memberIP: "192.168.1.13", memberNotes: "Wi-Fi interface", serial: "UITESTSERIAL594"
     )
 
     /// With `UITEST_SEED_DEVICE_GROUP=1` (Debug builds): one device on the UI-test network with two
@@ -518,6 +518,8 @@ extension UITestBootstrap {
             networkProfileID: networkProfileID
         )
         primary.lastSeen = scanClockStart.addingTimeInterval(-3600)
+        primary.serialNumber = groupDevice.serial
+        primary.serialSource = IdentitySource.userConfirmed.rawValue
         let member = LocalDevice(
             ipAddress: groupDevice.memberIP, macAddress: "AA:BB:CC:DD:EE:03", hostname: "uitest-device-3",
             status: .offline, notes: groupDevice.memberNotes, networkProfileID: networkProfileID

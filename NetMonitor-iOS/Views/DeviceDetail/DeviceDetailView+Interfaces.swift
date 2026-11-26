@@ -3,60 +3,12 @@ import SwiftUI
 
 // MARK: - Interfaces (#594)
 
-extension DeviceDetailView {
-    /// The device's state: the best member's.
-    var freshness: PresenceFreshness {
-        if let projection = viewModel.projection {
-            return presence.freshness(of: projection)
-        }
-        return viewModel.device.map { presence.freshness(of: $0) } ?? .offline
-    }
+/// Device detail's Wake on LAN for a device with several interfaces: one packet to every
+/// interface's MAC, sent from here, since the Wake on LAN tool takes one MAC.
+struct WakeAllInterfacesButton: View {
+    let viewModel: DeviceDetailViewModel
 
-    /// The latest member's last sighting.
-    func lastSeen(_ device: LocalDevice) -> Date {
-        viewModel.projection?.lastSeen ?? device.lastSeen
-    }
-
-    /// The earliest member's first sighting.
-    var firstSeen: Date {
-        viewModel.members.map(\.firstSeen).min() ?? viewModel.device?.firstSeen ?? Date()
-    }
-
-    func currentMAC(_ device: LocalDevice) -> String {
-        let mac = viewModel.current?.macAddress ?? device.macAddress
-        return mac.isEmpty ? "—" : mac
-    }
-
-    /// Removes a member at once, or after a confirmation naming what goes with it.
-    func requestRemoval(_ member: LocalDevice) {
-        if viewModel.userContent(of: member).isEmpty {
-            viewModel.removeInterface(member)
-        } else {
-            removingInterface = member
-        }
-    }
-
-    var isConfirmingRemoval: Binding<Bool> {
-        Binding(
-            get: { removingInterface != nil },
-            set: { isPresented in
-                if !isPresented {
-                    removingInterface = nil
-                }
-            }
-        )
-    }
-
-    func removalMessage(_ member: LocalDevice) -> String {
-        "This deletes \(member.ipAddress) from this device, with \(ListFormatter.localizedString(byJoining: viewModel.userContent(of: member)))."
-    }
-
-    var removalTitle: String {
-        "Remove \(removingInterface?.ipAddress ?? "this interface")?"
-    }
-
-    /// Wake on LAN to every interface's MAC, from here: the tool takes one MAC.
-    var wakeAllButton: some View {
+    var body: some View {
         Button {
             Task { await viewModel.wakeAllInterfaces() }
         } label: {
@@ -80,9 +32,11 @@ extension DeviceDetailView {
         }
         .accessibilityIdentifier("deviceDetail_button_wakeOnLan")
     }
+}
 
-    /// The service usually on `port`, for the Services & Ports list.
-    func wellKnownServiceName(for port: Int) -> String? {
+/// The service usually on a port, for device detail's Services & Ports list.
+enum WellKnownServices {
+    static func name(for port: Int) -> String? {
         let wellKnownPorts: [Int: String] = [
             22: "SSH", 53: "DNS", 80: "HTTP", 443: "HTTPS",
             21: "FTP", 25: "SMTP", 110: "POP3", 143: "IMAP",
