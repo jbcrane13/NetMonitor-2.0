@@ -196,9 +196,12 @@ func norm(_ s: String) -> String { s.uppercased().filter { $0.isLetter || $0.isN
         let wantSev = ModemLightVerdict(label: want.label, color: wantColour).meaning?.severity
         // The app's verdict on the light as read, with the panel-level rules applied.
         let gotSev = appReport.verdicts.first { norm($0.label) == norm(got.label) }?.meaning?.severity
-        if wantSev != gotSev, wantSev != nil, gotSev != nil, let kind = ModemLightKind(label: want.label), [.power, .broadband, .internet, .upstream, .downstream, .wan].contains(kind) {
+        // A flip is normal↔problem only (lead, #558 option A): an off reading is a check, not a flip.
+        let pair = Set([wantSev, gotSev].compactMap { $0 })
+        if pair == [.normal, .problem], let kind = ModemLightKind(label: want.label), [.power, .broadband, .internet, .upstream, .downstream, .wan].contains(kind) {
           verdictFlips.append("\(panel.name) \(want.label): \(want.color)→\(got.color.rawValue) (\(wantSev.map { "\($0)" } ?? "-")→\(gotSev.map { "\($0)" } ?? "-"))")
         }
+        if wantSev != gotSev { print("    verdict: truth \(wantSev.map { "\($0)" } ?? "-") → app \(gotSev.map { "\($0)" } ?? "-")") }
         print("  \(want.label): want \(want.color) got \(got.label)=\(got.color.rawValue) \(ok ? "✓" : "✗")")
         rows.append("| \(panel.name) | \(want.label) | \(want.color) | \(got.color.rawValue) | \(ok ? "✓" : "✗") |")
       }
@@ -213,6 +216,8 @@ func norm(_ s: String) -> String { s.uppercased().filter { $0.isLetter || $0.isN
         case .refused: print("  wording: REFUSED by the checks (app lines only)")
         case .tryLater: print("  wording: none (timeout/unavailable)")
         }
+      } else if report.isPanel {
+        print("  wording: not asked (a light reads as off: app lines only)")
       }
     }
     print("\n== non-panel images")
@@ -228,7 +233,7 @@ func norm(_ s: String) -> String { s.uppercased().filter { $0.isLetter || $0.isN
     print("labels found \(found)/\(total) (\(Int(Double(found) / Double(total) * 100))%), missed \(missed), invented \(invented)")
     print("colour right \(colourRight)/\(found) (\(Int(Double(colourRight) / Double(max(found, 1)) * 100))%)")
     print("colour errors: \(colourErrors.isEmpty ? "none" : colourErrors.joined(separator: "; "))")
-    print("app verdict flips (one verdict to another) on power/broadband/internet/US/DS/WAN: \(verdictFlips.isEmpty ? "none" : verdictFlips.joined(separator: "; "))")
+    print("app verdict flips (normal↔problem) on power/broadband/internet/US/DS/WAN: \(verdictFlips.isEmpty ? "none" : verdictFlips.joined(separator: "; "))")
     print("non-panel rejected \(rejects)/2")
     print("\n| Fixture | Light | Truth | Model | |\n|---|---|---|---|---|")
     rows.forEach { print($0) }
