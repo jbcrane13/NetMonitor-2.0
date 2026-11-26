@@ -9,12 +9,16 @@ public struct DeviceObservation: Sendable, Equatable {
     public var name: String?
     /// No answer this scan; only a cache still lists it (#378). Doesn't confirm the device.
     public var isCached: Bool
+    /// The saved device's primary row (`LocalDevice.id`), when the event comes from the reconciler
+    /// (#603): consumers find the device by it rather than by address.
+    public var deviceID: UUID?
 
-    public init(ipAddress: String, macAddress: String?, name: String?, isCached: Bool = false) {
+    public init(ipAddress: String, macAddress: String?, name: String?, isCached: Bool = false, deviceID: UUID? = nil) {
         self.ipAddress = ipAddress
         self.macAddress = macAddress
         self.name = name
         self.isCached = isCached
+        self.deviceID = deviceID
     }
 }
 
@@ -33,6 +37,8 @@ public struct KnownDevice: Codable, Sendable, Equatable {
     public var missedScans: Int
     /// Reported offline after the grace period; cleared when it answers again.
     public var isOffline: Bool
+    /// The saved device's primary row, when the event comes from the reconciler (#603).
+    public var deviceID: UUID?
 
     public init(
         macAddress: String?,

@@ -351,6 +351,57 @@ struct DeviceGroupWriterTests {
         #expect(devices.allSatisfy { !$0.isGroup })
         #expect(wifi.deviceGroupID == nil && wifi.groupPrimaryID == nil)
     }
+
+    // MARK: Session undo (#594 PR2)
+
+    func fields(_ rows: [LocalDevice]) throws -> [String] {
+        try rows.map { row in
+            let now = try fresh(row)
+            return "\(now.deviceGroupID?.uuidString ?? "-")|\(now.groupPrimaryID?.uuidString ?? "-")|\(now.groupSource ?? "-")|"
+                + (now.notSameAsIDs ?? []).map(\.uuidString).sorted().joined(separator: ",")
+        }
+    }
+
+    @Test("Same device as…, then undo, restores every touched row exactly, including an overridden exclusion")
+    func groupThenUndo() throws {
+        let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40"), charlie = try row("10.0.0.41")
+        try writer.group([alpha.id, bravo.id], primary: alpha.id, source: .bonjour)
+        try writer.exclude(alpha.id, charlie.id)
+        let before = try fields([alpha, bravo, charlie])
+        let undo = try writer.groupForUser([charlie.id, alpha.id], primary: nil, overridingExclusions: true)
+        #expect(try fresh(charlie).deviceGroupID == fresh(alpha).deviceGroupID)
+        #expect(try fresh(charlie).groupSource == "user" && fresh(bravo).groupSource == "bonjour")
+        try writer.undo(undo)
+        #expect(try fields([alpha, bravo, charlie]) == before)
+    }
+
+    @Test("Not the same device on the primary, then undo, restores the re-keyed members too")
+    func ungroupPrimaryThenUndo() throws {
+        let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40"), charlie = try row("10.0.0.41")
+        try writer.group([alpha.id, bravo.id, charlie.id], primary: alpha.id, source: .user)
+        let before = try fields([alpha, bravo, charlie])
+        let undo = try writer.ungroupForUser(alpha.id)
+        #expect(try fresh(bravo).groupPrimaryID != alpha.id)
+        try writer.undo(undo)
+        #expect(try fields([alpha, bravo, charlie]) == before)
+    }
+
+    @Test("An undo is refused after a later change to the rows it touched, or a deleted row, and changes nothing")
+    func staleUndoIsRefused() throws {
+        let alpha = try row("10.0.0.10"), bravo = try row("10.0.0.40"), charlie = try row("10.0.0.41")
+        let undo = try writer.groupForUser([alpha.id, bravo.id], primary: alpha.id)
+        try writer.removeInterface(bravo.id)
+        let after = try fields([alpha, charlie])
+        #expect(throws: DeviceGroupWriter.Refusal.undoUnavailable) { try writer.undo(undo) }
+        #expect(try fields([alpha, charlie]) == after)
+
+        // Another row joined the group since: undoing would strand it.
+        let second = try writer.groupForUser([alpha.id, charlie.id], primary: alpha.id)
+        let delta = try row("10.0.0.50")
+        try writer.group([delta.id, alpha.id], primary: nil, source: .bonjour)
+        #expect(throws: DeviceGroupWriter.Refusal.undoUnavailable) { try writer.undo(second) }
+        #expect(try fresh(delta).deviceGroupID == fresh(alpha).deviceGroupID)
+    }
 }
 
 private struct Move: Equatable {

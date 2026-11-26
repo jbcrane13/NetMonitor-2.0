@@ -124,8 +124,9 @@ public struct ScanHistory {
 public struct ScanReconciler {
     public enum Outcome: Equatable, Sendable {
         /// Saved. `answered`: the IDs of the rows a device answered for; `latencies`: the latency
-        /// measured this scan, by row ID, for those that had one.
-        case applied(answered: Set<UUID>, latencies: [UUID: Double])
+        /// measured this scan, by row ID, for those that had one; `events`: what changed, one per
+        /// device at most (#603), as delivered to the dispatcher.
+        case applied(answered: Set<UUID>, latencies: [UUID: Double], events: [DeviceEvent])
         /// Already reconciled, empty, or nothing answered.
         case skipped
     }
@@ -138,6 +139,7 @@ public struct ScanReconciler {
     private let holdsUnassignedForDetail: Bool
     private let save: @MainActor (ModelContext) throws -> Void
     private let fetch: @MainActor (ModelContext) throws -> [LocalDevice]
+    private let dispatcher: DeviceEventDispatcher?
 
     /// Reads every saved row; the default for `fetch`.
     public static let fetchAllRows: @MainActor (ModelContext) throws -> [LocalDevice] = { try $0.fetch(FetchDescriptor<LocalDevice>()) }
@@ -147,13 +149,15 @@ public struct ScanReconciler {
     ///     network is left for device detail to adopt (the iPhone). The Mac makes a row instead.
     ///   - save: how rows are saved; tests make it fail.
     ///   - fetch: how rows are read; tests make it fail.
+    ///   - dispatcher: where an applied scan's events go (#603); the apps pass `.shared`.
     public init(
         context: ModelContext,
         history: ScanHistory = ScanHistory(),
         policy: DeviceGracePolicy = DeviceGracePolicy(),
         holdsUnassignedForDetail: Bool = true,
         save: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() },
-        fetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows
+        fetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows,
+        dispatcher: DeviceEventDispatcher? = nil
     ) {
         self.context = context
         self.history = history
@@ -161,6 +165,7 @@ public struct ScanReconciler {
         self.holdsUnassignedForDetail = holdsUnassignedForDetail
         self.save = save
         self.fetch = fetch
+        self.dispatcher = dispatcher
     }
 
     /// Reconciles `scan`, finished at `scanDate`, into `networkProfileID`'s rows. Throws when the
@@ -172,9 +177,11 @@ public struct ScanReconciler {
               // a background scan) would put older addresses and presence back.
               history.newestScan(for: networkProfileID).map({ scanDate > $0 }) ?? true
         else { return .skipped }
-        let applied: (answered: Set<UUID>, latencies: [UUID: Double])
+        // The network's first recorded scan is the baseline: nothing on it has "joined".
+        let isBaseline = history.newestScan(for: networkProfileID) == nil
+        let applied: Applied
         do {
-            applied = try apply(scan, networkProfileID: networkProfileID, scanDate: scanDate, now: now)
+            applied = try apply(scan, networkProfileID: networkProfileID, scanDate: scanDate, now: now, isBaseline: isBaseline)
             try save(context)
         } catch {
             // Nothing half-applied stays in the context for the next save to write.
@@ -183,20 +190,33 @@ public struct ScanReconciler {
             throw error
         }
         history.record(scan: scanDate, reconciled: now, for: networkProfileID)
-        return .applied(answered: applied.answered, latencies: applied.latencies)
+        dispatcher?.deliver(DeviceEventBatch(networkProfileID: networkProfileID, scanDate: scanDate, events: applied.events))
+        return .applied(answered: applied.answered, latencies: applied.latencies, events: applied.events)
+    }
+
+    private struct Applied {
+        let answered: Set<UUID>
+        let latencies: [UUID: Double]
+        let events: [DeviceEvent]
     }
 
     // MARK: - Applying
 
-    /// Returns the IDs of the rows that answered, and the latencies measured this scan.
+    /// Returns the IDs of the rows that answered, the latencies measured this scan, and the
+    /// devices' events.
     private func apply(
-        _ scan: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date
-    ) throws -> (answered: Set<UUID>, latencies: [UUID: Double]) {
+        _ raw: [DiscoveredDevice], networkProfileID: UUID?, scanDate: Date, now: Date, isBaseline: Bool
+    ) throws -> Applied {
         let all = try fetch(context)
         // One observation per MAC, chosen by the saved rows as device detail chooses it.
-        let scan = PresenceMatch.onePerMAC(scan, known: all)
+        let scan = PresenceMatch.onePerMAC(raw, known: all)
         var rows = all.filter { $0.networkProfileID == networkProfileID }.sorted { $0.lastSeen > $1.lastSeen }
         let unassigned = networkProfileID == nil ? [] : all.filter { $0.networkProfileID == nil }
+        // Saved states before anything changes; a row adopted from those saved without a network
+        // was there before, so it never "joins".
+        let before = DeviceEventReducer.snapshot(rows) + DeviceEventReducer.snapshot(unassigned)
+        var rowForAddress: [String: UUID] = [:]
+        var rowForMAC: [String: UUID] = [:]
         // A row the network's previous scan saw never missed a scan (that scan at most
         // `PresenceMatch.previousScanReach` before this one).
         let previousScan = history.previousReconciled(beforeScan: scanDate, for: networkProfileID)
@@ -225,6 +245,8 @@ public struct ScanReconciler {
                 continue
             } else {
                 row = LocalDevice(ipAddress: device.ipAddress, macAddress: "", networkProfileID: networkProfileID)
+                // First seen on the reconciler's clock, as `lastSeen` is (rows made by one scan tie).
+                row.firstSeen = now
                 context.insert(row)
                 rows.append(row)
             }
@@ -243,7 +265,13 @@ public struct ScanReconciler {
             row.status = .online
             row.lastSeen = now
             answered.insert(row.id)
+            rowForAddress[device.ipAddress] = row.id
+            if let mac = DeviceMatcher.normalizedMAC(device.macAddress) {
+                rowForMAC[mac] = row.id
+            }
         }
+
+        Self.groupByBonjour(raw, rows: rows, rowForAddress: rowForAddress, rowForMAC: rowForMAC)
 
         // Rows of unknown type get one from what the scan knows, as on the Mac, so "the printer"
         // names a scanned printer (#571).
@@ -260,7 +288,28 @@ public struct ScanReconciler {
                 row.status = .offline
             }
         }
-        return (answered, latencies)
+        let events = DeviceEventReducer.reduce(before: before, after: DeviceEventReducer.snapshot(rows), isBaseline: isBaseline)
+        return Applied(answered: answered, latencies: latencies, events: events)
+    }
+
+    /// Automatic grouping (#594 PR2) on this scan's own evidence, in the reconciler's context and
+    /// save, so the events see the devices as they are after the scan. A collapsed duplicate MAC's
+    /// address counts as its MAC's row.
+    private static func groupByBonjour(
+        _ raw: [DiscoveredDevice], rows: [LocalDevice], rowForAddress: [String: UUID], rowForMAC: [String: UUID]
+    ) {
+        var rowForAddress = rowForAddress
+        for observation in raw where !observation.isCached && rowForAddress[observation.ipAddress] == nil {
+            if let mac = DeviceMatcher.normalizedMAC(observation.macAddress), let row = rowForMAC[mac] {
+                rowForAddress[observation.ipAddress] = row
+            }
+        }
+        for ids in DeviceGrouping.plan(scan: raw, rowForAddress: rowForAddress, rows: rows) {
+            let named = rows.filter { ids.contains($0.id) }
+            let groupIDs = Set(named.compactMap(\.deviceGroupID))
+            let members = named + rows.filter { row in !ids.contains(row.id) && row.deviceGroupID.map(groupIDs.contains) == true }
+            _ = try? DeviceGroupWriter.join(named, members: members, primary: nil, source: .bonjour)
+        }
     }
 
     /// What an answering device tells its row: address, names, MAC, identity, ports, and its

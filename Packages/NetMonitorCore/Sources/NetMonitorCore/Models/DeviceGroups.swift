@@ -170,6 +170,34 @@ public enum DeviceGroups {
         return try Array(project(completingGroups(selected, in: context)).prefix(limit))
     }
 
+    /// How long ago a Bonjour host may have been seen and still suggest a group (#594 PR2).
+    public static let suggestionWindow: TimeInterval = 30 * 86400
+
+    /// The devices `device` may be the same as (#594 PR2: "Same Bonjour name as X: same device?"):
+    /// another device on its network with an interface that answered for the same strong Bonjour
+    /// host, both seen for it within ``suggestionWindow`` of `now`, and no exclusion between them.
+    /// Computed, never stored; most recently seen first. Pass complete groups.
+    public static func suggestions(for device: DeviceProjection, among rows: [LocalDevice], now: Date) -> [DeviceProjection] {
+        func recentHosts(_ members: [LocalDevice]) -> Set<String> {
+            Set(members.compactMap { member -> String? in
+                guard let host = member.bonjourHost, let seen = member.bonjourHostSeenAt,
+                      now.timeIntervalSince(seen) <= suggestionWindow,
+                      !BonjourHostName.isGeneric(host, maker: member.maker, model: member.modelName) else { return nil }
+                return host
+            })
+        }
+        let hosts = recentHosts(device.members)
+        guard !hosts.isEmpty else { return [] }
+        let network = device.primary.networkProfileID
+        let excluded = Set(device.members.flatMap { $0.notSameAsIDs ?? [] })
+        return project(rows.filter { $0.networkProfileID == network })
+            .filter { other in
+                other.id != device.id && !recentHosts(other.members).isDisjoint(with: hosts)
+                    && other.members.allSatisfy { !excluded.contains($0.id) && Set($0.notSameAsIDs ?? []).isDisjoint(with: device.memberIDs) }
+            }
+            .sorted { $0.lastSeen > $1.lastSeen }
+    }
+
     /// What deleting an interface takes with it, for the confirmation both apps show (#594):
     /// "This deletes 192.168.1.60 from this device, with its custom name and its notes. The rule
     /// ‘Studio down’ names it and will follow the device's other interfaces." `references` are the
@@ -186,7 +214,7 @@ public enum DeviceGroups {
 
     /// The primary to use when a group's `groupPrimaryID` names no member, or a member leaves:
     /// one with user content (a custom name, notes, a serial, a user-confirmed value), then the
-    /// earliest first seen, then the lower ID.
+    /// earliest first seen, then the lower IPv4, then the lower ID.
     public static func preferredPrimary(among members: [LocalDevice]) -> LocalDevice? {
         members.min { lhs, rhs in
             if hasUserContent(lhs) != hasUserContent(rhs) {
@@ -194,6 +222,12 @@ public enum DeviceGroups {
             }
             if lhs.firstSeen != rhs.firstSeen {
                 return lhs.firstSeen < rhs.firstSeen
+            }
+            // Rows first seen together (one scan): the lower IPv4, so the choice doesn't depend on
+            // the rows' random IDs (#594 PR2).
+            let lhsIP = NetworkUtilities.ipv4ToUInt32(lhs.ipAddress), rhsIP = NetworkUtilities.ipv4ToUInt32(rhs.ipAddress)
+            if lhsIP != rhsIP {
+                return (lhsIP ?? .max) < (rhsIP ?? .max)
             }
             return lhs.id.uuidString < rhs.id.uuidString
         }

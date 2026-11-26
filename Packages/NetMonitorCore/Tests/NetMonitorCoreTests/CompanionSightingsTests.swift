@@ -96,4 +96,49 @@ struct CompanionSightingsTests {
         #expect(bob.macAddress.isEmpty)
         #expect(bob.notes == nil)
     }
+
+    // MARK: Members (#594 PR2)
+
+    @Test func eachInterfaceThatAnsweredANewerMacScanIsASighting() {
+        let scan = now.addingTimeInterval(-60)
+        func member(_ ip: String, mac: String? = nil, answered: Bool = true) -> MemberInfo {
+            MemberInfo(
+                id: UUID(), ipAddress: ip, macAddress: mac, lastSeen: answered ? scan : now.addingTimeInterval(-9000),
+                answeredLatestScan: answered, scanTime: scan
+            )
+        }
+        let members = [member("192.168.7.10", mac: "AA:BB:CC:00:00:10"), member("192.168.7.40"), member("192.168.7.41", answered: false)]
+        let list = DeviceListPayload(devices: [DeviceInfo(
+            ipAddress: "192.168.7.10", macAddress: "AA:BB:CC:00:00:10", hostname: "studio", isOnline: true, members: members, isDeviceOnline: true
+        )])
+        func sightings(ownLastScan: Date?) -> [String] {
+            DeviceDiscoveryService.companionSightings(
+                list: list, receivedAt: now, macConnected: true, now: now, includes: { $0.hasPrefix("192.168.7.") }, profileID: nil,
+                ownLastScan: ownLastScan
+            ).devices.map(\.ipAddress)
+        }
+        #expect(sightings(ownLastScan: nil) == ["192.168.7.10", "192.168.7.40"])
+        #expect(sightings(ownLastScan: scan.addingTimeInterval(-1)) == ["192.168.7.10", "192.168.7.40"])
+        #expect(sightings(ownLastScan: scan).isEmpty, "a Mac scan no newer than the phone's own adds nothing")
+    }
+
+    @Test func oldAndNewPayloadsDecodeBothWays() throws {
+        // A Mac before #594 PR2 sends no members: a new phone reads nil.
+        let old = #"{"devices":[{"id":"\#(UUID().uuidString)","ipAddress":"192.168.7.60","macAddress":"","hostname":"tv","deviceType":"tv","isOnline":true}]}"#
+        let decoded = try JSONDecoder().decode(DeviceListPayload.self, from: Data(old.utf8))
+        #expect(decoded.devices.first?.members == nil && decoded.devices.first?.isDeviceOnline == nil)
+        // A phone before #594 PR2 reads a new Mac's list: the extra keys are ignored.
+        struct LegacyDeviceInfo: Decodable {
+            let id: UUID, ipAddress: String, macAddress: String, hostname: String?, deviceType: String, isOnline: Bool
+        }
+        struct LegacyList: Decodable {
+            let devices: [LegacyDeviceInfo]
+        }
+        let member = MemberInfo(id: UUID(), ipAddress: "192.168.7.40", macAddress: nil, lastSeen: now, answeredLatestScan: true, scanTime: now)
+        let new = try JSONEncoder().encode(DeviceListPayload(devices: [DeviceInfo(
+            ipAddress: "192.168.7.10", macAddress: "", hostname: "studio", isOnline: true, members: [member], isDeviceOnline: true
+        )]))
+        #expect(try JSONDecoder().decode(LegacyList.self, from: new).devices.map(\.ipAddress) == ["192.168.7.10"])
+        #expect(try JSONDecoder().decode(DeviceListPayload.self, from: new).devices.first?.members == [member])
+    }
 }
