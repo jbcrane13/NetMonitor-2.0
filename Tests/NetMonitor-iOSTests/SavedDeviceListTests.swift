@@ -206,7 +206,7 @@ struct DevicePresenceModelTests {
             reconciler: ScanReconciler(context: container.mainContext, history: history),
             currentNetworkProfileID: { home },
             clock: { now },
-            onSaved: { _ in model.refresh() }
+            onSaved: { _, _ in model.refresh() }
         )
         discovery.isScanning = true
         updater.handleScanChange()

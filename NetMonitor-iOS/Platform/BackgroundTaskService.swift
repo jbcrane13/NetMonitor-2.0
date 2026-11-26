@@ -449,10 +449,10 @@ extension BackgroundTaskService {
         guard DeviceRecordUpdater.reconcile(devices, scanDate: scanDate, network: network, with: reconciler, now: now) else {
             return false
         }
-        let presence = history.presenceSnapshot(now: now)
-        for scanned in Set(devices.compactMap { $0.networkProfileID ?? network }) {
-            summaries.refresh(network: scanned, in: context, presence: presence, defaults: defaults, reloadWidget: reloadWidget)
-        }
+        summaries.publish(
+            savedScan: devices, networks: Set(devices.compactMap { $0.networkProfileID ?? network }), in: context,
+            presence: history.presenceSnapshot(now: now), defaults: defaults, reloadWidget: reloadWidget
+        )
         return true
     }
 }

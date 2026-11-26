@@ -573,6 +573,7 @@
 		DA37A7C2A8FAFD772C93C9A6 /* WakeOnLanAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1416864948742E11E4580141 /* WakeOnLanAction.swift */; };
 		DA8EC955538ED4440DE0EC7A /* NetworkMapFunctionalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B1CB82BF919DFFC1B8045B /* NetworkMapFunctionalUITests.swift */; };
 		DB62942D887001F97C775137 /* DeviceDetailView+Interfaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CADBF416750CA6B70813E98 /* DeviceDetailView+Interfaces.swift */; };
+		DB72C0F71A811980D48A2B55 /* DeviceGroupReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF7A364EF2D99820E45C3BC /* DeviceGroupReviewTests.swift */; };
 		DBF706693023362544495469 /* CompanionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C2EB59EAE07282EC6C58EF /* CompanionService.swift */; };
 		DD662EDF2E1C33972E6BCC58 /* AcknowledgementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E678FCAC5AC181A1C62585D /* AcknowledgementsView.swift */; };
 		DD9702E4A201DEC52A645FE6 /* UptimeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926AB2C0DCBFD54EFD5480B8 /* UptimeViewModel.swift */; };
@@ -1269,6 +1270,7 @@
 		DA5FD1B08685EFEC9DBB7A93 /* VPNInfoViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNInfoViewModelTests.swift; sourceTree = "<group>"; };
 		DAAB8EFA459C03B0EA468DF9 /* DeviceDiscoveryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryServiceTests.swift; sourceTree = "<group>"; };
 		DAD637AD0609DA09F9CE0C8A /* NetMonitorWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NetMonitorWidgetExtension.entitlements; sourceTree = "<group>"; };
+		DAF7A364EF2D99820E45C3BC /* DeviceGroupReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceGroupReviewTests.swift; sourceTree = "<group>"; };
 		DBB29135703E0FE0FA145BEA /* SharedViewModelHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedViewModelHelpers.swift; sourceTree = "<group>"; };
 		DBF00D4886C61A37F2D9DA0D /* SecurityReadoutMacViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityReadoutMacViewModelTests.swift; sourceTree = "<group>"; };
 		DC30204FAADF62E903865979 /* PublicIPServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicIPServiceTests.swift; sourceTree = "<group>"; };
@@ -1923,6 +1925,7 @@
 				42D4858C200CC11B60955760 /* DeviceDetailTestDoubles.swift */,
 				FC804A214B32FE44709510C9 /* DeviceDetailViewModelTests.swift */,
 				17215E7C000ABF2ACD0741B7 /* DeviceGroupReaderTests.swift */,
+				DAF7A364EF2D99820E45C3BC /* DeviceGroupReviewTests.swift */,
 				8D06459522B72E4C31134E20 /* DeviceRecordUpdaterTests.swift */,
 				9D2CF1E0E2108306BD4F4953 /* DNSLookupToolViewModelTests.swift */,
 				810C19CFD5E59DF141347B97 /* EventListenerNetworkIDTests.swift */,
@@ -3018,6 +3021,7 @@
 				EED4D8D3596924D2658E581C /* DeviceDetailTestDoubles.swift in Sources */,
 				92D79310FF0B4D2577E541FA /* DeviceDetailViewModelTests.swift in Sources */,
 				655D97CB563054388B7157B6 /* DeviceGroupReaderTests.swift in Sources */,
+				DB72C0F71A811980D48A2B55 /* DeviceGroupReviewTests.swift in Sources */,
 				B2A5499A60D883051259F736 /* DeviceRecordUpdaterTests.swift in Sources */,
 				FEAA3E224398789E25C2AF64 /* EventListenerNetworkIDTests.swift in Sources */,
 				DFBBF93D85E9038D8B07E5EE /* EventListenerServiceTests.swift in Sources */,

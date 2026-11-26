@@ -64,8 +64,8 @@ struct SavedDeviceList {
     let presence: PresenceSnapshot
 
     /// - Parameters:
-    ///   - saved: saved rows, complete groups (``completing(_:with:)``); those of `network` (or of
-    ///     none) are listed, one entry per device.
+    ///   - saved: saved rows, complete groups (``recentRows(network:in:)``); those of `network`
+    ///     (or of none) are listed, one entry per device.
     ///   - live: the scan's devices, during or after it; those matching a saved row (by MAC, else
     ///     address) are that row's device, the rest are listed as found in this scan.
     init(saved: [LocalDevice], live: [DiscoveredDevice] = [], network: UUID?, sort: Sort, showPast: Bool, presence: PresenceSnapshot) {
@@ -79,41 +79,44 @@ struct SavedDeviceList {
         entries = Self.sorted(shown.map(Entry.saved) + found.map(Entry.found), by: sort, presence: presence)
     }
 
-    /// The saved rows the list reads: the network's and those saved without one, most recently seen
-    /// first, at most `fetchLimit`. Complete its groups (``completing(_:with:)`` with
-    /// ``groupedDescriptor(network:)``) before listing them (#594).
-    static func fetchDescriptor(network: UUID?) -> FetchDescriptor<LocalDevice> {
-        var descriptor: FetchDescriptor<LocalDevice>
-        if let network {
-            descriptor = FetchDescriptor(predicate: #Predicate { $0.networkProfileID == network || $0.networkProfileID == nil })
-        } else {
-            descriptor = FetchDescriptor(predicate: #Predicate { $0.networkProfileID == nil })
+    /// The saved devices the list reads (#594): the network's `fetchLimit` most recently seen
+    /// devices, paged by device (`DeviceGroups.recentDevices`), plus those saved before rows had a
+    /// network, as complete groups, most recent first, at most `fetchLimit` devices.
+    static func recentRows(network: UUID?, in context: ModelContext) -> [LocalDevice] {
+        var devices = network.flatMap { try? DeviceGroups.recentDevices(network: $0, limit: fetchLimit, in: context) } ?? []
+        devices += recentUnassignedDevices(limit: fetchLimit, in: context)
+        return devices.sorted { $0.lastSeen > $1.lastSeen }.prefix(fetchLimit).flatMap(\.members)
+    }
+
+    /// The `limit` most recently seen devices among rows saved without a network, paged by device
+    /// as `DeviceGroups.recentDevices` pages a network's (whose nil means every network), each with
+    /// every member.
+    static func recentUnassignedDevices(limit: Int, in context: ModelContext) -> [DeviceProjection] {
+        var selected: [LocalDevice] = []
+        var chosen = Set<DeviceGroupKey>()
+        var offset = 0
+        while chosen.count < limit {
+            var page = FetchDescriptor<LocalDevice>(
+                predicate: #Predicate { $0.networkProfileID == nil },
+                sortBy: [SortDescriptor(\.lastSeen, order: .reverse), SortDescriptor(\.ipAddress)]
+            )
+            page.fetchOffset = offset
+            page.fetchLimit = limit
+            let rows = (try? context.fetch(page)) ?? []
+            for row in rows where chosen.contains(DeviceGroupKey(row)) || chosen.count < limit {
+                chosen.insert(DeviceGroupKey(row))
+                selected.append(row)
+            }
+            offset += rows.count
+            if rows.count < limit {
+                break
+            }
         }
-        descriptor.sortBy = [SortDescriptor(\.lastSeen, order: .reverse)]
-        descriptor.fetchLimit = fetchLimit
-        return descriptor
+        let complete = (try? DeviceGroups.completingGroups(selected, in: context)) ?? selected
+        return Array(DeviceGroups.project(complete).prefix(limit))
     }
 
     static let fetchLimit = 500
-
-    /// The grouped rows of the same networks (#594), for ``completing(_:with:)``: a bounded fetch
-    /// may hold a group's newest member but not its primary.
-    static func groupedDescriptor(network: UUID?) -> FetchDescriptor<LocalDevice> {
-        if let network {
-            return FetchDescriptor(predicate: #Predicate {
-                $0.deviceGroupID != nil && ($0.networkProfileID == network || $0.networkProfileID == nil)
-            })
-        }
-        return FetchDescriptor(predicate: #Predicate { $0.deviceGroupID != nil && $0.networkProfileID == nil })
-    }
-
-    /// `rows` plus the members of their groups that `grouped` holds and `rows` doesn't (#594).
-    static func completing(_ rows: [LocalDevice], with grouped: [LocalDevice]) -> [LocalDevice] {
-        let groupIDs = Set(rows.compactMap(\.deviceGroupID))
-        guard !groupIDs.isEmpty else { return rows }
-        let have = Set(rows.map(\.id))
-        return rows + grouped.filter { row in row.deviceGroupID.map(groupIDs.contains) == true && !have.contains(row.id) }
-    }
 
     /// Devices online now, counting devices found by a recent scan.
     var onlineCount: Int {
@@ -175,5 +178,20 @@ struct SavedDeviceList {
         case .found(let device):
             PresenceFreshness.isRecent(device.discoveredAt, now: presence.now, policy: presence.policy) ? device.latency ?? .infinity : .infinity
         }
+    }
+}
+
+/// The saved rows a list shows (#594), read through ``SavedDeviceList/recentRows(network:in:)``,
+/// which pages by device; a `@Query` can't. Refreshed when the list appears and after every save.
+@MainActor
+@Observable
+final class SavedDeviceRows {
+    private(set) var rows: [LocalDevice] = []
+    /// False until the first read, so a list doesn't flash "No Devices Found".
+    private(set) var isLoaded = false
+
+    func refresh(network: UUID?, in context: ModelContext) {
+        rows = SavedDeviceList.recentRows(network: network, in: context)
+        isLoaded = true
     }
 }

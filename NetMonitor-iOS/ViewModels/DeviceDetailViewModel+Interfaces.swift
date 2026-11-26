@@ -56,9 +56,10 @@ extension DeviceDetailViewModel {
         DeviceGroups.userContent(of: member)
     }
 
-    /// The removal confirmation's message, naming what goes with the interface.
+    /// The removal confirmation's message, naming what goes with the interface. iOS stores no rules
+    /// or targets by row ID (monitoring targets name a host), so there are no references to name.
     func removalMessage(_ member: LocalDevice) -> String {
-        "This deletes \(member.ipAddress) from this device, with \(ListFormatter.localizedString(byJoining: userContent(of: member)))."
+        DeviceGroups.removalMessage(for: member)
     }
 
     /// The device report Share sends: the device's name and type, the current member's address and
