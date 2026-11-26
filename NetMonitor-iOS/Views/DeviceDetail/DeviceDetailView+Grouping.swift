@@ -144,12 +144,14 @@ struct GroupingUndoToast: View {
             .accessibilityLabel("Dismiss")
             .accessibilityIdentifier("deviceDetail_button_dismissToast")
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("deviceDetail_toast_undo")
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .glassCard()
+        // Opaque under the glass, so the scrolled content doesn't show through the message.
+        .background(Theme.Colors.backgroundElevated, in: RoundedRectangle(cornerRadius: Theme.Layout.cardCornerRadius))
         .padding(.horizontal, Theme.Layout.screenPadding)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("deviceDetail_toast_undo")
     }
 }
 

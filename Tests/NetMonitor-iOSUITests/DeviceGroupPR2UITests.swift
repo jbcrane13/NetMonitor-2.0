@@ -54,11 +54,11 @@ final class DeviceGroupPR2UITests: PresenceUITestCase {
         keepCroppedEvidence(banner, named: "594-pr2-ios-suggestion-banner")
 
         ui("deviceDetail_button_suggestionSameDevice").tap()
-        let toast = ui("deviceDetail_toast_undo")
+        let toast = ui("deviceDetail_label_toastMessage")
         requireExists(toast, timeout: 5, message: "Grouping shows an undo toast")
-        XCTAssertEqual(ui("deviceDetail_label_toastMessage").label, "Grouped with uitest-library-wifi")
+        XCTAssertEqual(toast.label, "Grouped with uitest-library-wifi")
         XCTAssertTrue(waitForDisappearance(banner, timeout: 5), "The suggestion goes once accepted")
-        keepCroppedEvidence(toast, named: "594-pr2-ios-undo-toast")
+        keepCroppedEvidence(frame: toast.frame.union(ui("deviceDetail_button_dismissToast").frame), named: "594-pr2-ios-undo-toast")
         let interfaces = ui("deviceDetail_section_interfaces")
         scrollToElement(interfaces)
         requireExists(interfaces, timeout: 5, message: "One device with both interfaces")
@@ -73,8 +73,10 @@ final class DeviceGroupPR2UITests: PresenceUITestCase {
 
         app.navigationBars.buttons.firstMatch.tap()
         requireExists(row("192.168.1.80"), timeout: 8, message: "Two devices again: the wired one")
-        requireExists(row("192.168.1.81"), timeout: 5, message: "Two devices again: the Wi-Fi one")
-        keepCroppedEvidence(row("192.168.1.81"), named: "594-pr2-ios-after-undo")
+        let wifi = row("192.168.1.81")
+        requireExists(wifi, timeout: 5, message: "Two devices again: the Wi-Fi one")
+        scrollToElement(wifi)
+        keepCroppedEvidence(wifi, named: "594-pr2-ios-after-undo")
     }
 
     func testSameDeviceAsThenNotTheSameDevice() {
@@ -99,7 +101,7 @@ final class DeviceGroupPR2UITests: PresenceUITestCase {
         keepCroppedEvidence(pick, named: "594-pr2-ios-picker-search")
         pick.tap()
 
-        requireExists(ui("deviceDetail_toast_undo"), timeout: 5, message: "Grouping shows an undo toast")
+        requireExists(ui("deviceDetail_label_toastMessage"), timeout: 5, message: "Grouping shows an undo toast")
         XCTAssertEqual(ui("deviceDetail_label_toastMessage").label, "Grouped with uitest-device-2")
         app.navigationBars.buttons.firstMatch.tap()
         let grouped = row("192.168.1.11")
@@ -113,14 +115,18 @@ final class DeviceGroupPR2UITests: PresenceUITestCase {
         requireExists(separate, timeout: 8, message: "Each interface offers Not the same device")
         keepCroppedEvidence(separate, named: "594-pr2-ios-not-same-device-button")
         separate.tap()
-        requireExists(ui("deviceDetail_toast_undo"), timeout: 5, message: "Separating shows an undo toast")
-        XCTAssertEqual(ui("deviceDetail_label_toastMessage").label, "192.168.1.12 is a separate device")
+        let toast = ui("deviceDetail_label_toastMessage")
+        requireExists(toast, timeout: 5, message: "Separating shows an undo toast")
+        XCTAssertEqual(toast.label, "192.168.1.12 is a separate device")
+        keepCroppedEvidence(frame: toast.frame.union(ui("deviceDetail_button_dismissToast").frame), named: "594-pr2-ios-separate-toast")
         XCTAssertTrue(waitForDisappearance(ui("deviceDetail_section_interfaces"), timeout: 5), "One interface left")
 
         app.navigationBars.buttons.firstMatch.tap()
         requireExists(row("192.168.1.11"), timeout: 8, message: "Two devices again: uitest-device-1")
-        requireExists(row("192.168.1.12"), timeout: 5, message: "Two devices again: uitest-device-2")
-        keepCroppedEvidence(row("192.168.1.12"), named: "594-pr2-ios-after-not-same-device")
+        let second = row("192.168.1.12")
+        requireExists(second, timeout: 5, message: "Two devices again: uitest-device-2")
+        scrollToElement(second)
+        keepCroppedEvidence(second, named: "594-pr2-ios-after-not-same-device")
     }
 
     /// Keeps the screenshot cropped to `frame`, such as an interface row and its label together.
