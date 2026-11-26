@@ -61,17 +61,22 @@ public extension ScanDiff {
     /// online is none of these. Each device is named by its device (`DeviceEvent.name`) and found at
     /// its current interface; a removed one carries when it last answered.
     init(_ batch: DeviceEventBatch) {
+        self.init(events: batch.events, networkProfileID: batch.networkProfileID, scannedAt: batch.scanDate)
+    }
+
+    /// ``init(_:)`` for events collected from one scan's batches (a background scan's alerts).
+    init(events: [DeviceEvent], networkProfileID: UUID?, scannedAt: Date) {
         func device(_ event: DeviceEvent, seen: Date) -> DiscoveredDevice {
             DiscoveredDevice(
                 ipAddress: event.ipAddress, hostname: event.name == event.ipAddress ? nil : event.name, vendor: nil,
                 macAddress: event.macAddress, latency: nil, discoveredAt: seen, source: .local,
-                networkProfileID: event.networkProfileID ?? batch.networkProfileID
+                networkProfileID: event.networkProfileID ?? networkProfileID
             )
         }
         var new: [DiscoveredDevice] = []
         var removed: [DiscoveredDevice] = []
         var changed: [DiscoveredDevice] = []
-        for event in batch.events {
+        for event in events {
             switch event.kind {
             case .joined: new.append(device(event, seen: event.lastSeen))
             case let .wentOffline(since): removed.append(device(event, seen: since))
@@ -79,6 +84,6 @@ public extension ScanDiff {
             case .cameOnline: break
             }
         }
-        self.init(newDevices: new, removedDevices: removed, changedDevices: changed, scannedAt: batch.scanDate)
+        self.init(newDevices: new, removedDevices: removed, changedDevices: changed, scannedAt: scannedAt)
     }
 }
