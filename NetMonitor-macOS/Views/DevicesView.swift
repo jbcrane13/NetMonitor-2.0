@@ -230,9 +230,6 @@ struct DevicesView: View {
         }
     }
 
-    /// The device `id` names (a group's ID or any interface's row ID): from the list's rows, else
-    /// from the store, so an alert's View Details opens a device the list's fetch left out (#615
-    /// review).
     /// The row the Pro detail sheet shows after a grouping action anchored on `rowID`: the
     /// primary of the device that row now belongs to, read from the store (#594 PR2).
     static func proDetailRow(after rowID: UUID, in context: ModelContext) -> LocalDevice? {
@@ -240,6 +237,9 @@ struct DevicesView: View {
         return (try? DeviceGroups.device(of: row, in: context))?.primary ?? row
     }
 
+    /// The device `id` names (a group's ID or any interface's row ID): from the list's rows, else
+    /// from the store, so an alert's View Details opens a device the list's fetch left out (#615
+    /// review).
     static func device(for id: UUID, among rows: [LocalDevice], in context: ModelContext) -> DeviceProjection? {
         if let listed = DeviceGroupResolver(rows: rows).device(for: id) {
             return listed

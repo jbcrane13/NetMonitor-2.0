@@ -49,3 +49,20 @@ xcodebuild test -scheme NetMonitor-macOS
 ```
 
 <!-- MANUAL: -->
+
+### Device groups (#594)
+One device can be several saved rows (its interfaces). Both detail views (`DeviceDetailView`, `Devices/ProDeviceDetailView`) show:
+- `Devices/DeviceInterfacesCard.swift`: the Interfaces section;
+- `Devices/DeviceGroupingViews.swift`: the suggestion banner, the "Same device as…" picker sheet, and the override confirmation and undo toast (`deviceGroupingFeedback()`).
+
+The logic, the reads and the toast state are in `ViewModels/DeviceGroupingViewModel.swift`. `DevicesView` owns it, above detail, because grouping changes a device's ID and so recreates the detail view. Choices and wording are Core's `DeviceGroupingChoices`, shared with iOS.
+
+| Control | Accessibility ID |
+|---|---|
+| Suggestion banner; its Same device / Not the same device | `deviceDetail_banner_suggestion`; `deviceDetail_button_suggestionSameDevice` / `deviceDetail_button_suggestionNotSameDevice` |
+| Open the picker; the sheet; its empty state; a row | `deviceDetail_button_sameDeviceAs`; `screen_sameDeviceAs`; `sameDeviceAs_label_empty`; `sameDeviceAs_row_<ip>` |
+| Override confirm / cancel | `deviceDetail_button_confirmGroupOverride` / `deviceDetail_button_cancelGroupOverride` |
+| Toast; its message, Undo, close | `deviceDetail_toast_undo` (not exposed on macOS 27); `deviceDetail_label_toastMessage`, `deviceDetail_button_undo`, `deviceDetail_button_dismissToast` |
+| Interface row: Not the same device; Bonjour label; Remove | `deviceDetail_button_notSameDevice_<ip>`; `deviceDetail_label_groupedByBonjour_<ip>`; `deviceDetail_button_removeInterface_<ip>` |
+
+User flows: `scripts/ax/594-device-group.sh` and `scripts/ax/594-pr2-grouping.sh`, run under `lockf -t 3600 /tmp/nm-mini1-ax.lock`.

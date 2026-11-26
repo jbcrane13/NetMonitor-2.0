@@ -98,7 +98,7 @@ struct DeviceInterfacesCard: View {
                             .clipShape(Capsule())
                     }
                 }
-                if let label = Self.groupLabel(for: member) {
+                if let label = DeviceGroupingChoices.label(for: member) {
                     Label(label, systemImage: "dot.radiowaves.left.and.right")
                         .font(.caption)
                         .foregroundStyle(MacTheme.Colors.labelSecondary)
@@ -147,12 +147,6 @@ struct DeviceInterfacesCard: View {
         .padding(.vertical, 2)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("deviceDetail_row_interface_\(member.ipAddress)")
-    }
-
-    /// "Grouped by Bonjour name" for a member that joined automatically (spoofing is accepted,
-    /// with this label); nil otherwise.
-    static func groupLabel(for member: LocalDevice) -> String? {
-        member.groupSource == DeviceGroupSource.bonjour.rawValue ? "Grouped by Bonjour name" : nil
     }
 
     static func portsText(_ ports: [Int]?) -> String {

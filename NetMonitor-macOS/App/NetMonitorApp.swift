@@ -485,7 +485,7 @@ enum NetworkProfileDefaults {
 /// fixture scan reports the printer, and only the printer, as joined.
 enum UITestScanFixture {
     /// The UI-test scans' own suite (their scan history), so they never touch the user's.
-    static let trackerSuite = "netmonitor.uitest"
+    static let scanHistorySuite = "netmonitor.uitest"
     static let seedIP = "192.168.77.77"
     static let seedMAC = "AA:BB:CC:DD:EE:FF"
     static let seedHostname = "uitest-device"
@@ -561,8 +561,8 @@ enum UITestScanFixture {
     /// and be skipped.
     @MainActor
     static func scanHistory() -> ScanHistory {
-        guard let defaults = UserDefaults(suiteName: trackerSuite) else {
-            preconditionFailure("UI-test tracker suite \(trackerSuite) is unavailable")
+        guard let defaults = UserDefaults(suiteName: scanHistorySuite) else {
+            preconditionFailure("UI-test scan-history suite \(scanHistorySuite) is unavailable")
         }
         let history = ScanHistory(defaults: defaults)
         history.clearAll()
