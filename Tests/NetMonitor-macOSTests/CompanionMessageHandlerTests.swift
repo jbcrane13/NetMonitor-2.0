@@ -303,24 +303,21 @@ struct CompanionMessageHandlerTests {
         #expect(response.answer == "SSH is open on this device.")
     }
 
-    @Test("answering is off until the owner turns it on: no capability, and requests are answered unavailable without the model")
-    func insightOffByDefault() async throws {
+    @Test("answering is on until the owner turns it off: the default advertises insight.v1 and requests are answered")
+    func insightOnByDefault() async throws {
         UserDefaults.standard.removeObject(forKey: CompanionMessageHandler.answersInsightKey)
         let model = FixedAnswerInsightService(answer: "SSH is open.")
         let (container, _, handler, _, _) = try makeFixture(insightService: model)
         _ = container
 
-        #expect(!CompanionMessageHandler.answersInsight)
-        #expect(handler.heartbeat().capabilities == ["inventory.v1"])
-        guard case let .heartbeat(reply)? = await handler.handle(.heartbeat(HeartbeatPayload()), from: UUID(), authorization: .always),
-              case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
+        #expect(CompanionMessageHandler.answersInsight)
+        #expect(handler.heartbeat().capabilities == ["insight.v1", "inventory.v1"])
+        guard case let .insightResponse(response)? = await handler.handle(.insightRequest(Self.insightRequest), from: UUID(), authorization: .always)
         else {
-            Issue.record("expected heartbeat and insight replies")
+            Issue.record("expected an insight reply")
             return
         }
-        #expect(reply.capabilities == ["inventory.v1"])
-        #expect(response.failureReason == .unavailable)
-        #expect(response.answer == nil)
+        #expect(response.answer == "SSH is open.")
     }
 
     @Test("with the model unavailable an insight request is answered unavailable")

@@ -25,14 +25,16 @@ final class CompanionMessageHandler {
     /// The log each device's last change is read from (#585).
     private let eventService: any NetworkEventServiceProtocol
 
-    /// Settings key for "Answer model requests from iPhone"; off when unset.
+    /// Settings key for "Answer model requests from iPhone"; on when unset.
     nonisolated static let answersInsightKey = "netmonitor.companion.answersInsight"
 
-    /// Whether the user lets this Mac answer the iPhone's model requests. Off until the owner turns
-    /// it on (#457). Only a paired iPhone reaches this handler (#590); whether to turn it on by
-    /// default is a separate decision.
+    /// What the setting is until the owner changes it. On, because only a paired iPhone reaches
+    /// this handler (#590); a stored value, on or off, always wins (#457).
+    nonisolated static let answersInsightDefault = true
+
+    /// Whether the user lets this Mac answer the iPhone's model requests.
     nonisolated static var answersInsight: Bool {
-        UserDefaults.standard.object(forKey: answersInsightKey) as? Bool ?? false
+        UserDefaults.standard.object(forKey: answersInsightKey) as? Bool ?? answersInsightDefault
     }
 
     init(
