@@ -108,7 +108,7 @@ struct NetmonitorApp: App {
             // Its own context on the app's container: a failed save rolls back only the scan, never
             // device detail's unsaved edits in the main context, which sees the saved rows (#589).
             // Its applied scans' device events go to the Timeline and the scheduler's diff (#603).
-            reconciler: ScanReconciler(context: ModelContext(sharedModelContainer), dispatcher: .shared),
+            reconciler: ScanReconciler(context: ModelContext(sharedModelContainer), dispatcher: DeviceEventDispatcher.shared),
             // Read only, and only a live network: a device without one is never filed under a
             // network the phone has left (#589).
             currentNetworkProfileID: { CurrentNetwork.detected()?.id },
