@@ -81,7 +81,7 @@ struct ProDeviceDetailView: View {
         }
         .onDisappear {
             if let removalOnClose {
-                try? DeviceGroupWriter(context: modelContext).removeInterface(removalOnClose)
+                InterfaceRemoval.remove(removalOnClose, in: modelContext)
             }
         }
         .accessibilityElement(children: .contain)
@@ -540,7 +540,7 @@ private extension ProDeviceDetailView {
             removalOnClose = member.id
             dismiss()
         } else {
-            try? DeviceGroupWriter(context: modelContext).removeInterface(member.id)
+            InterfaceRemoval.remove(member.id, in: modelContext)
         }
     }
 

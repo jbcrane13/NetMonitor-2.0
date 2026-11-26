@@ -104,6 +104,22 @@ struct DeviceGroupReaderTests {
         #expect(info.isOnline)
     }
 
+    @Test func aRemovedInterfaceLeavesTheCoordinatorsDevicesBeforeItsNextLoad() throws {
+        let fixture = try makeGroup()
+        let coordinator = DeviceDiscoveryCoordinator(
+            modelContext: fixture.context, bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager(), scanHistory: .forTesting()
+        )
+        let answer = LocalDiscoveredDevice(ipAddress: Self.memberIP, macAddress: Self.memberMAC, hostname: "studio-wifi")
+        coordinator.reconcileScan([answer], profileID: nil)
+        try DeviceGroupWriter(context: fixture.context).removeInterface(fixture.member.id)
+
+        let devices = coordinator.projectedDevices
+        #expect(devices.count == 1)
+        #expect(devices.first?.ipAddress == Self.primaryIP)
+        #expect(devices.first?.isGroup == false)
+    }
+
     @Test func menuBarListsAGroupOfflineOnlyWhenEveryInterfaceIs() throws {
         let fixture = try makeGroup()
         fixture.member.status = .offline

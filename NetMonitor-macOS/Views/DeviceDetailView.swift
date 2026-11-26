@@ -581,12 +581,7 @@ struct DeviceDetailView: View {
     private func removeInterface(_ member: LocalDevice) {
         let remaining = projection.members.first { $0.id != member.id }?.id
         discoveryCoordinator?.cancelSuggestions()
-        do {
-            try DeviceGroupWriter(context: modelContext).removeInterface(member.id)
-        } catch {
-            Logger.data.error("Failed to remove interface: \(error)")
-            return
-        }
+        InterfaceRemoval.remove(member.id, in: modelContext)
         onInterfaceRemoved(remaining)
     }
 

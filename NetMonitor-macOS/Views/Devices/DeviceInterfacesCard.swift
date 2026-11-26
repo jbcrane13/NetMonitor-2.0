@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import NetMonitorCore
+import os
 
 /// Device detail's Interfaces section (#594), shown for a device of two or more interfaces: each
 /// member's address, MAC, last seen and open ports (a port stays on the interface it was measured
@@ -141,10 +142,31 @@ enum DeviceGroupMembers {
 
     /// The device `row` belongs to, from the query's `rows`.
     static func projection(of row: LocalDevice, rows: [LocalDevice]) -> DeviceProjection {
-        var members = rows.filter { !$0.isDeleted && $0.networkProfileID == row.networkProfileID }
-        if !row.isDeleted, !members.contains(where: { $0 === row }) {
+        let live: (LocalDevice) -> Bool = { $0.modelContext != nil && !$0.isDeleted }
+        var members = rows.filter { live($0) && $0.networkProfileID == row.networkProfileID }
+        if live(row), !members.contains(where: { $0 === row }) {
             members.append(row)
         }
         return DeviceGroups.project(members).first { $0.contains(row.id) } ?? DeviceGroups.project([row])[0]
+    }
+}
+
+/// Remove this interface (#594), in two steps so no view draws a deleted row: lists holding rows
+/// drop it first (`willRemove`), and the row is deleted through `DeviceGroupWriter` on the next
+/// turn of the main run loop, once they have redrawn.
+enum InterfaceRemoval {
+    /// Posted with the row's ID (`object`) before it is deleted.
+    static let willRemove = Notification.Name("netmonitor.deviceInterfaceWillBeRemoved")
+
+    @MainActor
+    static func remove(_ rowID: UUID, in context: ModelContext) {
+        NotificationCenter.default.post(name: willRemove, object: rowID)
+        DispatchQueue.main.async {
+            do {
+                try DeviceGroupWriter(context: context).removeInterface(rowID)
+            } catch {
+                Logger.data.error("Failed to remove interface: \(error)")
+            }
+        }
     }
 }

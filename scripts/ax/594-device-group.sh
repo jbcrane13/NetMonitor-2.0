@@ -11,7 +11,7 @@
 #   3. Remove this interface on the Wi-Fi interface (confirmed, as it has notes) leaves one device,
 #      at the Ethernet address, still named.
 # Run 2 removes the Ethernet interface (the primary, the row the detail shows) instead; run 3 does
-# that from the Pro table's detail sheet. Both leave one device at the Wi-Fi address, and the app
+# that from the Pro detail sheet. Both leave one device at the Wi-Fi address, and the app
 # keeps running.
 # Screenshots are the app window cropped to the elements: fixture devices only, no WAN or DNS.
 # Never touches an installed /Applications copy: it drives only the process it started.
@@ -86,6 +86,7 @@ expect "$("$AX" textin deviceDetail_card_interfaces $WIFI 5)" "found text" "Inte
 expect "$("$AX" text "Ethernet port behind the desk" 5)" "found text" "the primary's notes should show"
 expect "$("$AX" text "Wi-Fi when undocked" 5)" "found text" "the Wi-Fi interface's notes should show"
 "$AX" capture-union "$OUT/594-2-detail-interfaces.png" deviceDetail_card_interfaces
+"$AX" scroll deviceDetail_card_interfaces -300 > /dev/null
 "$AX" capture-union "$OUT/594-3-detail-notes.png" deviceDetail_card_notes
 
 "$AX" press deviceDetail_button_removeInterface_$WIFI > /dev/null
@@ -114,20 +115,23 @@ expect "$("$AX" text "Wi-Fi when undocked" 5)" "found text" "run 2: the detail s
 alive "run 2"
 quit
 
-# MARK: Run 3: the same from the Pro table's detail sheet
+# MARK: Run 3: the same from the Pro detail sheet (opened from the dashboard's device panel;
+# the Pro table is wider than the screen, so its rows' centres are off-window)
 
-launch 3 Pro
-scan
-expect "$("$AX" wait devices_row_pro$WIFI 10)" found "run 3: the Pro table should show the device at its Wi-Fi address"
-expect "$("$AX" gone devices_row_pro$ETHERNET 3)" gone "run 3: one row for the device"
-"$AX" click devices_row_pro$WIFI > /dev/null
+launch 3 Consumer
+"$AX" menu "Scan Network"
+sleep 3
+"$AX" click "$("$AX" ids | tr ' ' '\n' | grep -m1 '^sidebar_row_network')" > /dev/null
+expect "$("$AX" wait networkDevicesPanel_row_$WIFI 15)" found "run 3: the panel should show the device at its Wi-Fi address"
+expect "$("$AX" gone networkDevicesPanel_row_$ETHERNET 3)" gone "run 3: one panel row for the device"
+"$AX" clickat networkDevicesPanel_row_$WIFI 60 12 > /dev/null
 expect "$("$AX" wait deviceDetail_card_interfaces 10)" found "run 3: the sheet should list the interfaces"
 "$AX" press deviceDetail_button_removeInterface_$ETHERNET > /dev/null
 confirmRemoval $ETHERNET
 expect "$("$AX" gone screen_deviceDetail 10)" gone "run 3: removing the shown row closes the sheet"
 sleep 1
-expect "$("$AX" wait devices_row_pro$WIFI 10)" found "run 3: the Wi-Fi interface should remain"
-expect "$("$AX" gone devices_row_pro$ETHERNET 3)" gone "run 3: the removed primary must be gone"
+expect "$("$AX" wait networkDevicesPanel_row_$WIFI 10)" found "run 3: the Wi-Fi interface should remain"
+expect "$("$AX" gone networkDevicesPanel_row_$ETHERNET 3)" gone "run 3: the removed primary must be gone"
 alive "run 3"
 quit
 echo PASS

@@ -107,7 +107,6 @@ struct DevicesView: View {
                     if let device = selectedDevice {
                         DeviceDetailView(device: device.primary) { remaining in
                             // Removing an interface can change the primary or end the group.
-                            reloadDevices()
                             selectedDeviceID = remaining
                         }
                         // A new device starts with fresh edit state, so a draft can't be
@@ -172,8 +171,11 @@ struct DevicesView: View {
         .onChange(of: NotificationRouter.shared.deviceToSelect, initial: true) { _, id in
             selectPendingDevice(id)
         }
-        // A row deleted anywhere (Remove this interface in a detail or a sheet, #594) must leave
-        // the list before it draws again.
+        // An interface about to be removed (#594) leaves the list before it is deleted, so no
+        // row draws a deleted model; the list reloads once the deletion is saved.
+        .onReceive(NotificationCenter.default.publisher(for: InterfaceRemoval.willRemove)) { note in
+            devices.removeAll { $0.id == note.object as? UUID }
+        }
         .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in
             reloadDevices()
         }

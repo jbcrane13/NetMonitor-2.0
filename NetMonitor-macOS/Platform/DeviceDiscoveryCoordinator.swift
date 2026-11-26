@@ -16,8 +16,9 @@ final class DeviceDiscoveryCoordinator {
     /// reconciling read. Views read ``projectedDevices``.
     private(set) var discoveredDevices: [LocalDevice] = []
     /// The network's devices as every view shows them (#594): `discoveredDevices` (all the
-    /// network's rows, so groups are complete) projected, one entry per device, latest first.
-    var projectedDevices: [DeviceProjection] { DeviceGroups.project(discoveredDevices) }
+    /// network's rows, so groups are complete) projected, one entry per device, latest first. A row
+    /// deleted since the last load (Remove this interface) is left out.
+    var projectedDevices: [DeviceProjection] { DeviceGroups.project(discoveredDevices.filter { $0.modelContext != nil && !$0.isDeleted }) }
     private(set) var lastScanTime: Date?
     private(set) var scanProgress: Double = 0.0
     private(set) var networkProfile: NetworkProfile?
