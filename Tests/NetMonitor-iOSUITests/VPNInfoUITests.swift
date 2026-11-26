@@ -5,14 +5,14 @@ final class VPNInfoUITests: IOSUITestCase {
 
     func testVPNCardAppearsOnDashboard() {
         requireExists(
-            app.descendants(matching: .any)["dashboard_card_vpn"],
+            app.byID("dashboard_card_vpn"),
             timeout: 8,
             message: "VPN card should be visible on dashboard"
         )
     }
 
     func testVPNStatusIndicatorExists() {
-        guard app.descendants(matching: .any)["dashboard_card_vpn"].waitForExistence(timeout: 8) else {
+        guard app.byID("dashboard_card_vpn").waitForExistence(timeout: 8) else {
             return
         }
         let statusEl = app.descendants(matching: .any)["dashboard_label_vpnStatus"]
@@ -24,7 +24,7 @@ final class VPNInfoUITests: IOSUITestCase {
 
     func testVPNDetailsSectionVisibleWhenConnected() {
         // Only verifiable in a real VPN environment; skip if VPN is inactive
-        guard app.descendants(matching: .any)["dashboard_card_vpn"].waitForExistence(timeout: 8) else {
+        guard app.byID("dashboard_card_vpn").waitForExistence(timeout: 8) else {
             return
         }
         let details = app.descendants(matching: .any)["vpnInfo_section_details"]
@@ -36,14 +36,14 @@ final class VPNInfoUITests: IOSUITestCase {
 
     func testVPNCardRemainsVisibleAfterScroll() {
         requireExists(
-            app.descendants(matching: .any)["screen_dashboard"],
+            app.byID("screen_dashboard"),
             timeout: 5,
             message: "Dashboard screen should be visible"
         )
         app.swipeUp()
         app.swipeDown()
         XCTAssertTrue(
-            app.descendants(matching: .any)["screen_dashboard"].exists,
+            app.byID("screen_dashboard").exists,
             "Dashboard should remain visible after scroll"
         )
     }
@@ -52,7 +52,7 @@ final class VPNInfoUITests: IOSUITestCase {
 
     @MainActor
     func testVPNStatusShowsActiveOrInactiveText() {
-        guard app.descendants(matching: .any)["dashboard_card_vpn"].waitForExistence(timeout: 8) else {
+        guard app.byID("dashboard_card_vpn").waitForExistence(timeout: 8) else {
             return
         }
 
@@ -76,12 +76,12 @@ final class VPNInfoUITests: IOSUITestCase {
 
     @MainActor
     func testVPNCardShowsProtocolOrStatusInfo() {
-        guard app.descendants(matching: .any)["dashboard_card_vpn"].waitForExistence(timeout: 8) else {
+        guard app.byID("dashboard_card_vpn").waitForExistence(timeout: 8) else {
             return
         }
 
         // Collect all static text labels inside the VPN card area
-        let vpnCard = app.descendants(matching: .any)["dashboard_card_vpn"]
+        let vpnCard = app.byID("dashboard_card_vpn")
         let staticTexts = vpnCard.staticTexts.allElementsBoundByIndex
         let allLabels = staticTexts.map { $0.label }.filter { !$0.isEmpty }
 
@@ -94,7 +94,7 @@ final class VPNInfoUITests: IOSUITestCase {
 
     @MainActor
     func testVPNCardTapNavigatesToDetailOrStaysOnDashboard() {
-        let vpnCard = app.descendants(matching: .any)["dashboard_card_vpn"]
+        let vpnCard = app.byID("dashboard_card_vpn")
         guard vpnCard.waitForExistence(timeout: 8) else {
             return
         }
@@ -102,16 +102,16 @@ final class VPNInfoUITests: IOSUITestCase {
         vpnCard.tap()
 
         // Give the app a moment to react
-        _ = app.descendants(matching: .any)["screen_dashboard"].waitForExistence(timeout: 1)
+        _ = app.byID("screen_dashboard").waitForExistence(timeout: 1)
 
         // Valid outcomes after tapping the VPN card:
         // a) A VPN detail / info view is pushed onto the navigation stack
         // b) The card expanded inline (dashboard still visible)
         // c) Nothing happened (card is purely informational)
         // In every case the app must not have crashed and some UI must be present.
-        let dashboardStillVisible = app.descendants(matching: .any)["screen_dashboard"].exists
+        let dashboardStillVisible = app.byID("screen_dashboard").exists
         let vpnDetailVisible =
-            app.descendants(matching: .any)["screen_vpnInfo"].waitForExistence(timeout: 3) ||
+            app.byID("screen_vpnInfo").waitForExistence(timeout: 3) ||
             app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS[c] 'VPN'")).firstMatch.waitForExistence(timeout: 3)
 
         XCTAssertTrue(

@@ -17,7 +17,7 @@ final class CompanionPairingUITests: IOSUITestCase {
         captureScreenshot(named: "590-01-mac-not-paired")
 
         row.tap()
-        requireExists(app.descendants(matching: .any)["screen_pairWithMac"], timeout: 5, message: "Tapping an unpaired Mac opens pairing")
+        requireExists(app.byID("screen_pairWithMac"), timeout: 5, message: "Tapping an unpaired Mac opens pairing")
         let field = requireExists(app.textFields["pairMac_textfield_code"], message: "The code field should show")
         field.tap()
         field.typeText(Self.code)
@@ -90,10 +90,10 @@ final class CompanionPairingUITests: IOSUITestCase {
         } else {
             requireExists(app.navigationBars.buttons.firstMatch, message: "A navigation bar button should exist for settings").tap()
         }
-        requireExists(app.descendants(matching: .any)["screen_settings"], timeout: 8, message: "Settings screen should open")
+        requireExists(app.byID("screen_settings"), timeout: 8, message: "Settings screen should open")
         let connect = app.buttons["settings_button_connectMac"]
         scrollToElement(connect)
         requireExists(connect, message: "Connect to Mac").tap()
-        requireExists(app.descendants(matching: .any)["screen_macPairing"], timeout: 5, message: "The pairing sheet should open")
+        requireExists(app.byID("screen_macPairing"), timeout: 5, message: "The pairing sheet should open")
     }
 }

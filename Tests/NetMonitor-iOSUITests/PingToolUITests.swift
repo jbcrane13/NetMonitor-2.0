@@ -5,18 +5,18 @@ final class PingToolUITests: IOSUITestCase {
 
     private func navigateToPingTool() {
         app.tabBars.buttons["Tools"].tap()
-        let pingCard = app.otherElements["tools_card_ping"]
+        let pingCard = app.byID("tools_card_ping")
         scrollToElement(pingCard)
         requireExists(pingCard, timeout: 8, message: "Ping tool card should exist")
         pingCard.tap()
-        requireExists(app.otherElements["screen_pingTool"], timeout: 8, message: "Ping tool screen should appear")
+        requireExists(app.byID("screen_pingTool"), timeout: 8, message: "Ping tool screen should appear")
     }
 
     // MARK: - Screen Existence
 
     func testPingToolScreenExistsAndShowsContent() throws {
         navigateToPingTool()
-        let screen = app.otherElements["screen_pingTool"]
+        let screen = app.byID("screen_pingTool")
         XCTAssertTrue(screen.waitForExistence(timeout: 5), "Ping tool screen should exist")
         // FUNCTIONAL: screen should contain at least input field and run button
         XCTAssertTrue(
@@ -48,12 +48,12 @@ final class PingToolUITests: IOSUITestCase {
     func testPingCountPickerExistsAndIsInteractive() throws {
         navigateToPingTool()
         let pickerExists = app.buttons["pingTool_picker_count"].waitForExistence(timeout: 5)
-            || app.otherElements["pingTool_picker_count"].waitForExistence(timeout: 3)
+            || app.byID("pingTool_picker_count").waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Ping count picker should exist")
         // FUNCTIONAL: verify picker can be tapped
         let activePicker = app.buttons["pingTool_picker_count"].exists
             ? app.buttons["pingTool_picker_count"]
-            : app.otherElements["pingTool_picker_count"]
+            : app.byID("pingTool_picker_count")
         activePicker.tap()
         // Picker options or the picker itself should still be visible
         XCTAssertTrue(activePicker.waitForExistence(timeout: 3), "Ping count picker should remain accessible after tap")
@@ -94,13 +94,13 @@ final class PingToolUITests: IOSUITestCase {
         navigateToPingTool()
         clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
-        let resultsSection = app.otherElements["pingTool_section_results"]
+        let resultsSection = app.byID("pingTool_section_results")
         XCTAssertTrue(resultsSection.waitForExistence(timeout: 10), "Results section should appear after starting ping")
         // FUNCTIONAL: results section should contain actual result content
         XCTAssertTrue(
-            resultsSection.staticTexts.count > 0 || app.otherElements.matching(
+            !resultsSection.staticTexts.hasNoMatches || !app.otherElements.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'pingTool_row_'")
-            ).count > 0,
+            ).hasNoMatches,
             "Results section should contain ping result data"
         )
     }
@@ -109,11 +109,11 @@ final class PingToolUITests: IOSUITestCase {
         navigateToPingTool()
         clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
-        let statsCard = app.otherElements["pingTool_card_statistics"]
+        let statsCard = app.byID("pingTool_card_statistics")
         XCTAssertTrue(statsCard.waitForExistence(timeout: 30), "Statistics card should appear after ping completes")
         // FUNCTIONAL: stats card should contain statistical data
         XCTAssertTrue(
-            statsCard.staticTexts.count > 0,
+            !statsCard.staticTexts.hasNoMatches,
             "Statistics card should contain min/avg/max statistics"
         )
     }
@@ -122,7 +122,7 @@ final class PingToolUITests: IOSUITestCase {
         navigateToPingTool()
         clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
-        let resultsSection = app.otherElements["pingTool_section_results"]
+        let resultsSection = app.byID("pingTool_section_results")
         if resultsSection.waitForExistence(timeout: 15) {
             let clearButton = app.buttons["pingTool_button_clear"]
             if clearButton.waitForExistence(timeout: 30) {
@@ -142,7 +142,7 @@ final class PingToolUITests: IOSUITestCase {
         navigateToPingTool()
         clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
-        let chart = app.otherElements["pingTool_chart_latency"]
+        let chart = app.byID("pingTool_chart_latency")
         XCTAssertTrue(chart.waitForExistence(timeout: 20), "Latency chart should appear after successful pings")
         // FUNCTIONAL: chart should contain visual data
         XCTAssertTrue(chart.exists, "Latency chart should be visible with ping data")
@@ -154,19 +154,19 @@ final class PingToolUITests: IOSUITestCase {
         navigateToPingTool()
         clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
-        let chart = app.otherElements["pingTool_chart_latency"]
+        let chart = app.byID("pingTool_chart_latency")
         XCTAssertTrue(chart.waitForExistence(timeout: 20), "Chart should appear so stats are visible")
 
         // FUNCTIONAL: at least one stat label should be visible
-        let minStat = app.otherElements["pingTool_stat_min"].waitForExistence(timeout: 5)
+        let minStat = app.byID("pingTool_stat_min").waitForExistence(timeout: 5)
             || app.staticTexts["pingTool_stat_min"].waitForExistence(timeout: 3)
         XCTAssertTrue(minStat, "Min stat should be visible during ping")
 
-        let avgStat = app.otherElements["pingTool_stat_avg"].waitForExistence(timeout: 5)
+        let avgStat = app.byID("pingTool_stat_avg").waitForExistence(timeout: 5)
             || app.staticTexts["pingTool_stat_avg"].waitForExistence(timeout: 3)
         XCTAssertTrue(avgStat, "Avg stat should be visible during ping")
 
-        let maxStat = app.otherElements["pingTool_stat_max"].waitForExistence(timeout: 5)
+        let maxStat = app.byID("pingTool_stat_max").waitForExistence(timeout: 5)
             || app.staticTexts["pingTool_stat_max"].waitForExistence(timeout: 3)
         XCTAssertTrue(maxStat, "Max stat should be visible during ping")
     }
@@ -176,7 +176,7 @@ final class PingToolUITests: IOSUITestCase {
     func testCountPickerChangesValue() throws {
         navigateToPingTool()
         let picker = app.buttons["pingTool_picker_count"]
-        let pickerAlt = app.otherElements["pingTool_picker_count"]
+        let pickerAlt = app.byID("pingTool_picker_count")
         let pickerExists = picker.waitForExistence(timeout: 5) || pickerAlt.waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Ping count picker should exist")
 
@@ -199,7 +199,7 @@ final class PingToolUITests: IOSUITestCase {
         clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
 
         let picker = app.buttons["pingTool_picker_count"]
-        let pickerAlt = app.otherElements["pingTool_picker_count"]
+        let pickerAlt = app.byID("pingTool_picker_count")
         if picker.waitForExistence(timeout: 3) {
             picker.tap()
         } else if pickerAlt.waitForExistence(timeout: 3) {
@@ -211,11 +211,11 @@ final class PingToolUITests: IOSUITestCase {
         }
 
         app.buttons["pingTool_button_run"].tap()
-        let statsCard = app.otherElements["pingTool_card_statistics"]
+        let statsCard = app.byID("pingTool_card_statistics")
         XCTAssertTrue(statsCard.waitForExistence(timeout: 30), "Statistics card should appear after ping completes")
         // FUNCTIONAL: stats card should contain actual numeric values
         XCTAssertTrue(
-            statsCard.staticTexts.count > 0,
+            !statsCard.staticTexts.hasNoMatches,
             "Stats card should display min/avg/max values"
         )
     }
@@ -227,7 +227,7 @@ final class PingToolUITests: IOSUITestCase {
         clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
         app.buttons["pingTool_button_run"].tap()
 
-        let chart = app.otherElements["pingTool_chart_latency"]
+        let chart = app.byID("pingTool_chart_latency")
         XCTAssertTrue(chart.waitForExistence(timeout: 20), "Chart should appear before we can clear it")
 
         let clearButton = app.buttons["pingTool_button_clear"]
@@ -237,7 +237,7 @@ final class PingToolUITests: IOSUITestCase {
         XCTAssertTrue(waitForDisappearance(chart, timeout: 5), "Chart should disappear after clearing results")
         // FUNCTIONAL: results section should also be gone
         XCTAssertTrue(
-            waitForDisappearance(app.otherElements["pingTool_section_results"], timeout: 5),
+            waitForDisappearance(app.byID("pingTool_section_results"), timeout: 5),
             "Results section should also disappear after clearing"
         )
     }
@@ -248,7 +248,7 @@ final class PingToolUITests: IOSUITestCase {
         navigateToPingTool()
 
         let pickerButton = app.buttons["pingTool_picker_count"]
-        let pickerElement = app.otherElements["pingTool_picker_count"]
+        let pickerElement = app.byID("pingTool_picker_count")
         let pickerExists = pickerButton.waitForExistence(timeout: 5) || pickerElement.waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Ping count picker should exist on the ping tool screen")
 
@@ -278,7 +278,7 @@ final class PingToolUITests: IOSUITestCase {
         clearAndTypeText("127.0.0.1", into: app.textFields["pingTool_input_host"])
 
         let pickerButton = app.buttons["pingTool_picker_count"]
-        let pickerElement = app.otherElements["pingTool_picker_count"]
+        let pickerElement = app.byID("pingTool_picker_count")
         if pickerButton.waitForExistence(timeout: 3) {
             pickerButton.tap()
         } else if pickerElement.waitForExistence(timeout: 3) {
@@ -291,10 +291,10 @@ final class PingToolUITests: IOSUITestCase {
 
         app.buttons["pingTool_button_run"].tap()
 
-        let statsCard = app.otherElements["pingTool_card_statistics"]
-        let minStat = app.otherElements["pingTool_stat_min"]
-        let avgStat = app.otherElements["pingTool_stat_avg"]
-        let maxStat = app.otherElements["pingTool_stat_max"]
+        let statsCard = app.byID("pingTool_card_statistics")
+        let minStat = app.byID("pingTool_stat_min")
+        let avgStat = app.byID("pingTool_stat_avg")
+        let maxStat = app.byID("pingTool_stat_max")
 
         XCTAssertTrue(
             waitForEither([statsCard, minStat, avgStat, maxStat], timeout: 30),

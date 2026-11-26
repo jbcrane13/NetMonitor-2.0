@@ -5,18 +5,18 @@ final class PortScannerToolUITests: IOSUITestCase {
 
     private func navigateToPortScannerTool() {
         app.tabBars.buttons["Tools"].tap()
-        let portScannerCard = app.otherElements["tools_card_port_scanner"]
+        let portScannerCard = app.byID("tools_card_port_scanner")
         scrollToElement(portScannerCard)
         requireExists(portScannerCard, timeout: 8, message: "Port scanner tool card should exist")
         portScannerCard.tap()
-        requireExists(app.otherElements["screen_portScannerTool"], timeout: 8, message: "Port scanner tool screen should appear")
+        requireExists(app.byID("screen_portScannerTool"), timeout: 8, message: "Port scanner tool screen should appear")
     }
 
     // MARK: - Screen Existence
 
     func testPortScannerScreenExistsAndShowsControls() throws {
         navigateToPortScannerTool()
-        let screen = app.otherElements["screen_portScannerTool"]
+        let screen = app.byID("screen_portScannerTool")
         XCTAssertTrue(screen.waitForExistence(timeout: 5), "Port scanner screen should exist")
         // FUNCTIONAL: screen should contain interactive controls
         XCTAssertTrue(
@@ -49,12 +49,12 @@ final class PortScannerToolUITests: IOSUITestCase {
     func testPortRangePickerExistsAndIsInteractive() throws {
         navigateToPortScannerTool()
         let pickerExists = app.buttons["portScanner_picker_range"].waitForExistence(timeout: 5)
-            || app.otherElements["portScanner_picker_range"].waitForExistence(timeout: 3)
+            || app.byID("portScanner_picker_range").waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Port range picker should exist")
         // FUNCTIONAL: picker should be tappable
         let activePicker = app.buttons["portScanner_picker_range"].exists
             ? app.buttons["portScanner_picker_range"]
-            : app.otherElements["portScanner_picker_range"]
+            : app.byID("portScanner_picker_range")
         activePicker.tap()
         XCTAssertTrue(activePicker.waitForExistence(timeout: 3), "Port range picker should remain accessible after tap")
     }
@@ -75,9 +75,9 @@ final class PortScannerToolUITests: IOSUITestCase {
         navigateToPortScannerTool()
         clearAndTypeText("127.0.0.1", into: app.textFields["portScanner_input_host"])
         app.buttons["portScanner_button_run"].tap()
-        let progress = app.otherElements["portScanner_progress"]
+        let progress = app.byID("portScanner_progress")
         let stopButton = app.buttons["Stop Scan"]
-        let results = app.otherElements["portScanner_section_results"]
+        let results = app.byID("portScanner_section_results")
         XCTAssertTrue(
             waitForEither([progress, stopButton, results], timeout: 15),
             "Progress indicator, stop button, or results should appear after starting scan"
@@ -94,11 +94,11 @@ final class PortScannerToolUITests: IOSUITestCase {
         navigateToPortScannerTool()
         clearAndTypeText("127.0.0.1", into: app.textFields["portScanner_input_host"])
         app.buttons["portScanner_button_run"].tap()
-        let results = app.otherElements["portScanner_section_results"]
+        let results = app.byID("portScanner_section_results")
         XCTAssertTrue(results.waitForExistence(timeout: 30), "Results section should appear after scan completes")
         // FUNCTIONAL: results should contain port data
         XCTAssertTrue(
-            results.staticTexts.count > 0 || app.cells.count > 0,
+            !results.staticTexts.hasNoMatches || !app.cells.hasNoMatches,
             "Results section should contain port scan result data"
         )
         captureScreenshot(named: "PortScanner_Results")
@@ -108,7 +108,7 @@ final class PortScannerToolUITests: IOSUITestCase {
         navigateToPortScannerTool()
         clearAndTypeText("127.0.0.1", into: app.textFields["portScanner_input_host"])
         app.buttons["portScanner_button_run"].tap()
-        let results = app.otherElements["portScanner_section_results"]
+        let results = app.byID("portScanner_section_results")
         if results.waitForExistence(timeout: 30) {
             let clearButton = app.buttons["portScanner_button_clear"]
             if clearButton.waitForExistence(timeout: 3) {
@@ -128,14 +128,14 @@ final class PortScannerToolUITests: IOSUITestCase {
         runButton.tap()
 
         let stopButton = app.buttons["Stop Scan"]
-        let progress = app.otherElements["portScanner_progress"]
+        let progress = app.byID("portScanner_progress")
         XCTAssertTrue(
             waitForEither([stopButton, progress], timeout: 10),
             "Scan should enter running state"
         )
 
         runButton.tap()
-        requireExists(app.otherElements["screen_portScannerTool"], message: "Port scanner screen should remain visible after stopping")
+        requireExists(app.byID("screen_portScannerTool"), message: "Port scanner screen should remain visible after stopping")
         // FUNCTIONAL: after stopping, screen should still be usable
         let runButtonAfter = app.buttons["portScanner_button_run"]
         XCTAssertTrue(runButtonAfter.exists, "Run button should be accessible after stopping scan")
@@ -147,9 +147,9 @@ final class PortScannerToolUITests: IOSUITestCase {
         navigateToPortScannerTool()
 
         let pickerButton = app.buttons["portScanner_picker_preset"]
-        let pickerElement = app.otherElements["portScanner_picker_preset"]
+        let pickerElement = app.byID("portScanner_picker_preset")
         let rangePickerButton = app.buttons["portScanner_picker_range"]
-        let rangePickerElement = app.otherElements["portScanner_picker_range"]
+        let rangePickerElement = app.byID("portScanner_picker_range")
 
         let pickerExists = pickerButton.waitForExistence(timeout: 3)
             || pickerElement.waitForExistence(timeout: 3)
@@ -159,9 +159,15 @@ final class PortScannerToolUITests: IOSUITestCase {
         XCTAssertTrue(pickerExists, "Port scanner preset or range picker should exist")
 
         let activePicker: XCUIElement = {
-            if pickerButton.exists { return pickerButton }
-            if pickerElement.exists { return pickerElement }
-            if rangePickerButton.exists { return rangePickerButton }
+            if pickerButton.exists {
+                return pickerButton
+            }
+            if pickerElement.exists {
+                return pickerElement
+            }
+            if rangePickerButton.exists {
+                return rangePickerButton
+            }
             return rangePickerElement
         }()
 
@@ -182,7 +188,7 @@ final class PortScannerToolUITests: IOSUITestCase {
         clearAndTypeText("127.0.0.1", into: app.textFields["portScanner_input_host"])
         app.buttons["portScanner_button_run"].tap()
 
-        let resultsSection = app.otherElements["portScanner_section_results"]
+        let resultsSection = app.byID("portScanner_section_results")
         let stopButton = app.buttons["Stop Scan"]
 
         XCTAssertTrue(
@@ -193,7 +199,7 @@ final class PortScannerToolUITests: IOSUITestCase {
         if resultsSection.exists {
             // FUNCTIONAL: results section should contain actual port data
             XCTAssertTrue(
-                resultsSection.staticTexts.count > 0 || app.cells.count > 0,
+                !resultsSection.staticTexts.hasNoMatches || !app.cells.hasNoMatches,
                 "Results section should contain at least one port result row"
             )
         }

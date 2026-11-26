@@ -56,7 +56,7 @@ final class ShortcutsUITests: XCTestCase {
             pingCell.tap()
             XCTAssert(
                 app.navigationBars["Ping"].waitForExistence(timeout: 3) ||
-                app.otherElements["screen_ping"].waitForExistence(timeout: 3)
+                app.byID("screen_ping").waitForExistence(timeout: 3)
             )
         }
     }

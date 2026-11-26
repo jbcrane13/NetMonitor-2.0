@@ -5,18 +5,18 @@ final class DNSLookupToolUITests: IOSUITestCase {
 
     private func navigateToDNSTool() {
         app.tabBars.buttons["Tools"].tap()
-        let dnsCard = app.otherElements["tools_card_dns_lookup"]
+        let dnsCard = app.byID("tools_card_dns_lookup")
         scrollToElement(dnsCard)
         requireExists(dnsCard, timeout: 8, message: "DNS lookup tool card should exist")
         dnsCard.tap()
-        requireExists(app.otherElements["screen_dnsLookupTool"], timeout: 8, message: "DNS lookup tool screen should appear")
+        requireExists(app.byID("screen_dnsLookupTool"), timeout: 8, message: "DNS lookup tool screen should appear")
     }
 
     // MARK: - Screen Existence
 
     func testDNSLookupScreenExistsAndShowsControls() throws {
         navigateToDNSTool()
-        let screen = app.otherElements["screen_dnsLookupTool"]
+        let screen = app.byID("screen_dnsLookupTool")
         XCTAssertTrue(screen.waitForExistence(timeout: 5), "DNS lookup screen should exist")
         // FUNCTIONAL: screen should show input field and run button
         XCTAssertTrue(
@@ -49,12 +49,12 @@ final class DNSLookupToolUITests: IOSUITestCase {
     func testRecordTypePickerExistsAndIsInteractive() throws {
         navigateToDNSTool()
         let pickerExists = app.buttons["dnsLookup_picker_type"].waitForExistence(timeout: 5)
-            || app.otherElements["dnsLookup_picker_type"].waitForExistence(timeout: 3)
+            || app.byID("dnsLookup_picker_type").waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Record type picker should exist")
         // FUNCTIONAL: picker should be tappable
         let activePicker = app.buttons["dnsLookup_picker_type"].exists
             ? app.buttons["dnsLookup_picker_type"]
-            : app.otherElements["dnsLookup_picker_type"]
+            : app.byID("dnsLookup_picker_type")
         activePicker.tap()
         XCTAssertTrue(activePicker.waitForExistence(timeout: 3), "Record type picker should remain visible after tap")
     }
@@ -84,8 +84,8 @@ final class DNSLookupToolUITests: IOSUITestCase {
         navigateToDNSTool()
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
-        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
-        let errorLabel = app.otherElements["dnsLookup_label_error"]
+        let queryInfo = app.byID("dnsLookup_section_queryInfo")
+        let errorLabel = app.byID("dnsLookup_label_error")
         XCTAssertTrue(
             waitForEither([queryInfo, errorLabel], timeout: 15),
             "Query info or error should appear after lookup"
@@ -93,7 +93,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
         // FUNCTIONAL: verify lookup produced meaningful output
         if queryInfo.exists {
             XCTAssertTrue(
-                queryInfo.staticTexts.count > 0,
+                !queryInfo.staticTexts.hasNoMatches,
                 "Query info section should contain DNS query data"
             )
         }
@@ -103,8 +103,8 @@ final class DNSLookupToolUITests: IOSUITestCase {
         navigateToDNSTool()
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
-        let records = app.otherElements["dnsLookup_section_records"]
-        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
+        let records = app.byID("dnsLookup_section_records")
+        let queryInfo = app.byID("dnsLookup_section_queryInfo")
         XCTAssertTrue(
             waitForEither([records, queryInfo], timeout: 15),
             "Records or query info should appear after lookup"
@@ -116,7 +116,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
         navigateToDNSTool()
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
-        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
+        let queryInfo = app.byID("dnsLookup_section_queryInfo")
         if queryInfo.waitForExistence(timeout: 10) {
             let clearButton = app.buttons["dnsLookup_button_clear"]
             if clearButton.waitForExistence(timeout: 3) {
@@ -136,8 +136,8 @@ final class DNSLookupToolUITests: IOSUITestCase {
         navigateToDNSTool()
         clearAndTypeText("not-a-real-domain-12345.invalid", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
-        let errorView = app.otherElements["dnsLookup_label_error"]
-        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
+        let errorView = app.byID("dnsLookup_label_error")
+        let queryInfo = app.byID("dnsLookup_section_queryInfo")
         XCTAssertTrue(
             waitForEither([errorView, queryInfo], timeout: 10),
             "Either error or results should appear after lookup attempt"
@@ -151,7 +151,7 @@ final class DNSLookupToolUITests: IOSUITestCase {
         navigateToDNSTool()
 
         let pickerButton = app.buttons["dnsLookup_picker_type"]
-        let pickerElement = app.otherElements["dnsLookup_picker_type"]
+        let pickerElement = app.byID("dnsLookup_picker_type")
         let pickerExists = pickerButton.waitForExistence(timeout: 5) || pickerElement.waitForExistence(timeout: 3)
         XCTAssertTrue(pickerExists, "Record type picker should exist on the DNS lookup screen")
 
@@ -179,11 +179,10 @@ final class DNSLookupToolUITests: IOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["dnsLookup_input_domain"])
         app.buttons["dnsLookup_button_run"].tap()
 
-        let queryInfo = app.otherElements["dnsLookup_section_queryInfo"]
+        let queryInfo = app.byID("dnsLookup_section_queryInfo")
         let clearButton = app.buttons["dnsLookup_button_clear"]
 
-        guard queryInfo.waitForExistence(timeout: 15) else { return }
-        guard clearButton.waitForExistence(timeout: 5) else { return }
+        guard queryInfo.waitForExistence(timeout: 15), clearButton.waitForExistence(timeout: 5) else { return }
 
         clearButton.tap()
 

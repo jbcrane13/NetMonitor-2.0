@@ -1,6 +1,6 @@
 import XCTest
 
-// TODO: full survey→capture→export E2E blocked by missing floor-plan test-seam. See audit 2026-04-21.
+// Full survey→capture→export E2E blocked by missing floor-plan test-seam. See audit 2026-04-21.
 // Currently achievable: entry, shortcut-setup dismissal, export button presence.
 // Future: add testSeam to load a floor plan before takeMeasurement.
 
@@ -9,7 +9,7 @@ final class WiFiHeatmapSurveyExportE2ETests: IOSUITestCase {
 
     private func navigateToHeatmap() {
         app.tabBars.buttons["Tools"].tap()
-        let card = app.otherElements["tools_card_wifi_heatmap"]
+        let card = app.byID("tools_card_wifi_heatmap")
         scrollToElement(card)
         requireExists(card, timeout: 8, message: "Wi-Fi Heatmap card should exist in tools grid")
         card.tap()
@@ -17,7 +17,7 @@ final class WiFiHeatmapSurveyExportE2ETests: IOSUITestCase {
     }
 
     private func ui(_ id: String) -> XCUIElement {
-        app.descendants(matching: .any)[id]
+        app.byID(id)
     }
 
     // MARK: - Tests

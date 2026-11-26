@@ -105,7 +105,7 @@ final class AppEnvironment {
             networkMonitor: NetworkMonitorService.shared,
             deviceDiscovery: fake ? UITestFakeDiscoveryService() : DeviceDiscoveryService.shared,
             macConnection: MacConnectionService.shared,
-            publicIP: PublicIPService(),
+            publicIP: publicIPService(),
             wifiInfo: WiFiInfoService(),
             targetManager: TargetManager.shared,
             activityLog: ToolActivityLog.shared,
@@ -114,5 +114,15 @@ final class AppEnvironment {
             currentNetworkProfileID: networkID,
             connectedNetworkProfileID: connectedNetworkID
         )
+    }
+
+    /// The real service, or under `UITEST_FAKE_ISP` (Debug builds only) one with fixture values.
+    private static func publicIPService() -> any PublicIPServiceProtocol {
+        #if DEBUG
+        if UITestFakeISPService.isEnabled {
+            return UITestFakeISPService()
+        }
+        #endif
+        return PublicIPService()
     }
 }

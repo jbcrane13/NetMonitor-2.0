@@ -12,6 +12,8 @@ final class MockInsightService: InsightServiceProtocol, @unchecked Sendable {
     private var available: Bool
     private var continuations: [AsyncStream<InsightUpdate>.Continuation] = []
     private var received: [InsightRequest] = []
+    /// Updates sent to a request that hasn't been made yet, delivered when it is (#606).
+    private var early: [Int: [InsightUpdate]] = [:]
     private var evidence: [DeviceEvidence] = []
     private var scripted: DeviceSuggestion?
 
@@ -36,16 +38,34 @@ final class MockInsightService: InsightServiceProtocol, @unchecked Sendable {
 
     func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
         AsyncStream { continuation in
-            lock.withLock {
+            let queued: [InsightUpdate] = lock.withLock {
                 received.append(request)
                 continuations.append(continuation)
+                return early.removeValue(forKey: continuations.count - 1) ?? []
+            }
+            for update in queued {
+                Self.deliver(update, on: continuation)
             }
         }
     }
 
-    /// Sends `update` on the stream of the `index`th request.
+    /// Sends `update` on the stream of the `index`th request. A state object starts its model call
+    /// from a task, so under load a test can send before that call is made: the update is kept
+    /// and delivered when the request arrives, instead of crashing on a missing stream (#606).
     func send(_ update: InsightUpdate, to index: Int = 0) {
-        let continuation = lock.withLock { continuations[index] }
+        let continuation: AsyncStream<InsightUpdate>.Continuation? = lock.withLock {
+            guard index < continuations.count else {
+                early[index, default: []].append(update)
+                return nil
+            }
+            return continuations[index]
+        }
+        if let continuation {
+            Self.deliver(update, on: continuation)
+        }
+    }
+
+    private static func deliver(_ update: InsightUpdate, on continuation: AsyncStream<InsightUpdate>.Continuation) {
         continuation.yield(update)
         if case .partial = update {
             return

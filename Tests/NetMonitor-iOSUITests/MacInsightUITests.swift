@@ -7,7 +7,7 @@ import XCTest
 
 private extension IOSUITestCase {
     func ui(_ id: String) -> XCUIElement {
-        app.descendants(matching: .any)[id].firstMatch
+        app.byID(id).firstMatch
     }
 
     /// Runs a Mail Ports scan of 127.0.0.1 and taps "Explain this result".
@@ -31,7 +31,7 @@ private extension IOSUITestCase {
         }
         let picker = app.buttons["portScanner_picker_range"].exists
             ? app.buttons["portScanner_picker_range"]
-            : app.otherElements["portScanner_picker_range"]
+            : app.byID("portScanner_picker_range")
         picker.tap()
         requireExists(app.buttons["Mail Ports"].firstMatch, timeout: 5, message: "Mail Ports preset should be offered").tap()
         app.buttons["portScanner_button_run"].tap()

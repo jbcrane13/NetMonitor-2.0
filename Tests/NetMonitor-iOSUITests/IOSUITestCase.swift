@@ -167,3 +167,34 @@ extension XCUIElement {
         XCTAssertEqual(result, .completed, "\(self) should change value after the tap", file: file, line: line)
     }
 }
+
+extension XCUIApplication {
+    /// Some element that carries the accessibility ID, of any type: first match. The iOS 27 runtime
+    /// reports a screen as a `CollectionView`, `ScrollView` or `Other` depending on its content, so an
+    /// `otherElements["screen_…"]` lookup misses it (#604); and it stamps a container's ID onto
+    /// children without their own, so a plain `[id]` subscript finds several and fails (#610).
+    /// Use it to ask whether a screen, card or control is there, or to tap it. The match can be a
+    /// stamped child rather than the container, so don't read a container's `staticTexts` or frame
+    /// from it: use `texts(carrying:)` for a card's content, or an element-type query.
+    func byID(_ identifier: String) -> XCUIElement {
+        descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// The non-empty static texts inside the container with this ID. iOS 27 stamps the container's ID
+    /// onto them, so this finds a card's real content whichever element `byID` returned.
+    func texts(carrying identifier: String) -> XCUIElementQuery {
+        staticTexts.matching(identifier: identifier).matching(NSPredicate(format: "label != ''"))
+    }
+
+    /// The first text inside the container whose label matches the regular expression, or a
+    /// non-existent element.
+    func text(carrying identifier: String, matching pattern: String) -> XCUIElement {
+        texts(carrying: identifier).matching(NSPredicate(format: "label MATCHES %@", pattern)).firstMatch
+    }
+}
+
+extension XCUIElementQuery {
+    /// True when nothing matches. `count == 0` is rejected by SwiftLint's `empty_count` rule, and
+    /// `isEmpty` is not a member of `XCUIElementQuery`, so a stock name could clash with a later SDK.
+    var hasNoMatches: Bool { !element(boundBy: 0).exists }
+}
