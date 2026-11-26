@@ -215,6 +215,31 @@ final class DeviceEventConsumerTests {
         #expect(try rows().first { $0.id == legacy.id }?.networkProfileID == home, "adopted, not duplicated")
     }
 
+    @Test("A listener logs device events from creation, before start(): a background launch's scan reaches the Timeline")
+    func listensBeforeStart() throws {
+        let early = SpyNetworkEventService()
+        let unstarted = EventListenerService(eventService: early, discoveryService: MockDeviceDiscoveryService(), dispatcher: dispatcher)
+        #expect(!unstarted.isRunning)
+        try reconcile([router], at: 0)
+        try reconcile([router, seen("192.168.1.57", name: "pixel-8")], at: 1)
+        #expect(early.loggedEvents.map(\.title) == ["Device Joined: pixel-8"])
+    }
+
+    @Test("A listener that goes away stops listening")
+    func releasedListenerUnsubscribes() throws {
+        let gone = SpyNetworkEventService()
+        var listener: EventListenerService? = EventListenerService(
+            eventService: gone, discoveryService: MockDeviceDiscoveryService(), dispatcher: dispatcher
+        )
+        weak let released = listener
+        listener = nil
+        #expect(released == nil)
+        try reconcile([router], at: 0)
+        try reconcile([router, seen("192.168.1.57", name: "pixel-8")], at: 1)
+        #expect(gone.loggedEvents.isEmpty)
+        #expect(deviceEntries() == ["Device Joined: pixel-8"], "the suite's own listener still logs")
+    }
+
     @Test("A stopped listener logs nothing more")
     func stoppedListenerIsQuiet() throws {
         try reconcile([router], at: 0)

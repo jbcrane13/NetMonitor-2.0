@@ -29,24 +29,11 @@ final class DeviceGroupingState {
 }
 
 extension DeviceDetailViewModel {
-    /// The message when an undo finds the devices changed since the action.
-    static let undoUnavailableMessage = "Can't undo: these devices changed since."
-
-    /// "Same device as…" (#594 PR2): the other devices on this device's network, the suggested ones
-    /// first (most recently seen first), then the rest by name; `query` matches a device's name or
-    /// any interface's address or hostname.
+    /// "Same device as…" (#594 PR2): this network's other devices, suggestions first, filtered by
+    /// `query` (`DeviceGroupingChoices`: name, and each interface's address, MAC and names).
     func sameDeviceCandidates(matching query: String = "") -> [DeviceProjection] {
         guard let projection else { return [] }
-        let others = DeviceGroups.project(networkRows()).filter { $0.id != projection.id }
-        let suggested = grouping.suggestions.compactMap { suggestion in others.first { $0.id == suggestion.id } }
-        let rest = others.filter { other in !suggested.contains { $0.id == other.id } }
-            .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
-        let query = query.trimmingCharacters(in: .whitespaces)
-        guard !query.isEmpty else { return suggested + rest }
-        return (suggested + rest).filter { device in
-            device.displayName.localizedStandardContains(query)
-                || device.members.contains { $0.ipAddress.contains(query) || ($0.hostname ?? "").localizedStandardContains(query) }
-        }
+        return DeviceGroupingChoices.candidates(for: projection, among: networkRows(), now: clock(), search: query)
     }
 
     /// Whether `device` is among the suggestions, for the picker's section.
@@ -54,24 +41,25 @@ extension DeviceDetailViewModel {
         grouping.suggestions.contains { $0.id == device.id }
     }
 
-    /// "Grouped by Bonjour name" on an interface the scan grouped automatically.
+    /// "Grouped by Bonjour name" for an interface the scan grouped automatically, else nil.
     func groupLabel(for member: LocalDevice) -> String? {
-        member.groupSource == DeviceGroupSource.bonjour.rawValue ? "Grouped by Bonjour name" : nil
+        DeviceGroupingChoices.label(for: member)
     }
 
     /// "Same device" on a suggestion, or a pick in "Same device as…": groups the two devices, with the
     /// device shown here keeping its primary. When the user said earlier that two of their interfaces
     /// are different devices, asks first (``DeviceGroupingState/pendingOverride``) unless `overridingExclusions`.
     func groupWith(_ other: DeviceProjection, overridingExclusions: Bool = false) {
-        guard let projection, let device, let modelContext else { return }
-        let anchor = device.id
+        guard let projection, let modelContext else { return }
+        // The shown device anchors the group: it keeps its group ID and its primary.
+        let anchor = projection.primary.id
         saveContext()
         do {
             let undo = try writer(modelContext).groupForUser(
-                Array(projection.memberIDs.union(other.memberIDs)), primary: anchor, overridingExclusions: overridingExclusions
+                DeviceGroupingChoices.rowIDs(joining: other, to: projection), primary: anchor, overridingExclusions: overridingExclusions
             )
             grouping.pendingOverride = nil
-            grouping.toast = DeviceGroupingToast(message: "Grouped with \(other.displayName)", undo: undo, anchor: anchor)
+            grouping.toast = DeviceGroupingToast(message: DeviceGroupingChoices.grouped(with: other.displayName), undo: undo, anchor: anchor)
         } catch DeviceGroupWriter.Refusal.excluded {
             grouping.pendingOverride = other
             return
@@ -95,15 +83,15 @@ extension DeviceDetailViewModel {
     /// "Not the same device" on a suggestion: the two devices are recorded as different, so the
     /// suggestion goes and doesn't come back.
     func dismissGroupSuggestion(_ other: DeviceProjection) {
-        guard let device, let modelContext else { return }
+        guard let projection, let modelContext else { return }
         saveContext()
         do {
-            try writer(modelContext).exclude(device.id, other.primary.id)
+            try writer(modelContext).exclude(projection.primary.id, other.primary.id)
         } catch {
             self.error = "That couldn't be saved. Try again."
             return
         }
-        reloadDevice(device.id)
+        reloadDevice(projection.primary.id)
     }
 
     /// "Not the same device" on an interface: it becomes a device of its own, with an undo. Detail
@@ -115,7 +103,7 @@ extension DeviceDetailViewModel {
         prepareForLeaving(member)
         do {
             let undo = try writer(modelContext).ungroupForUser(member.id)
-            grouping.toast = DeviceGroupingToast(message: "\(member.ipAddress) is a separate device", undo: undo, anchor: anchor)
+            grouping.toast = DeviceGroupingToast(message: DeviceGroupingChoices.separated(member.ipAddress), undo: undo, anchor: anchor)
         } catch {
             self.error = "The interface couldn't be separated. Try again."
             return
@@ -132,7 +120,7 @@ extension DeviceDetailViewModel {
             try writer(modelContext).undo(undo)
             grouping.toast = nil
         } catch DeviceGroupWriter.Refusal.undoUnavailable {
-            grouping.toast = DeviceGroupingToast(message: Self.undoUnavailableMessage, undo: nil, anchor: toast.anchor)
+            grouping.toast = DeviceGroupingToast(message: DeviceGroupingChoices.undoUnavailable, undo: nil, anchor: toast.anchor)
             return
         } catch {
             self.error = "That couldn't be undone. Try again."

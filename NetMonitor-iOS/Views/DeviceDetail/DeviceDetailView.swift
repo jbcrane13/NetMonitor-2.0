@@ -146,6 +146,9 @@ struct DeviceDetailView: View {
                 }
             }
         }
+        // The screen's identifier goes on the content, not the toast inset, which would otherwise
+        // carry it in place of `deviceDetail_toast_undo` (iOS 26+ stamps a container's id).
+        .accessibilityIdentifier("screen_deviceDetail")
         .modifier(DeviceGroupingPresentation(viewModel: viewModel, showsSameDeviceAs: $showsSameDeviceAs))
         .confirmationDialog(removalTitle, isPresented: isConfirmingRemoval, titleVisibility: .visible, presenting: removingInterface) { member in
             Button("Remove Interface", role: .destructive) {
@@ -156,7 +159,6 @@ struct DeviceDetailView: View {
         } message: { member in
             Text(viewModel.removalMessage(member))
         }
-        .accessibilityIdentifier("screen_deviceDetail")
     }
 
     private var presence: PresenceSnapshot {

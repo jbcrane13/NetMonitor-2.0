@@ -67,7 +67,7 @@ final class EventListenerService {
     private let discoveryService: any DeviceDiscoveryServiceProtocol
     /// The network events are about when a device doesn't say which it was scanned on.
     private let currentNetworkProfileID: @MainActor () -> UUID?
-    private let dispatcher: DeviceEventDispatcher
+    private let dispatcher: any DeviceEventDispatching
 
     // MARK: - Tracking state
 
@@ -87,24 +87,37 @@ final class EventListenerService {
         networkMonitor: NetworkMonitorService = NetworkMonitorService.shared,
         discoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         currentNetworkProfileID: @escaping @MainActor () -> UUID? = { nil },
-        dispatcher: DeviceEventDispatcher = .shared
+        dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared
     ) {
         self.eventService = eventService
         self.networkMonitor = networkMonitor
         self.discoveryService = discoveryService
         self.currentNetworkProfileID = currentNetworkProfileID
         self.dispatcher = dispatcher
+        // From creation, not from `start()`: the app makes the listener at launch, so a scan a
+        // background launch reconciles before any view appears still reaches the Timeline.
+        subscribeToDeviceEvents()
+    }
+
+    isolated deinit {
+        monitorTask?.cancel()
+        if let subscription {
+            dispatcher.unsubscribe(subscription)
+        }
+    }
+
+    /// Whether `start()` is watching connectivity and scans.
+    var isRunning: Bool {
+        monitorTask != nil
     }
 
     // MARK: - Lifecycle
 
+    /// Watches connectivity and scan completion; device events are logged from creation (and again
+    /// after `stop()`).
     func start() {
         monitorTask?.cancel()
-        if subscription == nil {
-            subscription = dispatcher.subscribe { [weak self] batch in
-                self?.logDeviceEvents(batch)
-            }
-        }
+        subscribeToDeviceEvents()
         // The baseline: a scan running now, or finishing before the first check, is still logged.
         wasScanning = discoveryService.isScanning
         handledScanDate = discoveryService.lastScanDate
@@ -139,6 +152,13 @@ final class EventListenerService {
             dispatcher.unsubscribe(subscription)
         }
         subscription = nil
+    }
+
+    private func subscribeToDeviceEvents() {
+        guard subscription == nil else { return }
+        subscription = dispatcher.subscribe { [weak self] batch in
+            self?.logDeviceEvents(batch)
+        }
     }
 
     // MARK: - Private handlers

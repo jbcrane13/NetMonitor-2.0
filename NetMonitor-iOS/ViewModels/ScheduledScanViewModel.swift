@@ -74,7 +74,7 @@ final class ScheduledScanViewModel {
     /// The network a scan started here is about (#582).
     private let currentNetwork: @MainActor () -> NetworkProfile?
     private let discovery: any DeviceDiscoveryServiceProtocol
-    private let dispatcher: DeviceEventDispatcher
+    private let dispatcher: any DeviceEventDispatching
     private var subscription: UUID?
 
     // MARK: - Init
@@ -83,7 +83,7 @@ final class ScheduledScanViewModel {
         scheduler: any ScanSchedulerServiceProtocol = ScanSchedulerService.shared,
         discovery: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
         currentNetwork: @escaping @MainActor () -> NetworkProfile? = { CurrentNetwork.detected() },
-        dispatcher: DeviceEventDispatcher = .shared
+        dispatcher: any DeviceEventDispatching = DeviceEventDispatcher.shared
     ) {
         self.scheduler = scheduler
         self.discovery = discovery

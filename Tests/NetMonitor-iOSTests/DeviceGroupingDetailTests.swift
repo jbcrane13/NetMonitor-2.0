@@ -226,6 +226,46 @@ final class DeviceGroupingDetailTests {
         #expect(try storedDevices().allSatisfy { !$0.isGroup })
     }
 
+    @Test("Same device as… on a device of several interfaces keeps its group ID and primary; the other joins as the user's")
+    func theShownDeviceAnchorsTheGroup() throws {
+        let wired = try row("192.168.1.60", name: "studio-wired")
+        let usb = try row("192.168.1.61", name: "studio-usb")
+        let wifi = try row("192.168.1.13", name: "studio-wifi")
+        let groupID = try DeviceGroupWriter(container: container).group([wired.id, usb.id], primary: wired.id, source: .bonjour)
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
+        viewModel.loadDevice(id: usb.id, context: context)
+        try viewModel.groupWith(#require(viewModel.sameDeviceCandidates().first { $0.id == wifi.id }))
+        #expect(viewModel.projection?.id == groupID)
+        #expect(viewModel.device?.id == wired.id)
+        let stored = try ModelContext(container).fetch(FetchDescriptor<LocalDevice>())
+        #expect(stored.first { $0.id == wifi.id }?.groupSource == DeviceGroupSource.user.rawValue)
+        #expect(stored.first { $0.id == usb.id }?.groupSource == DeviceGroupSource.bonjour.rawValue, "members keep how they joined")
+    }
+
+    @Test("Not the same device on a suggestion records the two devices' primaries, whichever interface detail opened")
+    func dismissExcludesPrimaries() throws {
+        let wired = try row("192.168.1.60", name: "studio-wired", host: "studio-mac.local")
+        let usb = try row("192.168.1.61", name: "studio-usb")
+        let wifi = try row("192.168.1.13", name: "studio-wifi", host: "studio-mac.local")
+        try DeviceGroupWriter(container: container).group([wired.id, usb.id], primary: wired.id, source: .user)
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
+        viewModel.loadDevice(id: usb.id, context: context)
+        try viewModel.dismissGroupSuggestion(#require(viewModel.grouping.suggestions.first { $0.id == wifi.id }))
+        let stored = try ModelContext(container).fetch(FetchDescriptor<LocalDevice>())
+        #expect(stored.first { $0.id == wired.id }?.notSameAsIDs == [wifi.id])
+        #expect((stored.first { $0.id == usb.id }?.notSameAsIDs ?? []).isEmpty)
+        #expect(viewModel.grouping.suggestions.isEmpty)
+    }
+
+    @Test("The picker's search matches an interface's MAC")
+    func pickerSearchMatchesMAC() throws {
+        let laptop = try row("192.168.1.40", name: "laptop-wifi")
+        let dock = try row("192.168.1.41", name: "laptop-dock")
+        dock.macAddress = "00:1B:A9:4C:00:41"
+        try context.save()
+        #expect(detail(laptop).sameDeviceCandidates(matching: "4c:00").map(\.id) == [dock.id])
+    }
+
     // MARK: - Label
 
     @Test("An interface the scan grouped says Grouped by Bonjour name; one the user grouped doesn't")
