@@ -181,6 +181,21 @@ struct PlainRuleTargetLinkTests {
         }
     }
 
+    @Test func aTargetOnAnyInterfaceOfTheDeviceChecksIt() {
+        let primary = UUID(), member = UUID()
+        let atMember = NetworkTarget(name: "Wi-Fi", host: "192.168.77.61", targetProtocol: .icmp)
+        let linkedToMember = NetworkTarget(name: "Linked", host: "10.9.9.9", targetProtocol: .icmp)
+        func links(_ id: UUID) -> UUID? { id == linkedToMember.id ? member : nil }
+        let members: Set = [primary, member]
+        let addresses: Set = ["192.168.77.60", "192.168.77.61"]
+        for target in [atMember, linkedToMember] {
+            #expect(PlainRuleMacViewModel.isMonitored(
+                deviceID: primary, address: "192.168.77.60", targets: [target], linkedDevice: links, memberIDs: members, addresses: addresses
+            ))
+            #expect(!PlainRuleMacViewModel.isMonitored(deviceID: primary, address: "192.168.77.60", targets: [target], linkedDevice: links))
+        }
+    }
+
     @Test func theEditorAndTheDraftAgreeOnWhichTargetChecksADevice() async throws {
         let device = nas()
         let other = UUID()

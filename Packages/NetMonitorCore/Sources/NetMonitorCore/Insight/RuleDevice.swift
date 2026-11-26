@@ -14,6 +14,10 @@ public struct RuleDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiab
     public var macAddress: String?
     /// Ports the device's last scan found open; an iOS monitoring target probes one (#572).
     public var openPorts: [Int]
+    /// Every interface's row ID and address (#594): a target linked to, or checking, any of them
+    /// checks this device. `id` and `ipAddress` alone for a device of one row.
+    public var memberIDs: Set<UUID>
+    public var addresses: Set<String>
 
     public init(
         id: UUID,
@@ -31,6 +35,8 @@ public struct RuleDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiab
         self.ipAddress = ipAddress
         self.macAddress = macAddress
         self.openPorts = openPorts
+        memberIDs = [id]
+        addresses = [ipAddress]
     }
 
     /// A saved device as rules see it (#594: a device, not a row): the primary's stable identity
@@ -49,6 +55,8 @@ public struct RuleDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiab
             macAddress: device.realMACs.first,
             openPorts: Set(device.members.flatMap { $0.openPorts ?? [] }).sorted()
         )
+        memberIDs = device.memberIDs
+        addresses = Set(device.members.map(\.ipAddress))
     }
 
     /// A device the latest scan saw but no saved row describes yet (#571), under a stand-in `id`
