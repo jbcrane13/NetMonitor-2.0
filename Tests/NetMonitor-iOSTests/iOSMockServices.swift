@@ -102,8 +102,11 @@ final class MockWakeOnLANService: WakeOnLANServiceProtocol {
     var lastResult: WakeOnLANResult? = nil
     var lastError: String? = nil
     var shouldSucceed = true
+    /// Every MAC a wake packet was sent to, in order.
+    private(set) var wokenMACs: [String] = []
 
     func wake(macAddress: String, broadcastAddress: String, port: UInt16) async -> Bool {
+        wokenMACs.append(macAddress)
         lastResult = WakeOnLANResult(
             macAddress: macAddress,
             success: shouldSucceed,

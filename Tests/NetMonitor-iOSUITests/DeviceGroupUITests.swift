@@ -26,8 +26,16 @@ final class DeviceGroupUITests: PresenceUITestCase {
         XCTAssertLessThanOrEqual(app.staticTexts.matching(NSPredicate(format: "label == %@", deviceName)).count, 1, "The device is listed once")
         keepCroppedEvidence(device, named: "594-ios-one-device-online")
 
-        // Detail: both interfaces, and both members' notes.
+        // Detail: the serial (#561), both interfaces, and both members' notes.
         device.tap()
+        let serial = ui("deviceDetail_row_serial")
+        scrollToElement(serial)
+        requireExists(serial, timeout: 8, message: "Detail should show the device's serial number")
+        let serialValue = app.staticTexts.matching(identifier: "deviceDetail_row_serial").matching(NSPredicate(format: "label != %@", "Serial Number")).firstMatch
+        XCTAssertEqual(serialValue.label, "UITESTSERIAL594", "The primary's serial is shown")
+        moveAboveTabBar(serial)
+        keepCroppedEvidence(frame: serial.frame.union(serialValue.frame), named: "594-ios-detail-serial")
+
         let interfaces = ui("deviceDetail_section_interfaces")
         scrollToElement(interfaces)
         requireExists(interfaces, timeout: 8, message: "Detail should list the device's interfaces")
@@ -83,5 +91,20 @@ final class DeviceGroupUITests: PresenceUITestCase {
         for _ in 0 ..< 4 where element.frame.maxY > limit {
             app.swipeUp(velocity: .slow)
         }
+    }
+
+    /// Keeps the screenshot cropped to `frame`, such as an info row's label and value together.
+    private func keepCroppedEvidence(frame: CGRect, named name: String) {
+        let image = app.screenshot().image
+        let box = frame.insetBy(dx: -8, dy: -8)
+        let pixels = CGRect(x: box.minX * image.scale, y: box.minY * image.scale, width: box.width * image.scale, height: box.height * image.scale)
+        guard let cropped = image.cgImage?.cropping(to: pixels) else {
+            XCTFail("Could not crop \(name)")
+            return
+        }
+        let attachment = XCTAttachment(image: UIImage(cgImage: cropped, scale: image.scale, orientation: .up))
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

@@ -15,11 +15,10 @@ struct DeviceDetailView: View {
     }
 
     let entry: Entry
-    // Internal, not private: the Interfaces extension (DeviceDetailView+Interfaces.swift) reads them.
-    @State var viewModel = DeviceDetailViewModel()
+    @State private var viewModel = DeviceDetailViewModel()
     @State private var showsLabelCapture = false
     /// The member "Remove this interface" asked about, while its confirmation is up (#594).
-    @State var removingInterface: LocalDevice?
+    @State private var removingInterface: LocalDevice?
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(DevicePresenceModel.self) private var presenceModel: DevicePresenceModel?
@@ -90,7 +89,7 @@ struct DeviceDetailView: View {
         .toolbar {
             if let device = viewModel.device {
                 ToolbarItem(placement: .topBarTrailing) {
-                    ShareLink(item: shareText(for: device)) {
+                    ShareLink(item: viewModel.shareText(presence: presence) ?? device.displayName) {
                         Image(systemName: "square.and.arrow.up")
                     }
                     .accessibilityIdentifier("deviceDetail_button_share")
@@ -150,13 +149,30 @@ struct DeviceDetailView: View {
             }
             .accessibilityIdentifier("deviceDetail_button_confirmRemoveInterface")
         } message: { member in
-            Text(removalMessage(member))
+            Text(viewModel.removalMessage(member))
         }
         .accessibilityIdentifier("screen_deviceDetail")
     }
 
-    var presence: PresenceSnapshot {
+    private var presence: PresenceSnapshot {
         presenceModel?.snapshot ?? DevicePresenceModel.noScans
+    }
+
+    /// Removes a member at once, or after a confirmation naming what goes with it (#594).
+    private func requestRemoval(_ member: LocalDevice) {
+        if viewModel.userContent(of: member).isEmpty {
+            viewModel.removeInterface(member)
+        } else {
+            removingInterface = member
+        }
+    }
+
+    private var isConfirmingRemoval: Binding<Bool> {
+        Binding(get: { removingInterface != nil }, set: { removingInterface = $0 ? removingInterface : nil })
+    }
+
+    private var removalTitle: String {
+        "Remove \(removingInterface?.ipAddress ?? "this interface")?"
     }
 
     // MARK: - Header Section
@@ -177,7 +193,7 @@ struct DeviceDetailView: View {
             // What the saved status means now (#583); the presence model refreshes every minute.
             // A device of several interfaces is online while any member is (#594).
             HStack(spacing: 8) {
-                PresenceDot(freshness: freshness)
+                PresenceDot(freshness: viewModel.freshness(presence))
                 Text(viewModel.projection.map { presence.statusText($0) } ?? presence.statusText(device))
                     .font(.subheadline)
                     .foregroundStyle(Theme.Colors.textSecondary)
@@ -234,6 +250,12 @@ struct DeviceDetailView: View {
                         .accessibilityIdentifier("deviceDetail_row_model")
                 }
 
+                // The serial (#561), moved out of the notes; the device's, so the primary's.
+                if let serial = device.serialNumber, !serial.isEmpty {
+                    infoRow(label: "Serial Number", value: serial)
+                        .accessibilityIdentifier("deviceDetail_row_serial")
+                }
+
                 // A suggested type is shown, not written, until the user accepts it (#449).
                 suggestibleRow(
                     label: "Type",
@@ -273,11 +295,11 @@ struct DeviceDetailView: View {
                                 .frame(width: 24)
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(wellKnownServiceName(for: port) ?? "Port \(port)")
+                                Text(WellKnownServices.name(for: port) ?? "Port \(port)")
                                     .foregroundStyle(Theme.Colors.textPrimary)
                                     .font(.subheadline)
 
-                                if wellKnownServiceName(for: port) != nil {
+                                if WellKnownServices.name(for: port) != nil {
                                     Text("Port \(port)")
                                         .foregroundStyle(Theme.Colors.textTertiary)
                                         .font(.caption)
@@ -442,10 +464,10 @@ extension DeviceDetailView {
                     .accessibilityIdentifier("deviceDetail_row_latency")
                 }
 
-                infoRow(label: "First Seen", value: firstSeen.formatted(date: .abbreviated, time: .shortened))
+                infoRow(label: "First Seen", value: (viewModel.firstSeen ?? device.firstSeen).formatted(date: .abbreviated, time: .shortened))
                     .accessibilityIdentifier("deviceDetail_row_firstSeen")
 
-                infoRow(label: "Last Seen", value: lastSeen(device).formatted(date: .abbreviated, time: .shortened))
+                infoRow(label: "Last Seen", value: (viewModel.lastSeen ?? device.lastSeen).formatted(date: .abbreviated, time: .shortened))
                     .accessibilityIdentifier("deviceDetail_row_lastSeen")
 
                 if viewModel.members.contains(where: \.isGateway) {
@@ -570,7 +592,7 @@ extension DeviceDetailView {
                 if (viewModel.projection?.realMACs.count ?? 0) > 1, viewModel.canWake {
                     Divider().background(Theme.Colors.glassBorder)
 
-                    wakeAllButton
+                    WakeAllInterfacesButton(viewModel: viewModel)
                 } else if device.supportsWakeOnLan || viewModel.canWake {
                     Divider().background(Theme.Colors.glassBorder)
 
@@ -648,24 +670,6 @@ extension DeviceDetailView {
         LabelValueRow(label: label, value: value)
     }
 
-    // MARK: - Helper Functions
-
-    private func shareText(for device: LocalDevice) -> String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateStyle = .medium
-        dateFormatter.timeStyle = .short
-        return """
-        NetMonitor Device Report
-        Name: \(device.displayName)
-        IP: \(viewModel.current?.ipAddress ?? device.ipAddress)
-        MAC: \(currentMAC(device))
-        Manufacturer: \(device.maker ?? "Unknown")
-        Type: \(device.deviceType.rawValue)
-        Status: \(freshness.label)
-        First Seen: \(dateFormatter.string(from: firstSeen))
-        Last Seen: \(dateFormatter.string(from: lastSeen(device)))
-        """
-    }
 }
 
 // MARK: - Preview

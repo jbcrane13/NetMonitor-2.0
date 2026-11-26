@@ -130,6 +130,47 @@ struct DeviceGroupReaderTests {
 
     }
 
+    /// A background scan saves, then publishes the count and the widget as the foreground does.
+    @Test func aBackgroundReconcilePublishesTheDeviceCountAndTheWidget() throws {
+        let group = try seedGroup()
+        let defaults = try #require(UserDefaults(suiteName: "DeviceGroupReaderTests.\(UUID().uuidString)"))
+        let history = ScanHistory(defaults: defaults)
+        let model = SavedDeviceSummaryModel()
+        let scanned = [
+            DiscoveredDevice(ipAddress: "192.168.1.13", hostname: "studio-wifi", vendor: nil, macAddress: "AA:BB:CC:DD:EE:13",
+                             latency: 4, discoveredAt: scan, source: .local, networkProfileID: home),
+            DiscoveredDevice(ipAddress: "192.168.1.1", hostname: "router", vendor: nil, macAddress: "02:00:00:00:00:01",
+                             latency: 1, discoveredAt: scan, source: .local, networkProfileID: home)
+        ]
+
+        let saved = BackgroundTaskService.reconcileAndPublish(
+            scanned, scanDate: scan, network: home, in: group.container, history: history, summaries: model,
+            defaults: defaults, reloadWidget: false, now: scan
+        )
+
+        #expect(saved)
+        // The router (new row) and the studio, which answered on one of its two interfaces.
+        #expect(model.count(for: home) == 2)
+        #expect(defaults.integer(forKey: AppSettings.Keys.widgetDeviceCount) == 2)
+        let topData = try #require(defaults.data(forKey: AppSettings.Keys.widgetTopDevices))
+        let top = try JSONSerialization.jsonObject(with: topData) as? [[String: String]]
+        #expect(top?.map { $0["name"] } .contains("Studio Mac") == true)
+    }
+
+    @Test func theScanIntentCountsADeviceOnTwoInterfacesOnce() throws {
+        let group = try seedGroup()
+        let scanned = [
+            DiscoveredDevice(ipAddress: "192.168.1.60", hostname: nil, vendor: nil, macAddress: "02:00:00:94:00:60",
+                             latency: 2, discoveredAt: scan, source: .local, networkProfileID: home),
+            DiscoveredDevice(ipAddress: "192.168.1.13", hostname: nil, vendor: nil, macAddress: "AA:BB:CC:DD:EE:13",
+                             latency: 4, discoveredAt: scan, source: .local, networkProfileID: home),
+            DiscoveredDevice(ipAddress: "192.168.1.1", hostname: "router", vendor: nil, macAddress: "02:00:00:00:00:01",
+                             latency: 1, discoveredAt: scan, source: .local, networkProfileID: home)
+        ]
+        #expect(ScanNetworkIntent.deviceCount(scanned, grouped: group.rows) == 2)
+        #expect(ScanNetworkIntent.deviceCount(scanned, grouped: []) == 3)
+    }
+
     // MARK: - Map
 
     @Test func theMapShowsOneNodeForBothInterfaces() throws {
@@ -211,6 +252,7 @@ struct DeviceGroupReaderTests {
         let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService())
         viewModel.loadDevice(id: group.groupID, context: group.context)
         let memberID = group.member.id
+        #expect(viewModel.userContent(of: group.primary) == DeviceGroups.userContent(of: group.primary))
         #expect(viewModel.userContent(of: group.primary) == ["its custom name", "its notes"])
 
         viewModel.removeInterface(group.primary)
@@ -224,14 +266,14 @@ struct DeviceGroupReaderTests {
 
     @Test func wakeOnLANGoesToEveryInterfacesMAC() async throws {
         let group = try seedGroup()
-        let wake = RecordingWakeService()
+        let wake = MockWakeOnLANService()
         let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), wakeService: wake)
         group.primary.supportsWakeOnLan = true
         viewModel.loadDevice(id: group.groupID, context: group.context)
 
         #expect(viewModel.canWake)
         #expect(await viewModel.wakeAllInterfaces() == 2)
-        #expect(Set(wake.macs) == ["02:00:00:94:00:60", "AA:BB:CC:DD:EE:13"])
+        #expect(Set(wake.wokenMACs) == ["02:00:00:94:00:60", "AA:BB:CC:DD:EE:13"])
     }
 
     // MARK: - Label capture
@@ -405,19 +447,5 @@ struct DeviceGroupReaderTests {
         let group = try seedGroup()
         await SettingsViewModel().clearAllCachedData(modelContext: group.context)
         #expect(try group.context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
-    }
-}
-
-/// Records every MAC a wake packet was sent to.
-@MainActor
-final class RecordingWakeService: WakeOnLANServiceProtocol, @unchecked Sendable {
-    var isSending = false
-    var lastResult: WakeOnLANResult?
-    var lastError: String?
-    private(set) var macs: [String] = []
-
-    func wake(macAddress: String, broadcastAddress: String, port: UInt16) async -> Bool {
-        macs.append(macAddress)
-        return true
     }
 }
