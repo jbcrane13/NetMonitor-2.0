@@ -22,6 +22,7 @@ extension NetworkIdentityControllerTests {
         clock.generation.advance()
         _ = identity.resolveID(group: home, defaultID: site)
         harness.settle()
+        _ = identity.resolveID(group: home, defaultID: site)
         try identity.answer(.thisConnection(homeID), to: #require(identity.question))
         #expect(identity.resolveID(group: home, defaultID: site) == homeID)
         #expect(identity.authorizes(homeID))
@@ -80,7 +81,12 @@ extension NetworkIdentityControllerTests {
         harness.hint = .absent
         clock.generation.advance()
         _ = identity.resolveID(group: home, defaultID: site)
+        harness.settle()
+        _ = identity.resolveID(group: home, defaultID: site)
         let question = try #require(identity.question)
+        // A path update: the kept question is answered inside the new generation's window.
+        clock.generation.advance()
+        _ = identity.resolveID(group: home, defaultID: site)
         identity.answer(.thisConnection(homeID), to: question)
         #expect(!store.contents.approvals.contains { $0.key == .noHint })
         #expect(identity.isCheckingNetwork)

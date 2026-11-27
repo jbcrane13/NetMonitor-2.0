@@ -14,6 +14,8 @@ extension NetworkIdentityControllerTests {
         let identity = makeController(store, harness)
         let siteA = identity.resolveID(group: home, defaultID: UUID())
         harness.hint = .absent
+        _ = identity.resolveID(group: home, defaultID: siteA)
+        harness.settle()
         #expect(identity.resolveID(group: home, defaultID: siteA) == siteA)
         #expect(identity.authorizes(siteA))
         #expect(!store.contents.records.contains { $0.recordClass == .bucket })
@@ -69,6 +71,8 @@ extension NetworkIdentityControllerTests {
             IdentityOptionSummary(savedDevices: id == siteA ? 12 : 3, lastScanned: nil, name: nil)
         }
         harness.hint = .absent
+        _ = identity.resolveID(group: home, defaultID: siteB)
+        harness.settle()
         _ = identity.resolveID(group: home, defaultID: siteB)
         #expect(identity.question == .forgottenThisConnection(group: home, options: [siteA, siteB]))
         #expect(identity.optionSummaries[siteA]?.savedDevices == 12)

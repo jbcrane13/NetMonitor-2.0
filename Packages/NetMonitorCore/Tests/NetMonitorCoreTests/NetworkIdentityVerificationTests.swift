@@ -26,6 +26,8 @@ extension NetworkIdentityControllerTests {
 
         harness.hint = .absent
         _ = identity.resolveID(group: home, defaultID: siteN)
+        harness.settle()
+        _ = identity.resolveID(group: home, defaultID: siteN)
         #expect(identity.question == .forgottenThisConnection(group: home, options: [siteN, legacy]))
         #expect(!identity.authorizes(siteN))
         #expect(!identity.authorizes(legacy))

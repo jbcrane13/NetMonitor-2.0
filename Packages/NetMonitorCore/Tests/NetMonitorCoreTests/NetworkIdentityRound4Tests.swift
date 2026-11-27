@@ -21,8 +21,9 @@ extension NetworkIdentityControllerTests {
 
         harness.hint = .absent
         _ = identity.resolveID(group: home, defaultID: siteN)
-        let question = try #require(identity.question)
         harness.settle()
+        _ = identity.resolveID(group: home, defaultID: siteN)
+        let question = try #require(identity.question)
         identity.answer(.thisConnection(legacy), to: question)
         #expect(identity.resolveID(group: home, defaultID: siteN) == legacy)
         #expect(identity.authorizes(legacy))
@@ -50,6 +51,7 @@ extension NetworkIdentityControllerTests {
         harness.hint = .absent
         _ = identity.resolveID(group: home, defaultID: siteA)
         harness.settle()
+        _ = identity.resolveID(group: home, defaultID: siteA)
         try identity.answer(.newNetwork, to: #require(identity.question))
         let approval = try #require(store.contents.approvals.first { $0.key == .noHint })
         #expect(approval.recordID != siteA)
@@ -84,6 +86,8 @@ extension NetworkIdentityControllerTests {
         try identity.answer(.newNetwork, to: #require(identity.question))
         let siteN = identity.resolveID(group: home, defaultID: legacy)
         harness.hint = .absent
+        _ = identity.resolveID(group: home, defaultID: siteN)
+        harness.settle()
         _ = identity.resolveID(group: home, defaultID: siteN)
         let question = try #require(identity.question)
 
@@ -138,6 +142,8 @@ extension NetworkIdentityControllerTests {
         #expect(siteA != bucket)
         identity.describeOption = { _ in IdentityOptionSummary(savedDevices: 0, countUnknown: true) }
         harness.hint = .absent
+        _ = identity.resolveID(group: home, defaultID: siteA)
+        harness.settle()
         _ = identity.resolveID(group: home, defaultID: siteA)
         #expect(identity.question == .forgottenThisConnection(group: home, options: [siteA, bucket]))
     }

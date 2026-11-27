@@ -141,6 +141,33 @@ extension DeviceDiscoveryCoordinatorIdentityTests {
         _ = home
     }
 
+    /// Round 6 item 7: a detection (launch and `checkNow` both run `detectLocalNetwork`) with no IPv6
+    /// router, in a group that knows an IPv6 site, obeys the settle window: a scan inside it saves
+    /// nothing; at its end the network is identified and exactly one scan is saved.
+    @Test func aDetectionWithoutARouterObeysTheSettleWindow() async throws {
+        let box = Box()
+        box.hint = .present(keyA)
+        let setup = try setUp(box)
+        let home = setup.local
+        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.20", "office-printer")]
+        setup.join.generation.advance()
+        box.hint = .absent
+        setup.manager.detectLocalNetwork()
+        #expect(!setup.identity.authorizes(home))
+        #expect(setup.coordinator.rescan(.user(nil)))
+        await waitUntil { !setup.coordinator.isScanning && box.scans == 1 }
+        #expect(setup.coordinator.lastScanTime(for: home) == nil, "inside the window: nothing saved")
+        let detections = box.detections
+        await waitUntil(timeout: .seconds(8)) { box.detections > detections }
+        #expect(box.detections > detections, "a re-read at the window's end")
+        setup.manager.detectLocalNetwork()
+        await waitUntil { setup.coordinator.lastScanTime(for: home) != nil }
+        await waitUntil { !setup.coordinator.isScanning }
+        #expect(setup.identity.authorizes(home))
+        #expect(setup.coordinator.lastScanTime(for: home) != nil)
+        #expect(box.scans == 2, "one scan held, then exactly one saved")
+    }
+
     /// The Bonjour guard: a pipeline whose run is obsolete doesn't stop the shared browser.
     @Test func anObsoletePipelineDoesNotStopTheSharedBonjourBrowser() async throws {
         let box = Box()
