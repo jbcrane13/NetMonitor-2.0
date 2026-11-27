@@ -66,6 +66,42 @@ final class DeviceRecordUpdaterTests {
         updater.handleScanChange()
     }
 
+    // MARK: - Join clock (#579)
+
+    /// A scan that runs wholly since the phone joined its network establishes it for Ask's pings;
+    /// one that a move (A to B) interrupts doesn't (#627 verification).
+    @Test func onlyAScanThatRanWhollySinceTheJoinEstablishesTheNetwork() async throws {
+        // The container must outlive the context, or SwiftData traps on fetch.
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start)
+        let (changes, path) = AsyncStream<String>.makeStream()
+        let join = NetworkJoinClock(changes: changes)
+        path.yield("satisfied|wifi-en0|network-a")
+        let updater = try DeviceRecordUpdater(
+            discoveryService: discovery, reconciler: makeReconciler(context), currentNetworkProfileID: { self.home },
+            clock: { clock.now }, joinClock: join
+        )
+        finishScan([device(0)], on: discovery, updater: updater, clock: clock)
+        #expect(join.establishedAt == start)
+
+        // A move during the next scan: it doesn't establish network B.
+        discovery.isScanning = true
+        updater.handleScanChange()
+        path.yield("satisfied|wifi-en0|network-b")
+        let deadline = ContinuousClock.now + .seconds(5)
+        while join.establishedAt != nil, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        clock.now = start.addingTimeInterval(120)
+        discovery.discoveredDevices = [device(0)]
+        discovery.lastScanDate = clock.now
+        discovery.isScanning = false
+        updater.handleScanChange()
+        #expect(join.establishedAt == nil)
+    }
+
     func rows(_ context: ModelContext) throws -> [LocalDevice] {
         try context.fetch(FetchDescriptor<LocalDevice>(sortBy: [SortDescriptor(\.ipAddress)]))
     }

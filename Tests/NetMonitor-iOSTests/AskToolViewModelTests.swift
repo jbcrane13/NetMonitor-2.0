@@ -185,4 +185,130 @@ struct AskToolViewModelTests {
         let scanning = await intent(devices: [], lastScan: nil, isScanning: true)
         #expect(scanning == AskState.scanMessage)
     }
+
+    // MARK: - Live tools (#579)
+
+    /// "Is the printer answering right now?" on a network with no scan: the app refuses to ping
+    /// and says to scan first (#579 review). A live tool was called, so no model text shows, and
+    /// the saved status stays the scan's.
+    @Test func aPingQuestionBeforeAnyScanIsRefusedByTheApp() async {
+        let printer = LocalDevice(
+            ipAddress: AskUITestFixture.printer.ip, macAddress: AskUITestFixture.printer.mac, deviceType: .printer,
+            customName: AskUITestFixture.printer.name, status: .offline, networkProfileID: home
+        )
+        let home = home
+        let viewModel = AskToolViewModel(env: env(), model: AskUITestFixture.model(.answer), live: AskUITestFixture.live { home })
+        viewModel.update(devices: [printer])
+        await viewModel.state.ask(AskUITestFixture.pingQuestion)
+        guard case let .answered(answer) = viewModel.state.phase else {
+            Issue.record("not answered: \(viewModel.state.phase)")
+            return
+        }
+        #expect(answer.text == nil)
+        #expect(answer.shownText == AskNetwork.measuredFallback)
+        #expect(answer.measurements == [AskMeasurement(deviceID: printer.id, text: AskUITestFixture.pingRefusal, measuredAt: nil)])
+        #expect(answer.devices.map(\.presence) == [.notCheckedRecently])
+        #expect(printer.status == .offline)
+    }
+
+    // MARK: - Intent and live tools
+
+    private func device(_ name: String, ip: String) -> AskDevice {
+        AskDevice(id: UUID(), displayName: name, deviceType: .storage, maker: nil, ipAddress: ip, status: .online,
+                  lastSeen: Date(), lastLatency: nil, latencyHistory: [])
+    }
+
+    private func intentAnswer(_ question: String, script: AskScript, devices: [AskDevice], lastScan: Date?) async -> String {
+        let snapshot = AskSnapshot(devices: devices, events: [], networkProfileID: home, lastScan: lastScan, now: Date())
+        let home = home
+        return await AskIntentRunner.answer(
+            question, model: ScriptedAskModel(scripts: [question: script]), snapshot: snapshot, isScanning: false,
+            live: AskUITestFixture.live { home }
+        )
+    }
+
+    @Test func theIntentSaysWhatTheAppMeasured() async {
+        let text = await intentAnswer(AskUITestFixture.statusQuestion, script: AskScript(calls: [.networkStatus], answer: "It is fine."),
+                                      devices: [], lastScan: nil)
+        #expect(text == "Here is the app's live check. " + AskUITestFixture.statusMeasurement + ", measured just now.")
+    }
+
+    /// Siri speaks the measurement, never a chip status that could contradict it.
+    @Test func theIntentPingsAndSpeaksTheMeasurementNotTheChip() async {
+        let nas = device("Garage NAS", ip: AskUITestFixture.printer.ip)
+        let text = await intentAnswer("Is the NAS up?", script: AskScript(calls: [.pingDevice("Garage NAS")], answer: "Yes, it pinged fine."),
+                                      devices: [nas], lastScan: Date())
+        #expect(text == "Here is the app's live check. Garage NAS (192.0.2.57): 3 of 3 replies, 4 ms average, measured just now.")
+        #expect(!text.contains("Garage NAS: Online"))
+        #expect(!text.contains("below"))
+        // Every cited device was checked live, so the scan's freshness isn't said.
+        #expect(!text.contains("Device status as of the scan"))
+    }
+
+    /// A silent ping of a device the scan saw Online: the measurement, then the scan's word.
+    @Test func theIntentSaysWhenTheScanDisagreed() async {
+        let quiet = device("Garage NAS", ip: "192.0.2.99")
+        let text = await intentAnswer("Is the NAS up?", script: AskScript(calls: [.pingDevice("Garage NAS")], answer: "No."),
+                                      devices: [quiet], lastScan: Date())
+        #expect(text.contains("Garage NAS (192.0.2.99): no reply to 3 pings, measured just now. At the last scan "))
+        #expect(text.contains(" it was online."))
+    }
+
+    /// Refusals aren't measurements: no "measured just now".
+    @Test func theIntentNeverSaysARefusalWasMeasured() async {
+        let nas = device("Garage NAS", ip: AskUITestFixture.printer.ip)
+        let text = await intentAnswer("Is the NAS up?", script: AskScript(calls: [.pingDevice("Garage NAS")], answer: "No."),
+                                      devices: [nas], lastScan: nil)
+        #expect(text.contains("Garage NAS (192.0.2.57): not pinged. Run a scan first"))
+        #expect(!text.contains("measured just now"))
+        #expect(!text.contains(".."))
+    }
+
+    /// At most two live checks in one Siri turn.
+    @Test func theIntentMakesAtMostTwoLiveChecks() async {
+        let devices = (1 ... 3).map { device("Box \($0)", ip: "192.0.2.\(60 + $0)") }
+        let calls = devices.map { AskToolCall.pingDevice($0.displayName) }
+        let text = await intentAnswer("Are the boxes up?", script: AskScript(calls: calls, answer: "No."), devices: devices, lastScan: Date())
+        #expect(text.contains("Box 1 (192.0.2.61)"))
+        #expect(text.contains("Box 2 (192.0.2.62)"))
+        #expect(!text.contains("Box 3 (192.0.2.63)"))
+    }
+
+    /// A model that ignores cancellation and takes 5 s.
+    struct UncooperativeAskModel: AskModelProtocol {
+        var isAvailable: Bool { true }
+
+        func answer(_ question: String, instructions: String, toolbox: AskToolbox) async -> String? {
+            let end = ContinuousClock.now + .seconds(5)
+            while ContinuousClock.now < end {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            return "Late."
+        }
+    }
+
+    /// The turn's deadline is hard (#627 verification): Siri doesn't wait for a model that ignores
+    /// cancellation.
+    @Test func theIntentTurnHasAHardDeadline() async {
+        let snapshot = AskSnapshot(devices: [], events: [], networkProfileID: home, lastScan: nil, now: Date())
+        let clock = ContinuousClock(), start = clock.now
+        let text = await AskIntentRunner.answer(
+            "Q", model: UncooperativeAskModel(), snapshot: snapshot, isScanning: false, live: nil, deadline: .milliseconds(200)
+        )
+        #expect(text == AskIntentRunner.timedOutMessage)
+        #expect(clock.now - start < .seconds(2))
+    }
+
+    /// Cancelling the intent reaches the turn: it ends without waiting for the model.
+    @Test func cancellingTheIntentEndsTheTurn() async {
+        let snapshot = AskSnapshot(devices: [], events: [], networkProfileID: home, lastScan: nil, now: Date())
+        let clock = ContinuousClock(), start = clock.now
+        let task = Task {
+            await AskIntentRunner.answer("Q", model: UncooperativeAskModel(), snapshot: snapshot, isScanning: false, live: nil)
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+        #expect(await task.value == AskIntentRunner.timedOutMessage)
+        #expect(clock.now - start < .seconds(2))
+    }
 }

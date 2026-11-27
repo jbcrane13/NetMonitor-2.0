@@ -51,6 +51,8 @@ enum AskPresenceFilter {
         "online", "offline", "up", "down", "active", "inactive", "available", "unavailable", "awake", "asleep", "sleeping",
         "idle", "running", "working", "live", "alive", "dead", "present", "absent", "missing", "gone", "back",
         "reachable", "unreachable", "pingable", "responding", "responsive", "unresponsive",
+        // A live ping's result is the app's line (#579); after a live tool no model text is shown.
+        "respond", "responds", "responded", "replied", "replies", "replying",
         "answer", "answers", "answering", "answered", "connected", "disconnected", "unplugged", "plugged",
         "visible", "detected", "found", "appeared", "disappeared", "status", "scan", "scanned"
     ]
@@ -58,7 +60,9 @@ enum AskPresenceFilter {
     private static let upPhrases = ["looked up", "look up", "set up", "up to", "pick up", "picked up"]
     private static let presencePhrases = [
         "on the network", "off the network", "on your network", "off your network", "is on", "are on", "is off", "are off",
-        "turned on", "turned off", "powered on", "powered off", "switched on", "switched off", "dropped off", "drops off"
+        "turned on", "turned off", "powered on", "powered off", "switched on", "switched off", "dropped off", "drops off",
+        // A live ping's silence is the app's line too (#579); "its last reply was 6 ms" stays.
+        "no reply", "not reply", "n't reply", "no replies", "no response", "not respond", "n't respond"
     ]
     private static let yesNo: Set<String> = ["yes", "no", "yep", "yeah", "yup", "nope", "nah"]
 
@@ -114,4 +118,24 @@ enum AskPresenceFilter {
             return !tools.contains(lowered[found])
         }
     }
+}
+
+/// With no live tool called in the turn (#579), drops the model's sentences that claim a live
+/// check: pinging, measuring or testing. After a live tool, `AskNetwork` shows no model text at
+/// all (lead decision on #627: word lists leak). Latency, "ms" and "reply" stay allowed here: the
+/// saved-data tools state them ("2 latency spikes, highest 512 ms", "Last reply 6 ms").
+enum AskLiveTextFilter {
+    static func withoutClaimedChecks(_ text: String) -> String? {
+        let kept = AskPresenceFilter.sentences(in: text).filter { !claimsACheck($0) }
+        let joined = kept.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return joined.isEmpty ? nil : joined
+    }
+
+    static func claimsACheck(_ sentence: String) -> Bool {
+        let words = sentence.lowercased().split { !$0.isLetter }.map(String.init)
+        return words.contains { word in checkStems.contains { word.hasPrefix($0) } }
+    }
+
+    /// ping/pinged/pings, measure/measured/measurement, test/tested/testing, probe/probed.
+    private static let checkStems = ["ping", "measur", "test", "probe"]
 }

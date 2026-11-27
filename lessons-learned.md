@@ -207,3 +207,8 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **A photo reading is evidence about one moment on one network.** Kept for the screen's lifetime, an old red light blamed a later run after the modem restarted. A reading now counts only on its network (saved network plus path changes) and for 30 minutes, then shows as history.
 - **A reading that arrives after a run makes the run's explanation stale.** The modem button is enabled once a run finishes, so a new reading re-ranks the findings and replaces the explanation.
 - **`swift test --filter` matches test identifiers (`Type/function`), not `@Suite` display names.** A filter on the display name runs nothing and only warns "No matching test cases were run", which looks like a pass in a grep for failures.
+
+## 2026-11-26 — Ask's live tools (#579)
+- **The model restates a live measurement as presence.** It wrote "is answering now with 3 of 3 replies" and "the gateway responded in 2 ms". The filter drops respond/replied/replies sentences. When the app measured something, the fallback is "Here is what the app measured." above the app's own lines, not the stale-scan line.
+- **Live tools change which tool the model picks.** "Why is the internet slow tonight?" now calls networkStatus instead of flakyDevices. Rerun the whole question list after adding a tool.
+- **The macOS sidebar can start collapsed** (the window's saved state), so `sidebar_nav_*` isn't in the AX tree and the View menu has no Show Sidebar item. `axdrive resize 1400 900` and then `clickat main-AppWindow-1 113 26` (the toolbar toggle) opens it. A whole-window capture shows the real WAN, DNS and ISP: capture only with `capture-in`.

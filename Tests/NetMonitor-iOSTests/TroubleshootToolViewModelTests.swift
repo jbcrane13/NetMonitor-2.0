@@ -85,11 +85,16 @@ struct TroubleshootToolViewModelTests {
         #expect(TroubleshootToolViewModel(env: env(), mode: nil).state.modemReading == nil)
     }
 
-    @Test func aPathChangeMakesTheReadingHistory() async {
-        let viewModel = TroubleshootToolViewModel(env: env(), mode: nil)
+    @Test func aNetworkJoinMakesTheReadingHistory() async {
+        final class Clock {
+            var joinedAt = Date(timeIntervalSince1970: 1_000)
+        }
+        let clock = Clock()
+        let viewModel = TroubleshootToolViewModel(env: env(), mode: nil, joinedAt: { clock.joinedAt })
         await viewModel.useModemReading(Self.redInternet)
         #expect(viewModel.state.isModemReadingCurrent)
-        viewModel.pathChanged()
+        // A path change or a return from the background (`NetworkJoinClock`).
+        clock.joinedAt = Date(timeIntervalSince1970: 2_000)
         #expect(!viewModel.state.isModemReadingCurrent)
         #expect(viewModel.state.modemReading != nil, "Still shown, as history")
     }
@@ -105,7 +110,7 @@ struct TroubleshootToolViewModelTests {
             macConnection: environment.macConnection, publicIP: environment.publicIP, wifiInfo: environment.wifiInfo,
             targetManager: .shared, activityLog: .shared, eventService: NetworkEventService(), scanScheduler: ScanSchedulerService.shared,
             currentNetworkProfileID: { profile.id }
-        ), mode: nil)
+        ), mode: nil, joinedAt: { Date(timeIntervalSince1970: 1_000) })
         await viewModel.useModemReading(Self.redInternet)
         #expect(viewModel.state.isModemReadingCurrent)
         profile.id = UUID()

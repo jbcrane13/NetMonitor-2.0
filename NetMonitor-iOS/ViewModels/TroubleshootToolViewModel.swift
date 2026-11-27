@@ -16,11 +16,15 @@ final class TroubleshootToolViewModel {
     final class Inputs {
         var devices: [TroubleshootDevice] = []
         var latestDownload: Double?
-        /// Goes up on each network path change, so a modem reading from before it stops counting (#629 review).
-        var pathGeneration = 0
     }
 
-    init(env: AppEnvironment, mode: String? = UITestBootstrap.troubleshootMode) {
+    /// - Parameter joinedAt: when the phone joined the network it is on (`NetworkJoinClock`): a
+    ///   path change or a return from the background. A modem reading from before it stops counting.
+    init(
+        env: AppEnvironment,
+        mode: String? = UITestBootstrap.troubleshootMode,
+        joinedAt: @escaping @MainActor () -> Date = { NetworkJoinClock.shared.joinedAt }
+    ) {
         let inputs = Inputs()
         self.inputs = inputs
         #if DEBUG
@@ -44,7 +48,7 @@ final class TroubleshootToolViewModel {
             devices: { inputs.devices },
             isScanning: { discovery.isScanning },
             speedBaseline: { inputs.latestDownload },
-            networkKey: { Self.networkKey(profileID: networkID(), pathGeneration: inputs.pathGeneration) }
+            networkKey: { Self.networkKey(profileID: networkID(), joinedAt: joinedAt()) }
         )
     }
 
@@ -61,16 +65,10 @@ final class TroubleshootToolViewModel {
             .map(TroubleshootDevice.init)
     }
 
-    /// The network a modem reading belongs to: the saved network and how many times the path has
-    /// changed since Troubleshoot opened.
-    static func networkKey(profileID: UUID?, pathGeneration: Int) -> String {
-        "\(profileID?.uuidString ?? "unknown")#\(pathGeneration)"
-    }
-
-    /// The phone's network path changed (joined, dropped or switched networks): a modem reading
-    /// taken before it is history from now on.
-    func pathChanged() {
-        inputs.pathGeneration += 1
+    /// The network a modem reading belongs to (#629 review): the saved network and when the phone
+    /// joined it (#627's `NetworkJoinClock`).
+    static func networkKey(profileID: UUID?, joinedAt: Date) -> String {
+        "\(profileID?.uuidString ?? "unknown")#\(joinedAt.timeIntervalSince1970)"
     }
 
     /// Adds a reading of the modem's lights to this session's findings (#625). The reading lives

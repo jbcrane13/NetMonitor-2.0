@@ -15,12 +15,10 @@ struct TroubleshootToolView: View {
     /// Only the latest saved test: its download is the baseline.
     @Query private var speedTests: [SpeedTestResult]
     private let networkProfileID: UUID?
-    private let networkMonitor: any NetworkMonitorServiceProtocol
 
     init(env: AppEnvironment) {
         _viewModel = State(initialValue: TroubleshootToolViewModel(env: env))
         networkProfileID = env.currentNetworkProfileID()
-        networkMonitor = env.networkMonitor
         var latest = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         latest.fetchLimit = 1
         _speedTests = Query(latest)
@@ -33,12 +31,6 @@ struct TroubleshootToolView: View {
     private struct InputsKey: Equatable {
         let devices: [TroubleshootDevice]
         let latestSpeedTest: UUID?
-    }
-
-    /// The network path, watched so a modem reading from before a change stops counting (#629 review).
-    private struct PathKey: Equatable {
-        let isConnected: Bool
-        let connectionType: ConnectionType
     }
 
     var body: some View {
@@ -67,9 +59,6 @@ struct TroubleshootToolView: View {
             devices: TroubleshootToolViewModel.devices(devices, networkProfileID: networkProfileID), latestSpeedTest: speedTests.first?.id
         )) {
             viewModel.update(devices: devices, networkProfileID: networkProfileID, latestDownload: speedTests.first?.downloadSpeed)
-        }
-        .onChange(of: PathKey(isConnected: networkMonitor.isConnected, connectionType: networkMonitor.connectionType)) {
-            viewModel.pathChanged()
         }
         .onDisappear { state.cancel() }
         .sheet(isPresented: $showsModemLights) {

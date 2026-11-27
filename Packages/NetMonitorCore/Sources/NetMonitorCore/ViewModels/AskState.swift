@@ -31,6 +31,7 @@ public final class AskState {
     private let model: any AskModelProtocol
     private let snapshot: @MainActor () -> AskSnapshot
     private let isScanning: @MainActor () -> Bool
+    private let live: AskLiveTools?
     private var mention: AskMention?
     private var task: Task<AskAnswer, Never>?
     /// Goes up when a question is cancelled or replaced; an answer to an earlier one is dropped.
@@ -39,14 +40,17 @@ public final class AskState {
     /// - Parameters:
     ///   - snapshot: the current network's saved devices and events, read when a question is asked.
     ///   - isScanning: whether a device scan is running.
+    ///   - live: the services for the live tools (#579); nil gives the model none.
     public init(
         model: any AskModelProtocol,
         snapshot: @escaping @MainActor () -> AskSnapshot,
-        isScanning: @escaping @MainActor () -> Bool
+        isScanning: @escaping @MainActor () -> Bool,
+        live: AskLiveTools? = nil
     ) {
         self.model = model
         self.snapshot = snapshot
         self.isScanning = isScanning
+        self.live = live
     }
 
     /// Whether the Ask card shows: only with the on-device model.
@@ -107,8 +111,8 @@ public final class AskState {
         runID += 1
         let run = runID
         phase = .asking
-        let task = Task { [model] in
-            await AskNetwork.answer(text, snapshot: snapshot, pinnedDeviceID: pinned, model: model)
+        let task = Task { [model, live] in
+            await AskNetwork.answer(text, snapshot: snapshot, pinnedDeviceID: pinned, model: model, live: live)
         }
         self.task = task
         let answer = await task.value

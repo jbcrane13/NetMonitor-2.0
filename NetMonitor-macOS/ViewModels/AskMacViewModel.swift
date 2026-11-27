@@ -17,9 +17,18 @@ final class AskMacViewModel {
         var networkProfileID: UUID?
         var lastScan: Date?
         var isScanning = false
+        /// The network the Mac is on now (`NetworkProfileManager.connectedLocalProfile`): the live
+        /// tools ping only inside it (#579).
+        var currentNetwork: NetworkProfile?
     }
 
-    init(model: (any AskModelProtocol)? = nil, events: any NetworkEventServiceProtocol = NetworkEventService.shared) {
+    /// - Parameters:
+    ///   - live: the live tools' services (#579); by default the app's, on `monitor`.
+    ///   - monitor: the connection the live tools report.
+    init(
+        model: (any AskModelProtocol)? = nil, events: any NetworkEventServiceProtocol = NetworkEventService.shared,
+        live: AskLiveTools? = nil, monitor: any NetworkMonitorServiceProtocol = NetMonitorCore.NetworkMonitorService.shared
+    ) {
         let inputs = Inputs()
         self.inputs = inputs
         state = AskState(
@@ -33,8 +42,20 @@ final class AskMacViewModel {
                     now: Date()
                 )
             },
-            isScanning: { inputs.isScanning }
+            isScanning: { inputs.isScanning },
+            live: live ?? Self.live(inputs: inputs, monitor: monitor)
         )
+    }
+
+    /// The live tools (#579): the UI-test fixture's fakes under `--uitest-ask=<mode>`, else the
+    /// app's services. Pings only while the Mac is on the network asked about.
+    private static func live(inputs: Inputs, monitor: any NetworkMonitorServiceProtocol) -> AskLiveTools {
+        #if DEBUG
+        if uiTestMode(arguments: ProcessInfo.processInfo.arguments) != nil {
+            return AskUITestFixture.live { inputs.networkProfileID }
+        }
+        #endif
+        return .system(monitor: monitor, currentNetwork: { inputs.currentNetwork }) { inputs.isScanning }
     }
 
     /// The model the app uses: the UI-test fixture's under `--uitest-ask=<mode>`, else the on-device one.
@@ -52,7 +73,11 @@ final class AskMacViewModel {
 
     /// - Parameter lastScan: when the network's latest scan was reconciled
     ///   (`DeviceDiscoveryCoordinator.lastScanTime(for:)`, the clock that stamps `lastSeen`).
-    func update(devices: [LocalDevice], networkProfileID: UUID?, lastScan: Date?, isScanning: Bool) {
+    /// - Parameter currentNetwork: the network the Mac is on now, for the live tools.
+    func update(
+        devices: [LocalDevice], networkProfileID: UUID?, lastScan: Date?, isScanning: Bool, currentNetwork: NetworkProfile? = nil
+    ) {
+        inputs.currentNetwork = currentNetwork
         inputs.devices = devices
         inputs.networkProfileID = networkProfileID
         inputs.lastScan = lastScan
