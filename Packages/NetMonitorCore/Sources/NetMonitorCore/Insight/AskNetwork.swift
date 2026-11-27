@@ -50,16 +50,20 @@ public struct AskAnswer: Equatable, Sendable {
     /// a recent scan, `AskNetwork.staleFallback` / `unscannedFallback` otherwise, or
     /// `AskNetwork.fallback` when no device was found.
     public let fallback: String
+    /// What the live tools measured (#579), in the app's words, shown under the answer with when.
+    /// Never written to saved presence: a device's status beside it stays the scan's.
+    public let measurements: [AskMeasurement]
 
     public init(
         text: String?, devices: [DeviceCitation], events: [EventCitation], freshness: String? = nil,
-        fallback: String = AskNetwork.fallback
+        fallback: String = AskNetwork.fallback, measurements: [AskMeasurement] = []
     ) {
         self.text = text
         self.devices = devices
         self.events = events
         self.freshness = freshness
         self.fallback = fallback
+        self.measurements = measurements
     }
 
     public var shownText: String { text ?? fallback }
@@ -77,16 +81,20 @@ public enum AskNetwork {
     public static let staleFallbackOne = "This device hasn't been checked recently. Its last-seen time is below."
     /// As `staleFallback`, for a network with no scan.
     public static let unscannedFallback = "This network hasn't been scanned yet."
+    /// Shown instead of the model's text when the app measured something (#579): its own lines
+    /// follow, so a saved status beside a fresh ping doesn't read as the answer.
+    public static let measuredFallback = "The app's live check is below."
 
     /// Asks `model`, then checks its answer against this run's tool results (`AskAnswerCheck`).
     public static func answer(
         _ question: String,
         snapshot: AskSnapshot,
         pinnedDeviceID: UUID?,
-        model: any AskModelProtocol
+        model: any AskModelProtocol,
+        live: AskLiveTools? = nil
     ) async -> AskAnswer {
-        let toolbox = AskToolbox(snapshot: snapshot, pinnedDeviceID: pinnedDeviceID)
-        let text = await model.answer(question, instructions: instructions(for: snapshot), toolbox: toolbox)
+        let toolbox = AskToolbox(snapshot: snapshot, pinnedDeviceID: pinnedDeviceID, live: live)
+        let text = await model.answer(question, instructions: instructions(for: snapshot, live: live != nil), toolbox: toolbox)
         let record = toolbox.record
         let cited = record.deviceIDs.compactMap { id in snapshot.devices.first { $0.id == id } }
         let devices = cited.map { device in
@@ -98,11 +106,15 @@ public enum AskNetwork {
             snapshot.events.first { $0.id == id }.map { AskAnswer.EventCitation(id: id, timestamp: $0.timestamp, title: $0.title) }
         }
         // The model's presence and freshness sentences go first; the rest must pass the checks.
-        let filtered = text.map(withoutHandles).flatMap { AskPresenceFilter.filtered($0, outputs: record.outputs) }
+        var filtered = text.map(withoutHandles).flatMap { AskPresenceFilter.filtered($0, outputs: record.outputs) }
+        // Once the model called a live tool, the app's lines are the answer and no model text is
+        // shown (#579, lead decision on #627); without one, it may not claim a check it didn't run.
+        filtered = record.usedLiveTools ? nil : filtered.flatMap(AskLiveTextFilter.withoutClaimedChecks)
         let accepted = filtered.flatMap { AskAnswerCheck.accepts($0, question: question, record: record, snapshot: snapshot) ? $0 : nil }
         return AskAnswer(
             text: accepted, devices: devices, events: events, freshness: cited.isEmpty ? nil : snapshot.freshnessNote,
-            fallback: fallback(cited: cited, snapshot: snapshot)
+            fallback: record.measurements.isEmpty ? fallback(cited: cited, snapshot: snapshot) : measuredFallback,
+            measurements: record.measurements
         )
     }
 
@@ -130,14 +142,19 @@ public enum AskNetwork {
     }
 
     /// The model's instructions: today's date, which tool answers what, and to copy the tools' facts.
-    public static func instructions(for snapshot: AskSnapshot) -> String {
+    /// - Parameter live: whether the live tools are offered (#579).
+    public static func instructions(for snapshot: AskSnapshot, live: Bool = false) -> String {
+        let measuring = live
+            ? "To check whether one device answers now, call findDevices, then pingDevice with its id. For the connection, " +
+            "the gateway or the internet, call networkStatus. "
+            : "The tools don't measure the internet connection. "
         return """
         You answer questions about the user's home network inside a network monitoring app. \
         Today is \(snapshot.formatWeekday(snapshot.now)). Use the tools to look up facts; never guess a number, time, \
         address or device name. To ask about one device, call findDevices with the user's words for it, then pass the id \
         it returns; for several or all devices, call findDevices with all. For devices that were unreliable, dropped off \
-        or flaky, call flakyDevices. For what joined, left or changed, call events. The tools don't measure the internet \
-        connection, and never say why something happened or what caused it; when the tools can't answer, say so. \
+        or flaky, call flakyDevices. For what joined, left or changed, call events. \(measuring)\
+        Never say why something happened or what caused it; when the tools can't answer, say so. \
         Never say whether a device is online, offline, up or reachable: the app shows each device's status itself. \
         Answer in at most three short sentences, using only facts from tool results, and copy names, numbers and times \
         exactly as the tools write them. \
@@ -243,14 +260,18 @@ public enum AskToolCall: Sendable, Equatable {
     case deviceLatencyHistory(String)
     case events(range: String, type: String?)
     case flakyDevices(String)
+    case pingDevice(String)
+    case networkStatus
 
-    func run(on toolbox: AskToolbox) -> String {
+    func run(on toolbox: AskToolbox) async -> String {
         switch self {
         case let .findDevices(phrase): toolbox.findDevices(phrase)
         case let .deviceStatus(device): toolbox.deviceStatus(device)
         case let .deviceLatencyHistory(device): toolbox.deviceLatencyHistory(device)
         case let .events(range, type): toolbox.events(range, type: type)
         case let .flakyDevices(range): toolbox.flakyDevices(range)
+        case let .pingDevice(device): await toolbox.pingDevice(device)
+        case .networkStatus: await toolbox.networkStatus()
         }
     }
 }
@@ -298,7 +319,7 @@ public struct ScriptedAskModel: AskModelProtocol {
             } catch {
                 return nil
             }
-            results.append(call.run(on: toolbox))
+            await results.append(call.run(on: toolbox))
         }
         if script.delay > .zero {
             try? await Task.sleep(for: script.delay)

@@ -83,7 +83,7 @@ struct AskToolView: View {
                     .disabled(question.trimmingCharacters(in: .whitespaces).isEmpty)
                     .accessibilityIdentifier("ask_button_ask")
             }
-            Text("Answers come from the devices and events NetMonitor has saved.")
+            Text("Answers come from the devices and events NetMonitor has saved, and pings it makes when asked.")
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textSecondary)
         }
@@ -151,6 +151,19 @@ struct AskToolView: View {
                 .foregroundStyle(Theme.Colors.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("ask_label_answer")
+            // The app's live measurements (#579), in its own words: the model's never state them.
+            ForEach(Array(answer.measurements.enumerated()), id: \.element.id) { index, measurement in
+                Label(
+                    measurement.measuredAt.map { "\(measurement.text), measured at \($0.formatted(date: .omitted, time: .shortened))" }
+                        ?? measurement.text,
+                    systemImage: measurement.measuredAt == nil ? "exclamationmark.circle"
+                        : measurement.deviceID == nil ? "network" : "dot.radiowaves.left.and.right"
+                )
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("ask_label_measurement_\(index + 1)")
+            }
             if let freshness = answer.freshness {
                 // The app's own line: the model may leave out how old the statuses are.
                 Label(freshness, systemImage: "clock")

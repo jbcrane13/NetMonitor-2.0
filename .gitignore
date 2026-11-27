@@ -93,3 +93,6 @@ beads/
 *.db
 
 .claude/worktrees/
+
+# LLVM coverage output
+*.profraw

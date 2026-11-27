@@ -33,6 +33,7 @@ struct AskToolView: View {
         let networkProfileID: UUID?
         let lastScan: Date?
         let isScanning: Bool
+        let currentNetwork: NetworkProfile?
     }
 
     var body: some View {
@@ -54,10 +55,12 @@ struct AskToolView: View {
             groups: devices.map(\.deviceGroupID),
             networkProfileID: networkProfileID,
             lastScan: lastScan,
-            isScanning: coordinator?.isScanning ?? false
+            isScanning: coordinator?.isScanning ?? false,
+            currentNetwork: profileManager?.connectedLocalProfile
         )) {
             viewModel.update(
-                devices: devices, networkProfileID: networkProfileID, lastScan: lastScan, isScanning: coordinator?.isScanning ?? false
+                devices: devices, networkProfileID: networkProfileID, lastScan: lastScan, isScanning: coordinator?.isScanning ?? false,
+                currentNetwork: profileManager?.connectedLocalProfile
             )
         }
         .sheet(item: $openDevice) { device in
@@ -156,6 +159,20 @@ struct AskToolView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("ask_label_answer")
+            // The app's live measurements (#579), in its own words: the model's never state them.
+            ForEach(Array(answer.measurements.enumerated()), id: \.element.id) { index, measurement in
+                Label(
+                    measurement.measuredAt.map { "\(measurement.text), measured at \($0.formatted(date: .omitted, time: .shortened))" }
+                        ?? measurement.text,
+                    systemImage: measurement.measuredAt == nil ? "exclamationmark.circle"
+                        : measurement.deviceID == nil ? "network" : "dot.radiowaves.left.and.right"
+                )
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(MacTheme.Colors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("ask_label_measurement_\(index + 1)")
+            }
             if let freshness = answer.freshness {
                 // The app's own line: the model may leave out how old the statuses are.
                 Label(freshness, systemImage: "clock")
@@ -225,8 +242,8 @@ struct AskToolView: View {
     }
 
     private var footer: some View {
-        Text("Answers come only from what the app has saved; numbers and names the lookups didn't return are not shown. "
-            + "Nothing is asked during a device scan.")
+        Text("Answers come only from what the app has saved and pings it makes when asked; numbers and names the lookups "
+            + "didn't return are not shown. Nothing is asked or pinged during a device scan.")
             .font(.caption)
             .foregroundStyle(MacTheme.Colors.labelSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -201,3 +201,8 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **Every word in a guided `anyOf` list changes the answers.** Adding "purple" and "magenta" to the colour list turned three unlit lights on a white case into "unknown" (56 → 52 of 64 right). Offer only the words the app needs and map stray ones in code.
 - **A router's WAN light is the link to the modem, not the provider line** (review): green WAN stays green during an outage, so it gets its own cautious meaning instead of the DSL/broadband one.
 - **`#if canImport(FoundationModels)` doesn't protect OS 27 API from Xcode 26,** which has the framework without `Attachment`, `.vision` or count guides. Guard such files with `&& compiler(>=6.4)` as well. CI's Xcode 16.4 has no FoundationModels, so CI can't catch this.
+
+## 2026-11-26 — Ask's live tools (#579)
+- **The model restates a live measurement as presence.** It wrote "is answering now with 3 of 3 replies" and "the gateway responded in 2 ms". The filter drops respond/replied/replies sentences. When the app measured something, the fallback is "Here is what the app measured." above the app's own lines, not the stale-scan line.
+- **Live tools change which tool the model picks.** "Why is the internet slow tonight?" now calls networkStatus instead of flakyDevices. Rerun the whole question list after adding a tool.
+- **The macOS sidebar can start collapsed** (the window's saved state), so `sidebar_nav_*` isn't in the AX tree and the View menu has no Show Sidebar item. `axdrive resize 1400 900` and then `clickat main-AppWindow-1 113 26` (the toolbar toggle) opens it. A whole-window capture shows the real WAN, DNS and ISP: capture only with `capture-in`.

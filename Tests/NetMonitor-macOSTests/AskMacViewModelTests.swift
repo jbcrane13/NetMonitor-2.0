@@ -102,4 +102,46 @@ struct AskMacViewModelTests {
         #expect(AskMacViewModel.uiTestMode(arguments: ["--uitesting", "--uitest-ask=answer"]) == .answer)
         #expect(AskMacViewModel.uiTestMode(arguments: ["--uitest-ask=answer"]) == nil)
     }
+
+    // MARK: - Live tools (#579)
+
+    /// "Is the printer answering right now?" on a network with no scan: the app refuses to ping
+    /// and says to scan first (#579 review); the saved status stays the scan's.
+    @Test func aPingQuestionBeforeAnyScanIsRefusedByTheApp() async {
+        let printer = LocalDevice(
+            ipAddress: AskUITestFixture.printer.ip, macAddress: AskUITestFixture.printer.mac, deviceType: .printer,
+            customName: AskUITestFixture.printer.name, status: .offline, networkProfileID: home
+        )
+        let home = home
+        let viewModel = AskMacViewModel(
+            model: AskUITestFixture.model(.answer), events: NetworkEventService(), live: AskUITestFixture.live { home }
+        )
+        viewModel.update(devices: [printer], networkProfileID: home, lastScan: nil, isScanning: false)
+        await viewModel.state.ask(AskUITestFixture.pingQuestion)
+        guard case let .answered(answer) = viewModel.state.phase else {
+            Issue.record("not answered: \(viewModel.state.phase)")
+            return
+        }
+        #expect(answer.text == nil)
+        #expect(answer.measurements == [AskMeasurement(deviceID: printer.id, text: AskUITestFixture.pingRefusal, measuredAt: nil)])
+        #expect(answer.devices.map(\.presence) == [.notCheckedRecently])
+        #expect(printer.status == .offline)
+    }
+
+    /// After a scan since the Mac joined, an Online device is pinged and named with its address.
+    @Test func aPingAfterAScanShowsTheAppsMeasurement() async {
+        let nas = LocalDevice(ipAddress: AskUITestFixture.printer.ip, macAddress: "02:00:00:52:00:58", deviceType: .storage,
+                              customName: "Garage NAS", status: .online, networkProfileID: home)
+        let home = home
+        let model = ScriptedAskModel(scripts: ["Is the NAS up?": AskScript(calls: [.pingDevice("Garage NAS")], answer: "Yes.")])
+        let viewModel = AskMacViewModel(model: model, events: NetworkEventService(), live: AskUITestFixture.live { home })
+        viewModel.update(devices: [nas], networkProfileID: home, lastScan: Date(), isScanning: false)
+        await viewModel.state.ask("Is the NAS up?")
+        guard case let .answered(answer) = viewModel.state.phase else {
+            Issue.record("not answered: \(viewModel.state.phase)")
+            return
+        }
+        #expect(answer.measurements.map(\.text) == ["Garage NAS (192.0.2.57): 3 of 3 replies, 4 ms average"])
+        #expect(answer.shownText == AskNetwork.measuredFallback)
+    }
 }
