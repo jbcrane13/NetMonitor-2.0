@@ -27,7 +27,8 @@ struct PrivateMACMergeTests {
             networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
     }
 
@@ -227,7 +228,8 @@ struct DeviceMatchMergeTests {
             networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Network
 import NetworkScanKit
 
@@ -21,6 +22,39 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     public private(set) var completedScanMacSightings: [DiscoveredDevice] = []
     /// The Mac's answers gathered by the running scan, published with it.
     private var pendingMacSightings: [DiscoveredDevice] = []
+    /// The token the last completed scan started with (#628).
+    public private(set) var completedScanToken: JoinToken?
+    /// Called on the main actor when a scan is dropped because its token went stale (#628), with the
+    /// network it scanned (nil: the subnet it was asked for): the app schedules a replacement scan.
+    /// Raised by both drop points: `finishScan` and `retractScan(_:)`.
+    public var onScanDropped: (@MainActor (NetworkProfile?) -> Void)?
+    /// Scans dropped so far because the path changed while they ran (#628).
+    public private(set) var droppedScanCount = 0
+    /// The token `discoveredDevices` was observed under (#628): the running or last scan's, a list
+    /// cached this launch keeps its scan's, and one loaded from disk is `.unverified`. A device-row
+    /// write from the list checks it (`NetworkJoinClock.isCurrent`) right before it writes.
+    public private(set) var discoveredDevicesToken: JoinToken? = .unverified
+    /// The token each list in `cachedDevicesByProfileID` was published under this launch.
+    private var cachedTokensByKey: [String: JoinToken] = [:]
+    /// What the last publish replaced, so a scan dropped after it was published can be retracted.
+    private struct Published {
+        let lastScanDate: Date?
+        let devices: [DiscoveredDevice]
+        let macSightings: [DiscoveredDevice]
+        let token: JoinToken?
+        let profile: NetworkProfile?
+        let cacheKey: String
+        let cached: [DiscoveredDevice]?
+        let cachedToken: JoinToken?
+    }
+
+    private var beforeLastPublish: Published?
+    /// The network the last completed scan scanned; nil for a subnet scan.
+    private var completedScanProfile: NetworkProfile?
+    private static let logger = Logger(subsystem: "com.netmonitor", category: "discovery")
+    private let joinClock: NetworkJoinClock
+    /// The scan's phases; tests pass a fixture (#628).
+    private let pipelineFactory: @MainActor (BonjourDiscoveryService, GatewayNameResolver) -> ScanPipeline
 
     // MARK: - Private scan filter / target types
 
@@ -57,8 +91,12 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     public init(
         macConnectionService: (any MacConnectionServiceProtocol)? = nil,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        joinClock: NetworkJoinClock = .shared,
+        pipelineFactory: (@MainActor (BonjourDiscoveryService, GatewayNameResolver) -> ScanPipeline)? = nil
     ) {
+        self.joinClock = joinClock
+        self.pipelineFactory = pipelineFactory ?? { Self.makePipeline(bonjourService: $0, nameResolver: $1) }
         self.macConnectionService = macConnectionService
         self.userDefaults = userDefaults
         loadCachedDevices()
@@ -125,12 +163,14 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     /// Flush accumulated devices and progress to UI.
     private func flushToMainActor(
+        token: JoinToken,
         progress: Double? = nil,
         phase: ScanDisplayPhase? = nil,
         profileID: UUID? = nil
     ) async {
         let devices = await engine.accumulator.snapshot().map { Self.withProfile($0, profileID: profileID) }
         self.discoveredDevices = devices
+        self.discoveredDevicesToken = token
         if let progress {
             self.scanProgress = progress
         }
@@ -160,6 +200,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     }
 
     private func performScan(subnet: String? = nil, profile: NetworkProfile? = nil) async {
+        // The path the scan's device observations start on (#628).
+        let token = joinClock.token(for: profile?.id)
         let scanTarget: ScanTarget
         if let profile {
             scanTarget = makeScanTarget(profile: profile)
@@ -179,6 +221,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanProgress = 0
         scanPhase = .arpScan
         discoveredDevices = staleDevices
+        discoveredDevicesToken = cachedTokensByKey[cacheKey] ?? .unverified
         progressCoalescer = ScanProgressCoalescer()
 
         defer {
@@ -210,7 +253,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         // Names through the gateway's DNS too: a VPN's DNS (Tailscale) knows no LAN names.
         let nameResolver = GatewayNameResolver(interface: interfaceName)
 
-        let pipeline = Self.makePipeline(bonjourService: bonjourService, nameResolver: nameResolver)
+        let pipeline = pipelineFactory(bonjourService, nameResolver)
 
         // Run the scan engine
         let engineRef = engine
@@ -230,6 +273,7 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
                 guard let self else { return }
                 self.scanProgress = progress
                 self.discoveredDevices = snapshot.map { Self.withProfile($0, profileID: profileID, keepCached: false) }
+                self.discoveredDevicesToken = token
                 if let phase = ScanDisplayPhase(phaseID: phaseID) {
                     self.scanPhase = phase
                 }
@@ -251,19 +295,74 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         guard !Task.isCancelled else { return }
         await mergeCompanionDevices(filter: scanTarget.filter, profile: profile, macConnected: macStillConnected)
         await identifyDevices(context: context, nameResolver: nameResolver)
-        await flushToMainActor(progress: 0.95, profileID: profileID)
+        await flushToMainActor(token: token, progress: 0.95, profileID: profileID)
 
         // Final sort and flush
         let sorted = await engine.accumulator.sortedSnapshot().map { Self.withProfile($0, profileID: profileID) }
         // Stopped during the companion merge or identity steps: not a finished scan, and its
         // engine may already hold a newer scan's devices (#582).
         guard !Task.isCancelled else { return }
-        publishCompletedScan(Self.finalDevices(scanned: sorted, previous: staleDevices), cacheKey: cacheKey)
+        let result = Self.finalDevices(scanned: sorted, previous: staleDevices)
+        finishScan(result, restoring: staleDevices, cacheKey: cacheKey, token: token, profile: profile)
+    }
+
+    /// Publishes a finished scan, unless a path update or resume happened since it started (#628):
+    /// then its devices may be another network's, so it is not published, cached or saved, and the
+    /// list goes back to `previous`, with the token it was published under. The check and the
+    /// publish run in one main-actor block.
+    private func finishScan(
+        _ result: [DiscoveredDevice], restoring previous: [DiscoveredDevice], cacheKey: String, token: JoinToken, profile: NetworkProfile?
+    ) {
+        guard joinClock.isCurrent(token) else {
+            Self.logger.notice("Scan dropped: the network path changed while it ran")
+            discoveredDevices = previous
+            discoveredDevicesToken = cachedTokensByKey[cacheKey] ?? .unverified
+            droppedScanCount += 1
+            onScanDropped?(profile)
+            return
+        }
+        publishCompletedScan(result, cacheKey: cacheKey, token: token, profile: profile)
+    }
+
+    /// Whether the last completed scan's token is still current (#628): a caller stamps "last
+    /// scanned" or counts a scan only then. False before any scan has completed.
+    public var lastScanIsCurrent: Bool {
+        joinClock.isCurrent(completedScanToken)
+    }
+
+    /// Retracts the scan published under `token` when its token went stale before it was saved
+    /// (#628): its last scan date, completed list, list and cache go back to what they were, and the
+    /// scan counts as dropped (`droppedScanCount`, `onScanDropped`). False, and nothing changes, when
+    /// `token` isn't the last published scan's or is still current.
+    @discardableResult
+    public func retractScan(_ token: JoinToken) -> Bool {
+        guard token == completedScanToken, !joinClock.isCurrent(token), let before = beforeLastPublish else { return false }
+        Self.logger.notice("Scan dropped: the network path changed before it was saved")
+        let profile = completedScanProfile
+        lastScanDate = before.lastScanDate
+        completedScanDevices = before.devices
+        completedScanMacSightings = before.macSightings
+        completedScanToken = before.token
+        completedScanProfile = before.profile
+        cachedDevicesByProfileID[before.cacheKey] = before.cached
+        cachedTokensByKey[before.cacheKey] = before.cachedToken
+        persistCachedDevices()
+        discoveredDevices = before.cached ?? []
+        discoveredDevicesToken = before.cachedToken ?? .unverified
+        beforeLastPublish = nil
+        droppedScanCount += 1
+        onScanDropped?(profile)
+        return true
     }
 
     /// Publishes a scan that ran to the end. Only such a scan moves `lastScanDate` and
     /// `completedScanDevices`: a stopped one leaves a partial list (#582, #589).
-    private func publishCompletedScan(_ result: [DiscoveredDevice], cacheKey: String) {
+    private func publishCompletedScan(_ result: [DiscoveredDevice], cacheKey: String, token: JoinToken, profile: NetworkProfile?) {
+        beforeLastPublish = Published(
+            lastScanDate: lastScanDate, devices: completedScanDevices, macSightings: completedScanMacSightings, token: completedScanToken,
+            profile: completedScanProfile, cacheKey: cacheKey, cached: cachedDevicesByProfileID[cacheKey], cachedToken: cachedTokensByKey[cacheKey]
+        )
+        completedScanProfile = profile
         discoveredDevices = result
         cachedDevicesByProfileID[cacheKey] = result
         persistCachedDevices()
@@ -271,6 +370,9 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanPhase = .done
         completedScanDevices = result
         completedScanMacSightings = pendingMacSightings
+        completedScanToken = token
+        discoveredDevicesToken = token
+        cachedTokensByKey[cacheKey] = token
         lastScanDate = Date()
     }
 

@@ -22,7 +22,8 @@ struct DeviceDiscoveryCoordinatorPresenceTests {
             scanHistory: .forTesting(),
             clock: scanClock,
             presenceClock: presenceClock,
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
     }
 

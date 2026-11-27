@@ -34,6 +34,8 @@ struct LabelCaptureViewModelTests {
         model: LabelFields? = nil,
         scanning: Bool = false,
         scan: [DiscoveredDevice] = [],
+        scanToken: JoinToken? = nil,
+        joinClock: NetworkJoinClock = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream),
         device: LocalDevice
     ) -> LabelCaptureViewModel {
         let viewModel = LabelCaptureViewModel(
@@ -44,6 +46,8 @@ struct LabelCaptureViewModelTests {
             ),
             isScanning: { scanning },
             liveScan: { scan },
+            liveScanToken: { scanToken ?? joinClock.token(for: nil) },
+            joinClock: joinClock,
             testImage: { nil }
         )
         viewModel.configure(device: device, context: context)
@@ -192,5 +196,43 @@ struct LabelCaptureViewModelTests {
         #expect(created.identity.model == IdentityValue("NW-AC1200", source: .userConfirmed))
         #expect(viewModel.phase == .savedToOther(name: created.displayName))
         #expect(current.modelName == nil)
+    }
+
+    /// Stop-time review on #633: the MAC's owner is listed only as cached (it didn't answer the scan,
+    /// its address is old), so no row is made from it; the user is told why and the fields stay.
+    @Test("Use That Device refuses a scanned owner that didn't answer the scan")
+    func useThatScannedDeviceRefusedWhenItOnlyCached() async throws {
+        let current = row("192.168.1.10")
+        let owner = DiscoveredDevice(
+            ipAddress: "192.168.1.11", hostname: "nas.lan", vendor: nil, macAddress: Self.labelMAC, latency: nil,
+            discoveredAt: Date(), source: .local, networkProfileID: network, isCached: true
+        )
+        let scan = [observed("192.168.1.10", mac: nil), owner]
+        let viewModel = viewModel(model: LabelFields(status: .found, model: "NW-AC1200"), scan: scan, device: current)
+        try await viewModel.read(#require(Self.image))
+        viewModel.saveToOwner()
+        #expect(viewModel.saveError == LabelCaptureViewModel.notAnsweringMessage)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
+        #expect(viewModel.values.model == "NW-AC1200")
+    }
+
+    /// #628 (lead review on #633): the scan the owner came from is no longer current, so no row is
+    /// made from it; the user is told why and the reviewed fields stay.
+    @Test("Use That Device refuses a scanned owner from a scan a path change invalidated")
+    func useThatScannedDeviceRefusedAfterAPathChange() async throws {
+        let current = row("192.168.1.10")
+        let scan = [observed("192.168.1.10", mac: nil), observed("192.168.1.11", mac: Self.labelMAC, name: "nas.lan")]
+        let join = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
+        let token = join.token(for: nil)
+        let viewModel = viewModel(
+            model: LabelFields(status: .found, model: "NW-AC1200"), scan: scan, scanToken: token, joinClock: join, device: current
+        )
+        try await viewModel.read(#require(Self.image))
+        join.noteResume()
+        viewModel.saveToOwner()
+        #expect(viewModel.saveError == LabelCaptureViewModel.networkChangedMessage)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
+        #expect(viewModel.values.model == "NW-AC1200")
+        #expect(viewModel.phase != .savedToOther(name: "nas.lan"))
     }
 }

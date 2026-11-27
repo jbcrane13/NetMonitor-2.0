@@ -41,7 +41,8 @@ struct CompanionMessageHandlerExtendedTests {
             // Empty pipeline: `.scanDevices` must not start a real LAN scan from a unit test (#309).
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
 
         let handler = CompanionMessageHandler(

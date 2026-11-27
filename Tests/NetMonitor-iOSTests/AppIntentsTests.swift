@@ -59,6 +59,14 @@ struct ScanNetworkIntentTests {
         _ = intent  // Just verify it creates without error
         #expect(Bool(true))
     }
+
+    /// #628: a scan dropped because the network changed says so, never the previous count.
+    @Test("a dropped scan says the network changed; a finished one gives the count")
+    func messages() {
+        #expect(ScanNetworkIntent.message(count: 7, dropped: true) == "The network changed during the scan, so nothing was saved. Try again.")
+        #expect(ScanNetworkIntent.message(count: 1, dropped: false) == "Found 1 device on your network.")
+        #expect(ScanNetworkIntent.message(count: 4, dropped: false) == "Found 4 devices on your network.")
+    }
 }
 
 // MARK: - SpeedTestIntent Tests

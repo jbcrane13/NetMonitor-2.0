@@ -50,7 +50,8 @@ struct CompanionInventorySenderTests {
         let manager = NetworkProfileManager(userDefaults: InMemoryDefaults(), activeProfilesProvider: { profiles })
         let discovery = DeviceDiscoveryCoordinator(
             modelContext: context, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: manager,
-            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         let events = Events()
         let handler = CompanionMessageHandler(

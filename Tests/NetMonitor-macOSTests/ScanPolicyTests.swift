@@ -66,6 +66,16 @@ struct ScanPolicyTests {
         }
     }
 
+    /// #628 (Devin review on #633): a replacement scans the manual network the dropped scan scanned,
+    /// else the local network; never while a scan runs.
+    @Test("A replacement keeps a manual network, else scans the local one")
+    func replacementKeepsAManualNetwork() {
+        #expect(ScanPolicy.decide(.replacement(manual: picked), isScanning: false, local: local, current: picked) == .start(picked))
+        #expect(ScanPolicy.decide(.replacement(manual: nil), isScanning: false, local: local, current: remote) == .start(local))
+        #expect(ScanPolicy.decide(.replacement(manual: picked), isScanning: true, local: local, current: picked) == .ignore)
+        #expect(ScanPolicy.decide(.replacement(manual: nil), isScanning: false, local: nil, current: nil) == .ignore)
+    }
+
     @Test("Those reasons are ignored while a scan runs, and when there is no local network")
     func automaticReasonsIgnored() {
         for automatic in AutomaticReason.allCases {
@@ -126,7 +136,8 @@ struct ScanPolicyCoordinatorTests {
             networkProfileManager: manager,
             pipelineFactory: { _ in ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldPolicyScanPhase()], concurrent: false)]) },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         return (coordinator, manager, container)
     }

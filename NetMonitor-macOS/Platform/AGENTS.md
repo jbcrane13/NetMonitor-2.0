@@ -41,7 +41,7 @@ A completed scan's rows are kept current by Core `ScanReconciler`, the iPhone's 
 - The change tracker uses the same grace policy. On the first scan a network's `ScanHistory` records (after an app update), it forgets misses counted before, so "Device Left" lands with the row going offline.
 - Each network's reconciled scans are in `ScanHistory` (UserDefaults; a UI-test suite under `--uitesting`). Clearing the data clears it.
 
-`mergeSparseSnapshot`, at the enrichment transition, only writes a fresh latency to the saved row with the device's own real MAC. It makes no rows, and leaves status and `lastSeen` to the final pass. New devices appear at the final pass; on macOS 27 (no MACs) they already did. The coordinator's clock is read once per scan for the sparse merge, the reconcile and the change tracker. Online counts, the menu bar and the companion's `isOnline` count only `.online`.
+`mergeSparseSnapshot`, at the enrichment transition, only records a fresh latency for the saved row with the device's own real MAC, in memory (`progressiveLatency`, shown through `presence()`); the final pass saves it, so a scan dropped because the path changed writes nothing (#628). It makes no rows, and leaves status and `lastSeen` to the final pass. New devices appear at the final pass; on macOS 27 (no MACs) they already did. The coordinator's clock is read once per scan for the sparse merge, the reconcile and the change tracker. Online counts, the menu bar and the companion's `isOnline` count only `.online`.
 
 ### Shell Command Pattern
 ```swift

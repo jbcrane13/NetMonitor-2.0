@@ -2,6 +2,7 @@ import Testing
 import Foundation
 @testable import NetMonitor_iOS
 import NetMonitorCore
+import NetworkScanKit
 
 @MainActor
 struct ToolsViewModelTests {
@@ -174,6 +175,28 @@ struct ToolsViewModelTests {
         let vm = makeVM(deviceDiscovery: discovery)
         await vm.runNetworkScan()
         #expect(discovery.scanCallCount == 1)
+    }
+
+    /// #628 (lead verification on #633): a dropped scan, at publish or after it, leaves no trace:
+    /// no "N devices" activity and no review-prompt count.
+    @Test func aDroppedScanLeavesNoActivityOrReviewCount() async throws {
+        for dropsAtPublish in [true, false] {
+            let discovery = MockDeviceDiscoveryService()
+            discovery.discoveredDevices = [DiscoveredDevice(
+                ipAddress: "192.168.1.20", hostname: nil, vendor: nil, macAddress: nil, latency: 3, discoveredAt: Date(), source: .local
+            )]
+            discovery.dropsNextScan = dropsAtPublish
+            discovery.lastScanIsCurrent = dropsAtPublish
+            let log = ToolActivityLog()
+            let defaults = try #require(UserDefaults(suiteName: "tools-drop-\(UUID().uuidString)"))
+            let vm = ToolsViewModel(
+                deviceDiscoveryService: discovery, activityLog: log,
+                reviewPrompt: ReviewPromptPolicy(defaults: defaults, requestReview: { false }), currentNetwork: { nil }
+            )
+            await vm.runNetworkScan()
+            #expect(log.entries.isEmpty, "dropped at publish: \(dropsAtPublish)")
+            #expect(defaults.integer(forKey: "reviewPrompt_completedScanCount") == 0)
+        }
     }
 
     // MARK: - pingGateway

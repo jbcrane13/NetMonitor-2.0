@@ -25,7 +25,7 @@ struct MacModelConsentViewModelTests {
         let client = mac(offering: ["rules.v1"])
         let consent = MacInsightConsent(defaults: nil)
         let parser = RoutedRuleIntentParser(local: UnavailableRuleIntentParser(), mac: client, consent: consent)
-        let viewModel = PlainRuleIOSViewModel(parser: parser)
+        let viewModel = PlainRuleIOSViewModel(parser: parser, joinClock: .forTests)
         #expect(viewModel.isAvailable)
         #expect(viewModel.needsMacConsent)
         consent.agree()
@@ -36,7 +36,7 @@ struct MacModelConsentViewModelTests {
         let local = RoutedRuleIntentParser(
             local: FixedRuleIntentParser(answers: [:]), mac: client, consent: MacInsightConsent(defaults: nil)
         )
-        #expect(!PlainRuleIOSViewModel(parser: local).needsMacConsent, "this phone's own model never asks")
+        #expect(!PlainRuleIOSViewModel(parser: local, joinClock: .forTests).needsMacConsent, "this phone's own model never asks")
     }
 
     @Test func theTroubleshooterAsksOnlyBeforeTheUserHasAnswered() {
@@ -55,7 +55,7 @@ struct MacModelConsentViewModelTests {
 
     @Test func theViewModelsReadAvailabilityLiveThroughTheProtocols() {
         let parser = SwitchableParser(availability: .needsConsent)
-        let viewModel = PlainRuleIOSViewModel(parser: parser)
+        let viewModel = PlainRuleIOSViewModel(parser: parser, joinClock: .forTests)
         #expect(viewModel.needsMacConsent, "any parser can ask, not only the routed one")
         parser.availability = .available
         #expect(!viewModel.needsMacConsent, "read live, not when the view model was made")

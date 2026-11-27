@@ -39,6 +39,8 @@ final class DeviceDetailViewModel {
     let clock: @MainActor () -> Date
     /// Where grouping actions report a device coming back online (#619); nil reports nothing.
     let dispatcher: (any DeviceEventDispatcherProtocol)?
+    /// A probe's result is saved only if no path update or resume happened since it started (#628).
+    private let joinClock: NetworkJoinClock
     /// Suggestions, the override confirmation and the undo toast (#594 PR2).
     let grouping = DeviceGroupingState()
     private(set) var modelContext: ModelContext?
@@ -57,6 +59,9 @@ final class DeviceDetailViewModel {
     }
 
     private var nameLookup = NameLookup.savedAddress
+    /// The token of the observation that says where the device is (#628): the current scan that
+    /// listed it, or the completed scan that confirmed it. Probes run and save only under it.
+    private var probeToken: JoinToken?
     private let maxServiceResolves = 80
     private let maxServiceResolveConcurrency = 8
 
@@ -65,14 +70,16 @@ final class DeviceDetailViewModel {
         nameResolver: any DeviceNameResolverProtocol = DeviceNameResolver(),
         portScanner: any PortScannerServiceProtocol = PortScannerService(),
         bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService(),
-        deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
+        deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDetailViewModel.appDiscovery,
         suggester: DeviceSuggester = DeviceSuggester(service: UITestFakeDeviceFeed.insightService, store: DeviceSuggestionStore()),
         wakeService: any WakeOnLANServiceProtocol = WakeOnLANService(),
         references: [any DeviceReferenceStore] = [NetworkEventService.shared],
         scanHistory: ScanHistory = ScanHistory(),
         clock: @escaping @MainActor () -> Date = Date.init,
-        dispatcher: (any DeviceEventDispatcherProtocol)? = nil
+        dispatcher: (any DeviceEventDispatcherProtocol)? = nil,
+        joinClock: NetworkJoinClock = .shared
     ) {
+        self.joinClock = joinClock
         self.dispatcher = dispatcher
         self.macLookupService = macLookupService
         self.nameResolver = nameResolver
@@ -110,6 +117,22 @@ final class DeviceDetailViewModel {
         let live = Self.liveScan(deviceDiscoveryService)
         let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
         let network = networkID ?? scanned?.networkProfileID
+        // Only a device that answered the current scan, under a token still current, makes, moves or
+        // fills a row (#628). Otherwise (a stale or unstamped list, one from disk, another network's
+        // cache, or a cached entry: listed but silent this scan, at an old address) the saved row the
+        // entry names opens read-only, and nothing is probed. Checked here, in the block that writes.
+        let listToken = deviceDiscoveryService.discoveredDevicesToken
+        guard scanned?.isCached == false, Self.observationIsCurrent(listToken, on: joinClock) else {
+            probeToken = nil
+            let row = Self.existingRow(ipAddress: ipAddress, macAddress: macAddress, networkID: network, in: context)
+            openedMember = row
+            showDevice(of: row)
+            if row == nil {
+                error = Self.interruptedScanMessage
+            }
+            return
+        }
+        probeToken = listToken
         let row = Self.savedRow(
             ipAddress: ipAddress,
             scanned: scanned,
@@ -149,11 +172,18 @@ final class DeviceDetailViewModel {
         }
     }
 
+    /// The discovery the app's lists come from: the UI-test fixture's under `UITEST_FAKE_DEVICES`.
+    static var appDiscovery: any DeviceDiscoveryServiceProtocol {
+        UITestFakeDeviceFeed.isEnabled ? UITestFakeDiscoveryService.shared : DeviceDiscoveryService.shared
+    }
+
     /// The latest scan, as device detail matches rows against it. Under the UI-test fixture
     /// the dashboard lists fake devices; detail sees them too. The label sheet's duplicate-MAC
-    /// check uses the same list (#456).
-    static func liveScan(_ service: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared) -> [DiscoveredDevice] {
-        service.discoveredDevices + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
+    /// check uses the same list (#456). A row write from it first checks the token it was observed
+    /// under (`discoveredDevicesToken`, #628).
+    static func liveScan(_ service: any DeviceDiscoveryServiceProtocol = DeviceDetailViewModel.appDiscovery) -> [DiscoveredDevice] {
+        // Under the fixture, the dashboard lists the feed's devices as the current scan (#628).
+        service.discoveredDevices + (UITestFakeDeviceFeed.isEnabled ? UITestFakeDeviceFeed().devices : [])
     }
 
     // MARK: - Identity suggestion (#449)
@@ -217,7 +247,12 @@ final class DeviceDetailViewModel {
     /// Enrich device data with the MAC-prefix maker and resolved hostname, on the probed member
     /// (else the current one): both describe one interface.
     func enrichDevice(bonjourServices _: [BonjourService]) async {
-        guard let device = probedMember?.row ?? current else { return }
+        // Values and the row's ID across the awaits; the row is fetched by ID and saved only under
+        // the observation's token (#628).
+        guard let device = probedMember?.row ?? current, let token = probeToken else { return }
+        let rowID = device.id
+        let needsVendor = device.vendor?.isEmpty ?? true
+        let needsHostname = device.resolvedHostname == nil
         isLoading = true
         defer { isLoading = false }
 
@@ -226,7 +261,7 @@ final class DeviceDetailViewModel {
         let ipAddress = probedMember.flatMap { $0.row === device ? $0.address : nil }
 
         // Look up the MAC-prefix maker (`vendor`, ADR-022); skip without a MAC
-        if device.vendor?.isEmpty ?? true, !macAddress.isEmpty {
+        if needsVendor, !macAddress.isEmpty {
             let vendor: String? = await withTaskGroup(of: String?.self) { group in
                 group.addTask {
                     await self.macLookupService.lookup(macAddress: macAddress)
@@ -239,15 +274,15 @@ final class DeviceDetailViewModel {
                 group.cancelAll()
                 return result.flatMap { $0 }
             }
-            if !Task.isCancelled {
-                device.vendor = vendor
+            if !Task.isCancelled, let row = rowToUpdate(rowID, startedWith: token) {
+                row.vendor = vendor
             }
         }
 
         guard !Task.isCancelled else { return }
 
         // Resolve hostname with timeout to prevent hanging on DNS
-        if device.resolvedHostname == nil, let ipAddress {
+        if needsHostname, let ipAddress {
             let hostname: String? = await withTaskGroup(of: String?.self) { group in
                 group.addTask {
                     await self.nameResolver.resolve(ipAddress: ipAddress)
@@ -261,8 +296,8 @@ final class DeviceDetailViewModel {
                 return result.flatMap { $0 }
             }
             // Only if the device is still at that address after the wait.
-            if !Task.isCancelled, probeAddress == ipAddress {
-                device.resolvedHostname = hostname
+            if !Task.isCancelled, probeAddress == ipAddress, let row = rowToUpdate(rowID, startedWith: token) {
+                row.resolvedHostname = hostname
             }
         }
         guard !Task.isCancelled else { return }
@@ -271,7 +306,8 @@ final class DeviceDetailViewModel {
 
     /// Discover Bonjour services at ``probeAddress``; they are saved on the member probed.
     func discoverServices() async {
-        guard let (device, deviceIP) = probedMember else { return }
+        guard let (device, deviceIP) = probedMember, let token = probeToken else { return }
+        let rowID = device.id
         isDiscovering = true
         defer { isDiscovering = false }
 
@@ -329,8 +365,9 @@ final class DeviceDetailViewModel {
             }
         }
 
-        guard probeAddress == deviceIP, probedMember?.row === device else { return }
-        device.discoveredServices = discoveredServiceNames
+        // Only on the member still probed there, fetched by ID while the probe's token is current (#628).
+        guard probeAddress == deviceIP, probedMember?.row.id == rowID, let row = rowToUpdate(rowID, startedWith: token) else { return }
+        row.discoveredServices = discoveredServiceNames
         startSuggestion()
     }
 
@@ -441,6 +478,14 @@ extension DeviceDetailViewModel {
         // DHCP may have given the saved address to another device.
         nameLookup = .confirmedByScan
         defer { startSuggestion() }
+        // The latest completed scan fills a member, and says where to probe, only while its token is
+        // current (#628).
+        let scanToken = deviceDiscoveryService.completedScanToken
+        guard Self.observationIsCurrent(scanToken, on: joinClock) else {
+            probeToken = nil
+            return
+        }
+        probeToken = scanToken
         for member in members {
             if let scanned = confirmedSighting(of: member) {
                 Self.adopt(scanned, into: member)
@@ -473,7 +518,8 @@ extension DeviceDetailViewModel {
     /// The member ``probeAddress`` belongs to; probes write to its row (#594: ports and services
     /// stay on the interface they were measured on).
     var probedMember: (row: LocalDevice, address: String)? {
-        guard device != nil else { return nil }
+        // Only while the observation that placed the device there is current (#628).
+        guard device != nil, Self.observationIsCurrent(probeToken, on: joinClock) else { return nil }
         switch nameLookup {
         case .savedAddress:
             guard let row = openedMember ?? current else { return nil }
@@ -505,7 +551,8 @@ extension DeviceDetailViewModel {
 
     /// Scan common ports on the device, at ``probeAddress``.
     func scanPorts() async {
-        guard let (device, address) = probedMember else { return }
+        guard let (device, address) = probedMember, let token = probeToken else { return }
+        let rowID = device.id
         isScanning = true
         defer { isScanning = false }
 
@@ -516,8 +563,8 @@ extension DeviceDetailViewModel {
         }
 
         // A newer scan may have moved the device meanwhile: those ports are another device's.
-        guard probeAddress == address, probedMember?.row === device else { return }
-        device.openPorts = openPorts.sorted()
+        guard probeAddress == address, probedMember?.row.id == rowID, let row = rowToUpdate(rowID, startedWith: token) else { return }
+        row.openPorts = openPorts.sorted()
         startSuggestion()
     }
 }
@@ -659,5 +706,42 @@ extension DeviceDetailViewModel {
             ? "Wake packet sent to \(sent) \(sent == 1 ? "interface" : "interfaces")"
             : "Wake packet sent to \(sent) of \(projection.realMACs.count) interfaces"
         return sent
+    }
+}
+
+// MARK: - Observation tokens (#628)
+
+extension DeviceDetailViewModel {
+    /// Shown when the tapped device has no saved row and the scan that listed it is no longer current (#628).
+    static let interruptedScanMessage = "The network changed since the scan that found this device. Scan again to open it."
+
+    /// The row a probe started on, to save its result (#628): only while the probe's token is
+    /// current, checked in the block that writes; fetched by ID from the context, else from the
+    /// rows detail shows.
+    func rowToUpdate(_ id: UUID, startedWith token: JoinToken) -> LocalDevice? {
+        guard joinClock.isCurrent(token) else { return nil }
+        if let modelContext {
+            var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
+            descriptor.fetchLimit = 1
+            if let row = (try? modelContext.fetch(descriptor))?.first {
+                return row
+            }
+        }
+        return (members + [device].compactMap { $0 }).first { $0.id == id }
+    }
+
+    /// Whether results observed under `token` may still be written to device rows (#628): only
+    /// while the token is current. No token fails closed.
+    static func observationIsCurrent(_ token: JoinToken?, on clock: NetworkJoinClock) -> Bool {
+        clock.isCurrent(token)
+    }
+
+    /// The saved row on `networkID` with `macAddress`'s real MAC, else at `ipAddress`; read only.
+    static func existingRow(ipAddress: String, macAddress: String?, networkID: UUID?, in context: ModelContext) -> LocalDevice? {
+        let rows = ((try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []).filter { $0.networkProfileID == networkID }
+        if let mac = DeviceMatcher.normalizedMAC(macAddress), let row = rows.first(where: { DeviceMatcher.normalizedMAC($0.macAddress) == mac }) {
+            return row
+        }
+        return rows.first { $0.ipAddress == ipAddress }
     }
 }

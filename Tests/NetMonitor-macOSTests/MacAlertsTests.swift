@@ -293,7 +293,8 @@ struct DeviceDiscoveryNewDeviceHookTests {
             },
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         let suite = "DeviceDiscoveryNewDeviceHookTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite) ?? .standard
@@ -371,7 +372,8 @@ struct DeviceDiscoveryNewDeviceHookTests {
             },
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         let suite = "UpgradeSeedTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite) ?? .standard

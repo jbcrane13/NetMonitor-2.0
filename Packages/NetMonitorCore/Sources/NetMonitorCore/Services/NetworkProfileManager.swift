@@ -19,6 +19,12 @@ public final class NetworkProfileManager {
         activeProfilesProvider().isEmpty ? nil : localProfile
     }
 
+    /// Whether an observation of network `id` still describes where this device is (#628): see
+    /// `observationNetworkIsCurrent(_:saved:current:)`, with this manager's profiles.
+    public func observationNetworkIsCurrent(_ id: UUID) -> Bool {
+        Self.observationNetworkIsCurrent(id, saved: profiles, current: connectedLocalProfile)
+    }
+
     private let userDefaults: UserDefaults
     private let activeProfilesProvider: @Sendable () -> [NetworkProfile]
 
@@ -432,6 +438,27 @@ extension NetworkProfileManager {
     ) -> NetworkProfile? {
         guard let local = saved() else { return nil }
         return active().contains { $0.interfaceName == local.interfaceName && $0.subnet == local.subnet } ? local : nil
+    }
+
+    /// Whether an observation of network `id` still describes where this device is (#628, for
+    /// `NetworkJoinClock.networkIsCurrent`): a manual or companion network (reached by route) always;
+    /// the local network only while this device is on it (`current`); any other ID, such as a local
+    /// network this device has left, never.
+    nonisolated public static func observationNetworkIsCurrent(
+        _ id: UUID, saved: [NetworkProfile], current: NetworkProfile?
+    ) -> Bool {
+        if let profile = saved.first(where: { $0.id == id }), !(profile.isLocal && profile.discoveryMethod == .auto) {
+            return true
+        }
+        return current?.id == id
+    }
+
+    /// `observationNetworkIsCurrent(_:saved:current:)` with the profiles saved in `userDefaults`
+    /// and the network this device is on now (`currentProfile`), for code without a manager.
+    nonisolated public static func observationNetworkIsCurrent(_ id: UUID, in userDefaults: UserDefaults = .standard) -> Bool {
+        observationNetworkIsCurrent(
+            id, saved: savedProfiles(in: userDefaults), current: currentProfile(saved: { savedLocalProfile(in: userDefaults) })
+        )
     }
 
     nonisolated public static func savedLocalProfile(in userDefaults: UserDefaults = .standard) -> NetworkProfile? {

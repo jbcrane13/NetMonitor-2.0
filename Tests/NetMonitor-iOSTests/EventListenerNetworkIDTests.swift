@@ -36,7 +36,7 @@ struct EventListenerNetworkIDTests {
     /// device events (#603, `DeviceEventConsumerTests`).
     @Test func aFakeScanLogsScanCompleteWithTheNetworkIDAndNoDeviceEntries() async throws {
         let events = SpyNetworkEventService()
-        let fake = UITestFakeDiscoveryService()
+        let fake = UITestFakeDiscoveryService(joinClock: .forTests)
         let listener = EventListenerService(
             eventService: events, discoveryService: fake, currentNetworkProfileID: { UITestBootstrap.networkProfileID },
             dispatcher: DeviceEventDispatcher()
@@ -91,7 +91,7 @@ struct EventListenerNetworkIDTests {
 
     @Test func anEmptyScanLogsNoDepartures() async throws {
         let box = DeviceBox()
-        let fake = UITestFakeDiscoveryService(devices: { box.devices }, hold: .milliseconds(20))
+        let fake = UITestFakeDiscoveryService(devices: { box.devices }, hold: .milliseconds(20), joinClock: .forTests)
         let events = SpyNetworkEventService()
         let listener = EventListenerService(
             eventService: events, discoveryService: fake, currentNetworkProfileID: { networkA }, dispatcher: DeviceEventDispatcher()
@@ -114,7 +114,7 @@ struct EventListenerNetworkIDTests {
     /// A scan already running when the listener starts still logs when it finishes.
     @Test func aScanRunningWhenTheListenerStartsIsLogged() async throws {
         let events = SpyNetworkEventService()
-        let fake = UITestFakeDiscoveryService(hold: .milliseconds(200))
+        let fake = UITestFakeDiscoveryService(hold: .milliseconds(200), joinClock: .forTests)
         let scan = Task { await fake.scanNetwork(profile: nil) }
         await waitUntil({ fake.isScanning }, timeout: .seconds(5))
         #expect(fake.isScanning)
@@ -131,7 +131,7 @@ struct EventListenerNetworkIDTests {
     }
 
     @Test func theFakeServiceHoldsIsScanningThenPublishesStampedDevices() async {
-        let fake = UITestFakeDiscoveryService(hold: .milliseconds(100))
+        let fake = UITestFakeDiscoveryService(hold: .milliseconds(100), joinClock: .forTests)
         let scan = Task { await fake.scanNetwork(profile: nil) }
 
         await waitUntil({ fake.isScanning }, timeout: .seconds(5))

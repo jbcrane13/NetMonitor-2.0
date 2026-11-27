@@ -28,7 +28,9 @@ struct PlainRuleScannedDeviceTests {
 
     /// `probe` answers the draft's port check; by default no port answers.
     private func viewModel(_ answers: [String: RuleIntent], probe: MockPortCheck = MockPortCheck(open: [:])) -> PlainRuleIOSViewModel {
-        PlainRuleIOSViewModel(parser: FixedRuleIntentParser(answers: answers), probe: probe.probe, checkedPorts: [22, 80, 443, 445, 631])
+        PlainRuleIOSViewModel(
+            parser: FixedRuleIntentParser(answers: answers), probe: probe.probe, checkedPorts: [22, 80, 443, 445, 631], joinClock: .forTests
+        )
     }
 
     private let offline = ["basement-nas down": RuleIntent(kind: .deviceOffline, device: "basement-nas")]
@@ -116,6 +118,63 @@ struct PlainRuleScannedDeviceTests {
                            context: container.mainContext)
         #expect(model.targetDraft?.deviceID == row.id)
         #expect(model.targetDraft?.port == 22)
+    }
+
+    /// #628: a port found open while the path changed may be another network's device: no row is
+    /// saved and no draft built; the user is told to try again.
+    @Test func aPortCheckAcrossAPathUpdateSavesNoRow() async throws {
+        let container = try makeContainer()
+        let (changes, _) = AsyncStream<String>.makeStream()
+        let join = NetworkJoinClock(changes: changes)
+        join.generation.notePathUpdate()
+        let generation = join.generation
+        let probe = MonitoringTargetProbe { _, _, _ in
+            generation.notePathUpdate()
+            return true
+        }
+        let model = PlainRuleIOSViewModel(
+            parser: FixedRuleIntentParser(answers: offline), probe: probe, checkedPorts: [22], joinClock: join
+        )
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [scannedNAS(openPorts: nil)], targets: [], networkID: home, isScanning: false,
+                           context: container.mainContext)
+        #expect(model.targetDraft == nil)
+        #expect(model.displayedOutcome == .message(PlainRuleIOSViewModel.networkChangedMessage))
+        #expect(try container.mainContext.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+    }
+
+    /// #628 (lead review on #633): the request keeps the token the scan was observed under, so a scan
+    /// a path change invalidated can't be saved as a row under a fresh one.
+    @Test func aScanFromBeforeAPathChangeSavesNoRow() async throws {
+        let container = try makeContainer()
+        let join = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
+        let scanToken = join.token(for: home)
+        join.noteResume()
+        let model = PlainRuleIOSViewModel(
+            parser: FixedRuleIntentParser(answers: offline), probe: MockPortCheck(open: [:]).probe, checkedPorts: [22], joinClock: join
+        )
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [scannedNAS()], scanToken: scanToken, targets: [], networkID: home, isScanning: false,
+                           context: container.mainContext)
+        #expect(model.targetDraft == nil)
+        #expect(model.displayedOutcome == .message(PlainRuleIOSViewModel.networkChangedMessage))
+        #expect(try container.mainContext.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+    }
+
+    /// Stop-time review on #633: a device the scan lists only as cached (it didn't answer; its
+    /// address is old) gets no saved row from a rule draft.
+    @Test func aCachedScannedDeviceSavesNoRow() async throws {
+        let container = try makeContainer()
+        let cached = DiscoveredDevice(
+            ipAddress: "192.168.1.40", hostname: "basement-nas", vendor: "Synology", macAddress: "02:00:00:01:00:40",
+            latency: nil, discoveredAt: Date(), source: .local, networkProfileID: home, openPorts: [445], isCached: true
+        )
+        let model = viewModel(offline)
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [cached], targets: [], networkID: home, isScanning: false, context: container.mainContext)
+        #expect(model.targetDraft == nil)
+        #expect(model.displayedOutcome == .message(PlainRuleIOSViewModel.notAnsweringMessage))
+        #expect(try container.mainContext.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
     }
 
     private func scanned(_ name: String, at ip: String, mac: String?, openPorts: [Int]) -> DiscoveredDevice {

@@ -383,7 +383,8 @@ final class DeviceEventConsumerTests {
         let wifiRow = try #require(rows.first { $0.ipAddress == "192.168.1.40" })
         let wiredRow = try #require(rows.first { $0.ipAddress == "192.168.1.10" })
         let viewModel = DeviceDetailViewModel(
-            deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [start] in start }, dispatcher: dispatcher
+            deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [start] in start }, dispatcher: dispatcher,
+            joinClock: .forTests
         )
         viewModel.loadDevice(id: wifiRow.id, context: context)
         viewModel.groupWith(DeviceGroups.project([wiredRow])[0])
@@ -441,7 +442,8 @@ final class ScheduledScanDiffTests {
         let updater = DeviceRecordUpdater(
             discoveryService: discovery,
             reconciler: ScanReconciler(context: ModelContext(container), history: history, dispatcher: dispatcher),
-            currentNetworkProfileID: { nil }
+            currentNetworkProfileID: { nil },
+            joinClock: .forTests
         )
         let viewModel = ScheduledScanViewModel(
             scheduler: ScanSchedulerService(dispatcher: dispatcher), discovery: discovery, currentNetwork: { nil }, dispatcher: dispatcher

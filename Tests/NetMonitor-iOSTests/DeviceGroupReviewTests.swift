@@ -20,7 +20,7 @@ extension DeviceGroupReaderTests {
             type: .deviceLeft, title: "Device Left: Studio Mac", details: "192.168.1.60", severity: .warning,
             deviceID: group.primary.id, networkProfileID: home
         )
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [events])
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [events], joinClock: .forTests)
         viewModel.loadDevice(id: group.groupID, context: group.context)
         let memberID = group.member.id
 
@@ -79,7 +79,7 @@ extension DeviceGroupReaderTests {
         let model = PlainRuleIOSViewModel(parser: parser, probe: MonitoringTargetProbe { host, port, _ in
             probed.record(host, port)
             return false
-        })
+        }, joinClock: .forTests)
         model.text = "Tell me if Studio Mac goes offline"
         let rows = try DeviceGroups.recentDevices(in: .network(home), limit: RuleDevice.candidateLimit, in: group.context).flatMap(\.members)
 

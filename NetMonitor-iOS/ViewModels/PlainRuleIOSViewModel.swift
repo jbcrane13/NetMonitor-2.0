@@ -38,12 +38,23 @@ final class PlainRuleIOSViewModel {
     /// Goes up with every request, so a port check that finishes after a newer one is dropped.
     private var generation = 0
     private let parser: any RuleIntentParsing
+    /// A draft's row is saved only if no path update happened since the request started (#628).
+    private let joinClock: NetworkJoinClock
+    /// The token the request's scan was observed under, else the path the request started on (#628).
+    private var requestToken: JoinToken?
+
+    /// Shown when a scanned device didn't answer the last scan: its address is an old one (#628).
+    static let notAnsweringMessage = "That device didn't answer the last scan. Scan again, then try this rule again."
+    /// Shown when the scan or port check a scanned device's row would come from is no longer current (#628).
+    static let networkChangedMessage = "The network changed since the scan. Scan again, then try this rule again."
 
     init(
         parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? PhoneModel.ruleParser,
         probe: MonitoringTargetProbe = UITestBootstrap.ruleProbe ?? BackgroundTaskService.liveProbe,
-        checkedPorts: [Int] = DeviceTypeInferenceService.fingerprintPorts
+        checkedPorts: [Int] = DeviceTypeInferenceService.fingerprintPorts,
+        joinClock: NetworkJoinClock = .shared
     ) {
+        self.joinClock = joinClock
         composer = PlainRuleComposer(parser: parser, platform: .iOS)
         self.parser = parser
         self.probe = probe
@@ -77,6 +88,7 @@ final class PlainRuleIOSViewModel {
     func submit(
         devices: [LocalDevice],
         scan: [DiscoveredDevice] = [],
+        scanToken: JoinToken? = nil,
         targets: [MonitoringTarget],
         networkID: UUID?,
         isScanning: Bool,
@@ -84,6 +96,9 @@ final class PlainRuleIOSViewModel {
     ) async {
         let devices = networkID.map { id in devices.filter { $0.networkProfileID == id } } ?? devices
         let scan = networkID.map { id in scan.filter { $0.networkProfileID == id } } ?? scan
+        // The scan's own token, never a fresh one, so a stale scan can't be saved as new (#628); a
+        // list that isn't stamped falls back to when the request started.
+        requestToken = scanToken ?? joinClock.token(for: nil)
         self.scan = scan
         self.networkID = networkID
         self.context = context
@@ -211,6 +226,13 @@ final class PlainRuleIOSViewModel {
             return
         }
         targetDraft = nil
+        // A device the scan lists only as cached didn't answer it; its address is an old one, so it
+        // is neither probed nor saved as a row (#628).
+        if scannedOnly[draft.deviceID]?.isCached == true {
+            refusal = Self.notAnsweringMessage
+            scannedOnly = [:]
+            return
+        }
         if draft.port == nil {
             // Discovery on iOS never records open ports, so a device a scan found has none: check
             // a few common ports now. This deliberately extends "a port the last scan found open"
@@ -226,8 +248,17 @@ final class PlainRuleIOSViewModel {
             draft.notes.insert(PlainRuleBuilder.foundNowNote(port: found, name: draft.name), at: min(1, draft.notes.count))
             remember([found], for: [draft.host])
         }
-        if let scanned = scannedOnly[draft.deviceID], let row = saveRow(for: scanned, openPort: draft.port) {
-            draft.deviceID = row.id
+        if let scanned = scannedOnly[draft.deviceID] {
+            // The scanned device and any port found open are this request's network's only if no
+            // path update happened since it started, before the rule was parsed (#628).
+            guard joinClock.isCurrent(requestToken) else {
+                refusal = Self.networkChangedMessage
+                scannedOnly = [:]
+                return
+            }
+            if let row = saveRow(for: scanned, openPort: draft.port) {
+                draft.deviceID = row.id
+            }
         }
         targetDraft = draft
         draftHost = draft.host
