@@ -173,7 +173,9 @@ extension NetworkIdentityStoreTests {
         )
         let generated = NetworkProfile(interfaceName: "en0", ipAddress: "192.168.1.10", network: network, connectionType: .wifi)
         #expect(generated.customName == nil)
-        let named = NetworkProfile(interfaceName: "en0", ipAddress: "192.168.1.10", network: network, connectionType: .wifi, displayName: "Home office")
+        let named = NetworkProfile(
+            interfaceName: "en0", ipAddress: "192.168.1.10", network: network, connectionType: .wifi, displayName: "Home office"
+        )
         #expect(named.customName == "Home office")
     }
 }
