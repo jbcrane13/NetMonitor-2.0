@@ -59,16 +59,18 @@ public struct SymptomIntent: Sendable, Equatable {
     /// - each copied phrase is kept only when every word of it is in `input`, so no device, place or
     ///   address originates from the model ("Netflix won't load" never becomes "netflix.com");
     /// - the host is kept only when it is a whole name in `input`: `ample.com` is not in
-    ///   "example.com won't load" (#586). A copied URL counts by its host;
+    ///   "example.com won't load" (#586). A copied URL counts by its host, and "www." doesn't
+    ///   count;
+    /// - a copied phrase may differ from the user's words by a plural, case or spacing;
     /// - an empty phrase means none.
     ///
     /// The answer may come from this device's model or the Mac's (#586): both get these checks.
     public static func normalized(kind rawKind: String, devicePhrase: String?, room: String?, host: String?, input: String) -> SymptomIntent {
         guard let kind = SymptomKind(rawValue: rawKind), kind != .unsupported else { return .unsupported }
-        let typed = Set(words(input))
+        let typed = Set(TypedText.foldedWords(input))
         func copied(_ phrase: String?) -> String? {
             guard let phrase = phrase?.trimmingCharacters(in: .whitespacesAndNewlines), !phrase.isEmpty else { return nil }
-            let own = words(phrase)
+            let own = TypedText.foldedWords(phrase)
             return !own.isEmpty && own.allSatisfy(typed.contains) ? phrase : nil
         }
         var intent = SymptomIntent(kind: kind, room: copied(room))
@@ -77,30 +79,14 @@ public struct SymptomIntent: Sendable, Equatable {
         }
         // A copied URL counts by its host: "https://example.com/login" → "example.com".
         if kind == .websiteNotLoading, let copied = host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !copied.isEmpty {
-            let host = TroubleshootState.hostName(copied) ?? copied
-            if hostNames(in: input).contains(host) {
+            let host = TypedText.site(TroubleshootState.hostName(copied) ?? copied)
+            if TypedText.sites(in: input).contains(host) {
                 intent.host = host
             }
         }
         return intent
     }
 
-    /// The whole host names in `text`, lowercased: runs of letters, digits, dots and hyphens,
-    /// without a trailing dot. "Is example.com down?" → ["is", "example.com", "down"].
-    static func hostNames(in text: String) -> Set<String> {
-        let names = text.lowercased().split { !($0.isLetter || $0.isNumber || $0 == "." || $0 == "-") }
-        return Set(names.map { name in
-            var name = Substring(name)
-            while name.last == "." {
-                name = name.dropLast()
-            }
-            return String(name)
-        })
-    }
-
-    private static func words(_ text: String) -> [String] {
-        text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
-    }
 }
 
 // MARK: - Classifiers

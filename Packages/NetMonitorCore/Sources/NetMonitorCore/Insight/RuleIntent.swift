@@ -55,7 +55,8 @@ public struct RuleIntent: Sendable, Equatable {
     /// - an unknown kind, or `unsupported`, drops every other field;
     /// - each field is kept only for the kinds that use it;
     /// - a device phrase is kept only when each of its words, other than an article or "my", is
-    ///   a whole word of `input`: "NAS offline" never becomes a printer;
+    ///   a whole word of `input` up to a plural, case and spacing: "NAS offline" never becomes a
+    ///   printer, and "printer" stands for "the printers";
     /// - a threshold is kept only when it is a whole number in `input` that no time unit follows
     ///   ("5 minutes" is a duration, not 5 ms), from 1 to 10,000 ms, because it is the one number
     ///   the model copies rather than converts;
@@ -104,10 +105,11 @@ public struct RuleIntent: Sendable, Equatable {
     /// Words a device phrase may add to the user's: "the NAS" for "NAS is down".
     private static let fillerWords: Set<String> = ["the", "a", "an", "my", "our"]
 
-    /// Whether every word of `phrase`, other than a filler word, is a whole word of `input`.
+    /// Whether every word of `phrase`, other than a filler word, is a whole word of `input`, up
+    /// to a plural, case and spacing ("printer" for "the printers").
     static func isGrounded(_ phrase: String, in input: String) -> Bool {
-        let typed = Set(words(input))
-        let own = words(phrase).filter { !fillerWords.contains($0) }
+        let typed = Set(TypedText.foldedWords(input))
+        let own = TypedText.words(phrase).filter { !fillerWords.contains($0) }.map(TypedText.singular)
         return !own.isEmpty && own.allSatisfy(typed.contains)
     }
 
@@ -129,10 +131,6 @@ public struct RuleIntent: Sendable, Equatable {
             found.insert(value)
         }
         return found
-    }
-
-    private static func words(_ text: String) -> [String] {
-        text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
     }
 }
 

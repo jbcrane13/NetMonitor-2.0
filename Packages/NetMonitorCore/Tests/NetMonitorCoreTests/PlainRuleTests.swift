@@ -60,6 +60,20 @@ struct PlainRuleTests {
         #expect(device("AS", "tell me if the NAS goes offline") == nil, "whole words, not parts")
     }
 
+    @Test("a device phrase may differ from the user's words by a plural, case or spacing (#586 review)")
+    func aDevicePhraseFoldsPluralsAndCase() {
+        func device(_ phrase: String, _ input: String) -> String? {
+            RuleIntent.normalized(kind: "deviceOffline", device: phrase, thresholdMilliseconds: nil, durationSeconds: nil,
+                                  portPreset: nil, input: input).device
+        }
+        #expect(device("printer", "tell me if the printers go offline") == "printer")
+        #expect(device("printers", "tell me if the printer goes offline") == "printers")
+        #expect(device("  Office   NAS ", "tell me if the office nas goes offline") == "Office   NAS")
+        #expect(device("printer", "tell me if the NAS goes offline") == nil, "still the user's device, not another")
+        #expect(device("scanner", "tell me if the scanners go offline") == "scanner")
+        #expect(device("scan", "tell me if the scanners go offline") == nil, "a fold, not a prefix")
+    }
+
     @Test("a threshold must be a number the user typed that isn't a duration, from 1 to 10,000 ms (#586)")
     func aThresholdMustMeanMilliseconds() {
         func threshold(_ value: Int, _ input: String) -> Int? {
