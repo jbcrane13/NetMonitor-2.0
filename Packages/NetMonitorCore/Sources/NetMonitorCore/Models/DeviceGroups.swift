@@ -376,11 +376,13 @@ public extension PresenceSnapshot {
     }
 
     func statusText(_ device: DeviceProjection) -> String {
-        "\(freshness(of: device).label) · \(lastSeenText(device))"
+        let state = freshness(of: device)
+        return heldText("\(state.label) · \(lastSeenText(device))", state: state, network: device.primary.networkProfileID)
     }
 
     func accessibilityText(_ device: DeviceProjection) -> String {
-        "\(freshness(of: device).label), last seen \(relativeLastSeen(device))"
+        let state = freshness(of: device)
+        return heldText("\(state.label), last seen \(relativeLastSeen(device))", state: state, network: device.primary.networkProfileID)
     }
 }
 

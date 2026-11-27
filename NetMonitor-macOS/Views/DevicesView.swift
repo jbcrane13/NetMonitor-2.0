@@ -98,6 +98,9 @@ struct DevicesView: View {
         VStack(spacing: 0) {
             topBar
             Divider()
+            if let identity = coordinator?.identity {
+                NetworkIdentityCard(identity: identity, networks: coordinator?.networkProfileManager.profiles ?? [])
+            }
 
             if viewMode == .pro {
                 proModeFullScreenList

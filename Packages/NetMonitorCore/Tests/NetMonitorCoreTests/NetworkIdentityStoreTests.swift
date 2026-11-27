@@ -174,7 +174,7 @@ struct NetworkIdentityStoreTests {
 /// history: its recent scan isn't read as current.
 @Suite("Held presence")
 struct HeldPresenceTests {
-    @Test func aHeldNetworksRecentScanIsNotReadAsCurrent() {
+    @Test func aHeldNetworksRecentScanIsNotReadAsCurrent() throws {
         let network = UUID()
         let now = Date(timeIntervalSince1970: 10_000)
         let row = LocalDevice(ipAddress: "192.168.1.20", macAddress: "", status: .online, networkProfileID: network)
@@ -190,5 +190,10 @@ struct HeldPresenceTests {
         #expect(!held.answeredLatestScan(row))
         #expect(held.currentLatency(row) == nil)
         #expect(held.isHeld(network))
+        #expect(held.statusText(row).hasPrefix("Not checked: which network is this?"))
+        #expect(held.accessibilityText(row).hasPrefix("Not checked: which network is this?"))
+        let device = try #require(DeviceGroups.project([row]).first)
+        #expect(held.statusText(device).hasPrefix("Not checked: which network is this?"))
+        #expect(presence.statusText(row).hasPrefix("Online"))
     }
 }

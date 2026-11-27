@@ -173,11 +173,22 @@ public struct PresenceSnapshot: Sendable, Equatable {
 
     /// "Online · Last seen 5 min ago": the visible status line.
     public func statusText(_ device: LocalDevice) -> String {
-        PresenceFreshness.statusText(freshness(of: device), lastSeen: device.lastSeen, now: now)
+        let text = PresenceFreshness.statusText(freshness(of: device), lastSeen: device.lastSeen, now: now)
+        return heldText(text, state: freshness(of: device), network: device.networkProfileID)
+    }
+
+    /// What a held network's saved rows read (#628 PR B), in place of their state.
+    public static let heldLabel = "Not checked: which network is this?"
+
+    /// `text` with its state label replaced while `network` is held by identification.
+    func heldText(_ text: String, state: PresenceFreshness, network: UUID?) -> String {
+        guard let network, isHeld(network), text.hasPrefix(state.label) else { return text }
+        return Self.heldLabel + text.dropFirst(state.label.count)
     }
 
     /// "Online, last seen 5 min ago": what VoiceOver says for a row's presence, once.
     public func accessibilityText(_ device: LocalDevice) -> String {
-        PresenceFreshness.accessibilityText(freshness(of: device), lastSeen: device.lastSeen, now: now)
+        let text = PresenceFreshness.accessibilityText(freshness(of: device), lastSeen: device.lastSeen, now: now)
+        return heldText(text, state: freshness(of: device), network: device.networkProfileID)
     }
 }

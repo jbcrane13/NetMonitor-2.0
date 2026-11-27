@@ -187,7 +187,13 @@ struct NetMonitorApp: App {
         let tcpService = TCPMonitorService()
         let bonjourScanner = BonjourDiscoveryService()
         let wakeOnLanService = WakeOnLANService()
+        // Opened before the profile manager first names this launch's network (#628 PR B).
+        let profileIDs = ProfileIDs()
+        let identityStore = MacNetworkIdentity.openStore(
+            at: .make(), profileDefaults: .standard, context: context, profileIDs: { profileIDs.manager?.profiles.map(\.id) ?? [] }
+        )
         let profileManager = NetworkProfileManager()
+        profileIDs.manager = profileManager
         networkProfileManager = profileManager
 
         if monitoringSession == nil {
@@ -213,6 +219,11 @@ struct NetMonitorApp: App {
                 dispatcher: DeviceEventDispatcher.shared
             )
             deviceDiscovery = discovery
+            // Which same-subnet network this is, before anything reads the local network (#628 PR B).
+            let watcherRef = WatcherRef()
+            MacNetworkIdentity.attach(store: identityStore, discovery: discovery, profileManager: profileManager) {
+                watcherRef.watcher?.checkNow()
+            }
             // Network events and app-scope connectivity, before the first scan (#491).
             let recorder = MacEventRecorder()
             recorder.attach(to: discovery)
@@ -241,6 +252,7 @@ struct NetMonitorApp: App {
                 connectivity.run(for: local)
             }
             watcher.start()
+            watcherRef.watcher = watcher
             networkChangeWatcher = watcher
             // Rescan at the user's chosen scan frequency while the app runs (#392).
             let scheduler = PeriodicScanScheduler.rescanning(discovery)
@@ -327,7 +339,13 @@ struct NetMonitorApp: App {
         let httpService = HTTPMonitorService()
         let icmpService = ICMPMonitorService()
         let tcpService = TCPMonitorService()
+        let profileIDs = ProfileIDs()
+        let identityStore = MacNetworkIdentity.openStore(
+            at: .make(), profileDefaults: NetworkProfileDefaults.launchDefaults, context: context,
+            profileIDs: { profileIDs.manager?.profiles.map(\.id) ?? [] }
+        )
         let profileManager = NetworkProfileManager(userDefaults: NetworkProfileDefaults.launchDefaults)
+        profileIDs.manager = profileManager
         networkProfileManager = profileManager
         monitoringSession = MonitoringSession(
             modelContext: context,
@@ -348,6 +366,12 @@ struct NetMonitorApp: App {
             dispatcher: DeviceEventDispatcher.shared
         )
         deviceDiscovery = discovery
+        UITestIdentityFixture.seedIfRequested(identityStore, local: profileManager.localProfile)
+        MacNetworkIdentity.attach(
+            store: identityStore, discovery: discovery, profileManager: profileManager, readHint: UITestIdentityFixture.readHint
+        ) { [weak profileManager] in
+            profileManager?.detectLocalNetwork()
+        }
         // Settings > Companion over in-memory credentials; the listener stays off, so a UI-test
         // launch never opens the companion port (#590).
         if companionService == nil {
@@ -741,4 +765,15 @@ enum UITestScanFixture {
             await onProgress(1.0)
         }
     }
+}
+
+/// Late references for closures made before their targets exist (#628 PR B).
+@MainActor
+private final class ProfileIDs {
+    weak var manager: NetworkProfileManager?
+}
+
+@MainActor
+private final class WatcherRef {
+    weak var watcher: LocalNetworkChangeMonitor?
 }
