@@ -8,7 +8,7 @@ final class TimelineUITests: MacOSUITestCase {
     func testTimelineViewAccessibleFromTools() {
         navigateToTimeline()
 
-        let timelineScreen = ui("screen_networkTimeline")
+        let timelineScreen = ui("screen_networkTimeline").firstMatch
         XCTAssertTrue(timelineScreen.waitForExistence(timeout: 8),
                       "Timeline screen should be visible after navigating to it")
 
@@ -33,7 +33,7 @@ final class TimelineUITests: MacOSUITestCase {
     func testTimelineScreenIdentifierExists() {
         navigateToTimeline()
 
-        let timelineScreen = ui("screen_networkTimeline")
+        let timelineScreen = ui("screen_networkTimeline").firstMatch
         XCTAssertTrue(timelineScreen.waitForExistence(timeout: 8),
                       "Timeline screen identifier should be accessible")
 
@@ -66,8 +66,8 @@ final class TimelineUITests: MacOSUITestCase {
     func testTimelineFilterControlsArePresent() {
         navigateToTimeline()
 
-        let timelineScreen = ui("screen_networkTimeline")
-        guard timelineScreen.waitForExistence(timeout: 8) else { return }
+        let timelineScreen = ui("screen_networkTimeline").firstMatch
+        requireExists(timelineScreen, timeout: 8, message: "Timeline screen should be visible")
 
         // Look for any filter/search/picker controls in the timeline
         let filterControls = [
@@ -92,102 +92,46 @@ final class TimelineUITests: MacOSUITestCase {
         captureScreenshot(named: "Timeline_FilterControls")
     }
 
+    /// Both seeded events are connectivity changes: another event type hides them
+    /// and "All Events" brings them back.
     func testTimelineFilterActuallyFiltersEvents() {
+        relaunchWithSeededEvents()
         navigateToTimeline()
 
-        let timelineScreen = ui("screen_networkTimeline")
-        guard timelineScreen.waitForExistence(timeout: 8) else { return }
+        let today = app.staticTexts["UITest Event Today"]
+        requireExists(today, timeout: 8, message: "All Events (the default) shows the seeded event")
 
-        // Count initial event rows
-        let eventRows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'timeline_event_'")
-        )
-        let initialCount = eventRows.count
-
-        // Try to interact with a filter control to narrow results
-        let searchField = app.searchFields.firstMatch
-        if searchField.waitForExistence(timeout: 5) {
-            searchField.tap()
-            searchField.typeText("nonexistent-filter-value-xyz")
-
-            // After filtering, the event count should differ (likely fewer or zero)
-            let filteredCount = eventRows.count
-            XCTAssertTrue(filteredCount <= initialCount,
-                          "Filtering should not increase event count (was \(initialCount), now \(filteredCount))")
-
-            // Clear the filter
-            if let currentValue = searchField.value as? String, !currentValue.isEmpty {
-                searchField.typeKey("a", modifierFlags: .command)
-                searchField.typeKey(.delete, modifierFlags: [])
-            }
-        } else {
-            // Try segmented control filter (e.g. event type picker)
-            let segmentedFilter = app.segmentedControls.matching(
-                NSPredicate(format: "identifier CONTAINS 'timeline'")
-            ).firstMatch
-            if segmentedFilter.waitForExistence(timeout: 3), segmentedFilter.buttons.count > 1 {
-                let firstSegment = segmentedFilter.buttons.element(boundBy: 0)
-                let secondSegment = segmentedFilter.buttons.element(boundBy: 1)
-
-                // Tap second segment to filter
-                secondSegment.tap()
-
-                // Verify segment is selected
-                let isSelected = secondSegment.isSelected
-                    || (secondSegment.value as? String == "1")
-                XCTAssertTrue(isSelected,
-                              "Tapped filter segment should become selected")
-
-                // Tap first segment to restore
-                firstSegment.tap()
-            } else {
-                // Try popUpButton filter
-                let popupFilter = app.popUpButtons.matching(
-                    NSPredicate(format: "identifier CONTAINS 'timeline'")
-                ).firstMatch
-                if popupFilter.waitForExistence(timeout: 3) {
-                    popupFilter.tap()
-                    let firstMenuItem = app.menuItems.firstMatch
-                    if firstMenuItem.waitForExistence(timeout: 3) {
-                        firstMenuItem.tap()
-                        // Picker should still exist after selection
-                        XCTAssertTrue(popupFilter.exists,
-                                      "Filter picker should remain after selecting an option")
-                    } else {
-                        app.typeKey(.escape, modifierFlags: [])
-                    }
-                }
-            }
-        }
-
+        let typePicker = requireExists(app.popUpButtons["timeline_picker_eventType"],
+                                       message: "Timeline should offer an event type filter")
+        select("Device Joined", in: typePicker)
+        XCTAssertTrue(waitForDisappearance(today, timeout: 5),
+                      "Filtering by Device Joined should hide the connectivity events")
+        requireExists(ui("timeline_label_empty").firstMatch,
+                      message: "A filter that matches nothing should show the empty state")
         captureScreenshot(named: "Timeline_FilterApplied")
+
+        select("All Events", in: typePicker)
+        requireExists(today, timeout: 5, message: "All Events should show the seeded event again")
     }
 
     // MARK: - Timeline Events Have Non-Empty Data
 
     func testTimelineEventsShowRealData() {
+        relaunchWithSeededEvents()
         navigateToTimeline()
+        requireExists(ui("screen_networkTimeline").firstMatch, timeout: 8,
+                      message: "Timeline screen should be visible")
 
-        let timelineScreen = ui("screen_networkTimeline")
-        guard timelineScreen.waitForExistence(timeout: 8) else { return }
-
-        // Look for event rows
-        let firstEventRow = app.descendants(matching: .any).matching(
+        // A row's id is stamped onto its icon and texts on macOS 27, and a Text
+        // reports its string as its value.
+        let rows = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'timeline_event_'")
-        ).firstMatch
-
-        if firstEventRow.waitForExistence(timeout: 10) {
-            // Event rows should contain visible text (timestamp, description, etc.)
-            let eventTexts = firstEventRow.staticTexts
-            // swiftlint:disable:next empty_count
-            if eventTexts.count > 0 {
-                let hasNonEmptyLabel = eventTexts.allElementsBoundByIndex.contains { text in
-                    !text.label.isEmpty
-                }
-                XCTAssertTrue(hasNonEmptyLabel,
-                              "Timeline event rows should display non-empty text labels")
-            }
-        }
+        )
+        requireExists(rows.firstMatch, timeout: 10, message: "Seeded events should be listed as rows")
+        let texts = (rows.allElementsBoundByIndex + rows.staticTexts.allElementsBoundByIndex)
+            .map { $0.label.isEmpty ? stringValue($0) : $0.label }
+        XCTAssertTrue(texts.contains("UITest Event Today"),
+                      "Timeline event rows should display the event's title, got \(texts)")
 
         captureScreenshot(named: "Timeline_EventData")
     }
@@ -196,16 +140,25 @@ final class TimelineUITests: MacOSUITestCase {
 
     /// Navigate to the Timeline section via sidebar.
     private func navigateToTimeline() {
-        // Timeline is accessed from the Tools section on macOS
-        let toolsItem = app.descendants(matching: .any)["sidebar_nav_tools"]
-        if toolsItem.waitForExistence(timeout: 5) {
-            toolsItem.tap()
-            _ = app.otherElements["detail_tools"].waitForExistence(timeout: 5)
-        }
-
         // The Timeline is a Monitoring tool card (#491 D5).
-        let timelineCard = app.descendants(matching: .any)["tools_card_timeline"]
+        navigateToSidebar("tools")
+        let timelineCard = ui("tools_card_timeline").firstMatch
         requireExists(timelineCard, timeout: 5, message: "Tools should list the Timeline card").click()
+    }
+
+    /// Relaunch with one event today and one ten days ago, on an empty history.
+    private func relaunchWithSeededEvents() {
+        app.terminate()
+        app.launchArguments = ["--uitesting", "--in-memory-store", "--reset-history-files", "--seed-test-device", "--seed-test-events"]
+        app.launch()
+    }
+
+    /// Choose an option from a pop-up picker. The menu is read from the picker
+    /// itself: `app.menuItems` starts with the Apple menu in the menu bar.
+    private func select(_ option: String, in picker: XCUIElement) {
+        picker.click()
+        requireExists(picker.menuItems[option], timeout: 3,
+                      message: "\(picker) should offer \(option)").click()
     }
 
     // MARK: - Range Picker (#491 S3)
@@ -213,9 +166,7 @@ final class TimelineUITests: MacOSUITestCase {
     /// Seeded events today and ten days ago: "Today" hides the old one, "All" shows both.
     /// Not runnable on mini-pro-1 (#512); the AX script `scripts/ax/s3-timeline.sh` covers it there.
     func testRangePickerTodayHidesOlderEventsAndAllShowsThem() {
-        app.terminate()
-        app.launchArguments = ["--uitesting", "--in-memory-store", "--reset-history-files", "--seed-test-device", "--seed-test-events"]
-        app.launch()
+        relaunchWithSeededEvents()
         navigateToTimeline()
 
         let today = app.staticTexts["UITest Event Today"]
