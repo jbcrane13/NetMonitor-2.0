@@ -308,10 +308,16 @@ public protocol RuleIntentParsing: Sendable {
     func parse(_ text: String) async -> RuleIntent?
     /// Who would read a rule typed now (#586): this device's model, or the Mac's.
     var answerSource: InsightSource { get }
+    /// Whether a rule could be read now, and whether the user must first agree to send it to the Mac (#586).
+    var availability: InsightAvailability { get }
+    /// The answer that lets the Mac read what the user types, where a Mac may read it (#586).
+    var macConsent: MacInsightConsent? { get }
 }
 
 extension RuleIntentParsing {
     public var answerSource: InsightSource { .device }
+    public var availability: InsightAvailability { isAvailable ? .available : .unavailable }
+    public var macConsent: MacInsightConsent? { nil }
 }
 
 public enum RuleIntentParser {

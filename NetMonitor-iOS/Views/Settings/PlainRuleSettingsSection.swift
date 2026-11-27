@@ -68,7 +68,7 @@ struct PlainRuleSettingsSection: View {
             }
         }
         // On the field's row only: a modifier on the section would attach to every row.
-        .modifier(MacReadingConsentAlert(isPresented: $isAskingForMac, consent: viewModel.macRoute?.consent, onAgree: submit))
+        .modifier(MacReadingConsentAlert(isPresented: $isAskingForMac, consent: viewModel.macConsent, onAgree: submit))
     }
 
     /// Asks first when only the Mac can read the rule and the user hasn't said yes (#586).

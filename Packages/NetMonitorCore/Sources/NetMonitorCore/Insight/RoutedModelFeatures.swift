@@ -68,6 +68,8 @@ public struct RoutedRuleIntentParser: RuleIntentParsing {
 
     public var answerSource: InsightSource { local.isAvailable ? .device : .mac }
 
+    public var macConsent: MacInsightConsent? { local.isAvailable ? nil : route.consent }
+
     public func parse(_ text: String) async -> RuleIntent? {
         if local.isAvailable {
             return await local.parse(text)
@@ -95,6 +97,8 @@ public struct RoutedSymptomClassifier: SymptomClassifierProtocol {
     }
 
     public var answerSource: InsightSource { local.isAvailable ? .device : .mac }
+
+    public var macConsent: MacInsightConsent? { local.isAvailable ? nil : route.consent }
 
     public func classify(_ symptom: String) async -> SymptomIntent? {
         if local.isAvailable {

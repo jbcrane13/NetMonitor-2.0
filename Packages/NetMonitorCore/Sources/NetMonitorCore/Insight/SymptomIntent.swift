@@ -101,10 +101,16 @@ public protocol SymptomClassifierProtocol: Sendable {
     func classify(_ symptom: String) async -> SymptomIntent?
     /// Who would read a symptom typed now (#586): this device's model, or the Mac's.
     var answerSource: InsightSource { get }
+    /// Whether a symptom could be read now, and whether the user must first agree to send it to the Mac (#586).
+    var availability: InsightAvailability { get }
+    /// The answer that lets the Mac read what the user types, where a Mac may read it (#586).
+    var macConsent: MacInsightConsent? { get }
 }
 
 extension SymptomClassifierProtocol {
     public var answerSource: InsightSource { .device }
+    public var availability: InsightAvailability { isAvailable ? .available : .unavailable }
+    public var macConsent: MacInsightConsent? { nil }
 }
 
 /// A symptom as the model filled it in, before any check (#586). Only ``intent(for:)`` on the

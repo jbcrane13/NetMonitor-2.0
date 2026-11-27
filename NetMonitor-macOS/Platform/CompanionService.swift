@@ -33,7 +33,7 @@ actor CompanionService: CompanionServiceProtocol {
         /// From accept to the end of pairing, which waits for the users.
         var pairingDeadline: Duration = .seconds(120)
         /// Model requests one link may have running at once.
-        var maximumInsightRequests = 2
+        var maximumModelRequests = 2
     }
 
     /// Largest frame accepted on a link that isn't paired, before JSON decoding.
@@ -74,7 +74,7 @@ actor CompanionService: CompanionServiceProtocol {
         var macNonce: Data?
         /// Deferred work for this link, cancelled when it closes.
         var tasks: [UUID: Task<Void, Never>] = [:]
-        var runningInsightRequests = 0
+        var runningModelRequests = 0
         /// Its `modelRequest`s, so a `modelCancel` finds its task (#586).
         var modelRequests = CompanionModelRequestLedger()
     }
@@ -598,7 +598,7 @@ extension CompanionService {
             return
         }
         if Self.answersOffBatch(message) {
-            await deferInsightRequest(message, from: clientID)
+            await deferModelRequest(message, from: clientID)
             return
         }
         if let response = await messageHandler?(message, clientID, authorization(for: clientID)) {
@@ -617,16 +617,16 @@ extension CompanionService {
         return CompanionAuthorization(lock: link.submissionLock) { gate.isAuthorized(role, link: id) }
     }
 
-    /// Runs a model request off the batch, at most `maximumInsightRequests` per link. The work
+    /// Runs a model request off the batch, at most `maximumModelRequests` per link. The work
     /// checks the link's authorisation when it starts, so a revoke that lands first means the
     /// handler never runs; closing the link cancels it.
     ///
     /// A `modelRequest` (#586) is also keyed by its request ID: one whose ID is running or spent
     /// on this link is dropped. A busy reply goes out in the batch, not on a task of its own, so
     /// the one receive per link bounds them.
-    private func deferInsightRequest(_ message: CompanionMessage, from clientID: UUID) async {
+    private func deferModelRequest(_ message: CompanionMessage, from clientID: UUID) async {
         guard var link = links[clientID], link.modelRequests.admits(Self.modelRequestID(of: message)) else { return }
-        guard link.runningInsightRequests < limits.maximumInsightRequests else {
+        guard link.runningModelRequests < limits.maximumModelRequests else {
             if let busy = Self.busyReply(to: message) {
                 await send(busy, to: clientID)
             }
@@ -635,7 +635,7 @@ extension CompanionService {
         let taskID = UUID()
         let handler = messageHandler
         let hook = deferredStartHook
-        link.runningInsightRequests += 1
+        link.runningModelRequests += 1
         link.modelRequests.start(Self.modelRequestID(of: message), task: taskID)
         // Runs on this actor (it captures `self`). The handler suspends, so it gets a live
         // authorisation token to check again before the model is asked. The task removes
@@ -656,7 +656,7 @@ extension CompanionService {
 
     private func finishDeferred(_ taskID: UUID, clientID: UUID) {
         guard links[clientID]?.tasks.removeValue(forKey: taskID) != nil else { return }
-        links[clientID]?.runningInsightRequests -= 1
+        links[clientID]?.runningModelRequests -= 1
         links[clientID]?.modelRequests.finish(task: taskID)
     }
 

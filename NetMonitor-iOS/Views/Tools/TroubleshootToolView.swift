@@ -67,7 +67,7 @@ struct TroubleshootToolView: View {
                 Task { await viewModel.useModemReading(report) }
             }
         }
-        .modifier(MacReadingConsentAlert(isPresented: $isAskingForMac, consent: viewModel.macRoute?.consent, onAgree: describe))
+        .modifier(MacReadingConsentAlert(isPresented: $isAskingForMac, consent: viewModel.macConsent, onAgree: describe))
     }
 
     // MARK: - Symptom

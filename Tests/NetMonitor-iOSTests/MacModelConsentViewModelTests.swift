@@ -52,4 +52,32 @@ struct MacModelConsentViewModelTests {
         let noMac = RoutedSymptomClassifier(local: UnavailableSymptomClassifier(), mac: mac(offering: []), consent: consent)
         #expect(!TroubleshootToolViewModel(env: env(), mode: nil, classifier: noMac).state.canDescribe, "no capable Mac: buttons only")
     }
+
+    @Test func theViewModelsReadAvailabilityLiveThroughTheProtocols() {
+        let parser = SwitchableParser(availability: .needsConsent)
+        let viewModel = PlainRuleIOSViewModel(parser: parser)
+        #expect(viewModel.needsMacConsent, "any parser can ask, not only the routed one")
+        parser.availability = .available
+        #expect(!viewModel.needsMacConsent, "read live, not when the view model was made")
+
+        let classifier = SwitchableClassifier(availability: .needsConsent)
+        let troubleshoot = TroubleshootToolViewModel(env: env(), mode: nil, classifier: classifier)
+        #expect(troubleshoot.needsMacConsent)
+        classifier.availability = .available
+        #expect(!troubleshoot.needsMacConsent)
+    }
+}
+
+private final class SwitchableParser: RuleIntentParsing, @unchecked Sendable {
+    var availability: InsightAvailability
+    init(availability: InsightAvailability) { self.availability = availability }
+    var isAvailable: Bool { availability != .unavailable }
+    func parse(_ text: String) async -> RuleIntent? { nil }
+}
+
+private final class SwitchableClassifier: SymptomClassifierProtocol, @unchecked Sendable {
+    var availability: InsightAvailability
+    init(availability: InsightAvailability) { self.availability = availability }
+    var isAvailable: Bool { availability != .unavailable }
+    func classify(_ symptom: String) async -> SymptomIntent? { nil }
 }

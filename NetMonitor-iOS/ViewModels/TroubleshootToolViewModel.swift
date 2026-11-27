@@ -18,30 +18,32 @@ final class TroubleshootToolViewModel {
         var latestDownload: Double?
     }
 
-    /// The Mac route, where this phone's model can't read symptoms (#586).
-    let macRoute: MacModelRoute?
+    private let classifier: any SymptomClassifierProtocol
 
-    /// Whether the user must first agree to let the Mac read what they type (#586).
-    var needsMacConsent: Bool { macRoute?.availability == .needsConsent }
+    /// Whether the user must first agree to let the Mac read what they type (#586). Read live:
+    /// the local model or a Mac can come and go.
+    var needsMacConsent: Bool { classifier.availability == .needsConsent }
+
+    /// The answer the prompt records.
+    var macConsent: MacInsightConsent? { classifier.macConsent }
 
     /// - Parameter joinedAt: when the phone joined the network it is on (`NetworkJoinClock`): a
     ///   path change or a return from the background. A modem reading from before it stops counting.
     init(
         env: AppEnvironment,
         mode: String? = UITestBootstrap.troubleshootMode,
-        classifier: RoutedSymptomClassifier = PhoneModel.symptomClassifier,
+        classifier: any SymptomClassifierProtocol = PhoneModel.symptomClassifier,
         joinedAt: @escaping @MainActor () -> Date = { NetworkJoinClock.shared.joinedAt }
     ) {
         let inputs = Inputs()
         self.inputs = inputs
+        self.classifier = classifier
         #if DEBUG
         if let fixture = mode.flatMap(TroubleshootUITestFixture.Mode.init(rawValue:)) {
-            macRoute = nil
             state = TroubleshootUITestFixture.state(fixture)
             return
         }
         #endif
-        macRoute = classifier.local.isAvailable ? nil : classifier.route
         let discovery = env.deviceDiscovery
         let networkID = env.currentNetworkProfileID
         state = TroubleshootState(
