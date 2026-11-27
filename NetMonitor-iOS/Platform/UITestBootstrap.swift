@@ -395,6 +395,64 @@ extension UITestBootstrap {
     }
 }
 
+// MARK: - Modem light fixtures (#558)
+
+extension UITestBootstrap {
+    /// The lights the stand-in model reads from ``testModemImage``: what the drawn panel shows.
+    static let testModemLights: [ModemLightReading] = [
+        .init(label: "POWER", color: .green), .init(label: "DSL", color: .green), .init(label: "INTERNET", color: .red),
+        .init(label: "WI-FI", color: .green), .init(label: "LAN 1", color: .green), .init(label: "LAN 2", color: .off)
+    ]
+
+    /// `UITEST_MODEM_IMAGE=1`: the modem sheet reads ``testModemImage`` instead of asking for a
+    /// photo, since the simulator has no camera.
+    static var usesTestModemImage: Bool {
+        #if DEBUG
+        isUITesting && ProcessInfo.processInfo.environment["UITEST_MODEM_IMAGE"] == "1"
+        #else
+        false
+        #endif
+    }
+
+    /// `UITEST_MODEM_MODEL`: "answer" reads ``testModemLights``; "unavailable" offers no reader.
+    /// Nil otherwise, and always in release builds.
+    static var modemLightExtractor: (any ModemLightExtractorProtocol)? {
+        #if DEBUG
+        guard isUITesting, let mode = ProcessInfo.processInfo.environment["UITEST_MODEM_MODEL"] else { return nil }
+        guard mode != "unavailable" else { return FixedModemLightExtractor(answer: nil, isAvailable: false) }
+        return FixedModemLightExtractor(answer: ModemPanelAnswer(status: .panel, lights: testModemLights))
+        #else
+        return nil
+        #endif
+    }
+
+    /// A photo-like modem front panel with ``testModemLights``, drawn at launch.
+    static func testModemImage() -> CGImage? {
+        let size = CGSize(width: 900, height: 320)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor(white: 0.13, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            for (index, light) in testModemLights.enumerated() {
+                let center = CGPoint(x: 90 + CGFloat(index) * 140, y: 140)
+                let color = switch light.color {
+                case .green: UIColor(red: 0.15, green: 0.95, blue: 0.3, alpha: 1)
+                case .red: UIColor(red: 1, green: 0.12, blue: 0.1, alpha: 1)
+                default: UIColor(white: 0.25, alpha: 1)
+                }
+                color.setFill()
+                UIBezierPath(ovalIn: CGRect(x: center.x - 20, y: center.y - 20, width: 40, height: 40)).fill()
+                (light.label as NSString).draw(
+                    at: CGPoint(x: center.x - 36, y: center.y + 40),
+                    withAttributes: [.font: UIFont.boldSystemFont(ofSize: 18), .foregroundColor: UIColor(white: 0.9, alpha: 1)]
+                )
+            }
+        }
+        return image.cgImage
+    }
+}
+
 // MARK: - Troubleshooter fixtures (#451)
 
 extension UITestBootstrap {

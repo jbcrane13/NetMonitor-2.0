@@ -108,7 +108,7 @@
 		<string>_workstation._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys, and to read the model, serial number and MAC address from a device's label.</string>
+	<string>NetMonitor uses the camera for AR-assisted room scanning to create floor plans for Wi-Fi coverage surveys, to read the model, serial number and MAC address from a device's label, and to read a modem's status lights.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>NetMonitor scans your local network to discover devices, services, and the macOS companion app.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
