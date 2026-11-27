@@ -39,7 +39,7 @@ struct MacInsightSettingsRow: View {
     }
 }
 
-/// "Let your Mac read what you type?" (#586): asked once, the first time the user submits a typed
+/// "Let your Mac read what you type and your device details?" (#586): asked once, the first time the user submits a typed
 /// rule or symptom this phone's model can't read and a connected Mac could. A separate answer from
 /// explanations: what the user types is a new kind of data to send. Until they agree nothing is
 /// sent, and the feature keeps its path without the model.
@@ -50,7 +50,7 @@ struct MacReadingConsentAlert: ViewModifier {
     let onAgree: () -> Void
 
     func body(content: Content) -> some View {
-        content.alert("Let your Mac read what you type?", isPresented: $isPresented) {
+        content.alert(Self.title, isPresented: $isPresented) {
             Button("Use My Mac") {
                 consent?.agree()
                 onAgree()
@@ -63,9 +63,12 @@ struct MacReadingConsentAlert: ViewModifier {
         }
     }
 
+    static let title = "Let your Mac read what you type and your device details?"
+
     static let message = "This iPhone can't run the on-device model. Your Mac's model can read the rules and problems you type "
-        + "here, and suggest what your devices are from their names and services. That text and those details go to your Mac "
-        + "over your local network and aren't kept there. You can change this in Settings."
+        + "here and, in the background, suggest what your devices are. What you type, and each device's names, hostnames, "
+        + "services, open ports, maker, model and type, go to your Mac over your local network and aren't kept there. "
+        + "Names and hostnames are whatever you or the device chose. You can change this in Settings."
 }
 
 /// The Settings switch for the same answer (#586): shown once the user has answered, or while a
@@ -76,7 +79,10 @@ struct MacReadingSettingsRow: View {
 
     var body: some View {
         if consent.decision != nil || !mac.offeredSchemas.isEmpty {
-            Toggle("Let your Mac read what you type", isOn: Binding(get: { consent.isAllowed }, set: consent.setAllowed))
+            Toggle(isOn: Binding(get: { consent.isAllowed }, set: consent.setAllowed)) {
+                Text("Let your Mac read what you type and your device details")
+                Text("Rules and problems you type, and each device's names, hostnames, services, open ports, maker, model and type")
+            }
                 .accessibilityIdentifier("settings_toggle_macReading")
         }
     }

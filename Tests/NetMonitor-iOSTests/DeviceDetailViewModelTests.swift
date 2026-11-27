@@ -479,7 +479,7 @@ extension DeviceDetailViewModelTests {
 
     // MARK: - Identity suggestion (#449)
 
-    private func suggestingViewModel(
+    func suggestingViewModel(
         _ insight: MockInsightService,
         discovery: MockDeviceDiscoveryService = MockDeviceDiscoveryService()
     ) -> DeviceDetailViewModel {
@@ -634,7 +634,7 @@ extension DeviceDetailViewModelTests {
         #expect(!viewModel.isShowingSuggestion)
     }
 
-    private func scannedNamed(_ ip: String) -> DiscoveredDevice {
+    func scannedNamed(_ ip: String) -> DiscoveredDevice {
         DiscoveredDevice(ipAddress: ip, hostname: "livingroom-tv", vendor: nil, macAddress: nil, latency: nil, discoveredAt: Date(), source: .local)
     }
 

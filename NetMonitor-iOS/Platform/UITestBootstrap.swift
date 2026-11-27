@@ -471,6 +471,17 @@ extension UITestBootstrap {
 // MARK: - Plain-English rules (#450)
 
 extension UITestBootstrap {
+    /// The identity service under `UITEST_FAKE_SUGGESTION=1` with the fake devices: a fixed
+    /// suggestion, since the simulator has no on-device model (#449). Nil otherwise, and always in
+    /// release builds: device detail then asks `PhoneModel.identityService`.
+    static var identityService: (any InsightServiceProtocol)? {
+        #if DEBUG
+        UITestFakeDeviceFeed.suggestsIdentity ? FixedSuggestionInsightService() : nil
+        #else
+        nil
+        #endif
+    }
+
     /// The rule parser under `UITEST_INSIGHT`: "answer" reads rules from the real model's recorded
     /// answers (`FixedRuleIntentParser.uiTest`), "unavailable" is never available. Nil otherwise,
     /// and always in release builds.

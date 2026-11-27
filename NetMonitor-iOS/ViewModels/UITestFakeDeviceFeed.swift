@@ -25,11 +25,12 @@ final class UITestFakeDeviceFeed {
     static let suggestsIdentity: Bool =
         isEnabled && ProcessInfo.processInfo.environment["UITEST_FAKE_SUGGESTION"] == "1"
 
-    /// The insight service device detail asks: the fixed suggestion under the fixture,
-    /// otherwise the on-device model.
-    static var insightService: any InsightServiceProtocol {
-        suggestsIdentity ? FixedSuggestionInsightService() : InsightService.shared
-    }
+    /// With the fake Mac answering `identity.v1` too (`UITEST_FAKE_MAC_MODEL=1`, #586), the devices
+    /// have no MAC-prefix maker and device detail asks the Mac: the phone's own model is off.
+    static let asksMacForIdentity: Bool = isEnabled && UITestFakeMacModel.isActive
+
+    /// Whether the devices are the identity fixture: no MAC-prefix maker, and listed in detail's scan.
+    static let isIdentityFixture: Bool = suggestsIdentity || asksMacForIdentity
 
     private(set) var tick: Int = 0
     private var task: Task<Void, Never>?
@@ -42,7 +43,7 @@ final class UITestFakeDeviceFeed {
                 id: Self.deviceIDs[index],
                 ipAddress: "192.168.1.\(10 + index)",
                 hostname: "uitest-device-\(index)",
-                vendor: Self.suggestsIdentity ? nil : "UITest Vendor",
+                vendor: Self.isIdentityFixture ? nil : "UITest Vendor",
                 macAddress: "AA:BB:CC:DD:EE:0\(index)",
                 latency: Double(10 + ((tick + index) % 5) * 3),
                 discoveredAt: Date(),

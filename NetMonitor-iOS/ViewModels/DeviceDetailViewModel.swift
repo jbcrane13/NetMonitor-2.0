@@ -23,13 +23,17 @@ final class DeviceDetailViewModel {
     private(set) var isShowingSuggestion = false
     /// The type the model suggested while the device's type is unknown; written only on accept.
     private(set) var suggestedType: DeviceType?
+    /// Who suggested what's shown: this phone's model or the Mac's (#586).
+    private(set) var suggestionSource: InsightSource?
 
     private let macLookupService: any MACVendorLookupServiceProtocol
     private let nameResolver: any DeviceNameResolverProtocol
     private let portScanner: any PortScannerServiceProtocol
     private let bonjourService: any BonjourDiscoveryServiceProtocol
-    private let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
-    private let suggester: DeviceSuggester
+    let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
+    let suggester: DeviceSuggester
+    /// Whether a suggestion can be asked for now.
+    var suggesterCanSuggest: Bool { suggester.canSuggest }
     private let wakeService: any WakeOnLANServiceProtocol
     /// Stores that name rows by ID; removing an interface re-points them to the device (#594).
     let references: [any DeviceReferenceStore]
@@ -46,9 +50,11 @@ final class DeviceDetailViewModel {
     private(set) var modelContext: ModelContext?
     /// The running suggestion. Cancelled on reload and when the view model goes away, so it
     /// never writes to a row that has been replaced or deleted.
-    nonisolated(unsafe) private(set) var suggestionTask: Task<Void, Never>?
+    nonisolated(unsafe) var suggestionTask: Task<Void, Never>?
+    /// Waits for the Mac to be askable again after a pass that got no answer (#642 final check).
+    nonisolated(unsafe) var suggestionRetryTask: Task<Void, Never>?
     /// Fingerprint of the evidence the running or last suggestion pass was started with.
-    private var suggestionFingerprint: String?
+    var suggestionFingerprint: String?
     /// Which address DNS, the port scan and service discovery may probe (``probeAddress``).
     private enum NameLookup {
         /// The row's own address: detail was opened on it from the scan's list.
@@ -71,7 +77,9 @@ final class DeviceDetailViewModel {
         portScanner: any PortScannerServiceProtocol = PortScannerService(),
         bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService(),
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDetailViewModel.appDiscovery,
-        suggester: DeviceSuggester = DeviceSuggester(service: UITestFakeDeviceFeed.insightService, store: DeviceSuggestionStore()),
+        suggester: DeviceSuggester = DeviceSuggester(
+            service: UITestBootstrap.identityService ?? PhoneModel.identityService, store: DeviceSuggestionStore()
+        ),
         wakeService: any WakeOnLANServiceProtocol = WakeOnLANService(),
         references: [any DeviceReferenceStore] = [NetworkEventService.shared],
         scanHistory: ScanHistory = ScanHistory(),
@@ -95,6 +103,7 @@ final class DeviceDetailViewModel {
 
     deinit {
         suggestionTask?.cancel()
+        suggestionRetryTask?.cancel()
     }
 
     /// The ports a device-page scan probes: common service ports plus every port a device-type
@@ -188,30 +197,6 @@ final class DeviceDetailViewModel {
 
     // MARK: - Identity suggestion (#449)
 
-    /// Asks the on-device model about the loaded row without blocking the load. Called again
-    /// when enrichment, a port scan or service discovery changes the evidence; a pass already
-    /// started on the same evidence keeps running.
-    func startSuggestion() {
-        refreshSuggestionState()
-        guard let device else {
-            return
-        }
-        let fingerprint = DeviceEvidence(device: device).fingerprint
-        guard fingerprint != suggestionFingerprint else {
-            return
-        }
-        suggestionFingerprint = fingerprint
-        suggestionTask?.cancel()
-        suggestionTask = Task { [weak self, suggester] in
-            await suggester.suggest(for: [device])
-            guard !Task.isCancelled, let self else {
-                return
-            }
-            self.saveContext()
-            self.refreshSuggestionState()
-        }
-    }
-
     func acceptSuggestion() {
         guard let device else {
             return
@@ -230,14 +215,16 @@ final class DeviceDetailViewModel {
         refreshSuggestionState()
     }
 
-    private func refreshSuggestionState() {
+    func refreshSuggestionState() {
         guard let device else {
             isShowingSuggestion = false
             suggestedType = nil
+            suggestionSource = nil
             return
         }
         isShowingSuggestion = suggester.isShowingSuggestion(device)
         suggestedType = suggester.suggestedType(for: device)
+        suggestionSource = suggester.suggestionSource(for: device)
     }
 
     func saveContext() {
@@ -541,7 +528,7 @@ extension DeviceDetailViewModel {
     private func confirmedSighting(of device: LocalDevice) -> DiscoveredDevice? {
         guard !deviceDiscoveryService.isScanning, let mac = DeviceMatcher.normalizedMAC(device.macAddress) else { return nil }
         let completed = deviceDiscoveryService.completedScanDevices
-            + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
+            + (UITestFakeDeviceFeed.isIdentityFixture ? UITestFakeDeviceFeed().devices : [])
         let confirmed = completed.filter { scanned in
             !scanned.isCached && scanned.networkProfileID == device.networkProfileID
                 && DeviceMatcher.normalizedMAC(scanned.macAddress) == mac

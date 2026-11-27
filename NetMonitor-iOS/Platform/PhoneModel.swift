@@ -14,7 +14,7 @@ enum PhoneModel {
         await MacConnectionService.shared.sendModel(message, on: link, if: isWanted)
     })
 
-    /// The user's answer to "Let your Mac read what you type?".
+    /// The user's answer to "Let your Mac read what you type and your device details?".
     static let consent: MacInsightConsent = UITestFakeMacModel.consent
         ?? MacInsightConsent(defaults: .standard, key: MacInsightConsent.readingDefaultsKey)
 
@@ -22,6 +22,16 @@ enum PhoneModel {
         local: UITestFakeMacModel.isActive ? UnavailableRuleIntentParser() : RuleIntentParser.shared,
         mac: linkClient,
         consent: consent
+    )
+
+    /// Identity suggestions for device detail (#586): this phone's model, else the Mac's once the
+    /// user has agreed; it never asks.
+    static let identityService = RoutedIdentityService(
+        local: UITestFakeMacModel.isActive ? UnavailableInsightService() : InsightService.shared,
+        mac: linkClient,
+        consent: consent,
+        // Never during the phone's own scan, checked at the send itself (#642).
+        isPhoneScanning: { DeviceDiscoveryService.isScanningNow }
     )
 
     static let symptomClassifier = RoutedSymptomClassifier(

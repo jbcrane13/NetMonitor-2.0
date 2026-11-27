@@ -17,26 +17,40 @@ import Synchronization
 public final class ModelAdmission: Sendable {
     public static let shared = ModelAdmission()
 
-    public enum Priority: Sendable {
+    public enum Priority: Sendable, Hashable {
         case interactive
         case background
     }
 
-    /// The companion slot, held by one request.
+    /// A companion slot, held by one request: the interactive slot or the background one.
     public struct Ticket: Sendable, Hashable {
         let id: UUID
+        let priority: Priority
     }
 
     /// Companion requests admitted per `budgetWindow`.
     public static let defaultCompanionBudget = 10
+    /// Background companion requests (a phone's identity suggestions, `identity.v1`) admitted per
+    /// `budgetWindow`: a budget of their own, smaller, so a phone's background pass can't use up
+    /// what typed requests need, nor typed requests starve it (#586).
+    public static let defaultBackgroundBudget = 6
     public static let defaultBudgetWindow: Duration = .seconds(60)
+
+    /// One companion slot: its ticket, who still holds it (the request and every model call made
+    /// for it), and its rolling budget.
+    private struct Slot {
+        var ticket: Ticket?
+        var holds = 0
+        var admittedAt: ContinuousClock.Instant?
+        var admitted: [ContinuousClock.Instant] = []
+    }
 
     private struct State {
         var interactive = 0
-        var companion: Ticket?
-        /// Who still holds the companion ticket: the request, and every model call made for it.
-        var companionHolds = 0
-        var admitted: [ContinuousClock.Instant] = []
+        /// Two companion slots (#642 review): typed requests and insight in one, a phone's
+        /// background identity in the other, so background work never holds interactive work back.
+        /// At most two companion inferences at once.
+        var slots: [Priority: Slot] = [.interactive: Slot(), .background: Slot()]
     }
 
     /// The companion ticket the current task works under, if any. Tasks inherit it, so a model
@@ -51,15 +65,18 @@ public final class ModelAdmission: Sendable {
 
     private let state = Mutex(State())
     private let companionBudget: Int
+    private let backgroundBudget: Int
     private let budgetWindow: Duration
     private let now: @Sendable () -> ContinuousClock.Instant
 
     public init(
         companionBudget: Int = defaultCompanionBudget,
+        backgroundBudget: Int = defaultBackgroundBudget,
         budgetWindow: Duration = defaultBudgetWindow,
         now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }
     ) {
         self.companionBudget = companionBudget
+        self.backgroundBudget = backgroundBudget
         self.budgetWindow = budgetWindow
         self.now = now
     }
@@ -109,44 +126,66 @@ public final class ModelAdmission: Sendable {
 
     private func retain(_ ticket: Ticket) -> Bool {
         state.withLock { state in
-            guard state.companion == ticket else { return false }
-            state.companionHolds += 1
+            guard state.slots[ticket.priority]?.ticket == ticket else { return false }
+            state.slots[ticket.priority]?.holds += 1
             return true
         }
     }
 
-    /// The companion slot, or nil (answer `busy`) while interactive work runs, another companion
-    /// request holds the slot, or the budget is spent.
-    public func admitCompanion() -> Ticket? {
+    /// The slot for `priority`, or nil (answer `busy`) while the Mac's own interactive work runs,
+    /// another companion request holds that slot, or that slot's budget is spent. `.interactive`
+    /// is for typed requests and insight, `.background` for a phone's identity suggestions; each
+    /// slot has its own budget, and neither waits for the other.
+    public func admitCompanion(_ priority: Priority = .interactive) -> Ticket? {
         let instant = now()
         let window = budgetWindow
-        let budget = companionBudget
+        let budget = priority == .interactive ? companionBudget : backgroundBudget
         return state.withLock { state in
-            state.admitted.removeAll { instant - $0 >= window }
-            guard state.interactive == 0, state.companion == nil, state.admitted.count < budget else { return nil }
-            let ticket = Ticket(id: UUID())
-            state.companion = ticket
-            state.companionHolds = 1
-            state.admitted.append(instant)
+            guard var slot = state.slots[priority] else { return nil }
+            slot.admitted.removeAll { instant - $0 >= window }
+            defer { state.slots[priority] = slot }
+            guard state.interactive == 0, slot.ticket == nil, slot.admitted.count < budget else { return nil }
+            let ticket = Ticket(id: UUID(), priority: priority)
+            slot.ticket = ticket
+            slot.holds = 1
+            slot.admittedAt = instant
+            slot.admitted.append(instant)
             return ticket
         }
     }
 
-    /// Lets go of `ticket`. The slot is free once the request and every model call made for it
-    /// have let go; another ticket's release never frees it.
-    public func release(_ ticket: Ticket) {
+    /// Gives back what `ticket` spent of its budget: its request was cancelled before the model
+    /// was asked (#642 review). Its slot stays held until it is released.
+    public func refund(_ ticket: Ticket) {
         state.withLock { state in
-            guard state.companion == ticket else { return }
-            state.companionHolds -= 1
-            if state.companionHolds <= 0 {
-                state.companion = nil
-                state.companionHolds = 0
-            }
+            guard var slot = state.slots[ticket.priority], slot.ticket == ticket, let at = slot.admittedAt,
+                  let index = slot.admitted.firstIndex(of: at) else { return }
+            slot.admitted.remove(at: index)
+            slot.admittedAt = nil
+            state.slots[ticket.priority] = slot
         }
     }
 
-    /// Whether a companion request holds the slot.
-    public var isCompanionSlotHeld: Bool { state.withLock { $0.companion != nil } }
+    /// Lets go of `ticket`. Its slot is free once the request and every model call made for it
+    /// have let go; another ticket's release never frees it.
+    public func release(_ ticket: Ticket) {
+        state.withLock { state in
+            guard var slot = state.slots[ticket.priority], slot.ticket == ticket else { return }
+            slot.holds -= 1
+            if slot.holds <= 0 {
+                slot.ticket = nil
+                slot.holds = 0
+                slot.admittedAt = nil
+            }
+            state.slots[ticket.priority] = slot
+        }
+    }
+
+    /// Whether a companion request holds the interactive slot.
+    public var isCompanionSlotHeld: Bool { state.withLock { $0.slots[.interactive]?.ticket != nil } }
+
+    /// Whether a phone's background request holds the background slot.
+    public var isBackgroundSlotHeld: Bool { state.withLock { $0.slots[.background]?.ticket != nil } }
 }
 
 /// The gate right in front of a model call (#586). The model adapter starts the model only
@@ -159,17 +198,24 @@ public struct ModelSubmission: Sendable {
     private let authorization: CompanionAuthorization
     private let isAllowed: @Sendable () -> Bool
     private let beforeCall: (@Sendable () async -> Void)?
+    private let didStart: (@Sendable () -> Void)?
 
     public init(authorization: CompanionAuthorization, isAllowed: @escaping @Sendable () -> Bool) {
         self.init(authorization: authorization, isAllowed: isAllowed, beforeCall: nil)
     }
 
-    /// - Parameter beforeCall: tests only: runs after the work was registered with the link and
-    ///   before the last check, so a test can close or revoke the link right there.
-    init(authorization: CompanionAuthorization, isAllowed: @escaping @Sendable () -> Bool, beforeCall: (@Sendable () async -> Void)?) {
+    /// - Parameters:
+    ///   - beforeCall: tests only: runs after the work was registered with the link and before the
+    ///     last check, so a test can close or revoke the link right there.
+    ///   - didStart: runs when the model call starts, after the last check passed.
+    init(
+        authorization: CompanionAuthorization, isAllowed: @escaping @Sendable () -> Bool,
+        beforeCall: (@Sendable () async -> Void)?, didStart: (@Sendable () -> Void)? = nil
+    ) {
         self.authorization = authorization
         self.isAllowed = isAllowed
         self.beforeCall = beforeCall
+        self.didStart = didStart
     }
 
     /// For this device's own requests: nothing to check beyond cancellation.
@@ -182,6 +228,7 @@ public struct ModelSubmission: Sendable {
     public func run<T: Sendable>(_ body: () async throws -> T) async throws -> T {
         await beforeCall?()
         guard authorization.isCurrent(), isAllowed() else { throw Refused() }
+        didStart?()
         return try await body()
     }
 }

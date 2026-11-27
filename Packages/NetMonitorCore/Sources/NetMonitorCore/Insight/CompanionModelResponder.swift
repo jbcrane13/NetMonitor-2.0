@@ -46,6 +46,8 @@ struct SystemCompanionModel: CompanionModelAnswering {
             await SystemRuleIntentParser.raw(for: text, submission: submission).map(ModelOutput.rules)
         case .symptoms(let text):
             await SystemSymptomClassifier.raw(for: text, submission: submission).map(ModelOutput.symptoms)
+        case .identity(let projection):
+            await SystemInsightService.identity(for: projection, submission: submission).map(ModelOutput.identity)
         }
     }
 }
@@ -124,16 +126,25 @@ public struct CompanionModelResponder: Sendable {
         guard isAllowed(), model.isAvailable else { return failure(.unavailable) }
         let scanning = await isScanning()
         guard authorization.isCurrent() else { return failure(.unavailable) }
-        guard !scanning, let ticket = admission.admitCompanion() else { return failure(.busy) }
+        guard !scanning, let ticket = admission.admitCompanion(input.schema.priority) else { return failure(.busy) }
 
         let isAllowed = isAllowed
-        let submission = ModelSubmission(authorization: authorization, isAllowed: isAllowed, beforeCall: beforeSubmission)
+        let started = Mutex(false)
+        let submission = ModelSubmission(
+            authorization: authorization, isAllowed: isAllowed, beforeCall: beforeSubmission, didStart: { started.withLock { $0 = true } }
+        )
         // Started inside the link's lock and registered with it: a close or revoke from here on
         // cancels the work, and with it the model call.
         guard let work = admission.withTicket(ticket, {
             authorization.start { [model, admission] () -> ModelOutput? in
-                // Released only when the model has returned, whatever happened to the request.
-                defer { admission.release(ticket) }
+                defer {
+                    // A request the model never ran for (cancelled, revoked, turned off) spends no
+                    // budget (#642 review). Released only when the model has returned.
+                    if !started.withLock({ $0 }) {
+                        admission.refund(ticket)
+                    }
+                    admission.release(ticket)
+                }
                 return await model.answer(input, submission: submission)
             }
         }) else {

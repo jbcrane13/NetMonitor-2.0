@@ -62,3 +62,9 @@ Device detail view showing comprehensive information about a single network devi
 - Theme: `../../Utilities/Theme.swift`
 
 <!-- MANUAL: -->
+- Identity suggestions (#449, #586): device detail asks `PhoneModel.identityService` (`RoutedIdentityService`), or `UITestBootstrap.identityService` (a fixed suggestion) under `UITEST_FAKE_SUGGESTION=1`: this phone's model, else a paired Mac's `identity.v1` once the user agreed to "Let your Mac read what you type and your device details?" (never prompted from here). The badge `deviceDetail_badge_suggested` reads "Suggested by your Mac" (accessibility label "Suggested by the on-device model on your Mac") when `DeviceSuggester.suggestionSource` is `.mac`. UI tests: `DeviceIdentitySuggestionUITests` (fixed suggestion), `MacIdentityUITests` (fake Mac, `UITEST_FAKE_MAC_MODEL=1`)
+- Suggestion scheduling (#642 review, `DeviceDetailViewModel+Suggestion.swift`):
+  - `startSuggestion()` asks only once the evidence has settled (`suggestionSettle`, 0.8 s);
+  - it never asks during the phone's own scan, and a scan that starts mid-ask cancels it (nothing recorded) and asks again after;
+  - a pass with no answer clears the remembered fingerprint, so the next trigger asks again.
+  - UI test of a slow Mac: `MacIdentitySlowMacUITests` (`UITEST_FAKE_MAC_IDENTITY_DELAY=4`).
