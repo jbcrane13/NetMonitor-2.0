@@ -22,6 +22,8 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         var holds = false
         var gates: [CheckedContinuation<Void, Never>] = []
         var scans = 0
+        /// What the fixture's controller-inventory phase (UniFi's ID) adds: names for answering addresses.
+        var inventory: [DiscoveredDevice] = []
 
         @MainActor
         func scan() async -> [DiscoveredDevice] {
@@ -50,6 +52,21 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         func execute(context: ScanContext, accumulator: ScanAccumulator, onProgress: @Sendable (Double) async -> Void) async {
             for device in await devices() {
                 await accumulator.upsert(device)
+            }
+            await onProgress(1)
+        }
+    }
+
+    /// Stands in for `UniFiInventoryPhase`: a controller's list, by address, with its own names.
+    struct InventoryPhase: ScanPhase, Sendable {
+        let id: ScanPhaseID = .unifiInventory
+        let displayName = "Inventory fixture"
+        let weight: Double = 1.0
+        let devices: @Sendable () async -> [DiscoveredDevice]
+
+        func execute(context: ScanContext, accumulator: ScanAccumulator, onProgress: @Sendable (Double) async -> Void) async {
+            for device in await devices() {
+                await accumulator.upsert(device, confirmsPresence: false)
             }
             await onProgress(1)
         }
@@ -86,7 +103,10 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
             networkProfileManager: manager,
             pipelineFactory: { _ in
                 let phase = FixturePhase(devices: { await devices.scan() })
-                return ScanPipeline(steps: [ScanPipeline.Step(phases: [phase], concurrent: false)])
+                let inventory = InventoryPhase(devices: { await MainActor.run { devices.inventory } })
+                return ScanPipeline(steps: [
+                    ScanPipeline.Step(phases: [phase], concurrent: false), ScanPipeline.Step(phases: [inventory], concurrent: false)
+                ])
             },
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
@@ -311,6 +331,23 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         #expect(NetworkIdentityCard.describe(summary, now: now) == "12 saved devices · last scanned 3 days ago")
         let named = IdentityOptionSummary(savedDevices: 1, lastScanned: nil, name: "Home office")
         #expect(NetworkIdentityCard.describe(named, now: now) == "Home office · 1 saved device · never scanned")
+    }
+
+    /// #645 thread: a controller's inventory may be another site's (a reachable UniFi controller of
+    /// the old site). The probe matches only what the network itself answers, never inventory names.
+    @Test func theProbeIgnoresControllerInventory() async throws {
+        let box = Box()
+        let legacy = UUID()
+        let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
+        let saved = [("192.168.1.1", "rt-ax86u-7c10"), ("192.168.1.20", "office-printer"), ("192.168.1.30", "backup-nas")]
+        for (ip, name) in saved {
+            setup.context.insert(LocalDevice(ipAddress: ip, macAddress: "", hostname: name, networkProfileID: legacy))
+        }
+        try setup.context.save()
+        // This network answers at the same addresses with no names; only the inventory has them.
+        box.devices = saved.map { DeviceDiscoveryCoordinatorReconcileTests.engine($0.0, nil) }
+        box.inventory = saved.map { DeviceDiscoveryCoordinatorReconcileTests.engine($0.0, $0.1) }
+        #expect(await setup.coordinator.identificationProbe(legacy: legacy) == false)
     }
 
     /// The identification probe scans and compares, and never reconciles, records or publishes.

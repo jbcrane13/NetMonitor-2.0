@@ -95,8 +95,14 @@ extension DeviceDiscoveryCoordinator {
         // Names come from Bonjour as in a scan: on macOS 27 there are no MACs, so the gateway's name is
         // the only anchor.
         bonjourScanner.startDiscovery()
-        // Only the latest probe's engine may stop the shared browser.
-        let pipeline = makePipeline { [weak self] in self?.probeRun == run }
+        // Only the latest probe's engine may stop the shared browser. A controller's inventory may be
+        // another site's (a reachable UniFi controller of the old one): the probe matches only what
+        // this network answers.
+        let full = makePipeline { [weak self] in self?.probeRun == run }
+        let pipeline = ScanPipeline(steps: full.steps.compactMap { step in
+            let phases = step.phases.filter { $0.id != .unifiInventory }
+            return phases.isEmpty ? nil : ScanPipeline.Step(phases: phases, concurrent: step.concurrent)
+        })
         let context = makeScanContext()
         let devices = await ScanEngine().scan(pipeline: pipeline, context: context) { _, _ in }
         guard !Task.isCancelled, let gateway = gatewayIP() else { return nil }

@@ -490,9 +490,18 @@ extension NetworkProfileManager {
     /// "interface|subnet" → profile id, for every local network this device has been on.
     nonisolated private static let knownLocalNetworksKey = "netmonitor.knownLocalNetworkIDs"
 
-    /// The v1 map, "interface|subnet" → network ID: what identification migrates from (#628 PR B).
+    /// The v1 map, "interface|subnet" → network ID: what identification migrates from (#628 PR B). Like
+    /// `resolveLocalNetworkID`, it's seeded with the local profile saved before the map existed (#645).
     nonisolated public static func knownLocalNetworkIDs(in userDefaults: UserDefaults = .standard) -> [String: UUID] {
-        (userDefaults.dictionary(forKey: knownLocalNetworksKey) as? [String: String] ?? [:]).compactMapValues(UUID.init(uuidString:))
+        var known = (userDefaults.dictionary(forKey: knownLocalNetworksKey) as? [String: String] ?? [:])
+            .compactMapValues(UUID.init(uuidString:))
+        for profile in savedProfiles(in: userDefaults) where profile.isLocal && profile.discoveryMethod == .auto {
+            let key = localNetworkKey(interface: profile.interfaceName, subnet: profile.subnet)
+            if known[key] == nil, !known.values.contains(profile.id) {
+                known[key] = profile.id
+            }
+        }
+        return known
     }
 
     nonisolated static func localNetworkKey(interface: String, subnet: String) -> String {

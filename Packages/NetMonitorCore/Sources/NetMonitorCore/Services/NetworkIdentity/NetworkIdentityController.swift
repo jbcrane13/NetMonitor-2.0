@@ -125,6 +125,8 @@ public final class NetworkIdentityController {
     @ObservationIgnored private var detectionPending = false
     /// The generation the network was identified under: a failed read keeps it only within that one.
     @ObservationIgnored private var identifiedGeneration: UInt64?
+    /// The network was identified by a connection-only answer, which holds for its generation only.
+    @ObservationIgnored private var identifiedByConnectionAnswer = false
     /// The last write conflicted with another copy of the app, for one automatic re-resolve.
     @ObservationIgnored private var lastWriteConflicted = false
     /// The running probe's identity and the token it started under: only it may end identifying.
@@ -254,8 +256,10 @@ public final class NetworkIdentityController {
             group: group, hint: hint, records: store.contents.records, approvals: store.contents.approvals, connectionAnswer: answer,
             occupiedBuckets: occupied
         )
+        identifiedByConnectionAnswer = false
         switch resolution {
         case .use(let id):
+            identifiedByConnectionAnswer = id == answer
             if case .present(let key) = hint {
                 noteMatched(key, group: group)
             }
@@ -278,7 +282,7 @@ public final class NetworkIdentityController {
             let id = ownID(defaultID)
             guard write({ contents in
                 contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
-                contents.approvals.append(IdentityApproval(group: group, key: key, recordID: id))
+                Self.approve(key, group: group, on: id, now: self.now(), in: &contents)
             }, retry: detectAgain) else {
                 state = .held(defaultID, nil)
                 return defaultID
@@ -351,7 +355,7 @@ public final class NetworkIdentityController {
                     if let index = contents.records.firstIndex(where: { $0.id == legacy }) {
                         contents.records[index].recordClass = .bound
                     }
-                    contents.approvals.append(IdentityApproval(group: group, key: key, recordID: legacy))
+                    Self.approve(key, group: group, on: legacy, now: self.now(), in: &contents)
                 }, retry: detectAgain)
                 state = bound ? .identified(legacy, group, hint) : .held(legacy, nil)
             } else {
@@ -375,6 +379,13 @@ public final class NetworkIdentityController {
     /// at once and asks for one detection (coalesced), even with no path update.
     public func authorizes(_ networkID: UUID) -> Bool {
         guard case .identified(let id, let group, let hint) = state, id == networkID else { return false }
+        // A connection-only answer holds for its connection: a wake or path update since asks again.
+        if identifiedByConnectionAnswer, identifiedGeneration != clock.generation.value {
+            Self.logger.notice("A connection-only answer's connection ended: identifying again")
+            state = .held(id, nil)
+            detectAgain()
+            return false
+        }
         let now = readHint(group.interface)
         // An unreadable routing table is transient within the generation it was identified under (#645).
         guard now == hint || (now == .failed && identifiedGeneration == clock.generation.value) else {

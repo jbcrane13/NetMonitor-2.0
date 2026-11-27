@@ -317,7 +317,9 @@ extension NetworkJoinClock {
 @MainActor
 struct ProfileManagerIdentityHookTests {
     @Test func theDetectedLocalNetworkTakesTheIdentitysID() throws {
-        let defaults = try #require(UserDefaults(suiteName: "identity-hook-\(UUID().uuidString)"))
+        let suite = "identity-hook-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
         let live = NetworkProfile(
             interfaceName: "en0", ipAddress: "192.168.1.10",
             network: NetworkUtilities.IPv4Network(
