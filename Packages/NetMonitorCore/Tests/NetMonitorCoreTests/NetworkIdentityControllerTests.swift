@@ -19,7 +19,7 @@ struct NetworkIdentityControllerTests {
         var holdsProbe = false
     }
 
-    private func makeStore(
+    func makeStore(
         legacy: [String: UUID] = [:], dir: URL? = nil, defaults: UserDefaults? = nil
     ) throws -> (NetworkIdentityStore, URL, UserDefaults) {
         let dir = dir ?? FileManager.default.temporaryDirectory.appending(path: "identity-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -27,7 +27,7 @@ struct NetworkIdentityControllerTests {
         return (NetworkIdentityStore(directory: dir, defaults: defaults, legacyNetworks: { legacy }, reservedIDs: { [] }), dir, defaults)
     }
 
-    private func makeController(
+    func makeController(
         _ store: NetworkIdentityStore, _ harness: Harness, clock: NetworkJoinClock = .forIdentityTests, launchID: UUID = UUID()
     ) -> NetworkIdentityController {
         NetworkIdentityController(
@@ -193,9 +193,7 @@ struct NetworkIdentityControllerTests {
         let clock = NetworkJoinClock.forIdentityTests
         let identity = makeController(store, harness, clock: clock)
         _ = identity.resolveID(group: home, defaultID: legacy)
-        while harness.probeGate == nil {
-            await Task.yield()
-        }
+        try #require(await eventually { harness.probeGate != nil })
         clock.generation.advance()
         harness.probeGate?.resume()
         await identity.probeTask?.value
@@ -286,6 +284,18 @@ struct NetworkIdentityControllerTests {
         #expect(!identity.authorizes(id))
         #expect(identity.heldNetworkIDs == [id])
     }
+}
+
+/// Yields until `condition` holds, a bounded number of times, so a broken test fails instead of hanging.
+@MainActor
+func eventually(_ condition: () -> Bool) async -> Bool {
+    for _ in 0 ..< 10000 {
+        if condition() {
+            return true
+        }
+        await Task.yield()
+    }
+    return condition()
 }
 
 @MainActor

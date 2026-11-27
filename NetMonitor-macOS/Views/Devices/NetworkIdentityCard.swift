@@ -21,8 +21,19 @@ struct NetworkIdentityCard: View {
                 Button("Start over") { identity.startOver() }
                     .accessibilityIdentifier("devices_identity_startOver")
             }
-        } else if let question = identity.question {
-            questionCard(question)
+        } else {
+            if identity.saveFailed {
+                card(
+                    title: "Couldn't save which network this is",
+                    detail: "Nothing was lost. Until it's saved, this network's devices are shown as history."
+                ) {
+                    Button("Try again") { identity.retrySave() }
+                        .accessibilityIdentifier("devices_identity_retry")
+                }
+            }
+            if let question = identity.question {
+                questionCard(question)
+            }
         }
     }
 

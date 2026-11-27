@@ -159,6 +159,28 @@ struct NetworkIdentityStoreTests {
         #expect(store.contents.approvals.count == 2)
     }
 
+    /// Two copies of the app on one file: a write from a stale copy is refused, never dropping the
+    /// other's approval, and succeeds once it has reloaded (#645).
+    @Test func aStaleCopyCantDropAnotherCopysApproval() throws {
+        let env = try makeEnvironment()
+        let first = store(env)
+        let second = store(env)
+        let siteA = UUID()
+        let siteB = UUID()
+        func approve(_ id: UUID, _ key: String) -> (inout NetworkIdentityStore.Contents) -> Void {
+            { contents in
+                contents.records.append(IdentityRecord(id: id, group: home, recordClass: .bound))
+                contents.approvals.append(IdentityApproval(group: home, key: RouterKey([key]), recordID: id))
+            }
+        }
+        try first.update(approve(siteA, "a"))
+        #expect(throws: NetworkIdentityStore.Conflict.self) { try second.update(approve(siteB, "b")) }
+        #expect(second.contents.records.contains { $0.id == siteA }, "the refused copy reloads")
+        try second.update(approve(siteB, "b"))
+        let reopened = store(env)
+        #expect(Set(reopened.contents.approvals.map(\.recordID)) == [siteA, siteB])
+    }
+
     @Test func aNewIDAvoidsEveryReservedID() throws {
         let env = try makeEnvironment()
         let taken = UUID()

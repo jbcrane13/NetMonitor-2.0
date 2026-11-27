@@ -50,6 +50,10 @@ public final class NetworkIdentityStore {
         public let reason: String
     }
 
+    /// Another copy of the app changed the file since this one read it: nothing was written, and the
+    /// file's contents were reloaded.
+    public struct Conflict: Error {}
+
     /// Identification is paused (damaged); nothing was written.
     public struct Paused: Error {}
 
@@ -64,6 +68,7 @@ public final class NetworkIdentityStore {
     public private(set) var state: State
 
     private let fileURL: URL
+    private let lockURL: URL
     private let directory: URL
     private let defaults: UserDefaults
     private let legacyNetworks: () -> [String: UUID]
@@ -85,9 +90,13 @@ public final class NetworkIdentityStore {
         self.legacyNetworks = legacyNetworks
         self.reservedIDs = reservedIDs
         self.write = write ?? { data, url in try data.write(to: url, options: .atomic) }
+        lockURL = directory.appending(path: "network-identity.lock")
         contents = Contents(revision: 0, records: [], legacyIDs: [])
         state = .damaged
-        load()
+        // Under the lock, so two copies launching together migrate once.
+        if (try? withFileLock({ load() })) == nil {
+            load()
+        }
     }
 
     private func load() {
@@ -150,24 +159,60 @@ public final class NetworkIdentityStore {
 
     /// Applies `change`, validates it, writes it atomically and only then publishes it. Throws, and
     /// changes nothing, when the store is damaged, the result is invalid or the write fails.
+    ///
+    /// One writer across processes: each update holds an exclusive lock on `network-identity.lock` and
+    /// first checks the file's revision. If another copy of the app wrote since this one read, the
+    /// file is reloaded and the update throws `Conflict`, so it never overwrites the other's identities;
+    /// the caller retries against what was reloaded.
     @discardableResult
     public func update(_ change: (inout Contents) throws -> Void) throws -> Contents {
         guard state == .ready else { throw Paused() }
-        var next = contents
-        try change(&next)
-        next.revision = contents.revision + 1
-        try validate(next)
-        try persist(next)
-        contents = next
-        return next
+        return try withFileLock {
+            try reloadIfChangedElsewhere()
+            var next = contents
+            try change(&next)
+            next.revision = contents.revision + 1
+            try validate(next)
+            try persist(next)
+            contents = next
+            return next
+        }
+    }
+
+    /// Runs `body` holding the exclusive lock (`flock`); closing the descriptor releases it, also when
+    /// the process dies.
+    private func withFileLock<T>(_ body: () throws -> T) throws -> T {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let descriptor = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
+        guard descriptor >= 0 else { throw CocoaError(.fileWriteUnknown) }
+        defer { close(descriptor) }
+        guard flock(descriptor, LOCK_EX) == 0 else { throw CocoaError(.fileWriteUnknown) }
+        return try body()
+    }
+
+    /// Throws `Conflict`, after reloading, if the file's revision isn't the one this copy last read
+    /// or wrote; pauses if what's there now can't be used.
+    private func reloadIfChangedElsewhere() throws {
+        guard let data = try? Data(contentsOf: fileURL) else { return }
+        guard let disk = try? JSONDecoder().decode(Contents.self, from: data), disk.schemaVersion <= Self.schemaVersion,
+              (try? validate(disk)) != nil else {
+            quarantine(data)
+            throw Paused()
+        }
+        guard disk.revision != contents.revision else { return }
+        Self.logger.notice("Network identity changed in another copy of the app: reloaded")
+        contents = disk
+        throw Conflict()
     }
 
     /// "Start over": the user chose to re-migrate from the v1 map. The damaged copy stays.
     public func startOver() throws {
-        defaults.removeObject(forKey: Self.damagedKey)
-        defaults.removeObject(forKey: Self.markerKey)
-        try? FileManager.default.removeItem(at: fileURL)
-        migrate()
+        try withFileLock {
+            defaults.removeObject(forKey: Self.damagedKey)
+            defaults.removeObject(forKey: Self.markerKey)
+            try? FileManager.default.removeItem(at: fileURL)
+            migrate()
+        }
         if state == .damaged {
             throw Paused()
         }

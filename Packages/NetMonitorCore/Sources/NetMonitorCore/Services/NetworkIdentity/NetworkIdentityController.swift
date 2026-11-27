@@ -53,6 +53,24 @@ public final class NetworkIdentityController {
     /// Called once a network held by a question, the probe or a router change is identified, so its
     /// owner can scan it: what was scanned while held wasn't saved.
     @ObservationIgnored public var onSettled: (@MainActor (UUID) -> Void)?
+    /// The last identity write failed: nothing was lost, and `retrySave()` tries it again.
+    public private(set) var saveFailed = false
+    /// For tests: identifying with no probe and no detection asked for, which nothing would end.
+    var isStuckIdentifying: Bool {
+        if case .identifying = state {
+            return probeTask == nil && !detectionPending
+        }
+        return false
+    }
+
+    /// Tries the failed write again, against what the store holds now.
+    public func retrySave() {
+        let retry = pendingRetry
+        pendingRetry = nil
+        saveFailed = false
+        retry?()
+    }
+
     /// The running identification probe, for tests.
     @ObservationIgnored public private(set) var probeTask: Task<Void, Never>?
 
@@ -66,6 +84,12 @@ public final class NetworkIdentityController {
     }
 
     @ObservationIgnored private var detectionPending = false
+    /// The running probe's identity and the token it started under: only it may end identifying.
+    @ObservationIgnored private var probeID: UUID?
+    @ObservationIgnored private var probeToken: JoinToken?
+    /// The generation the open question was asked under: a connection-only answer belongs to it.
+    @ObservationIgnored private var questionGeneration: UInt64?
+    @ObservationIgnored private var pendingRetry: (@MainActor () -> Void)?
     @ObservationIgnored private var lastLoggedHintKind: String?
     @ObservationIgnored private let store: NetworkIdentityStore
     @ObservationIgnored private let clock: NetworkJoinClock
@@ -115,7 +139,9 @@ public final class NetworkIdentityController {
             lastLoggedHintKind = hint.kind
             Self.logger.notice("Router hint: \(hint.kind, privacy: .public)")
         }
-        if case .identifying(let id, let probing, let probedHint) = state, probing == group, probedHint == hint, probeTask != nil {
+        // The probe still running for this network and router, if no path update has overtaken it.
+        if case .identifying(let id, let probing, let probedHint) = state, probing == group, probedHint == hint, probeTask != nil,
+           clock.isCurrent(probeToken) {
             return id
         }
         let answer = store.contents.connectionAnswers.first {
@@ -135,7 +161,10 @@ public final class NetworkIdentityController {
             }
             let id = ownID(defaultID)
             let bucket = IdentityRecord(id: id, group: group, recordClass: .bucket)
-            guard write({ $0.records.append(bucket) }, holding: defaultID) else { return defaultID }
+            guard write({ $0.records.append(bucket) }, retry: detectAgain) else {
+                state = .held(defaultID, nil)
+                return defaultID
+            }
             state = .identified(id, group, hint)
             return id
         case .create(let key):
@@ -143,11 +172,15 @@ public final class NetworkIdentityController {
             guard write({ contents in
                 contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
                 contents.approvals.append(IdentityApproval(group: group, key: key, recordID: id))
-            }, holding: defaultID) else { return defaultID }
+            }, retry: detectAgain) else {
+                state = .held(defaultID, nil)
+                return defaultID
+            }
             state = .identified(id, group, hint)
             return id
         case .ask(let question):
             let tentative = Self.options(of: question).first ?? defaultID
+            questionGeneration = clock.generation.value
             state = .held(tentative, question)
             return tentative
         case .probeLegacy(let legacy, let key):
@@ -170,24 +203,52 @@ public final class NetworkIdentityController {
 
     private func startProbe(legacy: UUID, group: NetworkGroup, key: RouterKey, hint: RouterHintStatus) {
         probeTask?.cancel()
+        let id = UUID()
         let token = clock.token(for: nil)
+        probeID = id
+        probeToken = token
         probeTask = Task { [weak self] in
             guard let self else { return }
             let clear = await probe(legacy, group)
-            defer { probeTask = nil }
+            // A newer probe owns identifying now: this one ends nothing.
+            guard probeID == id else { return }
+            probeID = nil
+            probeToken = nil
+            probeTask = nil
+            guard state == .identifying(legacy, group, hint) else { return }
             // A path update or resume since the probe started: what it saw may be another network's.
-            guard clock.isCurrent(token), state == .identifying(legacy, group, hint) else { return }
-            if clear == true, write({ contents in
-                if let index = contents.records.firstIndex(where: { $0.id == legacy }) {
-                    contents.records[index].recordClass = .bound
-                }
-                contents.approvals.append(IdentityApproval(group: group, key: key, recordID: legacy))
-            }, holding: legacy) {
-                state = .identified(legacy, group, hint)
-            } else if case .identifying = state {
+            // Identify again, so identifying never outlives its probe.
+            guard clock.isCurrent(token) else {
+                detectAgain()
+                return
+            }
+            // The router changed while it ran, with no path update: bind nothing to the old one.
+            guard readHint(group.interface) == hint else {
+                Self.logger.notice("Router changed during identification: identifying again")
+                state = .held(legacy, nil)
+                detectAgain()
+                return
+            }
+            if clear == true {
+                let bound = write({ contents in
+                    if let index = contents.records.firstIndex(where: { $0.id == legacy }) {
+                        contents.records[index].recordClass = .bound
+                    }
+                    contents.approvals.append(IdentityApproval(group: group, key: key, recordID: legacy))
+                }, retry: detectAgain)
+                state = bound ? .identified(legacy, group, hint) : .held(legacy, nil)
+            } else {
+                questionGeneration = clock.generation.value
                 state = .held(legacy, .isLegacy(group: group, key: key, record: legacy))
             }
         }
+    }
+
+    /// Asks for one detection, unless one is already pending.
+    private func detectAgain() {
+        guard !detectionPending else { return }
+        detectionPending = true
+        requestDetection()
     }
 
     // MARK: - Commit
@@ -200,10 +261,7 @@ public final class NetworkIdentityController {
         guard readHint(group.interface) == hint else {
             Self.logger.notice("Router changed since the network was identified: holding its rows")
             state = .held(id, nil)
-            if !detectionPending {
-                detectionPending = true
-                requestDetection()
-            }
+            detectAgain()
             return false
         }
         return true
@@ -217,8 +275,8 @@ public final class NetworkIdentityController {
             Self.logger.error("Couldn't start network recognition over")
             return
         }
-        detectionPending = true
-        requestDetection()
+        detectionPending = false
+        detectAgain()
     }
 
     // MARK: - Answers
@@ -228,6 +286,7 @@ public final class NetworkIdentityController {
     /// key, which this asks for.
     public func answer(_ answer: Answer, to question: IdentityQuestion) {
         guard question == self.question else { return }
+        let retry: @MainActor () -> Void = { [weak self] in self?.answer(answer, to: question) }
         let recorded: Bool
         switch (question, answer) {
         case (.whichNetwork(let group, let key, _), .newNetwork), (.isLegacy(let group, let key, _), .newNetwork):
@@ -235,7 +294,7 @@ public final class NetworkIdentityController {
             recorded = write({ contents in
                 contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
                 Self.approve(key, group: group, on: id, in: &contents)
-            }, holding: nil)
+            }, retry: retry)
         case (.whichNetwork(let group, let key, _), .same(let id)) where Self.options(of: question).contains(id),
              (.isLegacy(let group, let key, _), .same(let id)) where Self.options(of: question).contains(id):
             recorded = write({ contents in
@@ -243,24 +302,33 @@ public final class NetworkIdentityController {
                     contents.records[index].recordClass = .bound
                 }
                 Self.approve(key, group: group, on: id, in: &contents)
-            }, holding: nil)
+            }, retry: retry)
         case (.forgottenThisConnection(let group, let options), .thisConnection(let id)) where options.contains(id):
-            recorded = write({ contents in self.answerForThisConnection(id, group: group, in: &contents) }, holding: nil)
+            // A connection-only answer belongs to the connection the question was asked on.
+            guard let generation = questionGeneration, generation == clock.generation.value else {
+                detectAgain()
+                return
+            }
+            recorded = write({ contents in self.answerForThisConnection(id, group: group, generation: generation, in: &contents) }, retry: retry)
         case (.forgottenThisConnection(let group, _), .somewhereElse):
+            guard let generation = questionGeneration, generation == clock.generation.value else {
+                detectAgain()
+                return
+            }
             let existing = store.contents.records.first { $0.group == group && $0.recordClass == .bucket }?.id
             let bucket = existing ?? store.newID(preferring: nil)
             recorded = write({ contents in
                 if existing == nil {
                     contents.records.append(IdentityRecord(id: bucket, group: group, recordClass: .bucket))
                 }
-                self.answerForThisConnection(bucket, group: group, in: &contents)
-            }, holding: nil)
+                self.answerForThisConnection(bucket, group: group, generation: generation, in: &contents)
+            }, retry: retry)
         default:
             return
         }
         if recorded {
-            detectionPending = true
-            requestDetection()
+            detectionPending = false
+            detectAgain()
         }
     }
 
@@ -272,9 +340,11 @@ public final class NetworkIdentityController {
         }
     }
 
-    private func answerForThisConnection(_ id: UUID, group: NetworkGroup, in contents: inout NetworkIdentityStore.Contents) {
+    private func answerForThisConnection(
+        _ id: UUID, group: NetworkGroup, generation: UInt64, in contents: inout NetworkIdentityStore.Contents
+    ) {
         contents.connectionAnswers.removeAll { $0.launchID != launchID || $0.group == group }
-        contents.connectionAnswers.append(ConnectionAnswer(launchID: launchID, generation: clock.generation.value, group: group, recordID: id))
+        contents.connectionAnswers.append(ConnectionAnswer(launchID: launchID, generation: generation, group: group, recordID: id))
     }
 
     /// Approves `key` on `id`, evicting the least recently added approvals past the limits; a network
@@ -295,17 +365,20 @@ public final class NetworkIdentityController {
         }
     }
 
-    /// Writes `change` durably before anything is published; on failure identification pauses,
-    /// holding `holding` (or the current network).
-    private func write(_ change: (inout NetworkIdentityStore.Contents) -> Void, holding: UUID?) -> Bool {
+    /// Writes `change` durably before anything is published. On failure, nothing changes and
+    /// `saveFailed` says so, with `retry` for `retrySave()`: what the user answered isn't lost.
+    private func write(_ change: (inout NetworkIdentityStore.Contents) -> Void, retry: @escaping @MainActor () -> Void) -> Bool {
         do {
             try store.update { change(&$0) }
+            if saveFailed {
+                saveFailed = false
+            }
+            pendingRetry = nil
             return true
         } catch {
-            Self.logger.error("Couldn't save network recognition: paused")
-            if let held = holding ?? heldNetworkIDs.first {
-                state = .paused(held)
-            }
+            Self.logger.error("Couldn't save network recognition: \(String(describing: type(of: error)), privacy: .public)")
+            pendingRetry = retry
+            saveFailed = true
             return false
         }
     }
