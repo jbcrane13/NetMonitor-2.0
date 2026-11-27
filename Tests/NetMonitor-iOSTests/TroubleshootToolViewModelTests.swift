@@ -67,4 +67,53 @@ struct TroubleshootToolViewModelTests {
         let answering = TroubleshootToolViewModel(env: env(), mode: "answer")
         #expect(answering.state.canDescribe)
     }
+
+    // MARK: - Modem lights (#625)
+
+    static let redInternet = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
+        .init(label: "POWER", color: .green), .init(label: "INTERNET", color: .red)
+    ]))
+
+    @Test func aModemReadingIsHeldForTheSessionOnly() async {
+        var viewModel: TroubleshootToolViewModel? = TroubleshootToolViewModel(env: env(), mode: nil)
+        await viewModel?.useModemReading(Self.redInternet)
+        #expect(viewModel?.state.modemReading?.report == Self.redInternet)
+        // Leaving Troubleshoot releases its state and the reading with it; nothing else holds it.
+        weak var state = viewModel?.state
+        viewModel = nil
+        #expect(state == nil)
+        #expect(TroubleshootToolViewModel(env: env(), mode: nil).state.modemReading == nil)
+    }
+
+    @Test func aNetworkJoinMakesTheReadingHistory() async {
+        final class Clock {
+            var joinedAt = Date(timeIntervalSince1970: 1_000)
+        }
+        let clock = Clock()
+        let viewModel = TroubleshootToolViewModel(env: env(), mode: nil, joinedAt: { clock.joinedAt })
+        await viewModel.useModemReading(Self.redInternet)
+        #expect(viewModel.state.isModemReadingCurrent)
+        // A path change or a return from the background (`NetworkJoinClock`).
+        clock.joinedAt = Date(timeIntervalSince1970: 2_000)
+        #expect(!viewModel.state.isModemReadingCurrent)
+        #expect(viewModel.state.modemReading != nil, "Still shown, as history")
+    }
+
+    @Test func aReadingBelongsToTheSavedNetworkItWasReadOn() async {
+        final class Profile {
+            var id: UUID? = UUID()
+        }
+        let profile = Profile()
+        let environment = env()
+        let viewModel = TroubleshootToolViewModel(env: AppEnvironment(
+            networkMonitor: environment.networkMonitor, deviceDiscovery: environment.deviceDiscovery,
+            macConnection: environment.macConnection, publicIP: environment.publicIP, wifiInfo: environment.wifiInfo,
+            targetManager: .shared, activityLog: .shared, eventService: NetworkEventService(), scanScheduler: ScanSchedulerService.shared,
+            currentNetworkProfileID: { profile.id }
+        ), mode: nil, joinedAt: { Date(timeIntervalSince1970: 1_000) })
+        await viewModel.useModemReading(Self.redInternet)
+        #expect(viewModel.state.isModemReadingCurrent)
+        profile.id = UUID()
+        #expect(!viewModel.state.isModemReadingCurrent)
+    }
 }

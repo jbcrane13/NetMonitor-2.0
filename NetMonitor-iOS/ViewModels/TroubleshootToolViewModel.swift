@@ -24,10 +24,13 @@ final class TroubleshootToolViewModel {
     /// Whether the user must first agree to let the Mac read what they type (#586).
     var needsMacConsent: Bool { macRoute?.availability == .needsConsent }
 
+    /// - Parameter joinedAt: when the phone joined the network it is on (`NetworkJoinClock`): a
+    ///   path change or a return from the background. A modem reading from before it stops counting.
     init(
         env: AppEnvironment,
         mode: String? = UITestBootstrap.troubleshootMode,
-        classifier: RoutedSymptomClassifier = PhoneModel.symptomClassifier
+        classifier: RoutedSymptomClassifier = PhoneModel.symptomClassifier,
+        joinedAt: @escaping @MainActor () -> Date = { NetworkJoinClock.shared.joinedAt }
     ) {
         let inputs = Inputs()
         self.inputs = inputs
@@ -40,6 +43,7 @@ final class TroubleshootToolViewModel {
         #endif
         macRoute = classifier.local.isAvailable ? nil : classifier.route
         let discovery = env.deviceDiscovery
+        let networkID = env.currentNetworkProfileID
         state = TroubleshootState(
             probes: ServiceTroubleshootProbes(
                 wifiService: env.wifiInfo,
@@ -52,7 +56,8 @@ final class TroubleshootToolViewModel {
             insight: env.insight,
             devices: { inputs.devices },
             isScanning: { discovery.isScanning },
-            speedBaseline: { inputs.latestDownload }
+            speedBaseline: { inputs.latestDownload },
+            networkKey: { Self.networkKey(profileID: networkID(), joinedAt: joinedAt()) }
         )
     }
 
@@ -67,6 +72,18 @@ final class TroubleshootToolViewModel {
     static func devices(_ rows: [LocalDevice], networkProfileID: UUID?) -> [TroubleshootDevice] {
         DeviceGroups.project(rows.filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID })
             .map(TroubleshootDevice.init)
+    }
+
+    /// The network a modem reading belongs to (#629 review): the saved network and when the phone
+    /// joined it (#627's `NetworkJoinClock`).
+    static func networkKey(profileID: UUID?, joinedAt: Date) -> String {
+        "\(profileID?.uuidString ?? "unknown")#\(joinedAt.timeIntervalSince1970)"
+    }
+
+    /// Adds a reading of the modem's lights to this session's findings (#625). The reading lives
+    /// in `state` only, so it goes when Troubleshoot closes and its state is released.
+    func useModemReading(_ report: ModemPanelReport) async {
+        await state.useModemReading(report)
     }
 
     /// The devices a run would offer, for tests.

@@ -48,6 +48,38 @@ struct ModemLightsViewModelTests {
         ModemLightsViewModel(extractor: extractor, isScanning: { scanning }, testImage: { nil })
     }
 
+    @Test("A reading is handed to the troubleshooter; a photo that isn't a panel is not (#625)")
+    func readingGoesToTheTroubleshooter() async throws {
+        var handed: [ModemPanelReport] = []
+        let viewModel = ModemLightsViewModel(
+            extractor: ScriptedExtractor(Self.redInternet), isScanning: { false }, testImage: { nil }, onReading: { handed.append($0) }
+        )
+        try await viewModel.read(Self.image)
+        #expect(handed == [ModemPanelReport(answer: Self.redInternet)])
+
+        let notAPanel = ModemLightsViewModel(
+            extractor: ScriptedExtractor(ModemPanelAnswer(status: .unsupported, lights: [])), isScanning: { false }, testImage: { nil },
+            onReading: { handed.append($0) }
+        )
+        try await notAPanel.read(Self.image)
+        #expect(handed.count == 1)
+    }
+
+    @Test("A reading the user closed the sheet on is not handed over (#625)")
+    func cancelledReadingIsNotHandedOver() async throws {
+        var handed = 0
+        let extractor = ScriptedExtractor(Self.redInternet, delay: .seconds(1))
+        let viewModel = ModemLightsViewModel(extractor: extractor, isScanning: { false }, testImage: { nil }, onReading: { _ in handed += 1 })
+        let image = try Self.image
+        let task = Task { await viewModel.read(image) }
+        // Cancel while the model is reading, not before it starts.
+        await waitUntil { extractor.calls == 1 }
+        #expect(extractor.calls == 1)
+        task.cancel()
+        await task.value
+        #expect(handed == 0)
+    }
+
     @Test("A red Internet light is shown with the app's own lines; nothing is model-written")
     func redInternetReading() async throws {
         let viewModel = viewModel(ScriptedExtractor(Self.redInternet))
