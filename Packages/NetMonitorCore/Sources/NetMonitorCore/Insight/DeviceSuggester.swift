@@ -92,6 +92,13 @@ public final class DeviceSuggester {
             // evidence that no longer stands, so it isn't used or recorded, and the next pass asks
             // about the new evidence (#586).
             guard DeviceEvidence(device: device).fingerprint == evidence.fingerprint else { continue }
+            // No answer because the service went away (the Mac left, or is busy and backing off) isn't
+            // "nothing to suggest": nothing is recorded, so the device is asked again later, and the
+            // pass stops rather than asking about every device in turn (#586). A failure while the
+            // service stays available (this device's model) is recorded as before.
+            if answer == nil, !service.isAvailable {
+                return
+            }
             // The user accepted or dismissed while the model was answering: keep their
             // decision, and a dismissal covers the evidence the model was just shown.
             let decided = store.record(for: device.id)

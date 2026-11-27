@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// The Mac route for one schema (#586): whether a typed request may go to the connected Mac, and
 /// whether the user must be asked first. Requests go only while the Mac's latest heartbeat lists
@@ -29,8 +30,14 @@ public struct MacModelRoute: Sendable {
     /// with: nothing is sent, and no answer is used, once the user withdrew it (even if they agreed
     /// again meanwhile), and withdrawing ends the request at once.
     func request(_ input: ModelInput) async -> ModelOutput? {
+        guard case .output(let output) = await result(input) else { return nil }
+        return output
+    }
+
+    /// As `request`, with why there's no answer: `busy`, or `unavailable` for everything else.
+    func result(_ input: ModelInput) async -> ModelClientResult {
         let consent = consent
-        guard let generation = consent.allowedGeneration else { return nil }
+        guard let generation = consent.allowedGeneration else { return .unavailable }
         let isCurrent: @Sendable () -> Bool = { consent.allowedGeneration == generation }
         let mac = mac
         let work = Task { await mac.request(input, while: isCurrent) }
@@ -41,8 +48,7 @@ public struct MacModelRoute: Sendable {
             work.cancel()
         }
         let result = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
-        guard isCurrent(), case .output(let output) = result else { return nil }
-        return output
+        return isCurrent() ? result : .unavailable
     }
 }
 
@@ -118,16 +124,25 @@ public struct RoutedSymptomClassifier: SymptomClassifierProtocol {
 /// already agreed to "Let your Mac read what you type?", whose wording covers device evidence.
 /// Explanations stay on the local model; `RoutedInsightService` routes those.
 public struct RoutedIdentityService: InsightServiceProtocol {
+    /// How long the Mac isn't asked after it answered busy or not at all.
+    public static let defaultRetryAfter: Duration = .seconds(60)
+
     public let local: any InsightServiceProtocol
     public let route: MacModelRoute
+    private let backoff: Backoff
 
-    public init(local: any InsightServiceProtocol, mac: CompanionModelClient, consent: MacInsightConsent) {
+    public init(
+        local: any InsightServiceProtocol, mac: CompanionModelClient, consent: MacInsightConsent, retryAfter: Duration = defaultRetryAfter
+    ) {
         self.local = local
         route = MacModelRoute(mac: mac, consent: consent, schema: .identity)
+        backoff = Backoff(retryAfter: retryAfter)
     }
 
-    /// The local model, or a Mac offering identity once the user has said yes; never "ask first".
-    public var isAvailable: Bool { local.isAvailable || route.availability == .available }
+    /// The local model, or a Mac offering identity once the user has said yes and not backing off
+    /// after a busy or failed answer; never "ask first". `DeviceSuggester` stops its pass, without
+    /// recording, when this turns false under it.
+    public var isAvailable: Bool { local.isAvailable || (route.availability == .available && !backoff.isActive) }
 
     public func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
         local.explain(request)
@@ -137,9 +152,28 @@ public struct RoutedIdentityService: InsightServiceProtocol {
         if local.isAvailable {
             return await local.suggestIdentity(evidence)
         }
-        guard route.availability == .available, case .identity(let raw)? = await route.request(.identity(evidence.projection)) else {
+        guard route.availability == .available, !backoff.isActive else { return nil }
+        guard case .output(.identity(let raw)) = await route.result(.identity(evidence.projection)) else {
+            // Busy, gone, too slow or refused: leave the Mac alone for a while.
+            backoff.start()
             return nil
         }
         return raw.suggestion(from: .mac)
+    }
+
+    /// When the Mac may be asked again.
+    private final class Backoff: Sendable {
+        private let retryAfter: Duration
+        private let until = Mutex<ContinuousClock.Instant?>(nil)
+
+        init(retryAfter: Duration) {
+            self.retryAfter = retryAfter
+        }
+
+        var isActive: Bool { until.withLock { $0.map { ContinuousClock.now < $0 } ?? false } }
+
+        func start() {
+            until.withLock { $0 = ContinuousClock.now + retryAfter }
+        }
     }
 }

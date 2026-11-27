@@ -1,5 +1,6 @@
 import Foundation
 import NetworkScanKit
+import Synchronization
 import Testing
 @testable import NetMonitorCore
 
@@ -419,6 +420,31 @@ extension DeviceSuggesterTests {
         #expect(suggester.suggestionSource(for: device) == .mac)
         await DeviceSuggester(service: MockInsightService(suggestion: lutron), store: store).suggest(for: [bridge()])
         #expect(suggester.suggestionSource(for: bridge()) == nil, "no suggestion for a device never asked about")
+    }
+}
+
+extension DeviceSuggesterTests {
+    @Test("the Mac busy: nothing recorded, the pass stops, and the device is asked again after the back-off")
+    func busyMacIsNotRecorded() async {
+        let first = bridge()
+        let second = LocalDevice(ipAddress: "192.168.2.71", macAddress: "00:17:88:00:00:02", hostname: "hue-bridge.lan")
+        let asked = Mutex(0)
+        let box = Mutex<CompanionModelClient?>(nil)
+        let mac = CompanionModelClient(send: { message, link, _ in
+            guard case .modelRequest(let request) = message else { return true }
+            asked.withLock { $0 += 1 }
+            box.withLock { $0 }?.received(ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .busy), onLink: link)
+            return true
+        })
+        box.withLock { $0 = mac }
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
+        let service = RoutedIdentityService(
+            local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true), retryAfter: .seconds(60)
+        )
+        await DeviceSuggester(service: service, store: store).suggest(for: [first, second])
+        #expect(store.record(for: first.id) == nil, "asked again later")
+        #expect(asked.withLock { $0 } == 1, "a busy Mac isn't asked about every device in turn")
+        #expect(!service.isAvailable, "backing off")
     }
 }
 

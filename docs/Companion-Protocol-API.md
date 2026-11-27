@@ -655,7 +655,7 @@ On the phone, `RoutedIdentityService` reads the answer into a suggestion marked 
 - a user-confirmed field is never replaced;
 - if the evidence changed while the Mac answered, the answer isn't used or recorded, and the device is asked about again.
 
-Suggestions run in the background, never prompt, and go to the Mac only once the user agreed to "Let your Mac read what you type?" (whose wording covers device evidence). They go one device at a time.
+Suggestions run in the background, never prompt, and go to the Mac only once the user agreed to "Let your Mac read what you type?" (whose wording covers device evidence). They go one device at a time. After a `busy` or failed reply the phone leaves the Mac alone for 60 s (`RoutedIdentityService.defaultRetryAfter`), and the pass stops without recording that device, so it is asked about again later.
 
 ### 12. modelCancel
 
