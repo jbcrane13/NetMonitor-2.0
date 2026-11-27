@@ -71,7 +71,9 @@ final class DeviceRecordUpdaterTests {
     /// A scan that runs wholly since the phone joined its network establishes it for Ask's pings;
     /// one that a move (A to B) interrupts doesn't (#627 verification).
     @Test func onlyAScanThatRanWhollySinceTheJoinEstablishesTheNetwork() async throws {
-        let (_, context) = try makeStore()
+        // The container must outlive the context, or SwiftData traps on fetch.
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
         let discovery = MockDeviceDiscoveryService()
         let clock = Clock(start)
         let (changes, path) = AsyncStream<String>.makeStream()
