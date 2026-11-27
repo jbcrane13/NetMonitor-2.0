@@ -340,6 +340,45 @@ struct PlainRuleComposerMacTests {
     }
 }
 
+/// Over-long text: the same on both paths, with a message that can succeed (#586 review).
+@MainActor
+struct OverLongTextTests {
+    private static let long = String(repeating: "the NAS is slow ", count: 20)
+
+    @Test("a rule over the limit asks to shorten it, on this device or the Mac, and the model isn't asked")
+    func rule() async {
+        for source in [InsightSource.device, .mac] {
+            let parser = CountingParser(source: source)
+            let composer = PlainRuleComposer(parser: parser, platform: .iOS)
+            await composer.submit(Self.long, devices: [], timing: RuleTiming(targetCheckInterval: 60), targetHosts: [])
+            #expect(composer.outcome == .message(PlainRuleComposer.tooLongMessage))
+            #expect(parser.calls == 0)
+        }
+        #expect(PlainRuleComposer.tooLongMessage == "Shorten the description and try again.")
+    }
+
+    @Test("a symptom over the limit asks to shorten it, and the model isn't asked")
+    func symptom() async {
+        let state = TroubleshootState(
+            probes: MockTroubleshootProbes(), classifier: FixedSymptomClassifier(intents: [:]), insight: UnavailableInsightService(),
+            devices: { [] }, isScanning: { false }, speedBaseline: { nil }, readingInterval: .zero
+        )
+        await state.describe(Self.long)
+        #expect(state.phase == .stopped(TroubleshootState.tooLongMessage))
+    }
+}
+
+private final class CountingParser: RuleIntentParsing, @unchecked Sendable {
+    let answerSource: InsightSource
+    private(set) var calls = 0
+    init(source: InsightSource) { answerSource = source }
+    var isAvailable: Bool { true }
+    func parse(_ text: String) async -> RuleIntent? {
+        calls += 1
+        return .unsupported
+    }
+}
+
 private struct FixedSourceParser: RuleIntentParsing {
     var isAvailable: Bool { true }
     var answerSource: InsightSource { .mac }

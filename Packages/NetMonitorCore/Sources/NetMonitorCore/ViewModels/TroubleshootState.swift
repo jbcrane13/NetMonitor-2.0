@@ -109,6 +109,8 @@ public final class TroubleshootState {
 
     public static let scanMessage = "A device scan is running. Try again when it finishes."
     public static let cancelledMessage = "Cancelled. The results so far are below."
+    /// Shown for a symptom longer than the model reads (``ModelSchema/textLimit``), wherever it runs (#586).
+    public static let tooLongMessage = "Shorten the description and try again."
     /// Shown above the buttons when the Mac didn't answer: busy, gone, or too slow (#586).
     public static let macUnavailableMessage = "Your Mac couldn't read this right now. Try again in a moment, or pick one below."
     public static let nothingMeasuredMessage = "None of the checks could measure on this device or connection, so there's nothing to judge."
@@ -211,6 +213,11 @@ public final class TroubleshootState {
         guard canDescribe, !text.isEmpty, !isRunning else { return }
         guard !isScanning() else {
             stop(Self.scanMessage)
+            return
+        }
+        guard text.count <= ModelSchema.textLimit else {
+            clear()
+            stop(Self.tooLongMessage)
             return
         }
         clear()

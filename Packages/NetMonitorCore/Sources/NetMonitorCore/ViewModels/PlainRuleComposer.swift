@@ -12,6 +12,9 @@ public final class PlainRuleComposer {
     /// Who read the rule behind `outcome`: the Mac's model shows a marker (#586).
     public private(set) var answerSource: InsightSource?
 
+    /// Shown for a rule longer than the model reads (``ModelSchema/textLimit``), wherever it runs (#586).
+    public static let tooLongMessage = "Shorten the description and try again."
+
     /// Shown when the Mac didn't answer: busy, gone, or too slow (#586).
     public static let macUnavailableMessage = "Your Mac couldn't read this right now. Try again in a moment."
 
@@ -46,6 +49,12 @@ public final class PlainRuleComposer {
             isWorking = false
             outcome = nil
             answerSource = nil
+            return
+        }
+        guard text.count <= ModelSchema.textLimit else {
+            isWorking = false
+            answerSource = nil
+            outcome = .message(Self.tooLongMessage)
             return
         }
         // The model never runs while a scan does.
