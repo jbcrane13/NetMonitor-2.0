@@ -62,3 +62,4 @@ Device detail view showing comprehensive information about a single network devi
 - Theme: `../../Utilities/Theme.swift`
 
 <!-- MANUAL: -->
+- Identity suggestions (#449, #586): device detail asks `UITestFakeDeviceFeed.insightService`, which is `PhoneModel.identityService` (`RoutedIdentityService`) outside the fixed-suggestion fixture: this phone's model, else a paired Mac's `identity.v1` once the user agreed to "Let your Mac read what you type?" (never prompted from here). The badge `deviceDetail_badge_suggested` reads "Suggested by your Mac" (accessibility label "Suggested by the on-device model on your Mac") when `DeviceSuggester.suggestionSource` is `.mac`. UI tests: `DeviceIdentitySuggestionUITests` (fixed suggestion), `MacIdentityUITests` (fake Mac, `UITEST_FAKE_MAC_MODEL=1`)

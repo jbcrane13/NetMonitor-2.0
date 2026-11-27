@@ -584,11 +584,16 @@ The Mac's whole answer to one `insightRequest`, after its own grounding and text
 
 The Mac answers one request at a time (`busy` for another one meanwhile, and during a Mac scan) and gives the model 20 s. While it scans it also stops listing `insight.v1` and sends a heartbeat without it, and another when the scan ends. The phone gives up after 25 s, and at once when the link drops; the feature then falls back to its path without the model. Phone features that wait for a summary wait at least 27 s when the Mac writes it; notification bodies keep their 2 s budget.
 
-The phone sends requests only after the user agrees, once, to "Use your Mac for on-device AI?"; a Settings switch changes the answer.
+The phone sends requests only after the user agrees, once, to "Use your Mac for on-device AI?"; a Settings switch changes the answer. Since #635, each explanation runs under the consent generation it began with, as `modelRequest`s do:
+- the connection checks consent on the main actor, in the same step as the send;
+- withdrawing ends the explanation at once;
+- an answer that arrives after a withdrawal is dropped, even if the user agreed again.
+
+There's no cancel message for insight, so the Mac finishes its answer (#588 item 3).
 
 ### 10. modelRequest
 
-Asks the Mac's model to read text the user typed on a phone that can't run the model (#586). Each schema is its own capability, and the phone sends a schema only while the Mac's **latest** heartbeat lists it.
+Asks the Mac's model to read text the user typed, or a device's evidence, on a phone that can't run the model (#586). Each schema is its own capability, and the phone sends a schema only while the Mac's **latest** heartbeat lists it.
 
 **Direction:** Companion → macOS
 
@@ -597,8 +602,8 @@ Asks the Mac's model to read text the user typed on a phone that can't run the m
 | Field | Type | Description |
 |-------|------|-------------|
 | `requestID` | UUID | Fresh for each request; the Mac drops an ID already running or spent on the link |
-| `schema` | String | `rules.v1` (a plain-English alert rule, #450) or `symptoms.v1` (a troubleshooter symptom, #451). An unknown schema is answered `refused` |
-| `input` | Object | `{ "text": String }`, 1 to 300 characters. A longer text isn't sent, never cut; the Mac answers one with `tooLarge`, and a malformed input with `refused` |
+| `schema` | String | `rules.v1` (a plain-English alert rule, #450), `symptoms.v1` (a troubleshooter symptom, #451) or `identity.v1` (what a saved device is, #449). An unknown schema is answered `refused` |
+| `input` | Object | `rules.v1` and `symptoms.v1`: `{ "text": String }`, 1 to 300 characters. A longer text isn't sent, never cut; the Mac answers one with `tooLarge`, and a malformed input with `refused`. `identity.v1`: `{ "lines": [String] }`, the device's `DeviceEvidenceProjection` (see below) |
 
 The Mac takes the instructions and the answer's shape from the schema, never from the wire.
 
@@ -614,7 +619,7 @@ The Mac model's answer to one `modelRequest`, **unchecked**: the phone checks it
 |-------|------|-------------|
 | `requestID` | UUID | The request answered |
 | `schema` | String | The request's schema |
-| `output` | Object? | `rules.v1`: `kind`, `device?`, `thresholdMilliseconds?`, `durationSeconds?`, `portPreset?`. `symptoms.v1`: `kind`, `device?`, `room?`, `website?` |
+| `output` | Object? | `rules.v1`: `kind`, `device?`, `thresholdMilliseconds?`, `durationSeconds?`, `portPreset?`. `symptoms.v1`: `kind`, `device?`, `room?`, `website?`. `identity.v1`: `deviceType`, `maker?`, `model?`, `confidence` (`IdentityRaw`) |
 | `failure` | String? | As `insightResponse`: `unavailable`, `refused`, `timeout`, `tooLarge` or `busy` |
 
 The phone uses a reply only when:
@@ -633,6 +638,25 @@ A second reply for the same request finds nothing pending and is ignored.
 
 Drafts are built and reviewed on the phone before anything is saved. Text over 300 characters asks the user to "Shorten the description and try again", whichever model would read it.
 
+**Identity (`identity.v1`, #586 PR 2).** What the model reads about a device is one bounded projection, `DeviceEvidenceProjection`, and its prompt is the same bytes whether the phone's model or the Mac's reads it. It holds up to ten lines, one per label, each at most 201 characters:
+- the user's name;
+- the name the device announces;
+- the hostname and reverse DNS name;
+- the MAC-prefix maker;
+- the announced maker and the model;
+- the type;
+- the network services and open ports, with counts, and lists cut at 12.
+
+It never holds notes, addresses, MACs or the device list. The Mac accepts only lines with a known label, each once, without a line break and within the bound; anything else is `refused`.
+
+On the phone, `RoutedIdentityService` reads the answer into a suggestion marked as the Mac's ("Suggested by your Mac"), and `DeviceSuggester` checks it as it checks the local model's:
+- a claim for a field the evidence already settles (a known maker, model or type) is dropped, along with empty, "unknown" and chip-maker values and a model that repeats a name;
+- what's left stays an unverified suggestion, the lowest identity source, until the user accepts it;
+- a user-confirmed field is never replaced;
+- if the evidence changed while the Mac answered, the answer isn't used or recorded, and the device is asked about again.
+
+Suggestions run in the background, never prompt, and go to the Mac only once the user agreed to "Let your Mac read what you type?" (whose wording covers device evidence). They go one device at a time.
+
 ### 12. modelCancel
 
 The phone gave up on a request: its 13 s timeout, or the user left. It is sent only after the request itself went out.
@@ -647,14 +671,15 @@ The Mac cancels the request's task, so nothing is sent for it, and cancels the m
   - the Mac's own interactive model work runs (a typed rule or symptom, an explanation, Ask);
   - another companion request holds the slot;
   - the Mac scans;
-  - the budget of 10 companion requests per rolling minute (`ModelAdmission.defaultCompanionBudget`) is spent. A `busy` reply spends none of it.
+  - the budget of 10 companion requests per rolling minute (`ModelAdmission.defaultCompanionBudget`) is spent. A `busy` reply spends none of it;
+  - for `identity.v1`, background work, its own smaller budget of 6 per rolling minute (`defaultBackgroundBudget`) is spent. The two budgets never spend each other.
 - **Priority:** every model call on the Mac registers with `ModelAdmission`: the Mac's own interactive calls, and background identity suggestions, which never hold companion work back. A Mac request never waits. One that starts during a companion inference runs alongside it, so the worst case is sharing the model with one inference of at most 10 s. Phone requests that arrive meanwhile get `busy`.
 - **Holding the slot:** the slot is held until the request and every model call made for it have really returned (a task-local ticket, so a call in a task of its own, such as an explanation's, holds it too). A timed-out or cancelled request whose model ignores cancellation keeps it.
 - **At the model call:** the work starts inside the link's submission lock and is registered with it (`CompanionAuthorization.start`), so closing the link, which the Mac's Remove does before revoking, cancels it. The token and "Answer model requests from iPhone" are checked once more right before the model is asked (`ModelSubmission`). With the setting turned off while the model worked, no answer is sent.
 - **Timeouts:** the Mac gives the model 10 s, and the phone waits 13 s.
 - **Frame size:** model frames are capped at 16 KiB in the frame decoder on both sides. A larger one is consumed and dropped (`oversizedModelFrame`), and the link stays up. An oversized request is answered `tooLarge` at once (echoing its schema only up to 64 characters, else empty), and an oversized answer ends its request on the phone.
 
-**Advertising:** the Mac lists `rules.v1` and `symptoms.v1` while its model is available and "Answer model requests from iPhone" is on. It keeps listing them while it scans and answers `busy` then, so the phone's field doesn't come and go. An older Mac lists neither, so the phone hides the field.
+**Advertising:** the Mac lists `rules.v1`, `symptoms.v1` and `identity.v1` while its model is available and "Answer model requests from iPhone" is on. It keeps listing them while it scans and answers `busy` then, so the phone's field doesn't come and go. An older Mac lists neither, so the phone hides the field.
 
 **Consent:** the phone asks once more, separately from explanations: "Let your Mac read what you type?" The answer is stored under `netmonitor.macInsight.consent.v2` and has its own Settings switch, and a "yes" to explanations doesn't cover it. Each request runs under the consent generation it began with. Withdrawing consent cancels the request (`modelCancel`). Nothing is sent once consent is withdrawn (the connection checks it on the main actor, in the same step as the send), and an answer is dropped if the user withdrew consent meanwhile, even if they agreed again. The output is marked "Drafted by the on-device model on your Mac" or "Read by the on-device model on your Mac".
 
@@ -814,3 +839,4 @@ UnpairPayload             // The phone forgot this Mac (#590)
 | 2 | 2026-11-25 | TLS 1.3 with mutually pinned identities; pairing by QR or typed code with a comparison code; `serverHello`, `pairRequest`, `pairChallenge`, `pairResult`, `unpair`; TXT `pv` and `mac` (#590). |
 | 2 | 2026-11-26 | `inventory.v1`: optional `deviceList.network` (always sent by such a Mac, with its routed gateway), `DeviceInfo.lastSeenAge`, `lastChangedAge` and `identity`; the Mac pushes the list after each scan, capped to one frame (#585, #427). Wire version unchanged. |
 | 2 | 2026-11-26 | `rules.v1` and `symptoms.v1`: `modelRequest`, `modelResponse` and `modelCancel`, for a phone that can't run the model; the phone checks the Mac's unchecked answer itself (#586). Wire version unchanged. |
+| 2 | 2026-11-27 | `identity.v1`: a device's bounded evidence projection in, an unchecked identity answer out, under a background budget; insight requests honour consent withdrawal (#586 PR 2, #635). Wire version unchanged. |

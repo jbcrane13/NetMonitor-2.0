@@ -39,7 +39,10 @@ struct CompanionSettingsView: View {
                     // iPhone that can't run one.
                     Toggle(isOn: $answersInsight) {
                         Text("Answer model requests from iPhone")
-                        Text("Explanations, summaries, the rules and problems typed on the iPhone, and what its devices are. Nothing is kept on this Mac.")
+                        Text(
+                            "Explanations, summaries, the rules and problems typed on the iPhone, and what its devices are. "
+                                + "Nothing is kept on this Mac."
+                        )
                     }
                     .accessibilityIdentifier("settings_toggle_answersInsight")
                 }
