@@ -85,3 +85,33 @@ public final class MacInsightConsent: Sendable, Observable {
         withdrawn.forEach { $0() }
     }
 }
+
+/// Work under one "yes" (#586, #635): valid while that answer stands, even across a withdraw and
+/// agree-again, after which it isn't.
+public struct ConsentGeneration: Sendable {
+    let consent: MacInsightConsent
+    let generation: Int
+
+    /// Whether the answer this began under still stands.
+    public var isCurrent: @Sendable () -> Bool {
+        { [consent, generation] in consent.allowedGeneration == generation }
+    }
+
+    /// Calls `handler` when the user withdraws this answer, or at once if they already did between
+    /// the check and now. Returns what removes the handler.
+    public func onWithdrawal(_ handler: @escaping @Sendable () -> Void) -> @Sendable () -> Void {
+        let id = consent.addWithdrawalHandler(handler)
+        let consent = consent
+        if !isCurrent() {
+            handler()
+        }
+        return { consent.removeWithdrawalHandler(id) }
+    }
+}
+
+extension MacInsightConsent {
+    /// The current "yes", to run work under; nil when the user hasn't agreed.
+    public var currentGeneration: ConsentGeneration? {
+        allowedGeneration.map { ConsentGeneration(consent: self, generation: $0) }
+    }
+}

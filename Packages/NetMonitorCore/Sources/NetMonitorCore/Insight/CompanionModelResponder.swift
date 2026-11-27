@@ -126,9 +126,7 @@ public struct CompanionModelResponder: Sendable {
         guard isAllowed(), model.isAvailable else { return failure(.unavailable) }
         let scanning = await isScanning()
         guard authorization.isCurrent() else { return failure(.unavailable) }
-        // Identity is a phone's background pass: its own, lower-priority budget.
-        let priority: ModelAdmission.Priority = input.schema == .identity ? .background : .interactive
-        guard !scanning, let ticket = admission.admitCompanion(priority) else { return failure(.busy) }
+        guard !scanning, let ticket = admission.admitCompanion(input.schema.priority) else { return failure(.busy) }
 
         let isAllowed = isAllowed
         let started = Mutex(false)

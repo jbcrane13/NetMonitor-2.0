@@ -247,15 +247,13 @@ public struct RoutedInsightService: InsightServiceProtocol {
         }
         // Under the consent generation it began with (#635): nothing is sent, and no answer used,
         // once the user withdrew it, even if they agreed again; withdrawing ends it at once.
-        guard let generation = consent.allowedGeneration else {
+        guard let scope = consent.currentGeneration else {
             return AsyncStream { continuation in
                 continuation.yield(.unreachable)
                 continuation.finish()
             }
         }
-        let consent = consent
-        let isCurrent: @Sendable () -> Bool = { consent.allowedGeneration == generation }
-        let answers = mac.explain(request, while: isCurrent)
+        let answers = mac.explain(request, while: scope.isCurrent)
         return AsyncStream { continuation in
             let relay = Task {
                 for await update in answers {
@@ -265,20 +263,14 @@ public struct RoutedInsightService: InsightServiceProtocol {
             }
             // The final update goes out before the relay is cancelled, so its own finish can't
             // overtake it.
-            let handler = consent.addWithdrawalHandler {
+            let remove = scope.onWithdrawal {
                 continuation.yield(.unreachable)
                 continuation.finish()
                 relay.cancel()
             }
             continuation.onTermination = { _ in
                 relay.cancel()
-                consent.removeWithdrawalHandler(handler)
-            }
-            // Withdrawn between the check and registering the handler.
-            if !isCurrent() {
-                continuation.yield(.unreachable)
-                continuation.finish()
-                relay.cancel()
+                remove()
             }
         }
     }

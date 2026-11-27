@@ -647,7 +647,13 @@ Drafts are built and reviewed on the phone before anything is saved. Text over 3
 - the type;
 - the network services and open ports, with counts, and lists cut at 12.
 
-It never holds notes, addresses, MACs or the device list. The Mac accepts only lines with a known label, each once, without a line break and within the bound; anything else is `refused`.
+It never holds notes, address or MAC fields, or the device list. Names and hostnames are free text the device or the user chose and may contain anything, an address included; that's acceptable because the local model reads the same text and the consent wording names them. The Mac accepts only:
+- lines with a known label, each once;
+- no line break;
+- each line within the character bound, and at most 4 KiB in all (`byteLimit`);
+- service and port lists of at most 12 items, ending in "and K more" only after a full list, with a count that matches (and ports as numbers).
+
+Anything else is `refused`.
 
 On the phone, `RoutedIdentityService` reads the answer into a suggestion marked as the Mac's ("Suggested by your Mac"), and `DeviceSuggester` checks it as it checks the local model's:
 - a claim for a field the evidence already settles (a known maker, model or type) is dropped, along with empty, "unknown" and chip-maker values and a model that repeats a name;
@@ -655,7 +661,14 @@ On the phone, `RoutedIdentityService` reads the answer into a suggestion marked 
 - a user-confirmed field is never replaced;
 - if the evidence changed while the Mac answered, the answer isn't used or recorded, and the device is asked about again.
 
-Suggestions run in the background, never prompt, and go to the Mac only once the user agreed to "Let your Mac read what you type?" (whose wording covers device evidence). They go one device at a time. After a `busy` or failed reply the phone leaves the Mac alone for 60 s (`RoutedIdentityService.defaultRetryAfter`), and the pass stops without recording that device, so it is asked about again later.
+Suggestions run in the background, never prompt, and go to the Mac only once the user agreed to "Let your Mac read what you type and your device details?" (whose wording covers device evidence). Scheduling (#642 review):
+- They go one device at a time.
+- Device detail asks only once the evidence has stayed the same for 0.8 s, and never during the phone's own scan: it waits for the scan to end, and a scan starting mid-ask cancels the ask, which records nothing, and asks again after.
+- `refused`, `timeout`, `tooLarge` and an oversized projection are recorded against that device's evidence, like a local failure, so the device isn't re-sent on every trigger.
+- `busy` backs off 15 s (`busyRetryAfter`), and a link failure 30 s (`linkRetryAfter`). The pass then stops without recording, so the device is asked about again later.
+- A `busy` within 13 s of the phone giving up on a request is the Mac still finishing that request, so it is retried every 2 s instead of backed off.
+- Consent withdrawal, a disconnect or the caller's cancel never back off.
+- A suggestion recorded for older evidence is dropped on every path, and its type is never shown or accepted.
 
 ### 12. modelCancel
 
@@ -667,9 +680,9 @@ The Mac cancels the request's task, so nothing is sent for it, and cancels the m
 
 **Limits and gates on the Mac:**
 - **Per link:** model requests count with `insightRequest`s against the per-link cap of 2. Over the cap the reply is `busy`, sent in the receive batch rather than on a task of its own.
-- **One slot (`ModelAdmission`):** the whole Mac has one companion model slot, shared with `insight.v1`. The reply is `busy` while:
+- **Two slots (`ModelAdmission`):** the whole Mac has one interactive companion slot, shared by typed requests and `insight.v1`, and one background slot for `identity.v1`. So at most two companion inferences run at once, and a phone's background identity never makes a typed request busy. A request the model never ran for (cancelled, revoked, turned off) is refunded its budget. The reply is `busy` while:
   - the Mac's own interactive model work runs (a typed rule or symptom, an explanation, Ask);
-  - another companion request holds the slot;
+  - another companion request holds the same slot;
   - the Mac scans;
   - the budget of 10 companion requests per rolling minute (`ModelAdmission.defaultCompanionBudget`) is spent. A `busy` reply spends none of it;
   - for `identity.v1`, background work, its own smaller budget of 6 per rolling minute (`defaultBackgroundBudget`) is spent. The two budgets never spend each other.
@@ -679,9 +692,9 @@ The Mac cancels the request's task, so nothing is sent for it, and cancels the m
 - **Timeouts:** the Mac gives the model 10 s, and the phone waits 13 s.
 - **Frame size:** model frames are capped at 16 KiB in the frame decoder on both sides. A larger one is consumed and dropped (`oversizedModelFrame`), and the link stays up. An oversized request is answered `tooLarge` at once (echoing its schema only up to 64 characters, else empty), and an oversized answer ends its request on the phone.
 
-**Advertising:** the Mac lists `rules.v1`, `symptoms.v1` and `identity.v1` while its model is available and "Answer model requests from iPhone" is on. It keeps listing them while it scans and answers `busy` then, so the phone's field doesn't come and go. An older Mac lists neither, so the phone hides the field.
+**Advertising:** the Mac lists all three schemas, `rules.v1`, `symptoms.v1` and `identity.v1`, while its model is available and "Answer model requests from iPhone" is on. It keeps listing them while it scans and answers `busy` then, so the phone's fields don't come and go, and identity suggestions back off instead. An older Mac lists none of them: the phone then hides the rule and symptom fields and asks only its own model about devices.
 
-**Consent:** the phone asks once more, separately from explanations: "Let your Mac read what you type?" The answer is stored under `netmonitor.macInsight.consent.v2` and has its own Settings switch, and a "yes" to explanations doesn't cover it. Each request runs under the consent generation it began with. Withdrawing consent cancels the request (`modelCancel`). Nothing is sent once consent is withdrawn (the connection checks it on the main actor, in the same step as the send), and an answer is dropped if the user withdrew consent meanwhile, even if they agreed again. The output is marked "Drafted by the on-device model on your Mac" or "Read by the on-device model on your Mac".
+**Consent:** the phone asks once more, separately from explanations: "Let your Mac read what you type and your device details?" The answer is stored under `netmonitor.macInsight.consent.v2` and has its own Settings switch, and a "yes" to explanations doesn't cover it. Each request runs under the consent generation it began with. Withdrawing consent cancels the request (`modelCancel`). Nothing is sent once consent is withdrawn (the connection checks it on the main actor, in the same step as the send), and an answer is dropped if the user withdrew consent meanwhile, even if they agreed again. The output is marked "Drafted by the on-device model on your Mac" or "Read by the on-device model on your Mac".
 
 ---
 

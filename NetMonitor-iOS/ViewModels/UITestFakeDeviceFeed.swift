@@ -32,12 +32,6 @@ final class UITestFakeDeviceFeed {
     /// Whether the devices are the identity fixture: no MAC-prefix maker, and listed in detail's scan.
     static let isIdentityFixture: Bool = suggestsIdentity || asksMacForIdentity
 
-    /// The insight service device detail asks for suggestions: the fixed suggestion under the
-    /// fixture, otherwise this phone's model, else a paired Mac (#586).
-    static var insightService: any InsightServiceProtocol {
-        suggestsIdentity ? FixedSuggestionInsightService() : PhoneModel.identityService
-    }
-
     private(set) var tick: Int = 0
     private var task: Task<Void, Never>?
 

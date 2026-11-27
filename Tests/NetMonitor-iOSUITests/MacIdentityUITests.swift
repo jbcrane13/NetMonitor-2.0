@@ -21,9 +21,9 @@ final class MacIdentityUITests: PresenceUITestCase {
     }
 
     func testTheMacSuggestsWhatADeviceIsAndAcceptKeepsItThenNothingWhenItLeaves() {
-        pairWithFakeMac()
+        pairWithIdentityMac(code: Self.code)
 
-        openDevice(at: 0)
+        openIdentityDevice(at: 0)
         let badge = ui("deviceDetail_badge_suggested")
         requireExists(badge, timeout: 15, message: "Device detail should show the Mac's suggestion")
         XCTAssertEqual(badge.label, "Suggested by the on-device model on your Mac")
@@ -41,12 +41,12 @@ final class MacIdentityUITests: PresenceUITestCase {
         keepRegion(from: ui("deviceDetail_row_hostname"), to: ui("deviceDetail_row_deviceType"), named: "586-pr2-03-accepted-identity")
 
         // The Mac leaves: another device gets no suggestion.
-        openSettings()
+        openIdentitySettings()
         let leaves = app.buttons["settings_button_uitestFakeMacLeaves"]
         scrollToElement(leaves)
         requireExists(leaves, timeout: 5, message: "The UI-test control for the fake Mac leaving").tap()
         XCTAssertTrue(app.staticTexts["Connected"].waitForNonExistence(timeout: 30), "The link drops")
-        openDevice(at: 1)
+        openIdentityDevice(at: 1)
         XCTAssertFalse(ui("deviceDetail_badge_suggested").waitForExistence(timeout: 8), "No capable Mac: no suggestion")
         XCTAssertFalse(app.staticTexts["Brother"].exists, "Nothing suggested for this device")
         let type = ui("deviceDetail_row_deviceType")
@@ -73,8 +73,38 @@ final class MacIdentityUITests: PresenceUITestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+}
 
-    private func openDevice(at index: Int) {
+/// #642 review: the fake Mac's model takes 4 s over each identity request and answers `busy` to
+/// another meanwhile (`UITEST_FAKE_MAC_IDENTITY_DELAY=4`). Device detail asks once the evidence has
+/// settled, and a re-ask after the phone's own cancel retries past the `busy`, so the first open of
+/// a device still ends with the Mac's suggestion.
+@MainActor
+final class MacIdentitySlowMacUITests: PresenceUITestCase {
+    private static let code = "14D2P-F2DBS-QQG28-T5CY4-TQKFF-K"
+
+    override var additionalLaunchArguments: [String] { ["--fake-mac-pairing"] }
+    override var additionalLaunchEnvironment: [String: String] {
+        [
+            "UITEST_PAIRING_CODE": Self.code, "UITEST_FAKE_DEVICES": "1", "UITEST_FAKE_MAC_MODEL": "1",
+            "UITEST_MAC_READING_CONSENT": "agreed", "UITEST_FAKE_MAC_IDENTITY_DELAY": "4"
+        ]
+    }
+
+    func testTheFirstOpenEndsWithTheSuggestionFromASlowMac() {
+        pairWithIdentityMac(code: Self.code)
+        openIdentityDevice(at: 2)
+        let badge = ui("deviceDetail_badge_suggested")
+        requireExists(badge, timeout: 30, message: "A slow Mac's suggestion should still arrive on the first open")
+        XCTAssertEqual(badge.label, "Suggested by the on-device model on your Mac")
+        keepCroppedEvidence(badge, named: "586-pr2-05-slow-mac-first-open")
+    }
+}
+
+// MARK: - Shared steps
+
+extension PresenceUITestCase {
+    func openIdentityDevice(at index: Int) {
         app.tabBars.buttons["Dashboard"].tap()
         app.tabBars.buttons["Dashboard"].tap()
         let devicesCard = ui("dashboard_card_localDevices")
@@ -88,7 +118,7 @@ final class MacIdentityUITests: PresenceUITestCase {
         requireExists(ui("screen_deviceDetail"), timeout: 5, message: "Device detail should open")
     }
 
-    private func openSettings() {
+    func openIdentitySettings() {
         requireExists(app.tabBars.buttons["Dashboard"], message: "Dashboard tab should exist").tap()
         app.tabBars.buttons["Dashboard"].tap()
         let settingsButton = app.buttons["dashboard_button_settings"]
@@ -100,15 +130,15 @@ final class MacIdentityUITests: PresenceUITestCase {
         requireExists(app.byID("screen_settings"), timeout: 8, message: "Settings screen should open")
     }
 
-    private func pairWithFakeMac() {
-        openSettings()
+    func pairWithIdentityMac(code: String) {
+        openIdentitySettings()
         let connect = app.buttons["settings_button_connectMac"]
         scrollToElement(connect)
         requireExists(connect, message: "Connect to Mac").tap()
         requireExists(app.buttons["pairing_row_Test Mac"], timeout: 8, message: "The fake Mac should be listed").tap()
         let field = requireExists(app.textFields["pairMac_textfield_code"], timeout: 5, message: "The code field should show")
         field.tap()
-        field.typeText(Self.code + "\n")
+        field.typeText(code + "\n")
         requireExists(app.buttons["pairMac_button_pairWithCode"], message: "Pair button").tap()
         requireExists(app.buttons["pairMac_button_codesMatch"], timeout: 8, message: "They Match").tap()
         requireExists(app.staticTexts["pairMac_label_paired"], timeout: 10, message: "The Mac confirms and the phone pins it")

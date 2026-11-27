@@ -458,6 +458,7 @@
 		A4A7A4B2DE9D49BFB584198B /* HeatmapFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66FCAD51E87A57B8106A76CD /* HeatmapFileManager.swift */; };
 		A54314E8E3293B7BB7143711 /* TargetDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ACB49335F3CB363011F78FE /* TargetDefaults.swift */; };
 		A5722676B309E4D7FDB7BF60 /* WHOISServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDC3E1DEFE0846C19ABCF548 /* WHOISServiceTests.swift */; };
+		A5E669EAD66106FEFD3B0E58 /* DeviceDetailViewModel+Suggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED97DCC3B6412BBBD0EA919 /* DeviceDetailViewModel+Suggestion.swift */; };
 		A60BB1F96426C2EEB1A11D73 /* AppModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F6E892F5A3A330429CC0D2 /* AppModelStore.swift */; };
 		A657E05ACEFDF739E90F383D /* PlainRuleScannedDeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB02CAA59EEBEF509BFC5D3 /* PlainRuleScannedDeviceTests.swift */; };
 		A6FBE54756B2D0B6C3F1CDF2 /* ios-v2.3-default.store in Resources */ = {isa = PBXBuildFile; fileRef = AC7FE1ED13EE7CF89E441A34 /* ios-v2.3-default.store */; };
@@ -1077,6 +1078,7 @@
 		7E2E68CE5130741DF431B4CB /* AskUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskUITests.swift; sourceTree = "<group>"; };
 		7E935FD9F4B76C814261581F /* CompanionMembersGroupingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionMembersGroupingTests.swift; sourceTree = "<group>"; };
 		7E9C652B7C4CCD58817A5041 /* MacAlertDispatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAlertDispatcherTests.swift; sourceTree = "<group>"; };
+		7ED97DCC3B6412BBBD0EA919 /* DeviceDetailViewModel+Suggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DeviceDetailViewModel+Suggestion.swift"; sourceTree = "<group>"; };
 		7EED0AE800C74EEAF77F9DF5 /* ToolRunButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolRunButton.swift; sourceTree = "<group>"; };
 		7EFDAA7B926E1597541829DB /* EventListenerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventListenerService.swift; sourceTree = "<group>"; };
 		7F3D104B92118BB96E87C4E1 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -1582,6 +1584,7 @@
 				91D34A17E8BFC3829CC161AA /* DeviceDetailViewModel.swift */,
 				F0F0670F501A693F4B7D8E7B /* DeviceDetailViewModel+Grouping.swift */,
 				325EC0EBAFC98BC47F7873D6 /* DeviceDetailViewModel+Interfaces.swift */,
+				7ED97DCC3B6412BBBD0EA919 /* DeviceDetailViewModel+Suggestion.swift */,
 				E26C9F931AD96DF31EB44C9A /* DNSLookupToolViewModel.swift */,
 				1A442A04A1D5C91B75152740 /* GeoTraceViewModel.swift */,
 				6791657706821C08F331AB13 /* HeatmapSurveyViewModel.swift */,
@@ -3265,6 +3268,7 @@
 				194EE73D3283999F3304585E /* DeviceDetailView.swift in Sources */,
 				BC1DA010DF5476758687F8D4 /* DeviceDetailViewModel+Grouping.swift in Sources */,
 				AD400A11EBFB74E1F3A61B3C /* DeviceDetailViewModel+Interfaces.swift in Sources */,
+				A5E669EAD66106FEFD3B0E58 /* DeviceDetailViewModel+Suggestion.swift in Sources */,
 				85EE6279FE466C8293D9C413 /* DeviceDetailViewModel.swift in Sources */,
 				2A227DD15EB3C31E2385B24F /* DeviceInterfacesSection.swift in Sources */,
 				8F7A9368E876A861DAE933F1 /* DeviceListView.swift in Sources */,

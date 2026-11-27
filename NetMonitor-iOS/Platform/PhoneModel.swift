@@ -14,7 +14,7 @@ enum PhoneModel {
         await MacConnectionService.shared.sendModel(message, on: link, if: isWanted)
     })
 
-    /// The user's answer to "Let your Mac read what you type?".
+    /// The user's answer to "Let your Mac read what you type and your device details?".
     static let consent: MacInsightConsent = UITestFakeMacModel.consent
         ?? MacInsightConsent(defaults: .standard, key: MacInsightConsent.readingDefaultsKey)
 

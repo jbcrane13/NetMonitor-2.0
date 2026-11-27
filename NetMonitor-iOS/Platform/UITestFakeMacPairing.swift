@@ -32,6 +32,10 @@ final class FakeCompanionMac: Sendable {
     /// Whether this Mac reads typed rules and symptoms (#586): it advertises `rules.v1` and
     /// `symptoms.v1` and answers from `modelAnswers`.
     private let answersModel: Bool
+    /// How long this Mac's stand-in model takes over an identity request (#642 review): it holds
+    /// its slot that long, answers `busy` to another identity request meanwhile, and sends nothing
+    /// for a request the phone cancelled. Zero answers at once.
+    private let identityDelay: Duration
     private let state = Mutex(State())
 
     /// One link's fixed facts.
@@ -48,6 +52,9 @@ final class FakeCompanionMac: Sendable {
         var connectionCount = 0
         /// Pairing links waiting for both verdicts: link → (phone pin, Mac said yes, phone said yes).
         var verdicts: [UUID: (pin: Data, mac: Bool, phone: Bool)] = [:]
+        /// While the stand-in model works on an identity request.
+        var identityBusyUntil: ContinuousClock.Instant?
+        var cancelledRequests: Set<UUID> = []
     }
 
     init(
@@ -60,8 +67,10 @@ final class FakeCompanionMac: Sendable {
         revealsWrongNonce: Bool = false,
         dropsConnections: Bool = false,
         inventory: DeviceListPayload? = nil,
-        answersModel: Bool = false
+        answersModel: Bool = false,
+        identityDelay: Duration = .zero
     ) throws {
+        self.identityDelay = identityDelay
         self.inventory = inventory
         self.answersModel = answersModel
         self.name = name
@@ -199,8 +208,11 @@ final class FakeCompanionMac: Sendable {
             if case .command(let command) = message, command.action == .refreshDevices, let inventory {
                 send(.deviceList(inventory), on: connection)
             }
+            if case .modelCancel(let cancel) = message {
+                _ = state.withLock { $0.cancelledRequests.insert(cancel.requestID) }
+            }
             if case .modelRequest(let request) = message, answersModel {
-                send(.modelResponse(Self.modelAnswer(to: request)), on: connection)
+                answer(request, on: connection)
             }
         case .pairRequest:
             guard case .pairRequest(let request) = message,
@@ -278,6 +290,35 @@ final class FakeCompanionMac: Sendable {
         }
     }
 
+    /// Answers a model request: at once, or, for identity with `identityDelay`, after holding its
+    /// slot that long (another identity request meanwhile is busy, a cancelled one gets nothing).
+    private func answer(_ request: ModelRequestPayload, on connection: NWConnection) {
+        guard case .identity? = request.input, identityDelay > .zero else {
+            send(.modelResponse(Self.modelAnswer(to: request)), on: connection)
+            return
+        }
+        let now = ContinuousClock.now
+        let delay = identityDelay
+        let busy = state.withLock { state in
+            if let until = state.identityBusyUntil, now < until {
+                return true
+            }
+            state.identityBusyUntil = now + delay
+            return false
+        }
+        guard !busy else {
+            send(.modelResponse(ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .busy)), on: connection)
+            return
+        }
+        Task {
+            try? await Task.sleep(for: delay)
+            let cancelled = self.state.withLock { $0.cancelledRequests.contains(request.requestID) }
+            if !cancelled {
+                self.send(.modelResponse(Self.modelAnswer(to: request)), on: connection)
+            }
+        }
+    }
+
     /// Pins the phone once both the stand-in user and the phone have said yes.
     private func recordVerdict(link: UUID, mac: Bool = false, phone: Bool = false, on connection: NWConnection) {
         let complete: Data? = state.withLock { state in
@@ -320,7 +361,8 @@ enum UITestFakeMacPairing {
         let inventory = environment["UITEST_FAKE_MAC_INVENTORY"] == "1" ? inventoryFixture : nil
         guard let fake = try? FakeCompanionMac(
             port: port, code: code, confirmDelay: .seconds(3), inventory: inventory,
-            answersModel: environment["UITEST_FAKE_MAC_MODEL"] == "1"
+            answersModel: environment["UITEST_FAKE_MAC_MODEL"] == "1",
+            identityDelay: .seconds(Int(environment["UITEST_FAKE_MAC_IDENTITY_DELAY"] ?? "") ?? 0)
         ) else { return nil }
         Task { _ = try? await fake.start() }
         return fake

@@ -36,19 +36,13 @@ public struct MacModelRoute: Sendable {
 
     /// As `request`, with why there's no answer: `busy`, or `unavailable` for everything else.
     func result(_ input: ModelInput) async -> ModelClientResult {
-        let consent = consent
-        guard let generation = consent.allowedGeneration else { return .unavailable }
-        let isCurrent: @Sendable () -> Bool = { consent.allowedGeneration == generation }
+        guard let scope = consent.currentGeneration else { return .unavailable }
         let mac = mac
-        let work = Task { await mac.request(input, while: isCurrent) }
-        let handler = consent.addWithdrawalHandler { work.cancel() }
-        defer { consent.removeWithdrawalHandler(handler) }
-        // Withdrawn between the check and registering the handler.
-        if !isCurrent() {
-            work.cancel()
-        }
+        let work = Task { await mac.request(input, while: scope.isCurrent) }
+        let remove = scope.onWithdrawal { work.cancel() }
+        defer { remove() }
         let result = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
-        return isCurrent() ? result : .unavailable
+        return scope.isCurrent() ? result : .unavailable
     }
 }
 

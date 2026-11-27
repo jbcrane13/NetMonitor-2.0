@@ -14,6 +14,12 @@ public enum ModelSchema: String, Sendable, CaseIterable {
     /// Background work, under its own lower-priority budget.
     case identity = "identity.v1"
 
+    /// The companion slot and budget a request under this schema uses on the Mac: identity is a
+    /// phone's background pass, the rest are interactive (#642 review).
+    public var priority: ModelAdmission.Priority {
+        self == .identity ? .background : .interactive
+    }
+
     /// The longest text a request may carry; a longer one isn't sent, never cut.
     public static let textLimit = 300
     /// The longest text field in an answer; a longer one fails the answer, never cut.
@@ -47,12 +53,13 @@ public enum ModelInput: Sendable, Equatable {
         }
     }
 
-    /// Whether the input is within its bounds: typed text non-empty and within
-    /// ``ModelSchema/textLimit``; evidence lines as `DeviceEvidenceProjection(lines:)` accepts them.
+    /// Whether typed text is non-empty and within ``ModelSchema/textLimit``. Evidence lines are
+    /// bounded where they are built and checked where they are decoded (`DeviceEvidenceProjection`),
+    /// so identity input is always within its bounds here.
     public var isWithinLimits: Bool {
         switch self {
         case .rules(let text), .symptoms(let text): !text.isEmpty && text.count <= ModelSchema.textLimit
-        case .identity(let projection): DeviceEvidenceProjection(lines: projection.lines) != nil
+        case .identity: true
         }
     }
 }
