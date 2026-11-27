@@ -101,7 +101,7 @@ struct CompanionModelClientTests {
         // A reply on its own link for another schema breaks the rules: the request fails at once,
         // rather than waiting out its timeout for an answer this Mac won't give.
         client.received(ModelResponsePayload(requestID: id, output: .symptoms(SymptomIntentRaw(kind: "weakWiFi"))), onLink: linkID)
-        #expect(await result.value == .unavailable)
+        #expect(await result.value == .refused)
         #expect(ContinuousClock.now - started < .seconds(2))
     }
 
@@ -170,7 +170,7 @@ struct CompanionModelClientTests {
     func tooLong() async {
         let (client, link) = Self.makeClient()
         client.received(heartbeat: Self.offering, onLink: UUID())
-        #expect(await client.request(.rules(text: String(repeating: "a", count: ModelSchema.textLimit + 1))) == .unavailable)
+        #expect(await client.request(.rules(text: String(repeating: "a", count: ModelSchema.textLimit + 1))) == .refused)
         #expect(link.sent.isEmpty)
     }
 

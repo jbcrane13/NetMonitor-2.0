@@ -1,7 +1,7 @@
 import XCTest
 
 /// #586 user flow: on an iPhone whose own model can't run, a paired Mac reads what the user types.
-/// The first typed rule asks "Let your Mac read what you type?"; after "Use My Mac" the rule comes
+/// The first typed rule asks "Let your Mac read what you type and your device details?"; after "Use My Mac" the rule comes
 /// back as a draft marked as drafted by the Mac's model, and a typed symptom starts its checks marked
 /// as read by the Mac's model. When the Mac leaves, the troubleshooter's field goes and the buttons
 /// stay: the path without the model.
@@ -27,7 +27,7 @@ final class MacModelUITests: PresenceUITestCase {
         app.tabBars.buttons["Dashboard"].tap()
         app.tabBars.buttons["Dashboard"].tap()
         describeRule("scan web ports on the printer")
-        let alert = app.alerts["Let your Mac read what you type?"]
+        let alert = app.alerts["Let your Mac read what you type and your device details?"]
         requireExists(alert, timeout: 5, message: "The first typed rule should ask before anything is sent")
         keepCroppedEvidence(alert, named: "586-01-consent")
         alert.buttons["Use My Mac"].firstMatch.tap()

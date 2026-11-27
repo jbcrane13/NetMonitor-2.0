@@ -1,5 +1,6 @@
 import Foundation
 import NetworkScanKit
+import Synchronization
 import Testing
 @testable import NetMonitorCore
 
@@ -303,7 +304,11 @@ struct DeviceSuggesterTests {
         #expect(device.identity.model == IdentityValue("L-BDG2", source: .hostnameGuess))
         device.mergeIdentity(DeviceIdentity(maker: IdentityValue("Lutron Electronics", source: .upnp)))
         #expect(device.identity.maker == IdentityValue("Lutron Electronics", source: .upnp))
-        #expect(suggester.isShowingSuggestion(device)) // the type is still suggested
+        // The evidence changed, so the type suggested for the old evidence isn't shown (#642 review)
+        // until the next pass asks about the new evidence; then it is suggested again.
+        #expect(!suggester.isShowingSuggestion(device))
+        await suggester.suggest(for: [device])
+        #expect(suggester.isShowingSuggestion(device)) // the type is suggested for the new evidence
 
         device.deviceType = .iot
         #expect(!suggester.isShowingSuggestion(device))
@@ -383,5 +388,156 @@ private final class ActingInsightService: InsightServiceProtocol, @unchecked Sen
             during?()
         }
         return answer
+    }
+}
+
+// MARK: - #586 PR 2: suggestions from the Mac get the same checks
+
+extension DeviceSuggesterTests {
+    @Test("evidence that changes while the model answers: the answer isn't used, and the device is asked again later")
+    func evidenceChangedDuringTheAnswer() async {
+        let device = bridge()
+        let service = ActingInsightService(answer: lutron)
+        service.during = { device.hostname = "renamed-bridge.lan" }
+        let suggester = DeviceSuggester(service: service, store: store)
+        await suggester.suggest(for: [device])
+        #expect(device.identity.maker == nil, "nothing from an answer about evidence that no longer stands")
+        #expect(store.record(for: device.id) == nil, "not recorded, so the new evidence gets asked about")
+    }
+
+    @Test("a user-confirmed maker stays; a suggestion never replaces it")
+    func userConfirmedStays() async {
+        let device = bridge()
+        device.mergeIdentity(DeviceIdentity(maker: IdentityValue("Acme", source: .userConfirmed)))
+        let fromMac = DeviceSuggestion(deviceType: .iot, maker: "Lutron", model: "Caseta Smart Bridge", confidence: .high, source: .mac)
+        await DeviceSuggester(service: MockInsightService(suggestion: fromMac), store: store).suggest(for: [device])
+        #expect(device.identity.maker?.value == "Acme")
+        #expect(device.identity.maker?.source == .userConfirmed)
+    }
+
+    @Test("the suggestion remembers who wrote it, for the marker")
+    func sourceIsKept() async {
+        let device = bridge()
+        let fromMac = DeviceSuggestion(deviceType: .iot, maker: "Lutron", model: "Caseta Smart Bridge", confidence: .high, source: .mac)
+        let suggester = DeviceSuggester(service: MockInsightService(suggestion: fromMac), store: store)
+        await suggester.suggest(for: [device])
+        #expect(suggester.suggestionSource(for: device) == .mac)
+        await DeviceSuggester(service: MockInsightService(suggestion: lutron), store: store).suggest(for: [bridge()])
+        #expect(suggester.suggestionSource(for: bridge()) == nil, "no suggestion for a device never asked about")
+    }
+}
+
+extension DeviceSuggesterTests {
+    @Test("the Mac busy: nothing recorded, the pass stops, and the device is asked again after the back-off")
+    func busyMacIsNotRecorded() async {
+        let first = bridge()
+        let second = LocalDevice(ipAddress: "192.168.2.71", macAddress: "00:17:88:00:00:02", hostname: "hue-bridge.lan")
+        let asked = Mutex(0)
+        let box = Mutex<CompanionModelClient?>(nil)
+        let mac = CompanionModelClient(send: { message, link, _ in
+            guard case .modelRequest(let request) = message else { return true }
+            asked.withLock { $0 += 1 }
+            box.withLock { $0 }?.received(ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .busy), onLink: link)
+            return true
+        })
+        box.withLock { $0 = mac }
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
+        let service = RoutedIdentityService(
+            local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true)
+        )
+        await DeviceSuggester(service: service, store: store).suggest(for: [first, second])
+        #expect(store.record(for: first.id) == nil, "asked again later")
+        #expect(asked.withLock { $0 } == 1, "a busy Mac isn't asked about every device in turn")
+        #expect(!service.isAvailable, "backing off")
+    }
+}
+
+extension DeviceSuggesterTests {
+    @Test("new evidence and a busy Mac: the old pending suggestion goes, so no stale type can be accepted")
+    func busyMacDropsTheStaleSuggestion() async {
+        let device = bridge()
+        let old = DeviceSuggestionStore.Record(fingerprint: "old-evidence", suggestion: DeviceSuggestion(deviceType: .camera, confidence: .high))
+        store.setRecord(old, for: device.id)
+        let box = Mutex<CompanionModelClient?>(nil)
+        let mac = CompanionModelClient(send: { message, link, _ in
+            guard case .modelRequest(let request) = message else { return true }
+            box.withLock { $0 }?.received(ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .busy), onLink: link)
+            return true
+        })
+        box.withLock { $0 = mac }
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
+        let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
+        let suggester = DeviceSuggester(service: service, store: store)
+        await suggester.suggest(for: [device])
+        #expect(suggester.suggestedType(for: device) == nil, "the camera was suggested for evidence that no longer stands")
+        #expect(store.record(for: device.id) == nil, "and the new evidence stays unrecorded, to be asked about again")
+    }
+}
+
+extension DeviceSuggesterTests {
+    private func staleRecord(for device: LocalDevice) {
+        store.setRecord(
+            DeviceSuggestionStore.Record(fingerprint: "old-evidence", suggestion: DeviceSuggestion(deviceType: .camera, confidence: .high)),
+            for: device.id
+        )
+    }
+
+    @Test("a type suggested for older evidence is never shown or accepted")
+    func staleTypeIsNotShown() {
+        let device = bridge()
+        staleRecord(for: device)
+        let suggester = DeviceSuggester(service: UnavailableInsightService(), store: store)
+        #expect(suggester.suggestedType(for: device) == nil)
+        suggester.accept(device)
+        #expect(device.deviceType == .unknown)
+    }
+
+    @Test("evidence changed during the answer: the older suggestion goes too")
+    func staleDroppedWhenEvidenceChanges() async {
+        let device = bridge()
+        staleRecord(for: device)
+        let service = ActingInsightService(answer: lutron)
+        service.during = { device.hostname = "renamed-bridge.lan" }
+        await DeviceSuggester(service: service, store: store).suggest(for: [device])
+        #expect(store.record(for: device.id) == nil)
+    }
+
+    @Test("no service (the Mac gone): an older suggestion is dropped, not left showing")
+    func staleDroppedWhenTheMacIsGone() async {
+        let device = bridge()
+        staleRecord(for: device)
+        await DeviceSuggester(service: UnavailableInsightService(), store: store).suggest(for: [device])
+        #expect(store.record(for: device.id) == nil)
+    }
+}
+
+extension DeviceSuggesterTests {
+    @Test("'Suggested by your Mac' never labels a suggestion for older evidence (#642 final check)")
+    func staleSourceIsNotShown() {
+        let device = bridge()
+        store.setRecord(
+            DeviceSuggestionStore.Record(
+                fingerprint: "old-evidence", suggestion: DeviceSuggestion(deviceType: .camera, confidence: .high, source: .mac)
+            ),
+            for: device.id
+        )
+        #expect(DeviceSuggester(service: UnavailableInsightService(), store: store).suggestionSource(for: device) == nil)
+    }
+}
+
+@Suite("Suggestion claims (#586 PR 2)")
+struct SuggestionClaimTests {
+    @Test("a claim for a field the evidence already settles is dropped; the rest stays a suggestion to accept")
+    func settledFieldsAreNotClaimed() {
+        let evidence = DeviceEvidence(hostname: "printer.lan", maker: "HP", model: "LaserJet 400", deviceType: .printer)
+        let claim = DeviceSuggestion(deviceType: .camera, maker: "Canon", model: "PIXMA", confidence: .high, source: .mac)
+        let checked = claim.checked(against: evidence)
+        #expect(checked.maker == nil)
+        #expect(checked.model == nil)
+        #expect(checked.deviceType == nil)
+        #expect(checked.isEmpty)
+
+        let open = DeviceEvidence(hostname: "printer.lan")
+        #expect(claim.checked(against: open) == claim, "nothing settled: every claim stays, unverified until accepted")
     }
 }

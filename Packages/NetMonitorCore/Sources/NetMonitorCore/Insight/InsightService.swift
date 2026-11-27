@@ -124,16 +124,22 @@ struct SystemInsightService: InsightServiceProtocol {
     }
 
     func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
-        do {
+        await Self.identity(for: evidence.projection, submission: .local)?.suggestion(from: .device)
+    }
+
+    /// The model's unchecked identity answer for `projection`; nil when the model failed or
+    /// `submission` refused to start it. The local suggestion and the Mac's answer to a phone's
+    /// `identity.v1` both come from here, from the same prompt (#586).
+    static func identity(for projection: DeviceEvidenceProjection, submission: ModelSubmission) async -> IdentityRaw? {
+        try? await submission.run {
             let session = LanguageModelSession(instructions: DeviceEvidence.instructions)
             // Guided generation into a typed answer; greedy so the same evidence gets the same answer.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 120)
-            // Background: registered with the admission control, but never holds companion work back (#586).
+            // Background: registered with the admission control, but never holds companion work back;
+            // under a phone's ticket it holds that instead (#586).
             return try await ModelAdmission.shared.runLocal(.background) {
-                try await session.respond(to: evidence.prompt, generating: GeneratedIdentity.self, options: options).content.suggestion
+                try await session.respond(to: projection.prompt, generating: GeneratedIdentity.self, options: options).content.raw
             }
-        } catch {
-            return nil
         }
     }
 }
@@ -151,18 +157,8 @@ private struct GeneratedIdentity {
     @Guide(description: "How well the evidence supports the answer", .anyOf(["low", "medium", "high"]))
     var confidence: String
 
-    var suggestion: DeviceSuggestion {
-        func present(_ text: String) -> String? {
-            let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return text.isEmpty ? nil : text
-        }
-        let type = DeviceType(rawValue: deviceType)
-        return DeviceSuggestion(
-            deviceType: type == .unknown ? nil : type,
-            maker: present(maker),
-            model: present(model),
-            confidence: DeviceSuggestion.Confidence(rawValue: confidence) ?? .low
-        )
+    var raw: IdentityRaw {
+        IdentityRaw(deviceType: deviceType, maker: maker, model: model, confidence: confidence)
     }
 }
 #endif

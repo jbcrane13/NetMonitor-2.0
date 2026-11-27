@@ -11,7 +11,9 @@ import NetMonitorCore
 /// `MacConnectionService` gets `linkClient` injected; `AppEnvironment` carries `routed`.
 enum PhoneInsight {
     /// The client the real companion link feeds.
-    static let linkClient: CompanionInsightClient = .init(send: { await MacConnectionService.shared.sendInsight($0) })
+    static let linkClient = CompanionInsightClient(sendIf: { message, isWanted in
+        await MacConnectionService.shared.sendInsight(message, if: isWanted)
+    })
 
     /// The Mac requests go to: the real link, or the scripted Mac in UI tests, whose link the
     /// real connection service can't tear down.

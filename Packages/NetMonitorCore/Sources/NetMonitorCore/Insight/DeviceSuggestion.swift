@@ -12,12 +12,17 @@ public struct DeviceSuggestion: Sendable, Codable, Equatable {
     public var maker: String?
     public var model: String?
     public var confidence: Confidence
+    /// Who suggested it: nil (this device's model) or `.mac` (#586), shown with the suggestion.
+    public var source: InsightSource?
 
-    public init(deviceType: DeviceType? = nil, maker: String? = nil, model: String? = nil, confidence: Confidence) {
+    public init(
+        deviceType: DeviceType? = nil, maker: String? = nil, model: String? = nil, confidence: Confidence, source: InsightSource? = nil
+    ) {
         self.deviceType = deviceType
         self.maker = maker
         self.model = model
         self.confidence = confidence
+        self.source = source == .device ? nil : source
     }
 
     /// Whether the suggestion names a type, maker or model.
@@ -28,6 +33,10 @@ public struct DeviceSuggestion: Sendable, Codable, Equatable {
     /// The suggestion without values that say nothing new. The on-device model answers
     /// "unknown" in text fields, names the chip maker from the MAC prefix as the maker, and
     /// repeats a hostname as the model (seen on macOS 27.2).
+    ///
+    /// A claim for a field the evidence already settles (a known maker, model or type) is dropped,
+    /// whoever's model made it (#586): it would contradict or repeat what the app knows. What
+    /// stays is a suggestion only, shown as one, until the user accepts it.
     public func checked(against evidence: DeviceEvidence) -> DeviceSuggestion {
         func meaningful(_ text: String?) -> String? {
             guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
@@ -39,9 +48,9 @@ public struct DeviceSuggestion: Sendable, Codable, Equatable {
             [name.lowercased(), name.lowercased().split(separator: ".").first.map(String.init) ?? ""]
         }
         var checked = self
-        checked.deviceType = deviceType == .unknown ? nil : deviceType
-        checked.maker = meaningful(maker).flatMap { DeviceIdentity.isChipMaker($0) ? nil : $0 }
-        checked.model = meaningful(model).flatMap { names.contains($0.lowercased()) ? nil : $0 }
+        checked.deviceType = deviceType == .unknown || evidence.deviceType != .unknown ? nil : deviceType
+        checked.maker = evidence.maker != nil ? nil : meaningful(maker).flatMap { DeviceIdentity.isChipMaker($0) ? nil : $0 }
+        checked.model = evidence.model != nil ? nil : meaningful(model).flatMap { names.contains($0.lowercased()) ? nil : $0 }
         return checked
     }
 }
@@ -153,20 +162,46 @@ public struct DeviceEvidence: Sendable, Equatable {
         add("Maker the device announces", maker)
         add("Model", model)
         add("Type", deviceType == .unknown ? nil : deviceType.rawValue)
-        add("Network services (\(services.count))", services.isEmpty ? nil : Self.list(services.sorted()))
-        add("Open ports (\(openPorts.count))", openPorts.isEmpty ? nil : Self.list(openPorts.sorted().map(String.init)))
+        Self.list("Network services", services.sorted()).map { lines.append($0) }
+        Self.list("Open ports", openPorts.sorted().map(String.init)).map { lines.append($0) }
         return lines
     }
 
-    /// The prompt text sent to the model.
-    public var prompt: String {
-        (["Evidence about the device:"] + promptLines.map { "- " + $0 } + ["Suggest its type, maker and model."])
-            .joined(separator: "\n")
+    /// The longest list item: a longer name is shortened as one item.
+    static let listItemLimit = 60
+
+    /// A list line, "Label (N): a, b, and K more", that fits `lineLimit` with whole items only:
+    /// as many as fit, at most `listLimit`, then the true remainder (#642 final check). A ", " inside
+    /// a name would read as a separator, so commas in names become semicolons.
+    private static func list(_ label: String, _ items: [String]) -> String? {
+        guard !items.isEmpty else { return nil }
+        let head = "\(label) (\(items.count)): "
+        let clean = items.map(listItem)
+        func line(showing count: Int) -> String {
+            let rest = clean.count - count
+            return head + clean.prefix(count).joined(separator: ", ") + (rest > 0 ? ", and \(rest) more" : "")
+        }
+        var shown = 1
+        while shown < min(clean.count, listLimit), line(showing: shown + 1).count <= lineLimit {
+            shown += 1
+        }
+        return line(showing: shown)
     }
 
-    private static func list(_ items: [String]) -> String {
-        let shown = items.prefix(listLimit).joined(separator: ", ")
-        return items.count > listLimit ? shown + ", and \(items.count - listLimit) more" : shown
+    /// One list item on one line, without commas, at most `listItemLimit` characters.
+    private static func listItem(_ item: String) -> String {
+        var text = InsightRequest.line(item, limit: listItemLimit).replacingOccurrences(of: ",", with: ";")
+        // A name that reads like the list's own tail ("and 3 more") is marked as a name.
+        if text.hasPrefix("and "), text.hasSuffix(" more") {
+            text = "\u{2018}" + text + "\u{2019}"
+        }
+        return text.isEmpty ? "?" : text
+    }
+
+    /// The prompt text sent to the model: the projection's, so this device's model and the Mac's
+    /// read the same bytes (#586).
+    public var prompt: String {
+        projection.prompt
     }
 
     // MARK: - Fingerprint

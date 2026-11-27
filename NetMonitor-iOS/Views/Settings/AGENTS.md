@@ -13,8 +13,8 @@ App settings and configuration including Mac companion pairing, network tool def
 | `ConnectionSettingsSection.swift` | Mac companion connection status and pairing controls |
 | `MacPairingView.swift` | Connect to Mac: discovered Macs with Paired/Not paired badges, the paired Mac and Forget This Mac, manual address |
 | `PairWithMacView.swift` | Pairing (#590): scan the Mac's QR or type its code, compare the six digits, then Paired |
-| `PlainRuleSettingsSection.swift` | "Describe a rule…" (#450) and the monitoring targets. On a phone that can't run the model, a paired Mac listing `rules.v1` reads the rule (#586): the first submit asks "Let your Mac read what you type?" (`MacReadingConsentAlert`, on the field's row only: a modifier on the section attaches to every row), and the draft says "Drafted by the on-device model on your Mac" (`settings_label_ruleDraftMarker`). A draft stays when the model goes away. UI test: `MacModelUITests` |
-| `SettingsView.swift` | Also holds "Use your Mac for on-device AI" (`settings_toggle_macInsight`, #457) and "Let your Mac read what you type" (`settings_toggle_macReading`, #586), each shown once answered or while a Mac offers it |
+| `PlainRuleSettingsSection.swift` | "Describe a rule…" (#450) and the monitoring targets. On a phone that can't run the model, a paired Mac listing `rules.v1` reads the rule (#586): the first submit asks "Let your Mac read what you type and your device details?" (`MacReadingConsentAlert`, on the field's row only: a modifier on the section attaches to every row), and the draft says "Drafted by the on-device model on your Mac" (`settings_label_ruleDraftMarker`). A draft stays when the model goes away. UI test: `MacModelUITests` |
+| `SettingsView.swift` | Also holds "Use your Mac for on-device AI" (`settings_toggle_macInsight`, #457) and "Let your Mac read what you type and your device details" (`settings_toggle_macReading`, #586), each shown once answered or while a Mac offers it |
 | `AcknowledgementsView.swift` | Open source acknowledgements and credits |
 
 ## For AI Agents

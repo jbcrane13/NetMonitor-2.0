@@ -677,8 +677,11 @@ extension MacConnectionService {
     }
 
     /// Sends an insight request for the injected insight client; false when there is no link (#457).
-    func sendInsight(_ message: CompanionMessage) async -> Bool {
-        await sendMessage(message)
+    /// `isWanted` (the user's consent) is checked here, on the main actor where the consent switch
+    /// changes, with no suspension before the send (#635).
+    func sendInsight(_ message: CompanionMessage, if isWanted: @Sendable () -> Bool = { true }) async -> Bool {
+        guard !Task.isCancelled, isWanted() else { return false }
+        return await sendMessage(message)
     }
 
     /// Sends a model request or cancel for the injected model client, only on the link it was

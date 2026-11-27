@@ -541,6 +541,8 @@ public enum CompanionCapability {
     public static let rules = ModelSchema.rules.rawValue
     /// The Mac reads typed symptoms with its model (`modelRequest`, #586).
     public static let symptoms = ModelSchema.symptoms.rawValue
+    /// The Mac suggests what a phone's device is from its bounded evidence (`modelRequest`, #586).
+    public static let identity = ModelSchema.identity.rawValue
 }
 
 // MARK: - Logging
