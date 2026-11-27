@@ -30,7 +30,7 @@ final class MacModelUITests: PresenceUITestCase {
         let alert = app.alerts["Let your Mac read what you type?"]
         requireExists(alert, timeout: 5, message: "The first typed rule should ask before anything is sent")
         keepCroppedEvidence(alert, named: "586-01-consent")
-        alert.buttons["Use My Mac"].tap()
+        alert.buttons["Use My Mac"].firstMatch.tap()
 
         let summary = ui("settings_label_ruleDraftSummary")
         requireExists(summary, timeout: 15, message: "The Mac's reading should come back as a draft")
@@ -40,6 +40,8 @@ final class MacModelUITests: PresenceUITestCase {
         keepCroppedEvidence(marker, named: "586-02-rule-marker")
         keepCroppedEvidence(summary, named: "586-03-rule-draft")
         ui("settings_button_cancelRuleDraft").tap()
+        // Leave Settings, which also puts the keyboard away: it covers the tab bar.
+        app.navigationBars["Settings"].buttons.firstMatch.tap()
 
         // A typed symptom: no second question, its checks start, marked as read by the Mac.
         openTroubleshooter()
@@ -54,7 +56,13 @@ final class MacModelUITests: PresenceUITestCase {
         XCTAssertEqual(source.label, "Read by the on-device model on your Mac from your words")
         XCTAssertTrue(app.staticTexts["Where: bedroom"].exists, "The room the user typed")
         XCTAssertTrue(app.staticTexts["Wi-Fi is weak"].exists, "The weak Wi-Fi checks")
+        // Clear of the tab bar: the marker and the room the user typed.
+        let screen = ui("screen_troubleshootTool")
+        for _ in 0 ..< 3 where source.frame.maxY > app.tabBars.firstMatch.frame.minY - 20 {
+            screen.swipeUp(velocity: .slow)
+        }
         keepCroppedEvidence(source, named: "586-04-symptom-marker")
+        keepCroppedEvidence(app.staticTexts["Where: bedroom"], named: "586-04b-symptom-room")
         let cancel = ui("troubleshoot_button_cancel")
         if cancel.exists {
             cancel.tap()

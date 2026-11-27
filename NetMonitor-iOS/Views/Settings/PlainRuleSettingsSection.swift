@@ -46,7 +46,6 @@ struct PlainRuleSettingsSection: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
         }
         .listRowBackground(Theme.Colors.glassBackground)
-        .modifier(MacReadingConsentAlert(isPresented: $isAskingForMac, consent: viewModel.macRoute?.consent, onAgree: submit))
     }
 
     private var describeField: some View {
@@ -66,6 +65,8 @@ struct PlainRuleSettingsSection: View {
                     .accessibilityIdentifier("settings_progress_ruleDraft")
             }
         }
+        // On the field's row only: a modifier on the section would attach to every row.
+        .modifier(MacReadingConsentAlert(isPresented: $isAskingForMac, consent: viewModel.macRoute?.consent, onAgree: submit))
     }
 
     /// Asks first when only the Mac can read the rule and the user hasn't said yes (#586).
