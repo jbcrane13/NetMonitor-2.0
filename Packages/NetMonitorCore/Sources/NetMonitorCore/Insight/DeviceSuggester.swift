@@ -97,6 +97,12 @@ public final class DeviceSuggester {
             // pass stops rather than asking about every device in turn (#586). A failure while the
             // service stays available (this device's model) is recorded as before.
             if answer == nil, !service.isAvailable {
+                // The record from before was about older evidence (that's why the device was asked):
+                // drop it, so its suggested type can't be shown or accepted, unless the user decided
+                // meanwhile.
+                if store.record(for: device.id) == asked, asked != nil {
+                    store.setRecord(nil, for: device.id)
+                }
                 return
             }
             // The user accepted or dismissed while the model was answering: keep their
@@ -127,6 +133,11 @@ public final class DeviceSuggester {
               let type = record.suggestion?.deviceType, type != .unknown
         else { return nil }
         return type
+    }
+
+    /// Whether the model answered about the device's current evidence (whatever it suggested).
+    public func wasAsked(about device: LocalDevice) -> Bool {
+        store.record(for: device.id)?.fingerprint == DeviceEvidence(device: device).fingerprint
     }
 
     /// Who suggested what the device shows: this device's model or the Mac's (#586); nil when it

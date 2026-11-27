@@ -448,6 +448,28 @@ extension DeviceSuggesterTests {
     }
 }
 
+extension DeviceSuggesterTests {
+    @Test("new evidence and a busy Mac: the old pending suggestion goes, so no stale type can be accepted")
+    func busyMacDropsTheStaleSuggestion() async {
+        let device = bridge()
+        let old = DeviceSuggestionStore.Record(fingerprint: "old-evidence", suggestion: DeviceSuggestion(deviceType: .camera, confidence: .high))
+        store.setRecord(old, for: device.id)
+        let box = Mutex<CompanionModelClient?>(nil)
+        let mac = CompanionModelClient(send: { message, link, _ in
+            guard case .modelRequest(let request) = message else { return true }
+            box.withLock { $0 }?.received(ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .busy), onLink: link)
+            return true
+        })
+        box.withLock { $0 = mac }
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
+        let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
+        let suggester = DeviceSuggester(service: service, store: store)
+        await suggester.suggest(for: [device])
+        #expect(suggester.suggestedType(for: device) == nil, "the camera was suggested for evidence that no longer stands")
+        #expect(store.record(for: device.id) == nil, "and the new evidence stays unrecorded, to be asked about again")
+    }
+}
+
 @Suite("Suggestion claims (#586 PR 2)")
 struct SuggestionClaimTests {
     @Test("a claim for a field the evidence already settles is dropped; the rest stays a suggestion to accept")

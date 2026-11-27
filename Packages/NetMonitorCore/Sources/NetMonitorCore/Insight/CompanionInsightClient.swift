@@ -263,10 +263,12 @@ public struct RoutedInsightService: InsightServiceProtocol {
                 }
                 continuation.finish()
             }
+            // The final update goes out before the relay is cancelled, so its own finish can't
+            // overtake it.
             let handler = consent.addWithdrawalHandler {
-                relay.cancel()
                 continuation.yield(.unreachable)
                 continuation.finish()
+                relay.cancel()
             }
             continuation.onTermination = { _ in
                 relay.cancel()
@@ -274,9 +276,9 @@ public struct RoutedInsightService: InsightServiceProtocol {
             }
             // Withdrawn between the check and registering the handler.
             if !isCurrent() {
-                relay.cancel()
                 continuation.yield(.unreachable)
                 continuation.finish()
+                relay.cancel()
             }
         }
     }

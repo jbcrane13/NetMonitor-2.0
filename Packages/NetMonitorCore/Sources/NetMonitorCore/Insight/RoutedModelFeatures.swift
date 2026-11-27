@@ -154,8 +154,11 @@ public struct RoutedIdentityService: InsightServiceProtocol {
         }
         guard route.availability == .available, !backoff.isActive else { return nil }
         guard case .output(.identity(let raw)) = await route.result(.identity(evidence.projection)) else {
-            // Busy, gone, too slow or refused: leave the Mac alone for a while.
-            backoff.start()
+            // Busy, gone, too slow or refused: leave the Mac alone for a while. Not when the caller
+            // gave up (the user left the screen): the Mac said nothing about being busy.
+            if !Task.isCancelled {
+                backoff.start()
+            }
             return nil
         }
         return raw.suggestion(from: .mac)

@@ -76,7 +76,10 @@ struct MacReadingSettingsRow: View {
 
     var body: some View {
         if consent.decision != nil || !mac.offeredSchemas.isEmpty {
-            Toggle("Let your Mac read what you type", isOn: Binding(get: { consent.isAllowed }, set: consent.setAllowed))
+            Toggle(isOn: Binding(get: { consent.isAllowed }, set: consent.setAllowed)) {
+                Text("Let your Mac read what you type")
+                Text("Rules and problems you type, and your devices' names, services, open ports and makers, to suggest what they are")
+            }
                 .accessibilityIdentifier("settings_toggle_macReading")
         }
     }

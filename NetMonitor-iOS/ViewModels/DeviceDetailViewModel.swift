@@ -179,6 +179,11 @@ final class DeviceDetailViewModel {
             guard !Task.isCancelled, let self else {
                 return
             }
+            // Not answered (a busy or gone Mac): the next call asks again, once the Mac's back-off
+            // is over, instead of skipping this evidence as already asked about (#586).
+            if !suggester.wasAsked(about: device) {
+                self.suggestionFingerprint = nil
+            }
             self.saveContext()
             self.refreshSuggestionState()
         }

@@ -160,4 +160,20 @@ struct RoutedIdentityServiceTests {
         #expect(!service.isAvailable)
         #expect(await service.suggestIdentity(Self.evidence) == nil)
     }
+
+    @Test("a request the caller cancels doesn't make the Mac back off")
+    func cancelledIsNotBusy() async {
+        let held = Mutex(false)
+        let mac = CompanionModelClient(send: { _, _, _ in
+            held.withLock { $0 = true }
+            return true
+        }, timeout: .seconds(30))
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
+        let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
+        let asking = Task { await service.suggestIdentity(Self.evidence) }
+        await waitForModel { held.withLock { $0 } }
+        asking.cancel()
+        #expect(await asking.value == nil)
+        #expect(service.isAvailable, "the user left the screen; the Mac wasn't busy")
+    }
 }
