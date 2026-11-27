@@ -3,6 +3,9 @@ import Foundation
 public enum CompanionFrameError: Equatable, Sendable {
     case invalidLength(UInt32)
     case malformedPayload
+    /// A model frame (#586) over ``ModelSchema/maximumFrameSize``: consumed whole and dropped,
+    /// never cut down to fit.
+    case oversizedModelFrame
 
     /// Whether the stream is out of step after it: a bad length drops the decoder's buffer, so
     /// whatever follows is read from the middle of a frame. A malformed payload was consumed
@@ -63,7 +66,12 @@ public actor CompanionFrameDecoder {
             buffer.removeSubrange(start..<frameEnd)
 
             do {
-                try messages.append(CompanionMessage.decode(from: payload))
+                let message = try CompanionMessage.decode(from: payload)
+                guard !message.isModelFrame || payload.count <= ModelSchema.maximumFrameSize else {
+                    errors.append(.oversizedModelFrame)
+                    continue
+                }
+                messages.append(message)
             } catch {
                 errors.append(.malformedPayload)
             }

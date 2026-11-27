@@ -37,13 +37,16 @@ final class PlainRuleIOSViewModel {
     private let checkedPorts: [Int]
     /// Goes up with every request, so a port check that finishes after a newer one is dropped.
     private var generation = 0
+    /// The Mac route, where this phone's model can't read rules (#586).
+    let macRoute: MacModelRoute?
 
     init(
-        parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared,
+        parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? PhoneModel.ruleParser,
         probe: MonitoringTargetProbe = UITestBootstrap.ruleProbe ?? BackgroundTaskService.liveProbe,
         checkedPorts: [Int] = DeviceTypeInferenceService.fingerprintPorts
     ) {
         composer = PlainRuleComposer(parser: parser, platform: .iOS)
+        macRoute = (parser as? RoutedRuleIntentParser).flatMap { $0.local.isAvailable ? nil : $0.route }
         self.probe = probe
         self.checkedPorts = checkedPorts
     }
@@ -54,6 +57,9 @@ final class PlainRuleIOSViewModel {
     }
 
     var isAvailable: Bool { composer.isAvailable }
+
+    /// Whether the user must first agree to let the Mac read what they type (#586).
+    var needsMacConsent: Bool { macRoute?.availability == .needsConsent }
 
     /// - Parameters:
     ///   - devices: the saved rows, complete groups (`DeviceGroups.recentDevices`): a group of

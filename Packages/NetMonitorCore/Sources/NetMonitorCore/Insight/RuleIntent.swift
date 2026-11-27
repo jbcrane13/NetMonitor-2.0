@@ -51,13 +51,16 @@ public struct RuleIntent: Sendable, Equatable {
     public static let unsupportedMessage =
         "I can create alerts for a device going offline, coming online, new devices, or high latency, and port-scan presets."
 
-    /// Cleans the model's raw answer for `input`:
+    /// Cleans the model's raw answer for `input`, from this device's model or the Mac's (#586):
     /// - an unknown kind, or `unsupported`, drops every other field;
     /// - each field is kept only for the kinds that use it;
-    /// - a threshold is kept only when its digits appear in `input`, because it is the one
-    ///   number the model copies rather than converts;
-    /// - a duration is kept only when `input` states it ("five minutes", "2 min", "half an hour");
-    ///   one it doesn't state is dropped and flagged, so the draft can say so;
+    /// - a device phrase is kept only when each of its words, other than an article or "my", is
+    ///   a whole word of `input`: "NAS offline" never becomes a printer;
+    /// - a threshold is kept only when it is a whole number in `input` that no time unit follows
+    ///   ("5 minutes" is a duration, not 5 ms), from 1 to 10,000 ms, because it is the one number
+    ///   the model copies rather than converts;
+    /// - a duration is kept only when `input` states it ("five minutes", "2 min", "half an hour"),
+    ///   up to a day; one it doesn't state is dropped and flagged, so the draft can say so;
     /// - a duration of zero or less means none;
     /// - an empty device phrase means none.
     public static func normalized(
@@ -73,13 +76,15 @@ public struct RuleIntent: Sendable, Equatable {
         let usesDevice = kind != .newDevice
         let usesDuration = kind == .deviceOffline || kind == .latencyAbove
         var intent = RuleIntent(kind: kind)
-        intent.device = usesDevice && phrase?.isEmpty == false ? phrase : nil
-        if kind == .latencyAbove, let threshold = thresholdMilliseconds, threshold > 0,
-           digitRuns(in: input).contains(String(threshold)) {
+        if usesDevice, let phrase, !phrase.isEmpty, isGrounded(phrase, in: input) {
+            intent.device = phrase
+        }
+        if kind == .latencyAbove, let threshold = thresholdMilliseconds, thresholdRange.contains(threshold),
+           thresholds(in: input).contains(threshold) {
             intent.thresholdMilliseconds = threshold
         }
         if usesDuration, let duration = durationSeconds, duration > 0 {
-            if SpokenDuration.seconds(in: input).contains(duration) {
+            if duration <= maximumDurationSeconds, SpokenDuration.seconds(in: input).contains(duration) {
                 intent.durationSeconds = duration
             } else {
                 intent.durationWasDropped = true
@@ -91,8 +96,73 @@ public struct RuleIntent: Sendable, Equatable {
         return intent
     }
 
-    private static func digitRuns(in text: String) -> Set<String> {
-        Set(text.split { !$0.isNumber }.map(String.init))
+    /// The thresholds a rule can have, in milliseconds.
+    static let thresholdRange = 1...10000
+    /// The longest duration a rule can have: a day.
+    static let maximumDurationSeconds = 86400
+
+    /// Words a device phrase may add to the user's: "the NAS" for "NAS is down".
+    private static let fillerWords: Set<String> = ["the", "a", "an", "my", "our"]
+
+    /// Whether every word of `phrase`, other than a filler word, is a whole word of `input`.
+    static func isGrounded(_ phrase: String, in input: String) -> Bool {
+        let typed = Set(words(input))
+        let own = words(phrase).filter { !fillerWords.contains($0) }
+        return !own.isEmpty && own.allSatisfy(typed.contains)
+    }
+
+    /// Whole numbers in `text` that no time unit follows: in "over 250 ms for 5 minutes", 250.
+    static func thresholds(in text: String) -> Set<Int> {
+        let tokens = SpokenDuration.tokens(text)
+        var found: Set<Int> = []
+        for (index, token) in tokens.enumerated() where token.allSatisfy(\.isNumber) {
+            let next = index + 1 < tokens.count ? tokens[index + 1] : nil
+            if let next, SpokenDuration.isTimeUnit(next) {
+                continue
+            }
+            if let value = Int(token) {
+                found.insert(value)
+            }
+        }
+        return found
+    }
+
+    private static func words(_ text: String) -> [String] {
+        text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
+    }
+}
+
+/// A rule as the model filled it in, before any check (#586). The local model and the Mac's
+/// both give one, and only ``intent(for:)`` on the device the user typed into turns it into a
+/// ``RuleIntent``, so the Mac's answer gets exactly the checks the local one does.
+public struct RuleIntentRaw: Codable, Sendable, Equatable {
+    public var kind: String
+    public var device: String?
+    public var thresholdMilliseconds: Int?
+    public var durationSeconds: Int?
+    public var portPreset: String?
+
+    public init(kind: String, device: String? = nil, thresholdMilliseconds: Int? = nil, durationSeconds: Int? = nil, portPreset: String? = nil) {
+        self.kind = kind
+        self.device = device
+        self.thresholdMilliseconds = thresholdMilliseconds
+        self.durationSeconds = durationSeconds
+        self.portPreset = portPreset
+    }
+
+    /// The checked intent for what the user typed.
+    public func intent(for input: String) -> RuleIntent {
+        RuleIntent.normalized(
+            kind: kind, device: device, thresholdMilliseconds: thresholdMilliseconds,
+            durationSeconds: durationSeconds, portPreset: portPreset, input: input
+        )
+    }
+
+    /// Whether every text field is within ``ModelSchema/fieldLimit``: a longer one fails the
+    /// answer instead of being cut (#586).
+    public var isWithinLimits: Bool {
+        kind.count <= ModelSchema.kindLimit
+            && [device, portPreset].allSatisfy { ($0?.count ?? 0) <= ModelSchema.fieldLimit }
     }
 }
 
@@ -172,6 +242,11 @@ enum SpokenDuration {
         return ones[word].map { (Double($0), index + 1) }
     }
 
+    /// Whether `word` is a time unit after a number: "5 min", "2 h".
+    static func isTimeUnit(_ word: String) -> Bool {
+        unit(word, afterDigits: true) != nil
+    }
+
     private static func unit(_ word: String, afterDigits: Bool) -> Double? {
         switch word {
         case "second", "seconds", "sec", "secs": 1
@@ -187,7 +262,7 @@ enum SpokenDuration {
 
     /// Lowercased runs of letters or of digits: "5min" → ["5", "min"]. A point between digits
     /// stays in the number, once: "1.5" → ["1.5"].
-    private static func tokens(_ text: String) -> [String] {
+    static func tokens(_ text: String) -> [String] {
         let characters = Array(text.lowercased())
         var tokens: [String] = []
         var current = ""
@@ -229,6 +304,12 @@ public protocol RuleIntentParsing: Sendable {
     var isAvailable: Bool { get }
     /// The intent, or nil when the model gave no answer.
     func parse(_ text: String) async -> RuleIntent?
+    /// Who would read a rule typed now (#586): this device's model, or the Mac's.
+    var answerSource: InsightSource { get }
+}
+
+extension RuleIntentParsing {
+    public var answerSource: InsightSource { .device }
 }
 
 public enum RuleIntentParser {
@@ -294,22 +375,23 @@ struct SystemRuleIntentParser: RuleIntentParsing {
     var isAvailable: Bool { SystemLanguageModel.default.isAvailable }
 
     func parse(_ text: String) async -> RuleIntent? {
-        do {
+        await ModelAdmission.shared.runLocal(.interactive) {
+            await Self.raw(for: text, submission: .local)?.intent(for: text)
+        }
+    }
+
+    /// The model's unchecked answer for `text`; nil when the model failed or `submission`
+    /// refused to start it. The Mac answers a phone's `rules.v1` request with this (#586).
+    static func raw(for text: String, submission: ModelSubmission) async -> RuleIntentRaw? {
+        try? await submission.run {
             let session = LanguageModelSession(instructions: GeneratedRuleIntent.instructions)
             // Greedy: the same sentence gets the same reading.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 120)
-            let response = try await session.respond(to: text, generating: GeneratedRuleIntent.self, options: options)
-            let raw = response.content
-            return RuleIntent.normalized(
-                kind: raw.kind,
-                device: raw.device,
-                thresholdMilliseconds: raw.thresholdMilliseconds,
-                durationSeconds: raw.durationSeconds,
-                portPreset: raw.portPreset,
-                input: text
+            let raw = try await session.respond(to: text, generating: GeneratedRuleIntent.self, options: options).content
+            return RuleIntentRaw(
+                kind: raw.kind, device: raw.device, thresholdMilliseconds: raw.thresholdMilliseconds,
+                durationSeconds: raw.durationSeconds, portPreset: raw.portPreset
             )
-        } catch {
-            return nil
         }
     }
 }

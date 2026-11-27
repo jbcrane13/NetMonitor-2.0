@@ -9,6 +9,11 @@ public final class PlainRuleComposer {
     /// What to show under the field, or nil for nothing.
     public private(set) var outcome: PlainRuleOutcome?
     public private(set) var isWorking = false
+    /// Who read the rule behind `outcome`: the Mac's model shows a marker (#586).
+    public private(set) var answerSource: InsightSource?
+
+    /// Shown when the Mac didn't answer: busy, gone, or too slow (#586).
+    public static let macUnavailableMessage = "Your Mac couldn't read this right now. Try again in a moment, or add the rule below."
 
     private let parser: any RuleIntentParsing
     private let platform: RulePlatform
@@ -40,19 +45,28 @@ public final class PlainRuleComposer {
         guard !text.isEmpty else {
             isWorking = false
             outcome = nil
+            answerSource = nil
             return
         }
         // The model never runs while a scan does.
         guard !isScanning else {
             isWorking = false
+            answerSource = nil
             outcome = .message("Wait for the scan to finish, then try again.")
             return
         }
         isWorking = true
         outcome = nil
-        let intent = await parser.parse(text) ?? .unsupported
+        answerSource = nil
+        let source = parser.answerSource
+        let parsed = await parser.parse(text)
         guard request == generation else { return }
         isWorking = false
+        guard let intent = parsed ?? (source == .mac ? nil : .unsupported) else {
+            outcome = .message(Self.macUnavailableMessage)
+            return
+        }
+        answerSource = source
         context = (intent, devices, timing, targetHosts)
         outcome = PlainRuleBuilder.outcome(for: intent, devices: devices, platform: platform, timing: timing, targetHosts: targetHosts)
     }
@@ -72,5 +86,6 @@ public final class PlainRuleComposer {
         isWorking = false
         context = nil
         outcome = nil
+        answerSource = nil
     }
 }

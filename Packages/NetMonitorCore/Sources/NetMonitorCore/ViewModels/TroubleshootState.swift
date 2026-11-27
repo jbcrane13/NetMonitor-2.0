@@ -109,6 +109,8 @@ public final class TroubleshootState {
 
     public static let scanMessage = "A device scan is running. Try again when it finishes."
     public static let cancelledMessage = "Cancelled. The results so far are below."
+    /// Shown above the buttons when the Mac didn't answer: busy, gone, or too slow (#586).
+    public static let macUnavailableMessage = "Your Mac couldn't read this right now. Try again in a moment, or pick one below."
     public static let nothingMeasuredMessage = "None of the checks could measure on this device or connection, so there's nothing to judge."
     public static let noDevicesMessage = "No saved devices yet. Scan the network first, then try again."
     /// Shown above the buttons when the symptom wasn't understood.
@@ -119,6 +121,9 @@ public final class TroubleshootState {
     public private(set) var kind: SymptomKind?
     /// What the model read from the symptom, such as the room; nil for a picked kind.
     public private(set) var intent: SymptomIntent?
+    /// Who read the typed symptom behind `intent`, nil for a picked one: the Mac's model shows a
+    /// marker (#586).
+    public private(set) var intentSource: InsightSource?
     public private(set) var steps: [TroubleshootStep] = []
     /// Ranked likely causes; set when a run ends.
     public private(set) var findings: [TroubleshootFinding] = []
@@ -195,17 +200,23 @@ public final class TroubleshootState {
         clear()
         let run = runID
         phase = .classifying
+        let source = classifier.answerSource
         let task = Task { [classifier] in await classifier.classify(text) }
         classifyTask = task
         let classified = await task.value
         // Cancelled or reset while the model was reading: start nothing.
         guard run == runID else { return }
         classifyTask = nil
+        if classified == nil, source == .mac {
+            stop(Self.macUnavailableMessage)
+            return
+        }
         guard let intent = classified, intent.kind != .unsupported else {
             phase = .unsupported
             return
         }
         self.intent = intent
+        intentSource = source
         await route(intent)
     }
 
@@ -267,6 +278,7 @@ public final class TroubleshootState {
         phase = .idle
         kind = nil
         intent = nil
+        intentSource = nil
         steps = []
         findings = []
         explanation = nil

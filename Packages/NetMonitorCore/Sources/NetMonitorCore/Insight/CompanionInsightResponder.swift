@@ -4,8 +4,10 @@ import Foundation
 /// `insightRequest` with the Mac's model, through the same `InsightSummarizer` checks the
 /// apps use, so the phone only ever receives a grounded, filtered answer.
 ///
-/// One request at a time: another arriving meanwhile is answered `busy`, as is any request
-/// during a Mac scan. Prompts carry addresses and hostnames, so nothing here is logged.
+/// One request at a time, through the companion slot of `ModelAdmission` that `modelRequest`s
+/// share (#586): another arriving meanwhile is answered `busy`, as is any request during a Mac
+/// scan or while the Mac's own interactive model work runs. Prompts carry addresses and
+/// hostnames, so nothing here is logged.
 public actor CompanionInsightResponder {
     /// How long the Mac's model may take to answer.
     public static let defaultTimeout: Duration = .seconds(20)
@@ -14,15 +16,17 @@ public actor CompanionInsightResponder {
     private let timeout: Duration
     private let isAllowed: @Sendable () async -> Bool
     private let isScanning: @Sendable () async -> Bool
-    private var isAnswering = false
+    private let admission: ModelAdmission
 
     public init(
         service: any InsightServiceProtocol,
+        admission: ModelAdmission = .shared,
         timeout: Duration = defaultTimeout,
         isAllowed: @escaping @Sendable () async -> Bool = { true },
         isScanning: @escaping @Sendable () async -> Bool = { false }
     ) {
         self.service = service
+        self.admission = admission
         self.timeout = timeout
         self.isAllowed = isAllowed
         self.isScanning = isScanning
@@ -53,17 +57,16 @@ public actor CompanionInsightResponder {
         guard await isAllowed(), service.isAvailable, authorization.isCurrent() else {
             return InsightResponsePayload(requestID: id, failure: .unavailable)
         }
-        // The scan check suspends, so `isAnswering` is checked and set after it, with no
-        // suspension between: a request arriving meanwhile is busy.
         let scanning = await isScanning()
         guard authorization.isCurrent() else {
             return InsightResponsePayload(requestID: id, failure: .unavailable)
         }
-        guard !scanning, !isAnswering else {
+        // The slot is released only once the summarizer has returned, which it does only
+        // after the model's stream has ended.
+        guard !scanning, let ticket = admission.admitCompanion() else {
             return InsightResponsePayload(requestID: id, failure: .busy)
         }
-        isAnswering = true
-        defer { isAnswering = false }
+        defer { admission.release(ticket) }
 
         let clock = ContinuousClock()
         let started = clock.now

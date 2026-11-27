@@ -45,7 +45,7 @@ public enum CompanionLinkAuthorizer {
             case .unknown:
                 return .ignore
             case .statusUpdate, .targetList, .deviceList, .networkProfile, .command, .toolResult,
-                 .error, .heartbeat, .insightRequest, .insightResponse:
+                 .error, .heartbeat, .insightRequest, .insightResponse, .modelRequest, .modelResponse, .modelCancel:
                 return .dispatch
             }
         }

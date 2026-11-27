@@ -47,6 +47,40 @@ struct PlainRuleTests {
         #expect(partial.thresholdMilliseconds == nil, "25 is not a number the user typed")
     }
 
+    @Test("a device phrase is kept only in the user's own words: NAS never becomes a printer (#586)")
+    func aDevicePhraseMustBeTheUsersWords() {
+        func device(_ phrase: String, _ input: String) -> String? {
+            RuleIntent.normalized(kind: "deviceOffline", device: phrase, thresholdMilliseconds: nil, durationSeconds: nil,
+                                  portPreset: nil, input: input).device
+        }
+        #expect(device("printer", "tell me if the NAS goes offline") == nil)
+        #expect(device("the NAS", "tell me if NAS goes offline") == "the NAS", "an article the user didn't type is fine")
+        #expect(device("Ring Doorbell", "alert when the Ring Doorbell's ping is high") == "Ring Doorbell")
+        #expect(device("NAS box", "tell me if the NAS goes offline") == nil, "every word counts")
+        #expect(device("AS", "tell me if the NAS goes offline") == nil, "whole words, not parts")
+    }
+
+    @Test("a threshold must be a number the user typed that isn't a duration, from 1 to 10,000 ms (#586)")
+    func aThresholdMustMeanMilliseconds() {
+        func threshold(_ value: Int, _ input: String) -> Int? {
+            RuleIntent.normalized(kind: "latencyAbove", device: "NAS", thresholdMilliseconds: value, durationSeconds: nil,
+                                  portPreset: nil, input: input).thresholdMilliseconds
+        }
+        #expect(threshold(5, "tell me if the NAS is slow for 5 minutes") == nil)
+        #expect(threshold(5, "tell me if the NAS is slow for 5min") == nil)
+        #expect(threshold(250, "NAS ping over 250 ms for 5 minutes") == 250)
+        #expect(threshold(80, "If the Apple TV latency is above 80ms for half an hour, notify me") == 80)
+        #expect(threshold(20000, "NAS latency over 20000 ms") == nil, "out of range")
+    }
+
+    @Test("a duration over a day is dropped and flagged (#586)")
+    func aDurationOverADayIsDropped() {
+        let intent = RuleIntent.normalized(kind: "deviceOffline", device: "NAS", thresholdMilliseconds: nil, durationSeconds: 172800,
+                                           portPreset: nil, input: "NAS down for 2 days")
+        #expect(intent.durationSeconds == nil)
+        #expect(intent.durationWasDropped)
+    }
+
     @Test func aDurationIsKeptOnlyWhenTheWordsStateIt() {
         func duration(_ seconds: Int, _ input: String) -> RuleIntent {
             RuleIntent.normalized(kind: "deviceOffline", device: "NAS", thresholdMilliseconds: nil, durationSeconds: seconds,

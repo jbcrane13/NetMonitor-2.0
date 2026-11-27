@@ -259,6 +259,30 @@ struct TroubleshootStateTests {
         #expect(state.phase == .unsupported)
     }
 
+    @Test("no answer from the Mac says so above the buttons; a Mac reading is marked as the Mac's (#586)")
+    func theMacsReading() async {
+        struct MacClassifier: SymptomClassifierProtocol {
+            let answer: SymptomIntent?
+            var isAvailable: Bool { true }
+            var answerSource: InsightSource { .mac }
+            func classify(_ symptom: String) async -> SymptomIntent? { answer }
+        }
+        let silent = make(classifier: MacClassifier(answer: nil))
+        await silent.describe("Zoom keeps freezing")
+        #expect(silent.phase == .stopped(TroubleshootState.macUnavailableMessage))
+        #expect(silent.intentSource == nil)
+
+        let probes = MockTroubleshootProbes()
+        let read = make(probes, classifier: MacClassifier(answer: SymptomIntent(kind: .weakWiFi, room: "bedroom")))
+        await read.describe("the wifi is weak in the bedroom")
+        #expect(read.intentSource == .mac)
+        #expect(read.intent?.room == "bedroom")
+
+        let picked = make(probes)
+        await picked.choose(.weakWiFi)
+        #expect(picked.intentSource == nil, "a picked kind wasn't read by any model")
+    }
+
     // MARK: - Cancellation
 
     @Test func cancellingDuringAStepKeepsTheResultsSoFar() async {

@@ -75,6 +75,8 @@ actor CompanionService: CompanionServiceProtocol {
         /// Deferred work for this link, cancelled when it closes.
         var tasks: [UUID: Task<Void, Never>] = [:]
         var runningInsightRequests = 0
+        /// Its `modelRequest`s, so a `modelCancel` finds its task (#586).
+        var modelRequests = CompanionModelRequestLedger()
     }
 
     private struct PendingPairing {
@@ -575,6 +577,8 @@ extension CompanionService {
                 await send(Self.decodeErrorMessage(), to: clientID)
             case .invalidLength(let length):
                 Logger.companion.error("Invalid frame length \(length) from \(clientID), buffer cleared")
+            case .oversizedModelFrame:
+                Logger.companion.error("Dropped an oversized model frame from \(clientID)")
             }
         }
     }
@@ -584,8 +588,14 @@ extension CompanionService {
     private func dispatch(_ message: CompanionMessage, from clientID: UUID) async {
         // A model request can take 20 s: answer it on its own, so the frames behind it, such
         // as heartbeats, are handled meanwhile (#457).
+        // The phone gave up (#586): its task is cancelled, so nothing is sent for it, and the
+        // model with it. The model slot stays held until the model has really stopped.
+        if case .modelCancel(let cancel) = message {
+            links[clientID]?.modelRequests.cancel(cancel.requestID).flatMap { links[clientID]?.tasks[$0] }?.cancel()
+            return
+        }
         if Self.answersOffBatch(message) {
-            deferInsightRequest(message, from: clientID)
+            await deferInsightRequest(message, from: clientID)
             return
         }
         if let response = await messageHandler?(message, clientID, authorization(for: clientID)) {
@@ -607,12 +617,17 @@ extension CompanionService {
     /// Runs a model request off the batch, at most `maximumInsightRequests` per link. The work
     /// checks the link's authorisation when it starts, so a revoke that lands first means the
     /// handler never runs; closing the link cancels it.
-    private func deferInsightRequest(_ message: CompanionMessage, from clientID: UUID) {
+    ///
+    /// A `modelRequest` (#586) is also keyed by its request ID: one whose ID is running or spent
+    /// on this link is dropped. A busy reply goes out in the batch, not on a task of its own, so
+    /// the one receive per link bounds them.
+    private func deferInsightRequest(_ message: CompanionMessage, from clientID: UUID) async {
         guard var link = links[clientID] else { return }
+        let modelRequestID = Self.modelRequestID(of: message)
+        guard link.modelRequests.admits(modelRequestID) else { return }
         guard link.runningInsightRequests < limits.maximumInsightRequests else {
-            if case .insightRequest(let request) = message {
-                let busy = CompanionMessage.insightResponse(InsightResponsePayload(requestID: request.requestID, failure: .busy))
-                Task { await send(busy, to: clientID) }
+            if let busy = Self.busyReply(to: message) {
+                await send(busy, to: clientID)
             }
             return
         }
@@ -620,6 +635,7 @@ extension CompanionService {
         let handler = messageHandler
         let hook = deferredStartHook
         link.runningInsightRequests += 1
+        link.modelRequests.start(modelRequestID, task: taskID)
         // Runs on this actor (it captures `self`). The handler suspends, so it gets a live
         // authorisation token to check again before the model is asked. The task removes
         // itself, and `close` cancels it.
@@ -640,6 +656,7 @@ extension CompanionService {
     private func finishDeferred(_ taskID: UUID, clientID: UUID) {
         guard links[clientID]?.tasks.removeValue(forKey: taskID) != nil else { return }
         links[clientID]?.runningInsightRequests -= 1
+        links[clientID]?.modelRequests.finish(task: taskID)
     }
 
     private func beginPairing(_ id: UUID, request: PairRequestPayload) {
@@ -727,14 +744,6 @@ extension CompanionService {
         let printable = raw.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }
         let name = String(String.UnicodeScalarView(printable)).trimmingCharacters(in: .whitespaces)
         return name.isEmpty ? "iPhone" : String(name.prefix(40))
-    }
-
-    /// Whether `message` is handled on its own instead of in its batch's order.
-    static func answersOffBatch(_ message: CompanionMessage) -> Bool {
-        if case .insightRequest = message {
-            return true
-        }
-        return false
     }
 }
 

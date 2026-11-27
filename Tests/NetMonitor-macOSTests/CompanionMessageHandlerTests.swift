@@ -349,14 +349,44 @@ struct CompanionMessageHandlerTests {
         #expect(response.failureReason == .unavailable)
     }
 
-    // swiftlint:disable:next large_tuple
-    private func makeFixture(insightService: any InsightServiceProtocol = UnavailableInsightService()) throws -> (
+    @Test("rules.v1 and symptoms.v1 are listed while the model answers, even during a scan, and a typed rule is read (#586)")
+    func modelSchemas() async throws {
+        let model = StubCompanionModel(output: .rules(RuleIntentRaw(kind: "deviceOffline", device: "NAS")))
+        let (container, _, handler, discovery, _) = try makeFixture(companionModel: model)
+        _ = container
+        #expect(handler.heartbeat().capabilities == ["rules.v1", "symptoms.v1", "inventory.v1"])
+        discovery.setScanningForTesting(true)
+        #expect(handler.heartbeat().capabilities == ["rules.v1", "symptoms.v1", "inventory.v1"])
+        let busy = await handler.handle(.modelRequest(ModelRequestPayload(requestID: UUID(), input: .rules(text: "NAS offline"))),
+                                        from: UUID(), authorization: .always)
+        guard case let .modelResponse(during)? = busy else {
+            Issue.record("expected a model reply")
+            return
+        }
+        #expect(during.result(expecting: .rules) == .failure(.busy), "never asked during a scan")
+        discovery.setScanningForTesting(false)
+
+        let request = ModelRequestPayload(requestID: UUID(), input: .rules(text: "tell me if the NAS goes offline"))
+        guard case let .modelResponse(response)? = await handler.handle(.modelRequest(request), from: UUID(), authorization: .always) else {
+            Issue.record("expected a model reply")
+            return
+        }
+        #expect(response.requestID == request.requestID)
+        #expect(response.result(expecting: .rules) == .output(.rules(RuleIntentRaw(kind: "deviceOffline", device: "NAS"))))
+    }
+
+    // swiftlint:disable large_tuple
+    private func makeFixture(
+        insightService: any InsightServiceProtocol = UnavailableInsightService(),
+        companionModel: any CompanionModelAnswering = UnavailableCompanionModel()
+    ) throws -> (
         ModelContainer,
         ModelContext,
         CompanionMessageHandler,
         DeviceDiscoveryCoordinator,
         MonitoringSession
     ) {
+        // swiftlint:enable large_tuple
         let schema = Schema([
             NetworkTarget.self,
             TargetMeasurement.self,
@@ -384,7 +414,9 @@ struct CompanionMessageHandlerTests {
             wakeOnLanService: WakeOnLANService(),
             icmpService: ICMPMonitorService(),
             networkProfileManager: networkProfileManager,
-            insightService: insightService
+            insightService: insightService,
+            companionModel: companionModel,
+            modelAdmission: ModelAdmission()
         )
 
         return (container, context, handler, deviceDiscovery, monitoringSession)
@@ -396,5 +428,14 @@ private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool)
     let deadline = ContinuousClock.now + timeout
     while !condition(), ContinuousClock.now < deadline {
         try await Task.sleep(for: .milliseconds(10))
+    }
+}
+
+/// A Mac model that answers every input with `output`.
+private struct StubCompanionModel: CompanionModelAnswering {
+    let output: ModelOutput
+    var isAvailable: Bool { true }
+    func answer(_ input: ModelInput, submission: ModelSubmission) async -> ModelOutput? {
+        try? await submission.run { output }
     }
 }

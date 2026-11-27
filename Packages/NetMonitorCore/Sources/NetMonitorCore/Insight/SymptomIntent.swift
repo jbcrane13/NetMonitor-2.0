@@ -58,7 +58,11 @@ public struct SymptomIntent: Sendable, Equatable {
     /// - the device phrase is kept only for `deviceUnreachable`, the host only for `websiteNotLoading`;
     /// - each copied phrase is kept only when every word of it is in `input`, so no device, place or
     ///   address originates from the model ("Netflix won't load" never becomes "netflix.com");
+    /// - the host is kept only when it is a whole name in `input`: `ample.com` is not in
+    ///   "example.com won't load" (#586);
     /// - an empty phrase means none.
+    ///
+    /// The answer may come from this device's model or the Mac's (#586): both get these checks.
     public static func normalized(kind rawKind: String, devicePhrase: String?, room: String?, host: String?, input: String) -> SymptomIntent {
         guard let kind = SymptomKind(rawValue: rawKind), kind != .unsupported else { return .unsupported }
         let typed = Set(words(input))
@@ -72,10 +76,23 @@ public struct SymptomIntent: Sendable, Equatable {
             intent.devicePhrase = copied(devicePhrase)
         }
         if kind == .websiteNotLoading, let host = host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-           !host.isEmpty, input.lowercased().contains(host) {
+           !host.isEmpty, hostNames(in: input).contains(host) {
             intent.host = host
         }
         return intent
+    }
+
+    /// The whole host names in `text`, lowercased: runs of letters, digits, dots and hyphens,
+    /// without a trailing dot. "Is example.com down?" → ["is", "example.com", "down"].
+    static func hostNames(in text: String) -> Set<String> {
+        let names = text.lowercased().split { !($0.isLetter || $0.isNumber || $0 == "." || $0 == "-") }
+        return Set(names.map { name in
+            var name = Substring(name)
+            while name.last == "." {
+                name = name.dropLast()
+            }
+            return String(name)
+        })
     }
 
     private static func words(_ text: String) -> [String] {
@@ -93,6 +110,41 @@ public protocol SymptomClassifierProtocol: Sendable {
     /// The intent, or nil when the model failed. `unsupported` when the symptom isn't one the
     /// troubleshooter checks.
     func classify(_ symptom: String) async -> SymptomIntent?
+    /// Who would read a symptom typed now (#586): this device's model, or the Mac's.
+    var answerSource: InsightSource { get }
+}
+
+extension SymptomClassifierProtocol {
+    public var answerSource: InsightSource { .device }
+}
+
+/// A symptom as the model filled it in, before any check (#586). Only ``intent(for:)`` on the
+/// device the user typed into turns it into a ``SymptomIntent``, so the Mac's answer gets exactly
+/// the checks the local one does.
+public struct SymptomIntentRaw: Codable, Sendable, Equatable {
+    public var kind: String
+    public var device: String?
+    public var room: String?
+    public var website: String?
+
+    public init(kind: String, device: String? = nil, room: String? = nil, website: String? = nil) {
+        self.kind = kind
+        self.device = device
+        self.room = room
+        self.website = website
+    }
+
+    /// The checked intent for what the user typed.
+    public func intent(for input: String) -> SymptomIntent {
+        SymptomIntent.normalized(kind: kind, devicePhrase: device, room: room, host: website, input: input)
+    }
+
+    /// Whether every text field is within ``ModelSchema/fieldLimit``: a longer one fails the
+    /// answer instead of being cut (#586).
+    public var isWithinLimits: Bool {
+        kind.count <= ModelSchema.kindLimit
+            && [device, room, website].allSatisfy { ($0?.count ?? 0) <= ModelSchema.fieldLimit }
+    }
 }
 
 /// The classifier the apps use: the on-device model on iOS 27 / macOS 27 and later, and one that
@@ -152,18 +204,21 @@ struct SystemSymptomClassifier: SymptomClassifierProtocol {
     var isAvailable: Bool { SystemLanguageModel.default.isAvailable }
 
     func classify(_ symptom: String) async -> SymptomIntent? {
-        do {
+        await ModelAdmission.shared.runLocal(.interactive) {
+            await Self.raw(for: symptom, submission: .local)?.intent(for: symptom)
+        }
+    }
+
+    /// The model's unchecked answer for `symptom`; nil when the model failed or `submission`
+    /// refused to start it. The Mac answers a phone's `symptoms.v1` request with this (#586).
+    static func raw(for symptom: String, submission: ModelSubmission) async -> SymptomIntentRaw? {
+        try? await submission.run {
             let session = LanguageModelSession(instructions: Self.instructions)
             // Greedy: the same words get the same kind.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 120)
             let input = InsightRequest.line(symptom, limit: 300)
-            let response = try await session.respond(to: "Problem: \(input)", generating: GeneratedSymptom.self, options: options)
-            let answer = response.content
-            return SymptomIntent.normalized(
-                kind: answer.kind, devicePhrase: answer.device, room: answer.room, host: answer.website, input: symptom
-            )
-        } catch {
-            return nil
+            let answer = try await session.respond(to: "Problem: \(input)", generating: GeneratedSymptom.self, options: options).content
+            return SymptomIntentRaw(kind: answer.kind, device: answer.device, room: answer.room, website: answer.website)
         }
     }
 }

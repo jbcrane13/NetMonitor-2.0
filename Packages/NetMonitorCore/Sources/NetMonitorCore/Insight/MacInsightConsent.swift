@@ -9,19 +9,25 @@ import Synchronization
 ///
 /// `decision` is observable, so the prompt and the features redraw when it changes.
 public final class MacInsightConsent: Sendable, Observable {
-    /// Where the answer is kept.
+    /// Where the answer about explanations and summaries (`insight.v1`) is kept.
     public static let defaultsKey = "netmonitor.macInsight.consent"
+    /// Where the answer about typed text (`rules.v1`, `symptoms.v1`) is kept (#586): asked
+    /// once more, since what the user types is a new kind of data to send. A "yes" to
+    /// explanations doesn't cover it.
+    public static let readingDefaultsKey = "netmonitor.macInsight.consent.v2"
 
     // `UserDefaults` is documented as thread-safe; it isn't marked Sendable.
     nonisolated(unsafe) private let defaults: UserDefaults?
+    private let key: String
     private let stored: Mutex<Bool?>
     private let registrar = ObservationRegistrar()
 
-    /// Reads the answer from `defaults`; nil `defaults` keeps it in memory only, starting at
-    /// `decision`.
-    public init(defaults: UserDefaults?, decision: Bool? = nil) {
+    /// Reads the answer under `key` from `defaults`; nil `defaults` keeps it in memory only,
+    /// starting at `decision`.
+    public init(defaults: UserDefaults?, decision: Bool? = nil, key: String = MacInsightConsent.defaultsKey) {
         self.defaults = defaults
-        stored = Mutex(defaults?.object(forKey: Self.defaultsKey) as? Bool ?? decision)
+        self.key = key
+        stored = Mutex(defaults?.object(forKey: key) as? Bool ?? decision)
     }
 
     /// True once the user agreed, false once they declined, nil before they are asked.
@@ -44,6 +50,6 @@ public final class MacInsightConsent: Sendable, Observable {
         registrar.withMutation(of: self, keyPath: \.decision) {
             stored.withLock { $0 = allowed }
         }
-        defaults?.set(allowed, forKey: Self.defaultsKey)
+        defaults?.set(allowed, forKey: key)
     }
 }

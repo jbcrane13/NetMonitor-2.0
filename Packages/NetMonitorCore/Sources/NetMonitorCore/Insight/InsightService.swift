@@ -96,6 +96,17 @@ struct SystemInsightService: InsightServiceProtocol {
     func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
         AsyncStream { continuation in
             let task = Task {
+                // Interactive: while it runs, companion requests are answered busy (#586).
+                await ModelAdmission.shared.runLocal(.interactive) {
+                    await Self.stream(request, into: continuation)
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private static func stream(_ request: InsightRequest, into continuation: AsyncStream<InsightUpdate>.Continuation) async {
                 do {
                     let session = LanguageModelSession(instructions: request.kind.instructions)
                     var text = ""
@@ -110,10 +121,6 @@ struct SystemInsightService: InsightServiceProtocol {
                 } catch {
                     continuation.yield(.failed)
                 }
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
     }
 
     func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {

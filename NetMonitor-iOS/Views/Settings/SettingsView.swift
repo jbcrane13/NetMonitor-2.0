@@ -39,7 +39,11 @@ struct SettingsView: View {
                 }
             )
             // "Use your Mac for on-device AI" (#457).
-            Section { MacInsightSettingsRow(routed: PhoneInsight.routed) }
+            Section {
+                MacInsightSettingsRow(routed: PhoneInsight.routed)
+                // "Let your Mac read what you type" (#586).
+                MacReadingSettingsRow(mac: PhoneModel.linkClient, consent: PhoneModel.consent)
+            }
 
             // MARK: - Network Tools Section
             Section {

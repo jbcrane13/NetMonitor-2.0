@@ -5,7 +5,8 @@ import SwiftUI
 
 /// Settings › Monitoring targets: "Describe a rule…" and the saved targets (#450).
 ///
-/// The field shows only where the on-device model runs. The target list always shows, so a
+/// The field shows only where the on-device model runs, here or on a connected Mac that reads
+/// rules (#586). The target list always shows, so a
 /// target saved from a draft can be seen and removed. A port-scan draft sets `openPortScan`;
 /// the screen presents the scanner, because a sheet on a list section is attached to every row.
 struct PlainRuleSettingsSection: View {
@@ -14,6 +15,7 @@ struct PlainRuleSettingsSection: View {
     @Environment(AppEnvironment.self) private var env: AppEnvironment?
     @Query(Self.targetsDescriptor) private var targets: [MonitoringTarget]
     @State private var viewModel = PlainRuleIOSViewModel()
+    @State private var isAskingForMac = false
 
     var body: some View {
         Section {
@@ -44,6 +46,7 @@ struct PlainRuleSettingsSection: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
         }
         .listRowBackground(Theme.Colors.glassBackground)
+        .modifier(MacReadingConsentAlert(isPresented: $isAskingForMac, consent: viewModel.macRoute?.consent, onAgree: submit))
     }
 
     private var describeField: some View {
@@ -65,7 +68,16 @@ struct PlainRuleSettingsSection: View {
         }
     }
 
+    /// Asks first when only the Mac can read the rule and the user hasn't said yes (#586).
     private func parse() {
+        guard !viewModel.needsMacConsent else {
+            isAskingForMac = true
+            return
+        }
+        submit()
+    }
+
+    private func submit() {
         let networkID = env?.currentNetworkProfileID()
         // The most recent devices, each with every member (#594).
         let scope = DeviceScope.network(networkID, else: .allNetworks)
@@ -162,7 +174,7 @@ struct PlainRuleSettingsSection: View {
         confirm: @escaping () -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Drafted by the on-device model from your words", systemImage: "sparkles")
+            Label("Drafted by \((viewModel.composer.answerSource ?? .device).modelName) from your words", systemImage: "sparkles")
                 .font(.caption)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .accessibilityIdentifier("settings_label_ruleDraftMarker")

@@ -18,15 +18,27 @@ final class TroubleshootToolViewModel {
         var latestDownload: Double?
     }
 
-    init(env: AppEnvironment, mode: String? = UITestBootstrap.troubleshootMode) {
+    /// The Mac route, where this phone's model can't read symptoms (#586).
+    let macRoute: MacModelRoute?
+
+    /// Whether the user must first agree to let the Mac read what they type (#586).
+    var needsMacConsent: Bool { macRoute?.availability == .needsConsent }
+
+    init(
+        env: AppEnvironment,
+        mode: String? = UITestBootstrap.troubleshootMode,
+        classifier: RoutedSymptomClassifier = PhoneModel.symptomClassifier
+    ) {
         let inputs = Inputs()
         self.inputs = inputs
         #if DEBUG
         if let fixture = mode.flatMap(TroubleshootUITestFixture.Mode.init(rawValue:)) {
+            macRoute = nil
             state = TroubleshootUITestFixture.state(fixture)
             return
         }
         #endif
+        macRoute = classifier.local.isAvailable ? nil : classifier.route
         let discovery = env.deviceDiscovery
         state = TroubleshootState(
             probes: ServiceTroubleshootProbes(
@@ -36,7 +48,7 @@ final class TroubleshootToolViewModel {
                 canRunSpeedTest: { IOSScheduledSpeedTest.claimManualTest() },
                 speedTestFinished: { IOSScheduledSpeedTest.manualTestsRunning -= 1 }
             ),
-            classifier: SymptomClassifier.shared,
+            classifier: classifier,
             insight: env.insight,
             devices: { inputs.devices },
             isScanning: { discovery.isScanning },

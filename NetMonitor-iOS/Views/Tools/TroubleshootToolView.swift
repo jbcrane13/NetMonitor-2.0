@@ -11,6 +11,7 @@ struct TroubleshootToolView: View {
     @State private var symptom = ""
     @State private var host = ""
     @State private var showsModemLights = false
+    @State private var isAskingForMac = false
     @Query private var devices: [LocalDevice]
     /// Only the latest saved test: its download is the baseline.
     @Query private var speedTests: [SpeedTestResult]
@@ -64,6 +65,7 @@ struct TroubleshootToolView: View {
         .sheet(isPresented: $showsModemLights) {
             ModemLightsView()
         }
+        .modifier(MacReadingConsentAlert(isPresented: $isAskingForMac, consent: viewModel.macRoute?.consent, onAgree: describe))
     }
 
     // MARK: - Symptom
@@ -144,9 +146,18 @@ struct TroubleshootToolView: View {
         }
     }
 
+    /// Asks first when only the Mac can read the symptom and the user hasn't said yes (#586).
     private func start() {
-        let text = symptom
         dismissKeyboard()
+        guard !viewModel.needsMacConsent else {
+            isAskingForMac = true
+            return
+        }
+        describe()
+    }
+
+    private func describe() {
+        let text = symptom
         Task { await state.describe(text) }
     }
 
@@ -223,6 +234,12 @@ struct TroubleshootToolView: View {
                         .font(.subheadline)
                         .accessibilityIdentifier("troubleshoot_button_skip")
                 }
+            }
+            if state.intentSource == .mac {
+                Label("Read by \(InsightSource.mac.modelName) from your words", systemImage: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .accessibilityIdentifier("troubleshoot_label_symptomSource")
             }
             if let room = state.intent?.room {
                 Text("Where: \(room)")

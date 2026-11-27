@@ -72,4 +72,16 @@ struct SymptomIntentTests {
         #expect(!classifier.isAvailable)
         #expect(await classifier.classify("Zoom keeps freezing") == nil)
     }
+
+    @Test("a website must be a whole name the user typed: ample.com is not in example.com (#586)")
+    func hostIsAWholeName() {
+        func host(_ host: String, _ input: String) -> String? {
+            SymptomIntent.normalized(kind: "websiteNotLoading", devicePhrase: nil, room: nil, host: host, input: input).host
+        }
+        #expect(host("ample.com", "example.com won't load") == nil)
+        #expect(host("example.co", "example.com won't load") == nil)
+        #expect(host("example.com", "Is example.com down?") == "example.com")
+        #expect(host("example.com", "I can't open example.com.") == "example.com")
+        #expect(host("github.com", "github.com won't open") == "github.com")
+    }
 }

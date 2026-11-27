@@ -16,7 +16,10 @@ struct CompanionInsightResponderTests {
 
     @Test("a request gets the model's checked answer, under its own id")
     func answers() async {
-        let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "SSH is open on this device."))
+        let responder = CompanionInsightResponder(
+            service: FixedAnswerInsightService(answer: "SSH is open on this device."),
+            admission: ModelAdmission()
+        )
         let payload = Self.payload()
 
         let response = await responder.respond(to: payload, authorization: .always)
@@ -27,31 +30,34 @@ struct CompanionInsightResponderTests {
 
     @Test("an answer that states a number the request doesn't is refused, as on the device")
     func ungroundedAnswerRefused() async {
-        let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "Seven ports are open."))
+        let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "Seven ports are open."), admission: ModelAdmission())
         let response = await responder.respond(to: Self.payload(InsightRequest(subject: "s", facts: ["Open ports (1): 22"])), authorization: .always)
         #expect(response.answer == nil)
 
-        let numeric = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "Port 8080 is open."))
+        let numeric = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "Port 8080 is open."), admission: ModelAdmission())
         #expect(await numeric.respond(to: Self.payload(), authorization: .always).failureReason == .refused)
     }
 
     @Test("with the model unavailable the reply says so, and no capability is offered")
     func modelUnavailable() async {
-        let responder = CompanionInsightResponder(service: UnavailableInsightService())
+        let responder = CompanionInsightResponder(service: UnavailableInsightService(), admission: ModelAdmission())
         #expect(await responder.respond(to: Self.payload(), authorization: .always).failureReason == .unavailable)
         #expect(responder.capabilities(allowed: true) == nil)
     }
 
     @Test("a scanning Mac offers no insight capability")
     func noCapabilityWhileScanning() {
-        let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "SSH is open."))
+        let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "SSH is open."), admission: ModelAdmission())
         #expect(responder.capabilities(allowed: true, isScanning: true) == nil)
         #expect(responder.capabilities(allowed: true, isScanning: false) == ["insight.v1"])
     }
 
     @Test("with answering turned off the reply is unavailable, and no capability is offered")
     func answeringTurnedOff() async {
-        let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "SSH is open."), isAllowed: { false })
+        let responder = CompanionInsightResponder(
+            service: FixedAnswerInsightService(answer: "SSH is open."),
+            admission: ModelAdmission(), isAllowed: { false }
+        )
         #expect(await responder.respond(to: Self.payload(), authorization: .always).failureReason == .unavailable)
         #expect(responder.capabilities(allowed: false) == nil)
         #expect(responder.capabilities(allowed: true) == ["insight.v1"])
@@ -60,7 +66,7 @@ struct CompanionInsightResponderTests {
     @Test("during a Mac scan the model isn't asked and the reply is busy")
     func busyDuringScan() async {
         let model = GatedInsightService()
-        let responder = CompanionInsightResponder(service: model, isScanning: { true })
+        let responder = CompanionInsightResponder(service: model, admission: ModelAdmission(), isScanning: { true })
         #expect(await responder.respond(to: Self.payload(), authorization: .always).failureReason == .busy)
         #expect(model.askedCount == 0)
     }
@@ -68,7 +74,7 @@ struct CompanionInsightResponderTests {
     @Test("a second request while one is being answered is busy; the first still gets its answer")
     func oneAtATime() async {
         let model = GatedInsightService()
-        let responder = CompanionInsightResponder(service: model)
+        let responder = CompanionInsightResponder(service: model, admission: ModelAdmission())
         let first = Task { await responder.respond(to: Self.payload(), authorization: .always) }
         await waitUntil { model.askedCount == 1 }
 
@@ -81,14 +87,14 @@ struct CompanionInsightResponderTests {
 
     @Test("a model that doesn't answer in time gives a timeout")
     func timesOut() async {
-        let responder = CompanionInsightResponder(service: GatedInsightService(), timeout: .milliseconds(50))
+        let responder = CompanionInsightResponder(service: GatedInsightService(), admission: ModelAdmission(), timeout: .milliseconds(50))
         #expect(await responder.respond(to: Self.payload(), authorization: .always).failureReason == .timeout)
     }
 
     @Test("a request over the size cap is refused as too large without asking the model")
     func tooLarge() async {
         let model = GatedInsightService()
-        let responder = CompanionInsightResponder(service: model)
+        let responder = CompanionInsightResponder(service: model, admission: ModelAdmission())
         let huge = InsightRequest(subject: "s", facts: Array(repeating: String(repeating: "x", count: 1_000), count: 80))
         #expect(await responder.respond(to: Self.payload(huge), authorization: .always).failureReason == .tooLarge)
         #expect(model.askedCount == 0)
@@ -98,7 +104,7 @@ struct CompanionInsightResponderTests {
     func unknownKind() async throws {
         let json = #"{"requestID":"6B1B5E36-2C0C-4E57-9C1D-3D4A0F5E7A11","kind":"poem","subject":"s","facts":[],"observations":[]}"#
         let payload = try JSONDecoder().decode(InsightRequestPayload.self, from: Data(json.utf8))
-        let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "A poem."))
+        let responder = CompanionInsightResponder(service: FixedAnswerInsightService(answer: "A poem."), admission: ModelAdmission())
         #expect(await responder.respond(to: payload, authorization: .always).failureReason == .refused)
     }
 
@@ -108,7 +114,7 @@ struct CompanionInsightResponderTests {
         let paused = AsyncSignal()
         let resume = AsyncSignal()
         let live = LiveFlag(true)
-        let responder = CompanionInsightResponder(service: service, isScanning: {
+        let responder = CompanionInsightResponder(service: service, admission: ModelAdmission(), isScanning: {
             await paused.fire()
             await resume.wait()
             return false
@@ -143,7 +149,7 @@ struct CompanionInsightResponderTests {
         let service = GatedInsightService()
         let paused = AsyncSignal()
         let resume = AsyncSignal()
-        let responder = CompanionInsightResponder(service: service, isScanning: {
+        let responder = CompanionInsightResponder(service: service, admission: ModelAdmission(), isScanning: {
             await paused.fire()
             await resume.wait()
             return false
