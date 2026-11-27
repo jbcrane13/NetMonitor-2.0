@@ -24,6 +24,14 @@ enum PhoneModel {
         consent: consent
     )
 
+    /// Identity suggestions for device detail (#586): this phone's model, else the Mac's once the
+    /// user has agreed; it never asks.
+    static let identityService = RoutedIdentityService(
+        local: UITestFakeMacModel.isActive ? UnavailableInsightService() : InsightService.shared,
+        mac: linkClient,
+        consent: consent
+    )
+
     static let symptomClassifier = RoutedSymptomClassifier(
         local: UITestFakeMacModel.isActive ? UnavailableSymptomClassifier() : SymptomClassifier.shared,
         mac: linkClient,

@@ -64,8 +64,8 @@ struct MacReadingConsentAlert: ViewModifier {
     }
 
     static let message = "This iPhone can't run the on-device model. Your Mac's model can read the rules and problems you type "
-        + "here, and suggest what your devices are from their names and services. That text and those details go to your Mac "
-        + "over your local network and aren't kept there. You can change this in Settings."
+        + "here, and, in the background, suggest what your devices are from their names, services, open ports and makers. "
+        + "That text and those details go to your Mac over your local network and aren't kept there. You can change this in Settings."
 }
 
 /// The Settings switch for the same answer (#586): shown once the user has answered, or while a

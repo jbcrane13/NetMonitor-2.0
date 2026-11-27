@@ -243,7 +243,7 @@ final class FakeCompanionMac: Sendable {
             capabilities.append(CompanionCapability.inventory)
         }
         if answersModel {
-            capabilities += [CompanionCapability.rules, CompanionCapability.symptoms]
+            capabilities += [CompanionCapability.rules, CompanionCapability.symptoms, CompanionCapability.identity]
         }
         return HeartbeatPayload(capabilities: capabilities.isEmpty ? nil : capabilities)
     }
@@ -258,8 +258,12 @@ final class FakeCompanionMac: Sendable {
         "the wifi is weak in the bedroom": SymptomIntentRaw(kind: "weakWiFi", room: "bedroom")
     ]
 
+    /// What this Mac's stand-in model suggests for any device: a printer from a maker no fixture
+    /// uses, the real model's kind of answer, unchecked.
+    static let modelIdentity = IdentityRaw(deviceType: "printer", maker: "Brother", model: "HL-L2350DW", confidence: "high")
+
     static func modelAnswer(to request: ModelRequestPayload) -> ModelResponsePayload {
-        let key = request.input?.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let key = request.input?.text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
         switch request.input {
         case .rules?:
             return ModelResponsePayload(requestID: request.requestID, output: .rules(modelRules[key] ?? RuleIntentRaw(kind: "unsupported")))
@@ -267,6 +271,8 @@ final class FakeCompanionMac: Sendable {
             return ModelResponsePayload(
                 requestID: request.requestID, output: .symptoms(modelSymptoms[key] ?? SymptomIntentRaw(kind: "unsupported"))
             )
+        case .identity?:
+            return ModelResponsePayload(requestID: request.requestID, output: .identity(modelIdentity))
         case nil:
             return ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .refused)
         }

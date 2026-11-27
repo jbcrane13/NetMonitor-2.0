@@ -689,7 +689,7 @@ extension DeviceDetailView {
                 Image(systemName: "sparkles")
                     .font(.caption)
                     .foregroundStyle(Theme.Colors.accent)
-                    .accessibilityLabel("Suggested by the on-device model")
+                    .accessibilityLabel("Suggested by \((viewModel.suggestionSource ?? .device).modelName)")
             }
         }
     }
@@ -697,11 +697,12 @@ extension DeviceDetailView {
     /// Marks what the on-device model suggested and lets the user keep or drop it (#449).
     private var suggestionRow: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label("Suggested", systemImage: "sparkles")
+            // Marked as the Mac's when the paired Mac's model suggested it (#586).
+            Label(viewModel.suggestionSource == .mac ? "Suggested by your Mac" : "Suggested", systemImage: "sparkles")
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(Theme.Colors.accent)
-                .accessibilityLabel("Suggested by the on-device model")
+                .accessibilityLabel("Suggested by \((viewModel.suggestionSource ?? .device).modelName)")
                 .accessibilityIdentifier("deviceDetail_badge_suggested")
 
             HStack(spacing: Theme.Layout.itemSpacing) {

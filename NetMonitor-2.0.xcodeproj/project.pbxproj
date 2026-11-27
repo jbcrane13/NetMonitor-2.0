@@ -363,6 +363,7 @@
 		84632F7B0F24000B2F302BDA /* ChangeBriefMacViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B665D8ABF36658786B122CE /* ChangeBriefMacViewModel.swift */; };
 		849083AFF3C77D5E110E71AB /* PlainRuleScannedDeviceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35591FEADCA1BEAA52E7477F /* PlainRuleScannedDeviceUITests.swift */; };
 		851933E4B3A49AAA06EEE4E7 /* HeatmapAdvisorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EF81009C8B1233562A022D /* HeatmapAdvisorViewModelTests.swift */; };
+		8568624D87F60EFA5B78C887 /* MacIdentityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14CDEE5A848C8C85BDD75639 /* MacIdentityUITests.swift */; };
 		858EF0C583EA42BFCF536E9F /* v2.4-pr1-default.store in Resources */ = {isa = PBXBuildFile; fileRef = A5BBB0D11B556509F1B7A9C6 /* v2.4-pr1-default.store */; };
 		85EE6279FE466C8293D9C413 /* DeviceDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D34A17E8BFC3829CC161AA /* DeviceDetailViewModel.swift */; };
 		8691AFE753654E875A056725 /* IOSStoreMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EFAA075BB305B9626B949DD /* IOSStoreMigrationTests.swift */; };
@@ -804,6 +805,7 @@
 		1428BB9BB443F390D8405C03 /* SettingsFunctionalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFunctionalUITests.swift; sourceTree = "<group>"; };
 		1466E2049465B58CCE128936 /* WiFiInfoServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiInfoServiceTests.swift; sourceTree = "<group>"; };
 		14A86FF196E3905E81F1EE35 /* ChangeSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeSummaryView.swift; sourceTree = "<group>"; };
+		14CDEE5A848C8C85BDD75639 /* MacIdentityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacIdentityUITests.swift; sourceTree = "<group>"; };
 		1512CCF57CA62B5B1CF937A7 /* NetworkSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSettingsView.swift; sourceTree = "<group>"; };
 		152C60E77B4F26FE190B6091 /* InteractionFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionFlowUITests.swift; sourceTree = "<group>"; };
 		153DB66276F9A7D26089A191 /* DeviceRecordUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceRecordUpdater.swift; sourceTree = "<group>"; };
@@ -2275,6 +2277,7 @@
 				113F54C8B77279EBFE7FBF0D /* IOSUITestCase.swift */,
 				BE565057115049DB744858F7 /* LabelCaptureUITests.swift */,
 				DF6B545F58A386B0F4482FF2 /* LiveActivityUITests.swift */,
+				14CDEE5A848C8C85BDD75639 /* MacIdentityUITests.swift */,
 				FDC950D6E37F4BDFCDF938A9 /* MacInsightUITests.swift */,
 				540EA25702B3CDFF14AE59A8 /* MacInventoryUITests.swift */,
 				7131A027D282A33038C63F8A /* MacModelUITests.swift */,
@@ -3555,6 +3558,7 @@
 				99ED6C915DDE983BA1149E20 /* InteractionFlowUITests.swift in Sources */,
 				C5E47AB3751DDCC14811020D /* LabelCaptureUITests.swift in Sources */,
 				05C4FB91A5C6380CCA566F1C /* LiveActivityUITests.swift in Sources */,
+				8568624D87F60EFA5B78C887 /* MacIdentityUITests.swift in Sources */,
 				30ABC1BEFA01A0609DDC8B29 /* MacInsightUITests.swift in Sources */,
 				66F112259910FB35EB8DCA3A /* MacInventoryUITests.swift in Sources */,
 				43058F3C7C6AB166F3ED35A4 /* MacModelUITests.swift in Sources */,

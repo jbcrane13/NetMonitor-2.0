@@ -23,6 +23,8 @@ final class DeviceDetailViewModel {
     private(set) var isShowingSuggestion = false
     /// The type the model suggested while the device's type is unknown; written only on accept.
     private(set) var suggestedType: DeviceType?
+    /// Who suggested what's shown: this phone's model or the Mac's (#586).
+    private(set) var suggestionSource: InsightSource?
 
     private let macLookupService: any MACVendorLookupServiceProtocol
     private let nameResolver: any DeviceNameResolverProtocol
@@ -153,7 +155,7 @@ final class DeviceDetailViewModel {
     /// the dashboard lists fake devices; detail sees them too. The label sheet's duplicate-MAC
     /// check uses the same list (#456).
     static func liveScan(_ service: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared) -> [DiscoveredDevice] {
-        service.discoveredDevices + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
+        service.discoveredDevices + (UITestFakeDeviceFeed.isIdentityFixture ? UITestFakeDeviceFeed().devices : [])
     }
 
     // MARK: - Identity suggestion (#449)
@@ -204,10 +206,12 @@ final class DeviceDetailViewModel {
         guard let device else {
             isShowingSuggestion = false
             suggestedType = nil
+            suggestionSource = nil
             return
         }
         isShowingSuggestion = suggester.isShowingSuggestion(device)
         suggestedType = suggester.suggestedType(for: device)
+        suggestionSource = suggester.suggestionSource(for: device)
     }
 
     func saveContext() {
@@ -495,7 +499,7 @@ extension DeviceDetailViewModel {
     private func confirmedSighting(of device: LocalDevice) -> DiscoveredDevice? {
         guard !deviceDiscoveryService.isScanning, let mac = DeviceMatcher.normalizedMAC(device.macAddress) else { return nil }
         let completed = deviceDiscoveryService.completedScanDevices
-            + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
+            + (UITestFakeDeviceFeed.isIdentityFixture ? UITestFakeDeviceFeed().devices : [])
         let confirmed = completed.filter { scanned in
             !scanned.isCached && scanned.networkProfileID == device.networkProfileID
                 && DeviceMatcher.normalizedMAC(scanned.macAddress) == mac

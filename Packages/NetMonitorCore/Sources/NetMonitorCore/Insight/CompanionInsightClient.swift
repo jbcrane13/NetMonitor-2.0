@@ -16,24 +16,38 @@ import Synchronization
 public final class CompanionInsightClient: Sendable, Observable {
     /// Sends one message to the Mac; false when it couldn't be sent.
     public typealias Send = @Sendable (CompanionMessage) async -> Bool
+    /// Sends one message to the Mac only if `isWanted` (the user's consent) still holds where the
+    /// send itself runs (#635); false when it doesn't or the send failed.
+    public typealias SendIf = @Sendable (CompanionMessage, _ isWanted: @escaping @Sendable () -> Bool) async -> Bool
 
     /// Longer than the Mac's own limit, `CompanionInsightResponder.defaultTimeout`, so the
     /// Mac's timeout reply normally arrives first. An older Mac's error reply carries no
     /// request id, so this is also what ends a request one never answers.
     public static let defaultTimeout: Duration = .seconds(25)
 
-    private struct State {
-        var macOffersInsight = false
-        var pending: [UUID: AsyncStream<InsightUpdate>.Continuation] = [:]
+    private struct Pending {
+        let continuation: AsyncStream<InsightUpdate>.Continuation
+        /// Whether the request may still go out and its answer be used (#635).
+        let isWanted: @Sendable () -> Bool
     }
 
-    private let send: Send
+    private struct State {
+        var macOffersInsight = false
+        var pending: [UUID: Pending] = [:]
+    }
+
+    private let send: SendIf
     private let timeout: Duration
     private let state = Mutex(State())
     private let registrar = ObservationRegistrar()
 
-    public init(send: @escaping Send, timeout: Duration = defaultTimeout) {
-        self.send = send
+    public convenience init(send: @escaping Send, timeout: Duration = defaultTimeout) {
+        self.init(sendIf: { message, isWanted in isWanted() ? await send(message) : false }, timeout: timeout)
+    }
+
+    /// With a send that checks the request's condition itself, in the same step as the send (#635).
+    public init(sendIf: @escaping SendIf, timeout: Duration = defaultTimeout) {
+        send = sendIf
         self.timeout = timeout
     }
 
@@ -58,7 +72,9 @@ public final class CompanionInsightClient: Sendable, Observable {
 
     /// Ends the request `response` answers. A response to no pending request is ignored.
     public func received(_ response: InsightResponsePayload) {
-        finish(response.requestID, with: Self.update(for: response))
+        let wanted = state.withLock { $0.pending[response.requestID]?.isWanted() }
+        // An answer the user no longer wants (consent withdrawn meanwhile) is dropped (#635).
+        finish(response.requestID, with: wanted == false ? .unreachable : Self.update(for: response))
     }
 
     /// The link ended: the Mac no longer counts as available and every request in flight fails.
@@ -71,9 +87,9 @@ public final class CompanionInsightClient: Sendable, Observable {
             state.pending.removeAll()
             return values
         }
-        for continuation in pending {
-            continuation.yield(.unreachable)
-            continuation.finish()
+        for pending in pending {
+            pending.continuation.yield(.unreachable)
+            pending.continuation.finish()
         }
     }
 
@@ -82,6 +98,12 @@ public final class CompanionInsightClient: Sendable, Observable {
     /// timed-out Mac, or no answer within `timeout`). No partial text: the Mac sends its whole,
     /// checked answer at once.
     public func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        explain(request, while: { true })
+    }
+
+    /// As `explain(_:)`, while `isWanted` holds (#635): it is checked right before the request goes
+    /// out (and by the send itself) and before an answer is used.
+    public func explain(_ request: InsightRequest, while isWanted: @escaping @Sendable () -> Bool) -> AsyncStream<InsightUpdate> {
         AsyncStream { continuation in
             let payload = InsightRequestPayload(requestID: UUID(), request: request)
             let id = payload.requestID
@@ -94,7 +116,7 @@ public final class CompanionInsightClient: Sendable, Observable {
             }
             guard state.withLock({ state in
                 guard state.macOffersInsight else { return false }
-                state.pending[id] = continuation
+                state.pending[id] = Pending(continuation: continuation, isWanted: isWanted)
                 return true
             })
             else {
@@ -117,8 +139,9 @@ public final class CompanionInsightClient: Sendable, Observable {
                 self?.finish(id, with: .unreachable)
             }
             let sending = Task { [weak self] in
-                if await !send(.insightRequest(payload)) {
+                guard isWanted(), await send(.insightRequest(payload), isWanted) else {
                     self?.finish(id, with: .unreachable)
+                    return
                 }
             }
             tasks.withLock { $0 = [deadline, sending] }
@@ -142,9 +165,9 @@ public final class CompanionInsightClient: Sendable, Observable {
     }
 
     private func finish(_ id: UUID, with update: InsightUpdate) {
-        guard let continuation = state.withLock({ $0.pending.removeValue(forKey: id) }) else { return }
-        continuation.yield(update)
-        continuation.finish()
+        guard let pending = state.withLock({ $0.pending.removeValue(forKey: id) }) else { return }
+        pending.continuation.yield(update)
+        pending.continuation.finish()
     }
 }
 
@@ -222,13 +245,40 @@ public struct RoutedInsightService: InsightServiceProtocol {
         if local.isAvailable {
             return local.explain(request)
         }
-        guard consent.isAllowed else {
+        // Under the consent generation it began with (#635): nothing is sent, and no answer used,
+        // once the user withdrew it, even if they agreed again; withdrawing ends it at once.
+        guard let generation = consent.allowedGeneration else {
             return AsyncStream { continuation in
                 continuation.yield(.unreachable)
                 continuation.finish()
             }
         }
-        return mac.explain(request)
+        let consent = consent
+        let isCurrent: @Sendable () -> Bool = { consent.allowedGeneration == generation }
+        let answers = mac.explain(request, while: isCurrent)
+        return AsyncStream { continuation in
+            let relay = Task {
+                for await update in answers {
+                    continuation.yield(update)
+                }
+                continuation.finish()
+            }
+            let handler = consent.addWithdrawalHandler {
+                relay.cancel()
+                continuation.yield(.unreachable)
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in
+                relay.cancel()
+                consent.removeWithdrawalHandler(handler)
+            }
+            // Withdrawn between the check and registering the handler.
+            if !isCurrent() {
+                relay.cancel()
+                continuation.yield(.unreachable)
+                continuation.finish()
+            }
+        }
     }
 
     public func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {

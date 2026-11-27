@@ -35,10 +35,11 @@ struct CompanionSettingsView: View {
                             .accessibilityIdentifier("settings_textfield_servicePort")
                     }
                     // The Mac's on-device model words "Explain this" and summaries (#457), and
-                    // reads typed rules and symptoms (#586), for an iPhone that can't run one.
+                    // reads typed rules and symptoms and suggests what devices are (#586), for an
+                    // iPhone that can't run one.
                     Toggle(isOn: $answersInsight) {
                         Text("Answer model requests from iPhone")
-                        Text("Explanations, summaries, and the rules and problems typed on the iPhone. Nothing is kept on this Mac.")
+                        Text("Explanations, summaries, the rules and problems typed on the iPhone, and what its devices are. Nothing is kept on this Mac.")
                     }
                     .accessibilityIdentifier("settings_toggle_answersInsight")
                 }
