@@ -37,6 +37,7 @@ final class PlainRuleIOSViewModel {
     private let checkedPorts: [Int]
     /// Goes up with every request, so a port check that finishes after a newer one is dropped.
     private var generation = 0
+    private let parser: any RuleIntentParsing
     /// A draft's row is saved only if no path update happened since the request started (#628).
     private let joinClock: NetworkJoinClock
     /// The token the request's scan was observed under, else the path the request started on (#628).
@@ -46,13 +47,14 @@ final class PlainRuleIOSViewModel {
     static let networkChangedMessage = "The network changed since the scan. Scan again, then try this rule again."
 
     init(
-        parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared,
+        parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? PhoneModel.ruleParser,
         probe: MonitoringTargetProbe = UITestBootstrap.ruleProbe ?? BackgroundTaskService.liveProbe,
         checkedPorts: [Int] = DeviceTypeInferenceService.fingerprintPorts,
         joinClock: NetworkJoinClock = .shared
     ) {
         self.joinClock = joinClock
         composer = PlainRuleComposer(parser: parser, platform: .iOS)
+        self.parser = parser
         self.probe = probe
         self.checkedPorts = checkedPorts
     }
@@ -63,6 +65,13 @@ final class PlainRuleIOSViewModel {
     }
 
     var isAvailable: Bool { composer.isAvailable }
+
+    /// Whether the user must first agree to let the Mac read what they type (#586). Read live:
+    /// the local model or a Mac can come and go.
+    var needsMacConsent: Bool { parser.availability == .needsConsent }
+
+    /// The answer the prompt records.
+    var macConsent: MacInsightConsent? { parser.macConsent }
 
     /// - Parameters:
     ///   - devices: the saved rows, complete groups (`DeviceGroups.recentDevices`): a group of

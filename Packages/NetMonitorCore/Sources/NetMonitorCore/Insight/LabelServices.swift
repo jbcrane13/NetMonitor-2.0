@@ -77,8 +77,10 @@ struct SystemLabelFieldExtractor: LabelFieldExtractorProtocol {
             let session = LanguageModelSession(instructions: LabelFields.instructions)
             // Greedy: the same label gets the same fields.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 160)
-            let response = try await session.respond(to: LabelFields.prompt(for: lines), generating: GeneratedLabelFields.self, options: options)
-            return response.content.fields
+            // Registered with the admission control: while it runs, companion requests are busy (#586).
+            return try await ModelAdmission.shared.runLocal(.interactive) {
+                try await session.respond(to: LabelFields.prompt(for: lines), generating: GeneratedLabelFields.self, options: options).content.fields
+            }
         } catch {
             return nil
         }

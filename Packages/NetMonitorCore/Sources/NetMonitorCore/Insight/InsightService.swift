@@ -95,7 +95,18 @@ struct SystemInsightService: InsightServiceProtocol {
 
     func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
         AsyncStream { continuation in
-            let task = Task {
+            // Counted from here, before the task runs: interactive for this Mac's own request
+            // (companion requests are busy meanwhile), or holding the companion ticket when it
+            // answers a phone, so the slot can't be freed before the model starts (#586).
+            let task = ModelAdmission.shared.task(.interactive) {
+                await Self.stream(request, into: continuation)
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private static func stream(_ request: InsightRequest, into continuation: AsyncStream<InsightUpdate>.Continuation) async {
                 do {
                     let session = LanguageModelSession(instructions: request.kind.instructions)
                     var text = ""
@@ -110,10 +121,6 @@ struct SystemInsightService: InsightServiceProtocol {
                 } catch {
                     continuation.yield(.failed)
                 }
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
     }
 
     func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
@@ -121,8 +128,10 @@ struct SystemInsightService: InsightServiceProtocol {
             let session = LanguageModelSession(instructions: DeviceEvidence.instructions)
             // Guided generation into a typed answer; greedy so the same evidence gets the same answer.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 120)
-            let response = try await session.respond(to: evidence.prompt, generating: GeneratedIdentity.self, options: options)
-            return response.content.suggestion
+            // Background: registered with the admission control, but never holds companion work back (#586).
+            return try await ModelAdmission.shared.runLocal(.background) {
+                try await session.respond(to: evidence.prompt, generating: GeneratedIdentity.self, options: options).content.suggestion
+            }
         } catch {
             return nil
         }

@@ -531,7 +531,7 @@ Sent periodically to maintain connection and verify connectivity.
 |-------|------|-------------|
 | `timestamp` | ISO8601 Date | Current time |
 | `version` | String | Protocol version |
-| `capabilities` | [String]? | Optional. What the sender does beyond the base protocol. The Mac always sends `"inventory.v1"` (#585): it pushes its device list with the inventory fields after each scan. It sends `"insight.v1"` while its on-device model can answer, it isn't scanning, and "Answer model requests from iPhone" is on. That setting is **on by default** (#457), because only a paired iPhone can reach the Mac; a value the owner has stored, on or off, always wins. Since #590 only a paired iPhone can send model requests at all. Omitted when empty; older builds ignore it. |
+| `capabilities` | [String]? | Optional. What the sender does beyond the base protocol. The Mac always sends `"inventory.v1"` (#585): it pushes its device list with the inventory fields after each scan. It sends `"insight.v1"` while its on-device model can answer, it isn't scanning, and "Answer model requests from iPhone" is on. It sends `"rules.v1"` and `"symptoms.v1"` (#586) while its model can answer and the same setting is on, scanning or not. That setting is **on by default** (#457), because only a paired iPhone can reach the Mac; a value the owner has stored, on or off, always wins. Since #590 only a paired iPhone can send model requests at all. Omitted when empty; older builds ignore it. |
 
 The Mac sends a heartbeat when a client connects and in reply to each heartbeat, so a phone learns the Mac's capabilities at once and again every interval.
 
@@ -585,6 +585,78 @@ The Mac's whole answer to one `insightRequest`, after its own grounding and text
 The Mac answers one request at a time (`busy` for another one meanwhile, and during a Mac scan) and gives the model 20 s. While it scans it also stops listing `insight.v1` and sends a heartbeat without it, and another when the scan ends. The phone gives up after 25 s, and at once when the link drops; the feature then falls back to its path without the model. Phone features that wait for a summary wait at least 27 s when the Mac writes it; notification bodies keep their 2 s budget.
 
 The phone sends requests only after the user agrees, once, to "Use your Mac for on-device AI?"; a Settings switch changes the answer.
+
+### 10. modelRequest
+
+Asks the Mac's model to read text the user typed on a phone that can't run the model (#586). Each schema is its own capability, and the phone sends a schema only while the Mac's **latest** heartbeat lists it.
+
+**Direction:** Companion → macOS
+
+**Payload:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `requestID` | UUID | Fresh for each request; the Mac drops an ID already running or spent on the link |
+| `schema` | String | `rules.v1` (a plain-English alert rule, #450) or `symptoms.v1` (a troubleshooter symptom, #451). An unknown schema is answered `refused` |
+| `input` | Object | `{ "text": String }`, 1 to 300 characters. A longer text isn't sent, never cut; the Mac answers one with `tooLarge`, and a malformed input with `refused` |
+
+The Mac takes the instructions and the answer's shape from the schema, never from the wire.
+
+### 11. modelResponse
+
+The Mac model's answer to one `modelRequest`, **unchecked**: the phone checks it against what the user typed, with the same code that checks its own model's answer.
+
+**Direction:** macOS → Companion, only in reply to a `modelRequest`, and never after its `modelCancel`.
+
+**Payload:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `requestID` | UUID | The request answered |
+| `schema` | String | The request's schema |
+| `output` | Object? | `rules.v1`: `kind`, `device?`, `thresholdMilliseconds?`, `durationSeconds?`, `portPreset?`. `symptoms.v1`: `kind`, `device?`, `room?`, `website?` |
+| `failure` | String? | As `insightResponse`: `unavailable`, `refused`, `timeout`, `tooLarge` or `busy` |
+
+The phone uses a reply only when:
+- it is for a request pending on the same link, with the same schema;
+- it has exactly one of `output` and `failure`;
+- every field reads, `kind` is at most 32 characters and every other text field at most 120. A longer field fails the reply; nothing is cut.
+
+A second reply for the same request finds nothing pending and is ignored.
+
+**On the phone**, the answer then goes through the same checks as the local model's (`RuleIntentRaw.intent(for:)`, `SymptomIntentRaw.intent(for:)`):
+- A device phrase must be the user's own words, up to a plural, case and spacing. "NAS offline" never becomes a printer; "printer" stands for "the printers".
+- A threshold must be a whole number the user typed that isn't a duration, from 1 to 10,000 ms.
+- A duration must be stated, and at most a day.
+- A website must be a whole name the user typed: `ample.com` is not in `example.com`. A copied URL counts by its host, and a leading `www.` doesn't count when grounding; the host checked is the one the user typed.
+- `unsupported` is the escape.
+
+Drafts are built and reviewed on the phone before anything is saved. Text over 300 characters asks the user to "Shorten the description and try again", whichever model would read it.
+
+### 12. modelCancel
+
+The phone gave up on a request: its 13 s timeout, or the user left. It is sent only after the request itself went out.
+
+**Direction:** Companion → macOS. **Payload:** `{ "requestID": UUID }`.
+
+The Mac cancels the request's task, so nothing is sent for it, and cancels the model. It remembers the last 32 spent IDs per link, so a cancel that arrives before its request drops the request.
+
+**Limits and gates on the Mac:**
+- **Per link:** model requests count with `insightRequest`s against the per-link cap of 2. Over the cap the reply is `busy`, sent in the receive batch rather than on a task of its own.
+- **One slot (`ModelAdmission`):** the whole Mac has one companion model slot, shared with `insight.v1`. The reply is `busy` while:
+  - the Mac's own interactive model work runs (a typed rule or symptom, an explanation, Ask);
+  - another companion request holds the slot;
+  - the Mac scans;
+  - the budget of 10 companion requests per rolling minute (`ModelAdmission.defaultCompanionBudget`) is spent. A `busy` reply spends none of it.
+- **Priority:** every model call on the Mac registers with `ModelAdmission`: the Mac's own interactive calls, and background identity suggestions, which never hold companion work back. A Mac request never waits. One that starts during a companion inference runs alongside it, so the worst case is sharing the model with one inference of at most 10 s. Phone requests that arrive meanwhile get `busy`.
+- **Holding the slot:** the slot is held until the request and every model call made for it have really returned (a task-local ticket, so a call in a task of its own, such as an explanation's, holds it too). A timed-out or cancelled request whose model ignores cancellation keeps it.
+- **At the model call:** the work starts inside the link's submission lock and is registered with it (`CompanionAuthorization.start`), so closing the link, which the Mac's Remove does before revoking, cancels it. The token and "Answer model requests from iPhone" are checked once more right before the model is asked (`ModelSubmission`). With the setting turned off while the model worked, no answer is sent.
+- **Timeouts:** the Mac gives the model 10 s, and the phone waits 13 s.
+- **Frame size:** model frames are capped at 16 KiB in the frame decoder on both sides. A larger one is consumed and dropped (`oversizedModelFrame`), and the link stays up. An oversized request is answered `tooLarge` at once (echoing its schema only up to 64 characters, else empty), and an oversized answer ends its request on the phone.
+
+**Advertising:** the Mac lists `rules.v1` and `symptoms.v1` while its model is available and "Answer model requests from iPhone" is on. It keeps listing them while it scans and answers `busy` then, so the phone's field doesn't come and go. An older Mac lists neither, so the phone hides the field.
+
+**Consent:** the phone asks once more, separately from explanations: "Let your Mac read what you type?" The answer is stored under `netmonitor.macInsight.consent.v2` and has its own Settings switch, and a "yes" to explanations doesn't cover it. Each request runs under the consent generation it began with. Withdrawing consent cancels the request (`modelCancel`). Nothing is sent once consent is withdrawn (the connection checks it on the main actor, in the same step as the send), and an answer is dropped if the user withdrew consent meanwhile, even if they agreed again. The output is marked "Drafted by the on-device model on your Mac" or "Read by the on-device model on your Mac".
 
 ---
 
@@ -648,6 +720,16 @@ Companion                              macOS
     |<------- [heartbeat: insight.v1] ---|
     |-------- [insightRequest] -------->|
     |<------- [insightResponse] --------|
+```
+
+### Typed text (#586)
+
+```
+Companion                              macOS
+    |<-- [heartbeat: rules.v1, symptoms.v1]
+    |-------- [modelRequest] ---------->|
+    |<------- [modelResponse] ----------|   (or, after the phone's timeout:)
+    |-------- [modelCancel] ----------->|
 ```
 
 ### Keepalive
@@ -731,3 +813,4 @@ UnpairPayload             // The phone forgot this Mac (#590)
 | 1.0 | 2026-11-24 | Optional heartbeat `capabilities`; `insightRequest` / `insightResponse` behind `insight.v1` (#457). Wire version unchanged. |
 | 2 | 2026-11-25 | TLS 1.3 with mutually pinned identities; pairing by QR or typed code with a comparison code; `serverHello`, `pairRequest`, `pairChallenge`, `pairResult`, `unpair`; TXT `pv` and `mac` (#590). |
 | 2 | 2026-11-26 | `inventory.v1`: optional `deviceList.network` (always sent by such a Mac, with its routed gateway), `DeviceInfo.lastSeenAge`, `lastChangedAge` and `identity`; the Mac pushes the list after each scan, capped to one frame (#585, #427). Wire version unchanged. |
+| 2 | 2026-11-26 | `rules.v1` and `symptoms.v1`: `modelRequest`, `modelResponse` and `modelCancel`, for a phone that can't run the model; the phone checks the Mac's unchecked answer itself (#586). Wire version unchanged. |

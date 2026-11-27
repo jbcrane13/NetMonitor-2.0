@@ -34,10 +34,13 @@ struct CompanionSettingsView: View {
                             .multilineTextAlignment(.trailing)
                             .accessibilityIdentifier("settings_textfield_servicePort")
                     }
-                    // The Mac's on-device model words "Explain this" and summaries for an
-                    // iPhone that can't run one (#457).
-                    Toggle("Answer model requests from iPhone", isOn: $answersInsight)
-                        .accessibilityIdentifier("settings_toggle_answersInsight")
+                    // The Mac's on-device model words "Explain this" and summaries (#457), and
+                    // reads typed rules and symptoms (#586), for an iPhone that can't run one.
+                    Toggle(isOn: $answersInsight) {
+                        Text("Answer model requests from iPhone")
+                        Text("Explanations, summaries, and the rules and problems typed on the iPhone. Nothing is kept on this Mac.")
+                    }
+                    .accessibilityIdentifier("settings_toggle_answersInsight")
                 }
             } header: {
                 Text("Service")

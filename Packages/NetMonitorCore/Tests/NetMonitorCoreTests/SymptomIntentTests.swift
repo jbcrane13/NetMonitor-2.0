@@ -72,4 +72,24 @@ struct SymptomIntentTests {
         #expect(!classifier.isAvailable)
         #expect(await classifier.classify("Zoom keeps freezing") == nil)
     }
+
+    @Test("a website must be a whole name the user typed: ample.com is not in example.com (#586)")
+    func hostIsAWholeName() {
+        func host(_ host: String, _ input: String) -> String? {
+            SymptomIntent.normalized(kind: "websiteNotLoading", devicePhrase: nil, room: nil, host: host, input: input).host
+        }
+        #expect(host("ample.com", "example.com won't load") == nil)
+        #expect(host("example.co", "example.com won't load") == nil)
+        #expect(host("example.com", "Is example.com down?") == "example.com")
+        #expect(host("example.com", "I can't open example.com.") == "example.com")
+        #expect(host("github.com", "github.com won't open") == "github.com")
+        #expect(host("https://example.com/login", "https://example.com/login won't load") == "example.com", "a copied URL counts by its host")
+        #expect(host("https://ample.com/login", "https://example.com/login won't load") == nil)
+        // A leading www. is the same site for grounding, but the host checked is the one typed.
+        #expect(host("nytimes.com", "www.nytimes.com won't load") == "www.nytimes.com")
+        #expect(host("www.nytimes.com", "nytimes.com won't load") == "nytimes.com")
+        #expect(host("https://www.foo.com/login", "https://www.foo.com/login won't load") == "www.foo.com")
+        #expect(host("ample.com", "www.example.com won't load") == nil)
+        #expect(host("times.com", "www.nytimes.com won't load") == nil)
+    }
 }

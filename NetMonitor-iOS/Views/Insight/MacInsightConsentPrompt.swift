@@ -38,3 +38,46 @@ struct MacInsightSettingsRow: View {
         }
     }
 }
+
+/// "Let your Mac read what you type?" (#586): asked once, the first time the user submits a typed
+/// rule or symptom this phone's model can't read and a connected Mac could. A separate answer from
+/// explanations: what the user types is a new kind of data to send. Until they agree nothing is
+/// sent, and the feature keeps its path without the model.
+struct MacReadingConsentAlert: ViewModifier {
+    @Binding var isPresented: Bool
+    let consent: MacInsightConsent?
+    /// Runs after the user agrees: the request they submitted.
+    let onAgree: () -> Void
+
+    func body(content: Content) -> some View {
+        content.alert("Let your Mac read what you type?", isPresented: $isPresented) {
+            Button("Use My Mac") {
+                consent?.agree()
+                onAgree()
+            }
+            .accessibilityIdentifier("macReading_button_agree")
+            Button("Don't Use Mac", role: .cancel) { consent?.decline() }
+                .accessibilityIdentifier("macReading_button_decline")
+        } message: {
+            Text(MacReadingConsentAlert.message)
+        }
+    }
+
+    static let message = "This iPhone can't run the on-device model. Your Mac's model can read the rules and problems you type "
+        + "here, and suggest what your devices are from their names and services. That text and those details go to your Mac "
+        + "over your local network and aren't kept there. You can change this in Settings."
+}
+
+/// The Settings switch for the same answer (#586): shown once the user has answered, or while a
+/// connected Mac offers to read typed text.
+struct MacReadingSettingsRow: View {
+    let mac: CompanionModelClient
+    let consent: MacInsightConsent
+
+    var body: some View {
+        if consent.decision != nil || !mac.offeredSchemas.isEmpty {
+            Toggle("Let your Mac read what you type", isOn: Binding(get: { consent.isAllowed }, set: consent.setAllowed))
+                .accessibilityIdentifier("settings_toggle_macReading")
+        }
+    }
+}
