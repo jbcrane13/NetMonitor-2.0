@@ -577,8 +577,11 @@ extension CompanionService {
                 await send(Self.decodeErrorMessage(), to: clientID)
             case .invalidLength(let length):
                 Logger.companion.error("Invalid frame length \(length) from \(clientID), buffer cleared")
-            case .oversizedModelFrame:
-                Logger.companion.error("Dropped an oversized model frame from \(clientID)")
+            case .oversizedModelFrame(let frame):
+                // Dropped whole; a request is answered at once, so the phone doesn't wait it out.
+                if frame.isRequest {
+                    await send(.modelResponse(frame.tooLargeReply), to: clientID)
+                }
             }
         }
     }
@@ -622,9 +625,7 @@ extension CompanionService {
     /// on this link is dropped. A busy reply goes out in the batch, not on a task of its own, so
     /// the one receive per link bounds them.
     private func deferInsightRequest(_ message: CompanionMessage, from clientID: UUID) async {
-        guard var link = links[clientID] else { return }
-        let modelRequestID = Self.modelRequestID(of: message)
-        guard link.modelRequests.admits(modelRequestID) else { return }
+        guard var link = links[clientID], link.modelRequests.admits(Self.modelRequestID(of: message)) else { return }
         guard link.runningInsightRequests < limits.maximumInsightRequests else {
             if let busy = Self.busyReply(to: message) {
                 await send(busy, to: clientID)
@@ -635,7 +636,7 @@ extension CompanionService {
         let handler = messageHandler
         let hook = deferredStartHook
         link.runningInsightRequests += 1
-        link.modelRequests.start(modelRequestID, task: taskID)
+        link.modelRequests.start(Self.modelRequestID(of: message), task: taskID)
         // Runs on this actor (it captures `self`). The handler suspends, so it gets a live
         // authorisation token to check again before the model is asked. The task removes
         // itself, and `close` cancels it.

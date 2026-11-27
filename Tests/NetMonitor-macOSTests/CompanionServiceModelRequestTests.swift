@@ -114,7 +114,7 @@ struct CompanionServiceModelRequestTests {
         #expect(!mac.handled.contains("modelRequest"))
     }
 
-    @Test("a model frame over 16 KiB is dropped whole, and the link keeps working")
+    @Test("a model request over 16 KiB is answered tooLarge at once, never handled, and the link keeps working")
     func oversizedFrame() async throws {
         let identity = CompanionIdentity()
         let mac = try await TestMac.start(paired: [identity.pin]) { message, _ in Self.answer(to: message) }
@@ -122,10 +122,18 @@ struct CompanionServiceModelRequestTests {
         let phone = await Self.connect(mac, identity: identity)
         let big = ModelRequestPayload(requestID: UUID(), input: .rules(text: String(repeating: "a", count: ModelSchema.maximumFrameSize)))
         phone.send(.modelRequest(big))
+        let refused = await Self.modelResponse(phone)
+        #expect(refused?.requestID == big.requestID)
+        #expect(refused?.result(expecting: .rules) == .failure(.tooLarge))
         phone.send(Self.modelRequest())
-        let response = await Self.modelResponse(phone)
-        #expect(response?.requestID != big.requestID)
-        #expect(response?.result(expecting: .rules) != nil)
+        let answered = await phone.message(timeout: .seconds(3)) {
+            if case .modelResponse(let response) = $0 {
+                response.requestID != big.requestID
+            } else {
+                false
+            }
+        }
+        #expect(answered != nil)
         #expect(mac.handled.filter { $0 == "modelRequest" }.count == 1)
     }
 }

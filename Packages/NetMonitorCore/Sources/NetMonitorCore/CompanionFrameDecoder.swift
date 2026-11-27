@@ -4,8 +4,8 @@ public enum CompanionFrameError: Equatable, Sendable {
     case invalidLength(UInt32)
     case malformedPayload
     /// A model frame (#586) over ``ModelSchema/maximumFrameSize``: consumed whole and dropped,
-    /// never cut down to fit.
-    case oversizedModelFrame
+    /// never cut down to fit. The receiver answers a request `tooLarge` from it.
+    case oversizedModelFrame(OversizedModelFrame)
 
     /// Whether the stream is out of step after it: a bad length drops the decoder's buffer, so
     /// whatever follows is read from the middle of a frame. A malformed payload was consumed
@@ -15,6 +15,34 @@ public enum CompanionFrameError: Equatable, Sendable {
             return true
         }
         return false
+    }
+}
+
+/// Which model frame was over the limit (#586), so the receiver can answer it at once.
+public struct OversizedModelFrame: Equatable, Sendable {
+    public let requestID: UUID
+    public let schema: String
+    /// A `modelRequest`; otherwise a response or a cancel.
+    public let isRequest: Bool
+
+    public init(requestID: UUID, schema: String, isRequest: Bool) {
+        self.requestID = requestID
+        self.schema = schema
+        self.isRequest = isRequest
+    }
+
+    init?(_ message: CompanionMessage) {
+        switch message {
+        case .modelRequest(let payload): self.init(requestID: payload.requestID, schema: payload.schema, isRequest: true)
+        case .modelResponse(let payload): self.init(requestID: payload.requestID, schema: payload.schema, isRequest: false)
+        case .modelCancel(let payload): self.init(requestID: payload.requestID, schema: "", isRequest: false)
+        default: return nil
+        }
+    }
+
+    /// The reply that ends the request at once, instead of leaving the phone to its timeout.
+    public var tooLargeReply: ModelResponsePayload {
+        ModelResponsePayload(requestID: requestID, schema: schema, failure: .tooLarge)
     }
 }
 
@@ -67,8 +95,8 @@ public actor CompanionFrameDecoder {
 
             do {
                 let message = try CompanionMessage.decode(from: payload)
-                guard !message.isModelFrame || payload.count <= ModelSchema.maximumFrameSize else {
-                    errors.append(.oversizedModelFrame)
+                if payload.count > ModelSchema.maximumFrameSize, let oversized = OversizedModelFrame(message) {
+                    errors.append(.oversizedModelFrame(oversized))
                     continue
                 }
                 messages.append(message)

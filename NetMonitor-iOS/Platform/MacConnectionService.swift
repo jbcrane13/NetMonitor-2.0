@@ -345,6 +345,10 @@ extension MacConnectionService {
                     if !batch.errors.isEmpty {
                         Self.logger.error("Rejected \(batch.errors.count) companion frame(s)")
                     }
+                    // An oversized answer ends its request at once (#586).
+                    for case .oversizedModelFrame(let frame) in batch.errors where !frame.isRequest {
+                        self.modelClient.received(frame.tooLargeReply, onLink: generation)
+                    }
 
                     // A bad frame length leaves the stream out of step: end the link, which ends the Mac's
                     // inventory too. A malformed payload was consumed whole and is only skipped (#624).

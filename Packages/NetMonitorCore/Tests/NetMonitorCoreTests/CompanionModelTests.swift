@@ -85,14 +85,16 @@ struct CompanionModelPayloadTests {
         #expect(unknownReason.result(expecting: .rules) == .failure(.refused))
     }
 
-    @Test("the frame decoder drops a model frame over 16 KiB whole, and reads the next frame")
+    @Test("the frame decoder drops a model frame over 16 KiB whole, says which request it was, and reads the next frame")
     func oversizedModelFrame() async throws {
         let big = ModelRequestPayload(requestID: UUID(), input: .rules(text: String(repeating: "a", count: ModelSchema.maximumFrameSize)))
         let heartbeat = CompanionMessage.heartbeat(HeartbeatPayload())
         let decoder = CompanionFrameDecoder()
         let batch = try await decoder.append(CompanionMessage.modelRequest(big).encodeLengthPrefixed() + heartbeat.encodeLengthPrefixed())
-        #expect(batch.errors == [.oversizedModelFrame])
-        #expect(!CompanionFrameError.oversizedModelFrame.desyncsStream)
+        let oversized = OversizedModelFrame(requestID: big.requestID, schema: "rules.v1", isRequest: true)
+        #expect(batch.errors == [.oversizedModelFrame(oversized)])
+        #expect(oversized.tooLargeReply == ModelResponsePayload(requestID: big.requestID, schema: "rules.v1", failure: .tooLarge))
+        #expect(!CompanionFrameError.oversizedModelFrame(oversized).desyncsStream)
         #expect(batch.messages.map(\.logName) == ["heartbeat"])
     }
 
@@ -141,6 +143,21 @@ struct ModelAdmissionTests {
         #expect(admission.admitCompanion() == nil)
         admission.release(second)
         #expect(!admission.isCompanionSlotHeld)
+    }
+
+    @Test("a busy reply spends none of the budget")
+    func busySpendsNoBudget() async throws {
+        let admission = ModelAdmission(companionBudget: 1)
+        await admission.runLocal(.interactive) {
+            for _ in 0 ..< 5 {
+                #expect(admission.admitCompanion() == nil)
+            }
+        }
+        let scanning = CompanionModelResponder(model: ScriptedCompanionModel(output: nil), admission: admission, isScanning: { true })
+        let request = ModelRequestPayload(requestID: UUID(), input: .rules(text: "x"))
+        #expect(await scanning.respond(to: request, authorization: .always)?.failure == "busy")
+        try admission.release(#require(admission.admitCompanion(), "the one admission is still there"))
+        #expect(ModelAdmission.defaultCompanionBudget == 10)
     }
 
     @Test("companion work has a rolling budget, so a phone can't keep refilling its allowance")

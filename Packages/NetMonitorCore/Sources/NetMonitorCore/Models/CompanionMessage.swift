@@ -543,17 +543,6 @@ public enum CompanionCapability {
     public static let symptoms = ModelSchema.symptoms.rawValue
 }
 
-extension CompanionMessage {
-    /// Whether this is one of the model frames (#586), which `CompanionFrameDecoder` caps at
-    /// ``ModelSchema/maximumFrameSize``.
-    public var isModelFrame: Bool {
-        switch self {
-        case .modelRequest, .modelResponse, .modelCancel: true
-        default: false
-        }
-    }
-}
-
 // MARK: - Logging
 
 extension CompanionMessage {
