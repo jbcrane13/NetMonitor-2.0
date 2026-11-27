@@ -238,7 +238,7 @@ struct AskToolViewModelTests {
         let nas = device("Garage NAS", ip: AskUITestFixture.printer.ip)
         let text = await intentAnswer("Is the NAS up?", script: AskScript(calls: [.pingDevice("Garage NAS")], answer: "Yes, it pinged fine."),
                                       devices: [nas], lastScan: Date())
-        #expect(text.hasPrefix("Here is the app's live check. Garage NAS (192.0.2.57): 3 of 3 replies, 4 ms average, measured just now. "))
+        #expect(text == "Here is the app's live check. Garage NAS (192.0.2.57): 3 of 3 replies, 4 ms average, measured just now.")
         #expect(!text.contains("Garage NAS: Online"))
         #expect(!text.contains("below"))
         // Every cited device was checked live, so the scan's freshness isn't said.
