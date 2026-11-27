@@ -46,9 +46,9 @@ final class LabelCaptureViewModel: PhotoReading {
 
     init(
         reader: LabelReader = LabelCaptureViewModel.makeReader(),
-        isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
+        isScanning: @escaping @MainActor () -> Bool = { DeviceDetailViewModel.appDiscovery.isScanning },
         liveScan: @escaping @MainActor () -> [DiscoveredDevice] = { DeviceDetailViewModel.liveScan() },
-        liveScanToken: @escaping @MainActor () -> JoinToken? = { DeviceDiscoveryService.shared.discoveredDevicesToken },
+        liveScanToken: @escaping @MainActor () -> JoinToken? = { DeviceDetailViewModel.appDiscovery.discoveredDevicesToken },
         joinClock: NetworkJoinClock = .shared,
         testImage: @escaping @MainActor () -> CGImage? = { UITestBootstrap.usesTestLabelImage ? UITestBootstrap.testLabelImage() : nil }
     ) {

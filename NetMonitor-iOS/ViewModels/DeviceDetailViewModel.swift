@@ -70,7 +70,7 @@ final class DeviceDetailViewModel {
         nameResolver: any DeviceNameResolverProtocol = DeviceNameResolver(),
         portScanner: any PortScannerServiceProtocol = PortScannerService(),
         bonjourService: any BonjourDiscoveryServiceProtocol = BonjourDiscoveryService(),
-        deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared,
+        deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = DeviceDetailViewModel.appDiscovery,
         suggester: DeviceSuggester = DeviceSuggester(service: UITestFakeDeviceFeed.insightService, store: DeviceSuggestionStore()),
         wakeService: any WakeOnLANServiceProtocol = WakeOnLANService(),
         references: [any DeviceReferenceStore] = [NetworkEventService.shared],
@@ -172,12 +172,18 @@ final class DeviceDetailViewModel {
         }
     }
 
+    /// The discovery the app's lists come from: the UI-test fixture's under `UITEST_FAKE_DEVICES`.
+    static var appDiscovery: any DeviceDiscoveryServiceProtocol {
+        UITestFakeDeviceFeed.isEnabled ? UITestFakeDiscoveryService.shared : DeviceDiscoveryService.shared
+    }
+
     /// The latest scan, as device detail matches rows against it. Under the UI-test fixture
     /// the dashboard lists fake devices; detail sees them too. The label sheet's duplicate-MAC
     /// check uses the same list (#456). A row write from it first checks the token it was observed
     /// under (`discoveredDevicesToken`, #628).
-    static func liveScan(_ service: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared) -> [DiscoveredDevice] {
-        service.discoveredDevices + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
+    static func liveScan(_ service: any DeviceDiscoveryServiceProtocol = DeviceDetailViewModel.appDiscovery) -> [DiscoveredDevice] {
+        // Under the fixture, the dashboard lists the feed's devices as the current scan (#628).
+        service.discoveredDevices + (UITestFakeDeviceFeed.isEnabled ? UITestFakeDeviceFeed().devices : [])
     }
 
     // MARK: - Identity suggestion (#449)

@@ -103,7 +103,7 @@ final class AppEnvironment {
         }
         return AppEnvironment(
             networkMonitor: NetworkMonitorService.shared,
-            deviceDiscovery: fake ? UITestFakeDiscoveryService() : DeviceDiscoveryService.shared,
+            deviceDiscovery: fake ? UITestFakeDiscoveryService.shared : DeviceDiscoveryService.shared,
             macConnection: MacConnectionService.shared,
             publicIP: publicIPService(),
             wifiInfo: WiFiInfoService(),
