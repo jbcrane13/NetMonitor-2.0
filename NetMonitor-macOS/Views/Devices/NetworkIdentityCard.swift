@@ -111,32 +111,53 @@ struct NetworkIdentityCard: View {
         // Its own container keeps the title's and buttons' identifiers from the screen's.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("devices_identity_card")
+        // What each option holds, as of now rather than when it was asked.
+        .onAppear { identity.refreshOptionSummaries() }
     }
 }
 
 /// A one-line pointer to the card (#645), wherever a held network's rows read as history: the
-/// dashboard's device panel and the menu bar popover.
+/// dashboard's device panel for that network and the menu bar popover.
 struct NetworkIdentityBanner: View {
     let identity: NetworkIdentityController
+    /// The panel's network; nil (the menu bar) for whichever network is held.
+    var networkID: UUID?
     let open: () -> Void
 
+    private var applies: Bool {
+        if identity.isDamaged || identity.saveFailed {
+            return networkID == nil || identity.heldNetworkIDs.contains(networkID ?? UUID())
+        }
+        return networkID.map(identity.heldNetworkIDs.contains) ?? !identity.heldNetworkIDs.isEmpty
+    }
+
+    private var text: String {
+        if identity.isDamaged {
+            return "Network recognition is paused"
+        }
+        if identity.saveFailed {
+            return "Couldn't save which network this is"
+        }
+        return identity.question == nil ? "Identifying which network this is…" : "Which network is this?"
+    }
+
     var body: some View {
-        if !identity.heldNetworkIDs.isEmpty || identity.saveFailed {
+        if applies {
             HStack(spacing: 6) {
                 Image(systemName: "questionmark.circle")
                     .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .accessibilityHidden(true)
-                Text(identity.question == nil && !identity.saveFailed ? "Identifying which network this is…" : "Which network is this?")
+                Text(text)
                     .font(.caption)
                     .foregroundStyle(MacTheme.Colors.labelSecondary)
                     .accessibilityIdentifier("identityBanner_text")
-                Spacer(minLength: 4)
                 if identity.question != nil || identity.saveFailed || identity.isDamaged {
                     Button("Answer", action: open)
                         .controlSize(.small)
                         .accessibilityIdentifier("identityBanner_button_answer")
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .accessibilityElement(children: .contain)

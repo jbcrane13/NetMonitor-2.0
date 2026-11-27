@@ -157,7 +157,7 @@ struct NetworkDevicesPanel: View {
 
             // Which network is this? (#645): answered in the full Devices view.
             if let identity = coordinator?.identity {
-                NetworkIdentityBanner(identity: identity) { showFullDevicesView = true }
+                NetworkIdentityBanner(identity: identity, networkID: networkProfileID) { showFullDevicesView = true }
             }
 
             // Search bar

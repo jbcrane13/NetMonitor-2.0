@@ -66,6 +66,8 @@ public final class NetworkIdentityStore {
     /// Every network the store has known, ID → "interface|subnet", kept apart from the file so a
     /// start over offers them all again, split-off networks included (#645). It only grows.
     nonisolated public static let knownNetworksKey = "netmonitor.networkIdentity.knownNetworks"
+    /// The last revision written, so a start over continues it and a stale copy can't match it.
+    nonisolated static let revisionKey = "netmonitor.networkIdentity.revision"
 
     public private(set) var contents: Contents
     public private(set) var state: State
@@ -155,7 +157,8 @@ public final class NetworkIdentityStore {
             guard parts.count == 2, !records.contains(where: { $0.id == id }) else { continue }
             records.append(IdentityRecord(id: id, group: NetworkGroup(interface: parts[0], subnet: parts[1]), recordClass: .legacyUnverified))
         }
-        let migrated = Contents(revision: 1, records: records, legacyIDs: records.map(\.id))
+        let revision = max(1, defaults.integer(forKey: Self.revisionKey) + 1)
+        let migrated = Contents(revision: revision, records: records, legacyIDs: records.map(\.id))
         do {
             try persist(migrated)
             contents = migrated
@@ -243,6 +246,7 @@ public final class NetworkIdentityStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         try write(encoder.encode(contents), fileURL)
+        defaults.set(contents.revision, forKey: Self.revisionKey)
         var known = defaults.dictionary(forKey: Self.knownNetworksKey) as? [String: String] ?? [:]
         for record in contents.records where record.recordClass != .bucket {
             known[record.id.uuidString] = "\(record.group.interface)|\(record.group.subnet)"

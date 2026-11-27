@@ -31,6 +31,20 @@ extension DeviceDiscoveryCoordinator {
         )
     }
 
+    /// Ends probe `run` if it's still the latest: an obsolete probe ends nothing. Then runs a scan
+    /// refused meanwhile, unless identification continues or holds the network: both scan when it
+    /// settles (`onSettled`).
+    private func endProbeRun(_ run: Int) {
+        guard run == probeRun else { return }
+        isProbing = false
+        bonjourScanner.stopDiscovery()
+        guard scanQueuedAfterIdentification, identity?.isIdentifying != true else { return }
+        Task { @MainActor [weak self] in
+            guard let self, scanQueuedAfterIdentification, !isIdentifyingNetwork, identity?.heldNetworkIDs.isEmpty != false else { return }
+            rescan(.identified)
+        }
+    }
+
     /// Whether identification is under way, so a scan asked for now is refused and one follows it.
     var isIdentifyingNetwork: Bool {
         isProbing || identity?.isIdentifying == true
@@ -41,14 +55,16 @@ extension DeviceDiscoveryCoordinator {
     /// (`LegacyOverlap`, anchored at the routed gateway) and never reconciles, records, publishes or
     /// calls the scan-completed handlers. Nil when the gateway is unknown or the probe was cancelled.
     func identificationProbe(legacy: UUID) async -> Bool? {
+        probeRun += 1
+        let run = probeRun
         isProbing = true
-        defer { isProbing = false }
+        defer { endProbeRun(run) }
         // One user of the Bonjour browser at a time: let a running scan finish first.
         await scanTask?.value
+        guard !Task.isCancelled, run == probeRun else { return nil }
         // Names come from Bonjour as in a scan: on macOS 27 there are no MACs, so the gateway's name is
         // the only anchor.
         bonjourScanner.startDiscovery()
-        defer { bonjourScanner.stopDiscovery() }
         let pipeline = makePipeline()
         let context = makeScanContext()
         let devices = await ScanEngine().scan(pipeline: pipeline, context: context) { _, _ in }

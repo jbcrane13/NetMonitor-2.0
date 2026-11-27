@@ -73,6 +73,10 @@ extension NetworkIdentityControllerTests {
         #expect(identity.question == .forgottenThisConnection(group: home, options: [siteA, siteB]))
         #expect(identity.optionSummaries[siteA]?.savedDevices == 12)
         #expect(identity.optionSummaries[siteB]?.savedDevices == 3)
+        // What an option holds can change while the question is open: the card refreshes it.
+        identity.describeOption = { _ in IdentityOptionSummary(savedDevices: 5) }
+        identity.refreshOptionSummaries()
+        #expect(identity.optionSummaries[siteA]?.savedDevices == 5)
         #expect(!identity.authorizes(siteA))
         #expect(!identity.authorizes(siteB))
     }
@@ -91,6 +95,34 @@ extension NetworkIdentityControllerTests {
         harness.hint = .present(keyB)
         #expect(!identity.authorizes(siteA))
         #expect(clock.establishedAt == nil)
+    }
+
+    /// Two copies answer the same question: the stale one's write conflicts, and Try again re-resolves
+    /// against what the other saved instead of replaying the answer over it.
+    @Test func aConflictingAnswerReResolvesInsteadOfReplaying() throws {
+        let (store, dir, defaults) = try makeStore()
+        let harness = Harness()
+        harness.hint = .present(keyA)
+        let first = makeController(store, harness)
+        let siteA = first.resolveID(group: home, defaultID: UUID())
+        let otherStore = NetworkIdentityStore(directory: dir, defaults: defaults, legacyNetworks: { [:] }, reservedIDs: { [] })
+        let otherHarness = Harness()
+        otherHarness.hint = .present(keyB)
+        let other = makeController(otherStore, otherHarness)
+        harness.hint = .present(keyB)
+        _ = first.resolveID(group: home, defaultID: siteA)
+        _ = other.resolveID(group: home, defaultID: siteA)
+        let question = try #require(first.question)
+        #expect(other.question == question)
+
+        first.answer(.newNetwork, to: question)
+        let firstsChoice = try #require(store.contents.approvals.first { $0.key == keyB }?.recordID)
+        other.answer(.same(siteA), to: question)
+        #expect(other.saveFailed)
+        other.retrySave()
+        #expect(otherHarness.detections == 1, "re-resolves")
+        #expect(otherStore.contents.approvals.first { $0.key == keyB }?.recordID == firstsChoice, "the other copy's answer stands")
+        #expect(other.resolveID(group: home, defaultID: siteA) == firstsChoice)
     }
 
     /// Eviction takes the least recently matched approval, not the oldest.
@@ -131,5 +163,37 @@ extension NetworkIdentityStoreTests {
         try damaged.startOver()
         #expect(damaged.contents.records.contains { $0.id == split && $0.recordClass == .legacyUnverified && $0.group == group })
         #expect(damaged.contents.records.contains { $0.id == legacyID })
+        #expect(damaged.contents.revision > 2, "the revision continues, so a stale copy can't pass the check")
+    }
+
+    /// A name the user gave a network, never the generated one that every site on a subnet shares.
+    @Test func onlyAUserGivenNameIsACustomName() {
+        let network = NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A8_0100, broadcastAddress: 0xC0A8_01FF, interfaceAddress: 0xC0A8_010A, netmask: 0xFFFF_FF00
+        )
+        let generated = NetworkProfile(interfaceName: "en0", ipAddress: "192.168.1.10", network: network, connectionType: .wifi)
+        #expect(generated.customName == nil)
+        let named = NetworkProfile(interfaceName: "en0", ipAddress: "192.168.1.10", network: network, connectionType: .wifi, displayName: "Home office")
+        #expect(named.customName == "Home office")
+    }
+}
+
+/// #645: Ask reads a held network through the held snapshot, which has no last scan, so it never
+/// cites a held row as online.
+@Suite("Ask on a held network")
+struct AskHeldNetworkTests {
+    @Test func aHeldNetworksOnlineRowIsNotCitedAsOnline() {
+        let network = UUID()
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let held = PresenceSnapshot(lastScans: [network: now], now: now).withHeld([network])
+        let device = AskDevice(
+            id: UUID(), displayName: "office-printer", deviceType: .printer, maker: nil, ipAddress: "192.168.1.20",
+            status: .online, lastSeen: now, lastLatency: 4, latencyHistory: []
+        )
+        let snapshot = AskSnapshot(
+            devices: [device], events: [], networkProfileID: network, lastScan: held.lastScan(for: network), now: now
+        )
+        #expect(snapshot.presence(of: device) != .online)
+        #expect(snapshot.freshnessNote.contains("no device's status has been checked"))
     }
 }

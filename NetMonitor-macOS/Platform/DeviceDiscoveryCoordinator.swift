@@ -120,6 +120,10 @@ final class DeviceDiscoveryCoordinator {
 
     /// The identification probe is running: it shares the Bonjour browser, so no scan starts meanwhile.
     var isProbing = false
+    /// The latest identification probe's run: only it ends the run (the Bonjour browser, `isProbing`).
+    var probeRun = 0
+    /// A scan was refused while identifying: one runs when identification ends.
+    var scanQueuedAfterIdentification = false
     /// The routed IPv4 gateway, for the identification probe's site anchor.
     let gatewayIP: @MainActor () -> String?
 
@@ -341,7 +345,8 @@ final class DeviceDiscoveryCoordinator {
         }
         // Identification first (#645): a scan now would save nothing, and one runs once it's done.
         if isIdentifyingNetwork {
-            Logger.discovery.notice("Scan skipped (\(reason.logLabel, privacy: .public)): identifying which network this is")
+            Logger.discovery.notice("Scan queued (\(reason.logLabel, privacy: .public)): identifying which network this is")
+            scanQueuedAfterIdentification = true
             return false
         }
         let decision = ScanPolicy.decide(
@@ -358,6 +363,7 @@ final class DeviceDiscoveryCoordinator {
             Logger.discovery.notice("Scan skipped (\(name, privacy: .public)): \(why, privacy: .public)")
             return false
         case .start(let profile):
+            scanQueuedAfterIdentification = false
             Logger.discovery.notice("Scan started (\(name, privacy: .public))")
             if let profile {
                 scanNetwork(profile, countsTowardReviewPrompt: counts)
@@ -366,6 +372,7 @@ final class DeviceDiscoveryCoordinator {
             }
         case .replace(let profile):
             // A scan of the old network would only probe addresses that aren't there any more (#359).
+            scanQueuedAfterIdentification = false
             Logger.discovery.notice("Scan replaced (\(name, privacy: .public))")
             stopScan()
             scanNetwork(profile, countsTowardReviewPrompt: counts)

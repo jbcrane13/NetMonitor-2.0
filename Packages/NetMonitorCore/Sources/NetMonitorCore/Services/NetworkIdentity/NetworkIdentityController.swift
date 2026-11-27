@@ -66,6 +66,17 @@ public final class NetworkIdentityController {
         return false
     }
 
+    /// Describes the open question's options again (`describeOption`), when what they hold may have
+    /// changed since it was asked: the card calls it as it appears.
+    public func refreshOptionSummaries() {
+        let summaries = Dictionary(
+            (question.map(Self.options(of:)) ?? []).map { ($0, describeOption?($0) ?? IdentityOptionSummary()) }
+        ) { first, _ in first }
+        if optionSummaries != summaries {
+            optionSummaries = summaries
+        }
+    }
+
     /// The last identity write failed: nothing was lost, and `retrySave()` tries it again.
     public private(set) var saveFailed = false
     /// For tests: identifying with no probe and no detection asked for, which nothing would end.
@@ -360,6 +371,13 @@ public final class NetworkIdentityController {
             }
             pendingRetry = nil
             return true
+        } catch is NetworkIdentityStore.Conflict {
+            // Another copy of the app saved first and the store reloaded what it saved: try again by
+            // resolving against that, never by replaying this answer over it.
+            Self.logger.notice("Network recognition changed in another copy: identifying again")
+            pendingRetry = { [weak self] in self?.detectAgain() }
+            saveFailed = true
+            return false
         } catch {
             Self.logger.error("Couldn't save network recognition: \(String(describing: type(of: error)), privacy: .public)")
             pendingRetry = retry
@@ -378,12 +396,7 @@ public final class NetworkIdentityController {
         }
         if question != next.0 {
             question = next.0
-            let summaries = Dictionary(
-                (next.0.map(Self.options(of:)) ?? []).map { ($0, describeOption?($0) ?? IdentityOptionSummary()) }
-            ) { first, _ in first }
-            if optionSummaries != summaries {
-                optionSummaries = summaries
-            }
+            refreshOptionSummaries()
         }
         if heldNetworkIDs != next.1 {
             heldNetworkIDs = next.1

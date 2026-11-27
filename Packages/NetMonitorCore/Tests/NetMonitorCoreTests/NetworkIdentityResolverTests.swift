@@ -135,6 +135,15 @@ struct NetworkIdentityResolverTests {
         )
     }
 
+    /// #645: after a start over, a group can hold several legacy networks (a split-off one among
+    /// them): every one is offered, in both hint states, never only the first.
+    @Test func severalLegacyNetworksAreAllOffered() {
+        let first = record(.legacyUnverified)
+        let split = record(.legacyUnverified)
+        #expect(resolve(.present(keyA), [first, split]) == .ask(.whichNetwork(group: home, key: keyA, options: [first.id, split.id])))
+        #expect(resolve(.absent, [first, split]) == .ask(.forgottenThisConnection(group: home, options: [first.id, split.id])))
+    }
+
     @Test func anUnboundLegacyRecordIsProbedForOverlap() {
         let legacy = record(.legacyUnverified)
         let bucket = record(.bucket)

@@ -29,7 +29,12 @@ public enum NetworkIdentityResolver {
             if !bound.isEmpty || !forgotten.isEmpty {
                 return .ask(.forgottenThisConnection(group: group, options: bound + forgotten))
             }
-            if let legacy = ids(.legacyUnverified).first {
+            // Several legacy networks (after a start over, #645): each is offered, never only the first.
+            let legacy = ids(.legacyUnverified)
+            if legacy.count > 1 {
+                return .ask(.forgottenThisConnection(group: group, options: legacy))
+            }
+            if let legacy = legacy.first {
                 return .use(legacy)
             }
             return .bucket(ids(.bucket).first)
@@ -41,7 +46,7 @@ public enum NetworkIdentityResolver {
             let bound = ids(.bound)
             let forgotten = ids(.forgotten)
             let legacy = ids(.legacyUnverified)
-            if !bound.isEmpty || !forgotten.isEmpty {
+            if !bound.isEmpty || !forgotten.isEmpty || legacy.count > 1 {
                 return .ask(.whichNetwork(group: group, key: key, options: bound + forgotten + legacy))
             }
             if let legacy = legacy.first {

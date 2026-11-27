@@ -18,16 +18,26 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         var hint: RouterHintStatus = .absent
         var detections = 0
         var devices: [DiscoveredDevice] = []
-        /// Holds the fixture scan until released, to act while the probe runs.
+        /// Holds the fixture scans until released, to act while the probe runs.
         var holds = false
-        var gate: CheckedContinuation<Void, Never>?
+        var gates: [CheckedContinuation<Void, Never>] = []
+        var scans = 0
 
         @MainActor
         func scan() async -> [DiscoveredDevice] {
+            scans += 1
             if holds {
-                await withCheckedContinuation { gate = $0 }
+                await withCheckedContinuation { gates.append($0) }
             }
             return devices
+        }
+
+        @MainActor
+        func release() {
+            holds = false
+            let waiting = gates
+            gates = []
+            waiting.forEach { $0.resume() }
         }
     }
 
@@ -221,18 +231,69 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         box.holds = true
         let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
         #expect(setup.coordinator.isIdentifyingNetwork)
-        await waitUntil { box.gate != nil }
+        await waitUntil { !box.gates.isEmpty }
         #expect(!setup.coordinator.rescan(.user(nil)))
         #expect(!setup.coordinator.rescan(.launch))
         #expect(!setup.coordinator.isScanning)
+        // The paired iPhone gets the same answer.
+        let handler = CompanionMessageHandler(
+            modelContext: setup.context, monitoringSession: MonitoringSession(modelContext: setup.context), deviceDiscovery: setup.coordinator,
+            wakeOnLanService: WakeOnLANService(), icmpService: ICMPMonitorService(), networkProfileManager: setup.manager,
+            insightService: UnavailableInsightService(), companionModel: UnavailableCompanionModel(), modelAdmission: ModelAdmission()
+        )
+        let reply = await handler.handle(.command(CommandPayload(action: .scanDevices)), from: UUID(), authorization: .always)
+        guard case .toolResult(let result) = reply else {
+            Issue.record("no tool result")
+            return
+        }
+        #expect(result.success)
+        #expect(result.result == "Identifying which network this is: a scan follows")
 
-        box.holds = false
         box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.20", "office-printer")]
-        box.gate?.resume()
+        box.release()
         await setup.identity.probeTask?.value
         #expect(setup.identity.authorizes(legacy))
         await waitUntil { setup.coordinator.lastScanTime(for: legacy) != nil }
         #expect(setup.coordinator.lastScanTime(for: legacy) != nil)
+    }
+
+    /// A path update overtakes the probe: the newer probe owns the Bonjour browser and the result, and
+    /// once the network is identified exactly one scan runs and is saved (#645).
+    @Test func aPathUpdateDuringTheProbeLeadsToExactlyOneSavedScan() async throws {
+        let box = Box()
+        let legacy = UUID()
+        box.hint = .present(keyA)
+        box.holds = true
+        let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
+        await waitUntil { box.gates.count == 1 }
+        setup.join.generation.advance()
+        setup.manager.detectLocalNetwork()
+        await waitUntil { box.gates.count == 2 }
+        #expect(setup.coordinator.isIdentifyingNetwork)
+        // A scan asked for meanwhile is refused, then runs once identification ends.
+        #expect(!setup.coordinator.rescan(.networkChanged))
+        // The obsolete probe finishes first: it must not end the newer one's run (its Bonjour browser).
+        box.gates.removeFirst().resume()
+        for _ in 0 ..< 50 {
+            await Task.yield()
+        }
+        #expect(setup.coordinator.isProbing, "the newer probe still owns the run")
+        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.20", "office-printer")]
+        box.release()
+        await waitUntil { setup.coordinator.lastScanTime(for: legacy) != nil }
+        #expect(setup.identity.authorizes(legacy))
+        await waitUntil(timeout: .milliseconds(500)) { box.scans > 3 }
+        #expect(box.scans == 3, "two probes and one scan")
+        #expect(!setup.coordinator.isIdentifyingNetwork)
+    }
+
+    /// An option is named by what it holds, never by the generated name alone (#645).
+    @Test func optionsAreNamedByTheirDevicesAndLastScan() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let summary = IdentityOptionSummary(savedDevices: 12, lastScanned: now.addingTimeInterval(-3 * 86400), name: nil)
+        #expect(NetworkIdentityCard.describe(summary, now: now) == "12 saved devices · last scanned 3 days ago")
+        let named = IdentityOptionSummary(savedDevices: 1, lastScanned: nil, name: "Home office")
+        #expect(NetworkIdentityCard.describe(named, now: now) == "Home office · 1 saved device · never scanned")
     }
 
     /// The identification probe scans and compares, and never reconciles, records or publishes.
