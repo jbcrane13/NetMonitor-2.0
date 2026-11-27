@@ -96,3 +96,68 @@ struct IdentityAdmissionTests {
         #expect(again?.failure == "busy", "its own budget is spent")
     }
 }
+
+/// The phone's identity route (#586 PR 2).
+struct RoutedIdentityServiceTests {
+    private static let evidence = DeviceEvidenceProjectionTests.evidence
+    private static let answer = IdentityRaw(deviceType: "printer", maker: "Brother", model: "HL-L2350DW", confidence: "high")
+
+    /// A Mac that offers identity.v1 and answers with `answer`; records what was sent.
+    final class Sent: Sendable {
+        private let list = Mutex<[ModelRequestPayload]>([])
+        func append(_ payload: ModelRequestPayload) { list.withLock { $0.append(payload) } }
+        var all: [ModelRequestPayload] { list.withLock { $0 } }
+    }
+
+    private static func makeMac(answer: IdentityRaw?) -> (CompanionModelClient, Sent) {
+        let sent = Sent()
+        let box = Mutex<CompanionModelClient?>(nil)
+        let client = CompanionModelClient(send: { message, link, isWanted in
+            guard isWanted(), case .modelRequest(let payload) = message else { return isWanted() }
+            sent.append(payload)
+            if let answer, let client = box.withLock({ $0 }) {
+                client.received(ModelResponsePayload(requestID: payload.requestID, output: .identity(answer)), onLink: link)
+            }
+            return true
+        }, timeout: .seconds(2))
+        box.withLock { $0 = client }
+        client.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
+        return (client, sent)
+    }
+
+    @Test("identity never asks: with no answer yet, the Mac isn't used and nothing is sent")
+    func neverPrompts() async {
+        let (mac, sent) = Self.makeMac(answer: Self.answer)
+        let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil))
+        #expect(!service.isAvailable)
+        #expect(await service.suggestIdentity(Self.evidence) == nil)
+        #expect(sent.all.isEmpty)
+    }
+
+    @Test("with consent, the projection goes to the Mac and the answer comes back marked as the Mac's")
+    func routedToTheMac() async {
+        let (mac, sent) = Self.makeMac(answer: Self.answer)
+        let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
+        #expect(service.isAvailable)
+        let suggestion = await service.suggestIdentity(Self.evidence)
+        #expect(suggestion == DeviceSuggestion(deviceType: .printer, maker: "Brother", model: "HL-L2350DW", confidence: .high, source: .mac))
+        #expect(sent.all.first?.input == .identity(Self.evidence.projection))
+    }
+
+    @Test("with the local model available, the Mac isn't used")
+    func localFirst() async {
+        let (mac, sent) = Self.makeMac(answer: Self.answer)
+        let local = FixedSuggestionInsightService()
+        let service = RoutedIdentityService(local: local, mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
+        #expect(await service.suggestIdentity(Self.evidence) == FixedSuggestionInsightService.uiTestSuggestion)
+        #expect(sent.all.isEmpty)
+    }
+
+    @Test("no capable Mac (or it left): no suggestion, nothing sent")
+    func noMac() async {
+        let mac = CompanionModelClient(send: { _, _, _ in false })
+        let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
+        #expect(!service.isAvailable)
+        #expect(await service.suggestIdentity(Self.evidence) == nil)
+    }
+}

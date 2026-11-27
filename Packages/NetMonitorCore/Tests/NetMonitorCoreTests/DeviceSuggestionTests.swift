@@ -385,3 +385,56 @@ private final class ActingInsightService: InsightServiceProtocol, @unchecked Sen
         return answer
     }
 }
+
+// MARK: - #586 PR 2: suggestions from the Mac get the same checks
+
+extension DeviceSuggesterTests {
+    @Test("evidence that changes while the model answers: the answer isn't used, and the device is asked again later")
+    func evidenceChangedDuringTheAnswer() async {
+        let device = bridge()
+        let service = ActingInsightService(answer: lutron)
+        service.during = { device.hostname = "renamed-bridge.lan" }
+        let suggester = DeviceSuggester(service: service, store: store)
+        await suggester.suggest(for: [device])
+        #expect(device.identity.maker == nil, "nothing from an answer about evidence that no longer stands")
+        #expect(store.record(for: device.id) == nil, "not recorded, so the new evidence gets asked about")
+    }
+
+    @Test("a user-confirmed maker stays; a suggestion never replaces it")
+    func userConfirmedStays() async {
+        let device = bridge()
+        device.mergeIdentity(DeviceIdentity(maker: IdentityValue("Acme", source: .userConfirmed)))
+        let fromMac = DeviceSuggestion(deviceType: .iot, maker: "Lutron", model: "Caseta Smart Bridge", confidence: .high, source: .mac)
+        await DeviceSuggester(service: MockInsightService(suggestion: fromMac), store: store).suggest(for: [device])
+        #expect(device.identity.maker?.value == "Acme")
+        #expect(device.identity.maker?.source == .userConfirmed)
+    }
+
+    @Test("the suggestion remembers who wrote it, for the marker")
+    func sourceIsKept() async {
+        let device = bridge()
+        let fromMac = DeviceSuggestion(deviceType: .iot, maker: "Lutron", model: "Caseta Smart Bridge", confidence: .high, source: .mac)
+        let suggester = DeviceSuggester(service: MockInsightService(suggestion: fromMac), store: store)
+        await suggester.suggest(for: [device])
+        #expect(suggester.suggestionSource(for: device) == .mac)
+        await DeviceSuggester(service: MockInsightService(suggestion: lutron), store: store).suggest(for: [bridge()])
+        #expect(suggester.suggestionSource(for: bridge()) == nil, "no suggestion for a device never asked about")
+    }
+}
+
+@Suite("Suggestion claims (#586 PR 2)")
+struct SuggestionClaimTests {
+    @Test("a claim for a field the evidence already settles is dropped; the rest stays a suggestion to accept")
+    func settledFieldsAreNotClaimed() {
+        let evidence = DeviceEvidence(hostname: "printer.lan", maker: "HP", model: "LaserJet 400", deviceType: .printer)
+        let claim = DeviceSuggestion(deviceType: .camera, maker: "Canon", model: "PIXMA", confidence: .high, source: .mac)
+        let checked = claim.checked(against: evidence)
+        #expect(checked.maker == nil)
+        #expect(checked.model == nil)
+        #expect(checked.deviceType == nil)
+        #expect(checked.isEmpty)
+
+        let open = DeviceEvidence(hostname: "printer.lan")
+        #expect(claim.checked(against: open) == claim, "nothing settled: every claim stays, unverified until accepted")
+    }
+}

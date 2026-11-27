@@ -88,6 +88,10 @@ public final class DeviceSuggester {
             if Task.isCancelled {
                 return
             }
+            // The evidence changed while the model answered (a rename, a scan): the answer is about
+            // evidence that no longer stands, so it isn't used or recorded, and the next pass asks
+            // about the new evidence (#586).
+            guard DeviceEvidence(device: device).fingerprint == evidence.fingerprint else { continue }
             // The user accepted or dismissed while the model was answering: keep their
             // decision, and a dismissal covers the evidence the model was just shown.
             let decided = store.record(for: device.id)
@@ -116,6 +120,13 @@ public final class DeviceSuggester {
               let type = record.suggestion?.deviceType, type != .unknown
         else { return nil }
         return type
+    }
+
+    /// Who suggested what the device shows: this device's model or the Mac's (#586); nil when it
+    /// shows no suggestion.
+    public func suggestionSource(for device: LocalDevice) -> InsightSource? {
+        guard let record = store.record(for: device.id), !record.dismissed, let suggestion = record.suggestion else { return nil }
+        return suggestion.source ?? .device
     }
 
     /// Whether the device shows anything the model suggested: its maker, model or type.

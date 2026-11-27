@@ -108,3 +108,38 @@ public struct RoutedSymptomClassifier: SymptomClassifierProtocol {
         return raw.intent(for: symptom)
     }
 }
+
+/// The iPhone's identity suggestions (#586): the local model when it's available, else the
+/// connected Mac's through `identity.v1`. The Mac reads the same bounded evidence the local model
+/// would (`DeviceEvidence.projection`); its answer comes back marked `.mac` and goes through the
+/// same checks in `DeviceSuggester`.
+///
+/// Suggestions run in the background, so this never asks the user: the Mac is used only once they
+/// already agreed to "Let your Mac read what you type?", whose wording covers device evidence.
+/// Explanations stay on the local model; `RoutedInsightService` routes those.
+public struct RoutedIdentityService: InsightServiceProtocol {
+    public let local: any InsightServiceProtocol
+    public let route: MacModelRoute
+
+    public init(local: any InsightServiceProtocol, mac: CompanionModelClient, consent: MacInsightConsent) {
+        self.local = local
+        route = MacModelRoute(mac: mac, consent: consent, schema: .identity)
+    }
+
+    /// The local model, or a Mac offering identity once the user has said yes; never "ask first".
+    public var isAvailable: Bool { local.isAvailable || route.availability == .available }
+
+    public func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        local.explain(request)
+    }
+
+    public func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
+        if local.isAvailable {
+            return await local.suggestIdentity(evidence)
+        }
+        guard route.availability == .available, case .identity(let raw)? = await route.request(.identity(evidence.projection)) else {
+            return nil
+        }
+        return raw.suggestion(from: .mac)
+    }
+}

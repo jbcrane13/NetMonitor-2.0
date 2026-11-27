@@ -33,6 +33,10 @@ public struct DeviceSuggestion: Sendable, Codable, Equatable {
     /// The suggestion without values that say nothing new. The on-device model answers
     /// "unknown" in text fields, names the chip maker from the MAC prefix as the maker, and
     /// repeats a hostname as the model (seen on macOS 27.2).
+    ///
+    /// A claim for a field the evidence already settles (a known maker, model or type) is dropped,
+    /// whoever's model made it (#586): it would contradict or repeat what the app knows. What
+    /// stays is a suggestion only, shown as one, until the user accepts it.
     public func checked(against evidence: DeviceEvidence) -> DeviceSuggestion {
         func meaningful(_ text: String?) -> String? {
             guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
@@ -44,9 +48,9 @@ public struct DeviceSuggestion: Sendable, Codable, Equatable {
             [name.lowercased(), name.lowercased().split(separator: ".").first.map(String.init) ?? ""]
         }
         var checked = self
-        checked.deviceType = deviceType == .unknown ? nil : deviceType
-        checked.maker = meaningful(maker).flatMap { DeviceIdentity.isChipMaker($0) ? nil : $0 }
-        checked.model = meaningful(model).flatMap { names.contains($0.lowercased()) ? nil : $0 }
+        checked.deviceType = deviceType == .unknown || evidence.deviceType != .unknown ? nil : deviceType
+        checked.maker = evidence.maker != nil ? nil : meaningful(maker).flatMap { DeviceIdentity.isChipMaker($0) ? nil : $0 }
+        checked.model = evidence.model != nil ? nil : meaningful(model).flatMap { names.contains($0.lowercased()) ? nil : $0 }
         return checked
     }
 }
