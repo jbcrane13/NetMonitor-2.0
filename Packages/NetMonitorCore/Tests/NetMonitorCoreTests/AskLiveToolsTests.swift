@@ -5,7 +5,7 @@ import Synchronization
 
 /// A pinger that answers each host as scripted (#579): reply times (nil for a lost probe), or no
 /// answer at all until it is cancelled.
-final class ScriptedPinger: PingServiceProtocol, Sendable {
+final class MockScriptedPinger: PingServiceProtocol, Sendable {
     enum Reply: Sendable {
         case times([Double?])
         case hang
@@ -81,7 +81,7 @@ enum AskLiveFixture {
     }
 
     static func live(
-        _ pinger: ScriptedPinger,
+        _ pinger: MockScriptedPinger,
         network: NetworkProfile? = network,
         connection: AskLiveTools.Connection = .init(type: .wifi, gatewayIP: "192.168.1.1"),
         scanning: Flag = Flag(),
@@ -107,7 +107,7 @@ struct AskLiveToolsTests {
     // MARK: - pingDevice
 
     @Test func pingDeviceReportsTheRepliesAndTheAppsAverage() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .times([3.6, 4.2, 4.2])])
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([3.6, 4.2, 4.2])])
         let toolbox = Live.toolbox(Live.live(pinger))
         let output = await toolbox.pingDevice("dev-b")
         #expect(output == "Pinged Synology DS920 (192.168.1.20): 3 of 3 replies, average 4 ms.")
@@ -119,13 +119,13 @@ struct AskLiveToolsTests {
     }
 
     @Test func lostProbesCountAgainstTheThreeSent() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .times([2, nil, 4])])
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([2, nil, 4])])
         let output = await Live.toolbox(Live.live(pinger)).pingDevice("dev-b")
         #expect(output == "Pinged Synology DS920 (192.168.1.20): 2 of 3 replies, average 3 ms.")
     }
 
     @Test func noReplyIsNeverCalledOfflineAndSaysTheScanDisagreed() async {
-        let toolbox = Live.toolbox(Live.live(ScriptedPinger([:])))
+        let toolbox = Live.toolbox(Live.live(MockScriptedPinger([:])))
         let output = await toolbox.pingDevice("dev-b")
         #expect(output == "Pinged Synology DS920 (192.168.1.20): no reply to 3 pings.")
         #expect(toolbox.record.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): no reply to 3 pings"])
@@ -133,7 +133,7 @@ struct AskLiveToolsTests {
     }
 
     @Test func aPingThatOutlivesTheDeadlineIsNotMeasured() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .hang])
+        let pinger = MockScriptedPinger(["192.168.1.20": .hang])
         let toolbox = Live.toolbox(Live.live(pinger, deadline: .milliseconds(100)))
         let output = await toolbox.pingDevice("dev-b")
         #expect(output == "Pinged Synology DS920 (192.168.1.20): not measured, the ping didn't finish in time.")
@@ -141,7 +141,7 @@ struct AskLiveToolsTests {
     }
 
     @Test func aCancelledPingReturnsWithoutAMeasurement() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .hang])
+        let pinger = MockScriptedPinger(["192.168.1.20": .hang])
         let toolbox = Live.toolbox(Live.live(pinger, deadline: .seconds(60)))
         let task = Task { await toolbox.pingDevice("dev-b") }
         await waitUntil { !pinger.hosts.isEmpty }
@@ -155,7 +155,7 @@ struct AskLiveToolsTests {
         let away = Fix.device("Cabin Camera", .camera, ip: "10.0.0.8")
         let snapshot = AskSnapshot(devices: [away], events: [], networkProfileID: Live.network.id, lastScan: Fix.now, now: Fix.now,
                                    calendar: Fix.calendar)
-        let pinger = ScriptedPinger([:])
+        let pinger = MockScriptedPinger([:])
         let toolbox = Live.toolbox(Live.live(pinger), snapshot: snapshot)
         let output = await toolbox.pingDevice("dev-a")
         #expect(output == "Cabin Camera was not pinged: its address is not on the network this device is on now.")
@@ -166,7 +166,7 @@ struct AskLiveToolsTests {
     }
 
     @Test func nothingIsPingedOffTheNetworkAskedAbout() async {
-        let pinger = ScriptedPinger([:])
+        let pinger = MockScriptedPinger([:])
         let other = NetworkProfile(
             id: UUID(), interfaceName: "en0", ipAddress: "192.168.1.10", network: Live.network.network, connectionType: .wifi,
             name: "Office", gatewayIP: "192.168.1.1", subnet: "192.168.1.0/24", isLocal: true, discoveryMethod: .auto
@@ -181,7 +181,7 @@ struct AskLiveToolsTests {
     /// Codex review of #627: two LANs with one subnet share a profile ID. After a move, nothing
     /// is pinged until a scan of the new network; then the ping runs.
     @Test func aSameSubnetMoveWithNoScanSinceIsRefused() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .times([2, 2, 2])])
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([2, 2, 2])])
         let movedAfterTheScan = Live.toolbox(Live.live(pinger, joined: Fix.now.addingTimeInterval(60)))
         let output = await movedAfterTheScan.pingDevice("dev-b")
         #expect(output == "Run a scan first: this network hasn't been checked since you joined it. Synology DS920 was not pinged.")
@@ -203,7 +203,7 @@ struct AskLiveToolsTests {
     }
 
     @Test func aDeviceOfflineAtTheScanIsNotPingedAtItsOldAddress() async {
-        let pinger = ScriptedPinger([:])
+        let pinger = MockScriptedPinger([:])
         let toolbox = Live.toolbox(Live.live(pinger))
         let output = await toolbox.pingDevice("dev-a")
         #expect(output == "Brother HL-L2350DW was not pinged: it didn't answer the last scan; it was last seen at this address 2 hours ago.")
@@ -219,7 +219,7 @@ struct AskLiveToolsTests {
         let bob = Fix.device("Bob's TV", .tv, ip: "192.168.1.50")
         let snapshot = AskSnapshot(devices: [alice, bob], events: [], networkProfileID: Live.network.id, lastScan: Fix.now, now: Fix.now,
                                    calendar: Fix.calendar)
-        let pinger = ScriptedPinger(["192.168.1.50": .times([3, 3, 3])])
+        let pinger = MockScriptedPinger(["192.168.1.50": .times([3, 3, 3])])
         let toolbox = Live.toolbox(Live.live(pinger), snapshot: snapshot)
         #expect(await toolbox.pingDevice("Alice's iPhone")
             == "Alice's iPhone was not pinged: another saved device, Bob's TV, has its address now.")
@@ -231,6 +231,28 @@ struct AskLiveToolsTests {
         #expect(pinger.hosts == ["192.168.1.50"])
     }
 
+    /// Devin review of #627: two calls for one device in one parallel batch probe once.
+    @Test func parallelCallsForOneDeviceProbeOnce() async {
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([2, 2, 2])])
+        let toolbox = Live.toolbox(Live.live(pinger))
+        async let first = toolbox.pingDevice("dev-b")
+        async let second = toolbox.pingDevice("dev-b")
+        let results = await [first, second]
+        #expect(results[0] == results[1])
+        #expect(pinger.hosts == ["192.168.1.20"])
+        #expect(toolbox.record.measurements.count == 1)
+    }
+
+    @Test func parallelConnectionChecksProbeOnce() async {
+        let pinger = MockScriptedPinger(["192.168.1.1": .times([2, 2, 2]), AskLiveTools.internetHost: .times([15, 15, 15])])
+        let toolbox = Live.toolbox(Live.live(pinger))
+        async let first = toolbox.networkStatus()
+        async let second = toolbox.networkStatus()
+        let results = await [first, second]
+        #expect(results[0] == results[1])
+        #expect(pinger.hosts.count == 2)
+    }
+
     /// #594: a device of two interfaces is pinged on its current one and named once.
     @Test func aGroupedDeviceIsPingedOnItsCurrentInterface() async {
         let laptop = AskDevice(
@@ -240,7 +262,7 @@ struct AskLiveToolsTests {
         )
         let snapshot = AskSnapshot(devices: [laptop], events: [], networkProfileID: Live.network.id, lastScan: Fix.now, now: Fix.now,
                                    calendar: Fix.calendar)
-        let pinger = ScriptedPinger(["192.168.1.31": .times([5, 5, 5])])
+        let pinger = MockScriptedPinger(["192.168.1.31": .times([5, 5, 5])])
         let toolbox = Live.toolbox(Live.live(pinger), snapshot: snapshot)
         #expect(await toolbox.pingDevice("Studio Laptop") == "Pinged Studio Laptop (192.168.1.31): 3 of 3 replies, average 5 ms.")
         #expect(pinger.hosts == ["192.168.1.31"])
@@ -248,7 +270,7 @@ struct AskLiveToolsTests {
     }
 
     @Test func nothingIsPingedDuringAScan() async {
-        let pinger = ScriptedPinger([:])
+        let pinger = MockScriptedPinger([:])
         let toolbox = Live.toolbox(Live.live(pinger, scanning: Live.Flag(true)))
         #expect(await toolbox.pingDevice("dev-b") == AskToolbox.scanRunning)
         #expect(await toolbox.networkStatus() == AskToolbox.scanRunning)
@@ -261,7 +283,7 @@ struct AskLiveToolsTests {
     /// Every outcome is kept for the question: a repeat neither pings nor refuses again, and the
     /// app shows one line per device.
     @Test func aRepeatedCallGivesTheSameResultAndOneLine() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .times([2, 2, 2])])
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([2, 2, 2])])
         let toolbox = Live.toolbox(Live.live(pinger))
         let first = await toolbox.pingDevice("dev-b")
         #expect(await toolbox.pingDevice("Synology DS920") == first)
@@ -270,7 +292,7 @@ struct AskLiveToolsTests {
         let refused = Live.toolbox(Live.live(pinger))
         let offline = await refused.pingDevice("dev-a")
         #expect(await refused.pingDevice("dev-a") == offline)
-        let timedOut = Live.toolbox(Live.live(ScriptedPinger(["192.168.1.20": .hang]), deadline: .milliseconds(50)))
+        let timedOut = Live.toolbox(Live.live(MockScriptedPinger(["192.168.1.20": .hang]), deadline: .milliseconds(50)))
         let late = await timedOut.pingDevice("dev-b")
         #expect(await timedOut.pingDevice("dev-b") == late)
         for box in [toolbox, refused, timedOut] {
@@ -280,14 +302,14 @@ struct AskLiveToolsTests {
     }
 
     @Test func anAmbiguousDeviceIsListedNotPinged() async {
-        let pinger = ScriptedPinger([:])
+        let pinger = MockScriptedPinger([:])
         let output = await Live.toolbox(Live.live(pinger)).pingDevice("Apple")
         #expect(output.hasPrefix("3 devices match \"Apple\"; call again with one id:"))
         #expect(pinger.hosts.isEmpty)
     }
 
     @Test func liveToolsCountAgainstTheSoftCap() async {
-        let pinger = ScriptedPinger([:])
+        let pinger = MockScriptedPinger([:])
         let toolbox = Live.toolbox(Live.live(pinger))
         for _ in 0 ..< AskToolbox.softCap {
             _ = toolbox.findDevices("NAS")
@@ -299,7 +321,7 @@ struct AskLiveToolsTests {
     }
 
     @Test func aLiveCallLimitStopsFurtherLiveCalls() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .times([2, 2, 2]), "192.168.1.88": .times([3, 3, 3])])
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([2, 2, 2]), "192.168.1.88": .times([3, 3, 3])])
         let toolbox = Live.toolbox(Live.live(pinger).limited(to: 1))
         _ = await toolbox.pingDevice("dev-b")
         #expect(await toolbox.pingDevice("dev-c") == AskToolbox.liveLimitMessage)
@@ -316,7 +338,7 @@ struct AskLiveToolsTests {
     // MARK: - networkStatus
 
     @Test func networkStatusPingsTheGatewayAndAPublicAddress() async {
-        let pinger = ScriptedPinger(["192.168.1.1": .times([2, 2, 2]), AskLiveTools.internetHost: .times([15, 14, nil])])
+        let pinger = MockScriptedPinger(["192.168.1.1": .times([2, 2, 2]), AskLiveTools.internetHost: .times([15, 14, nil])])
         let toolbox = Live.toolbox(Live.live(pinger))
         let output = await toolbox.networkStatus()
         #expect(output == "Connection: Wi-Fi. Gateway at 192.168.1.1: 3 of 3 replies, average 2 ms. "
@@ -331,7 +353,7 @@ struct AskLiveToolsTests {
     }
 
     @Test func networkStatusWithoutAConnectionPingsNothing() async {
-        let pinger = ScriptedPinger([:])
+        let pinger = MockScriptedPinger([:])
         let toolbox = Live.toolbox(Live.live(pinger, connection: .init(type: nil, gatewayIP: nil)))
         #expect(await toolbox.networkStatus() == "No network connection. Nothing was pinged.")
         #expect(pinger.hosts.isEmpty)
@@ -340,7 +362,7 @@ struct AskLiveToolsTests {
     /// A connected path of no recognised interface type (a tunnel) is `.none`, not disconnected
     /// (#627 review): only a nil type is no connection.
     @Test func networkStatusOnAConnectionOfUnknownTypeStillPingsTheInternet() async {
-        let pinger = ScriptedPinger([AskLiveTools.internetHost: .times([20, 20, 20])])
+        let pinger = MockScriptedPinger([AskLiveTools.internetHost: .times([20, 20, 20])])
         let toolbox = Live.toolbox(Live.live(pinger, connection: .init(type: ConnectionType.none, gatewayIP: nil)))
         #expect(await toolbox.networkStatus() == "Connection: Connected. Gateway: not found, so not pinged. "
             + "Internet (pinged the public address 8.8.8.8): 3 of 3 replies, average 20 ms.")
@@ -349,14 +371,14 @@ struct AskLiveToolsTests {
     }
 
     @Test func networkStatusWithoutAGatewayStillPingsTheInternet() async {
-        let pinger = ScriptedPinger([AskLiveTools.internetHost: .times([20, 20, 20])])
+        let pinger = MockScriptedPinger([AskLiveTools.internetHost: .times([20, 20, 20])])
         let toolbox = Live.toolbox(Live.live(pinger, connection: .init(type: .cellular, gatewayIP: nil)))
         #expect(await toolbox.networkStatus() == "Connection: Cellular. Gateway: not found, so not pinged. "
             + "Internet (pinged the public address 8.8.8.8): 3 of 3 replies, average 20 ms.")
     }
 
     @Test func networkStatusStopsAtTheDeadline() async {
-        let pinger = ScriptedPinger(["192.168.1.1": .hang, AskLiveTools.internetHost: .hang])
+        let pinger = MockScriptedPinger(["192.168.1.1": .hang, AskLiveTools.internetHost: .hang])
         let clock = ContinuousClock()
         let start = clock.now
         let output = await Live.toolbox(Live.live(pinger, deadline: .milliseconds(100))).networkStatus()
@@ -371,14 +393,14 @@ struct AskNetworkLiveTests {
     typealias Fix = AskFixture
     typealias Live = AskLiveFixture
 
-    private func ask(_ calls: [AskToolCall], answer: String, pinger: ScriptedPinger) async -> AskAnswer {
+    private func ask(_ calls: [AskToolCall], answer: String, pinger: MockScriptedPinger) async -> AskAnswer {
         let question = "Is the NAS answering right now?"
         let model = ScriptedAskModel(scripts: [question: AskScript(calls: calls, answer: answer)])
         return await AskNetwork.answer(question, snapshot: Live.snapshot, pinnedDeviceID: nil, model: model, live: Live.live(pinger))
     }
 
     @Test func theModelsPresenceSentenceGoesAndTheAppsMeasurementShows() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
         let answer = await ask([.findDevices("NAS"), .pingDevice("dev-b")],
                                answer: "Yes, Synology DS920 is answering right now. It is a storage device.", pinger: pinger)
         #expect(answer.text == "It is a storage device.")
@@ -394,7 +416,7 @@ struct AskNetworkLiveTests {
         "Synology DS920 did not reply to 3 pings."
     ])
     func aModelSentenceAboutTheLiveResultIsDropped(_ sentence: String) async {
-        let pinger = ScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
         let answer = await ask([.pingDevice("dev-b")], answer: sentence + " It is a storage device.", pinger: pinger)
         // A name with digits ("DS920") goes too: after a live tool no digit is the model's.
         #expect(answer.text == "It is a storage device.")
@@ -402,14 +424,14 @@ struct AskNetworkLiveTests {
     }
 
     @Test func aNoReplyPingWithAModelSayingItPingedFineShowsOnlyTheApp() async {
-        let answer = await ask([.pingDevice("dev-b")], answer: "It pinged fine.", pinger: ScriptedPinger([:]))
+        let answer = await ask([.pingDevice("dev-b")], answer: "It pinged fine.", pinger: MockScriptedPinger([:]))
         #expect(answer.text == nil)
         #expect(answer.shownText == AskNetwork.measuredFallback)
         #expect(answer.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): no reply to 3 pings"])
     }
 
     @Test func aModelSentenceRestatingThePingIsDropped() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
         let answer = await ask([.pingDevice("dev-b")], answer: "Synology DS920 replied to 3 of 3 pings, average 4 ms.", pinger: pinger)
         #expect(answer.text == nil)
         #expect(answer.shownText == AskNetwork.measuredFallback)
@@ -419,14 +441,14 @@ struct AskNetworkLiveTests {
     /// Real model, 2026-11-26: "… did not reply to 3 pings." for "Can you ping the printer?".
     @Test func aSentenceSayingNothingRepliedIsDropped() async {
         let answer = await ask([.pingDevice("dev-b")], answer: "Synology DS920 did not reply. It is a storage device.",
-                               pinger: ScriptedPinger([:]))
+                               pinger: MockScriptedPinger([:]))
         #expect(answer.text == "It is a storage device.")
     }
 
     /// Real model, 2026-11-26: "The gateway at 192.168.1.1 responded in 2 ms" for "Why is the
     /// internet slow tonight?".
     @Test func aSentenceSayingSomethingRespondedIsDropped() async {
-        let pinger = ScriptedPinger(["192.168.1.1": .times([2, 2, 2]), AskLiveTools.internetHost: .times([15, 15, 15])])
+        let pinger = MockScriptedPinger(["192.168.1.1": .times([2, 2, 2]), AskLiveTools.internetHost: .times([15, 15, 15])])
         let question = "Why is the internet slow tonight?"
         let model = ScriptedAskModel(scripts: [question: AskScript(
             calls: [.networkStatus], answer: "The gateway responded quickly. The connection is Wi-Fi."
@@ -445,13 +467,13 @@ struct AskNetworkLiveTests {
             let model = ScriptedAskModel(scripts: [question: AskScript(calls: [.pingDevice(id)], answer: "It is a device.")])
             return await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model, live: live)
         }
-        let offNetwork = await answer("Cabin Camera", live: Live.live(ScriptedPinger([:])))
+        let offNetwork = await answer("Cabin Camera", live: Live.live(MockScriptedPinger([:])))
         #expect(offNetwork.measurements.map(\.text) == ["Cabin Camera (10.0.0.8): not pinged, not on the network this device is on now"])
-        let scanning = await answer("dev-b", live: Live.live(ScriptedPinger([:]), scanning: Live.Flag(true)))
+        let scanning = await answer("dev-b", live: Live.live(MockScriptedPinger([:]), scanning: Live.Flag(true)))
         #expect(scanning.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): not pinged, a device scan is running"])
-        let timedOut = await answer("dev-b", live: Live.live(ScriptedPinger(["192.168.1.20": .hang]), deadline: .milliseconds(100)))
+        let timedOut = await answer("dev-b", live: Live.live(MockScriptedPinger(["192.168.1.20": .hang]), deadline: .milliseconds(100)))
         #expect(timedOut.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): not measured, timed out"])
-        let moved = await answer("dev-b", live: Live.live(ScriptedPinger([:]), joined: Fix.now.addingTimeInterval(60)))
+        let moved = await answer("dev-b", live: Live.live(MockScriptedPinger([:]), joined: Fix.now.addingTimeInterval(60)))
         #expect(moved.measurements.first?.text.hasSuffix(AskToolbox.scanFirst) == true)
         for result in [offNetwork, scanning, timedOut, moved] {
             #expect(result.text == "It is a device.")
@@ -465,14 +487,14 @@ struct AskNetworkLiveTests {
                                 lastScan: Fix.now.addingTimeInterval(-3000), now: Fix.now, calendar: Fix.calendar)
         let model = ScriptedAskModel(scripts: ["Q": AskScript(calls: [.pingDevice("dev-b")], answer: "It is a storage device.")])
         let answer = await AskNetwork.answer("Q", snapshot: stale, pinnedDeviceID: nil, model: model,
-                                             live: Live.live(ScriptedPinger(["192.168.1.20": .times([6, 6, 6])])))
+                                             live: Live.live(MockScriptedPinger(["192.168.1.20": .times([6, 6, 6])])))
         #expect(answer.devices.map(\.presence) == [.notCheckedRecently])
         #expect(answer.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): 3 of 3 replies, 6 ms average"])
         #expect(Fix.nas.status == .online)
     }
 
     @Test func theHardStopStillEndsATurnOfLiveCalls() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
         let calls = Array(repeating: AskToolCall.pingDevice("dev-b"), count: AskToolbox.hardStop + 1)
         let answer = await ask(calls, answer: "It is a storage device.", pinger: pinger)
         #expect(answer.text == nil)
@@ -486,7 +508,7 @@ struct AskNetworkLiveTests {
     }
 
     @Test func aCancelledQuestionMeasuresNothingMore() async {
-        let pinger = ScriptedPinger(["192.168.1.20": .hang])
+        let pinger = MockScriptedPinger(["192.168.1.20": .hang])
         let question = "Is the NAS answering right now?"
         let model = ScriptedAskModel(scripts: [question: AskScript(calls: [.pingDevice("dev-b"), .networkStatus], answer: "No.")])
         let task = Task {

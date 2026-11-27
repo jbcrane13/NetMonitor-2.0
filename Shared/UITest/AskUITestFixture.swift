@@ -73,7 +73,7 @@ enum AskUITestFixture {
     static func live(fakeDevices: Bool = false, network: @escaping @Sendable @MainActor () -> UUID?) -> AskLiveTools {
         let base = fakeDevices ? "192.168.1" : "192.0.2"
         return AskLiveTools(
-            pinger: FakePinger(),
+            pinger: MockAskPinger(),
             currentNetwork: {
                 NetworkProfile(
                     id: network() ?? UUID(), interfaceName: "en0", ipAddress: "\(base).200",
@@ -94,7 +94,7 @@ enum AskUITestFixture {
     }
 
     /// Answers the printer and the first fake device in 4 ms, the gateway in 2 ms and the internet in 15 ms, 3 of 3 each.
-    final class FakePinger: PingServiceProtocol, Sendable {
+    final class MockAskPinger: PingServiceProtocol, Sendable {
         func ping(host: String, count: Int, timeout: TimeInterval) async -> AsyncStream<PingResult> {
             let time: Double? = switch host {
             case printer.ip, fakeDeviceIP: 4

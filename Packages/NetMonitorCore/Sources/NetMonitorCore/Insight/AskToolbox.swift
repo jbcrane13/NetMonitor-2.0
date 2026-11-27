@@ -49,6 +49,9 @@ public final class AskToolbox: Sendable {
         /// A live tool's output by device (nil for the connection), whatever the outcome, so a
         /// repeated call neither measures nor refuses again.
         var measured: [UUID?: String] = [:]
+        /// The live check running for a device (nil for the connection): a parallel call for the
+        /// same one waits for it instead of probing again.
+        var running: [UUID?: Task<(String, AskMeasurement?), Never>] = [:]
         var liveCalls = 0
     }
 
@@ -435,12 +438,28 @@ extension AskToolbox {
             if let earlier = state.withLock({ $0.measured[device.id] }) {
                 return ([device.id], earlier, nil)
             }
-            let (output, line) = await ping(device, live: live)
+            let (output, line) = await once(device.id) { await self.ping(device, live: live) }
             if line != nil {
                 state.withLock { $0.measured[device.id] = output }
             }
             return ([device.id], output, line)
         }
+    }
+
+    /// Runs `work` once per device (nil for the connection) per question: a parallel call waits for
+    /// the running one. Cancelling the caller cancels the check.
+    private func once(
+        _ key: UUID?, _ work: @escaping @Sendable () async -> (String, AskMeasurement?)
+    ) async -> (String, AskMeasurement?) {
+        let task = state.withLock { state in
+            if let running = state.running[key] {
+                return running
+            }
+            let task = Task { await work() }
+            state.running[key] = task
+            return task
+        }
+        return await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
     }
 
     /// One device's ping, or why it wasn't pinged, as the model's fact and the app's line. A
@@ -493,7 +512,7 @@ extension AskToolbox {
             if let earlier = state.withLock({ $0.measured[nil] }) {
                 return ([], earlier, nil)
             }
-            let (output, line) = await status(live)
+            let (output, line) = await once(nil) { await self.status(live) }
             if line != nil {
                 state.withLock { $0.measured[nil] = output }
             }
