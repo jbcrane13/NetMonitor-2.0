@@ -1,14 +1,36 @@
-# Domain docs
+# Domain Docs
 
-Use a single shared context for the apps and Swift packages.
+How the engineering skills should consume this repo's domain documentation when exploring the codebase. NetMonitor is single-context: one shared context for the apps and Swift packages.
 
-Before exploration:
+## Before exploring, read these
 
-- Read `docs/agent-readiness/README.md`.
-- Read root `CONTEXT.md` when present.
-- Read relevant decisions in `docs/ADR.md` and `docs/ADR-macOS.md`.
-- Read relevant `docs/adr/` entries if that directory exists.
+- **`docs/agent-readiness/README.md`**: the agent-readiness overview.
+- **`GLOSSARY.md`** at the repo root: the domain vocabulary.
+- **`docs/ADR.md`** and **`docs/ADR-macOS.md`**: the architecture decision records. This repo keeps them as two files, not a `docs/adr/` directory; read the entries that touch the area you're about to work in. If a `docs/adr/` directory exists, read the relevant entries there too.
 
-Missing optional context documents do not block work. Create domain documentation lazily when modeling resolves terms or decisions; preserve the existing ADR convention.
+If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
-Use glossary vocabulary consistently. Explicitly identify any proposal that conflicts with an existing ADR.
+## File structure
+
+Single-context repo:
+
+```
+/
+├── GLOSSARY.md
+└── docs/
+    ├── agent-readiness/
+    ├── ADR.md
+    └── ADR-macOS.md
+```
+
+## Use the glossary's vocabulary
+
+When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `GLOSSARY.md`. Don't drift to synonyms the glossary explicitly avoids.
+
+If the concept you need isn't in the glossary yet, that's a signal: either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
+
+## Flag ADR conflicts
+
+If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
+
+> _Contradicts ADR-002 (Swift 6 strict concurrency from day one), but worth reopening because…_

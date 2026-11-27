@@ -35,14 +35,13 @@ Use `pocock-github-workflow:pocock-code-review`. Start **two independent reviewe
 
 The lead reads both reports, makes each call, and sends one consolidated fix list to the worker.
 
-****Codex review:**
-- **`codex-review`** is the automatic check, hosted on mini-pro-1. It runs on every PR, and its findings are handled like any other review thread.
-- **`codex-adversarial-review`** is run on demand when a PR carries risk: concurrency, data integrity or migration, privacy or security, the companion protocol, or model output that the user sees as fact.
+**Codex review:**
+- **`/codex:review`** is the per-PR Codex layer. The lead runs it on the head pinned in step 1, and again on each new head after fixes: `~/.claude/scripts/codex-review.sh review <worktree> --base origin/main`. A worker can't run the slash command itself. It takes no brief and reviews the diff as is; its findings are handled like any other review thread.
+- **`/codex:adversarial-review`** is run on demand when a PR carries risk: concurrency, data integrity or migration, privacy or security, the companion protocol, or model output that the user sees as fact. The lead runs `~/.claude/scripts/codex-review.sh adversarial-review <worktree> --base origin/main "<brief>"`.
   - It accepts a text brief and needs one. Give it the PR's intent, Blake's recorded decisions, the accepted deviations and the risk areas to attack, the same context the spec reviewer gets.
-  - `codex-review` takes no input; it reviews the diff as is.
-- **The gate runs everywhere.** The automated `codex-review` gate is installed for this repo and must be active in every worktree. A new worktree isn't ready for work until the gate is confirmed working there, alongside `scripts/setup-worktree.sh`.
+- **The `codex-review` gate is not a per-PR review.** It is a Claude Code Stop hook that reviews each turn's edits when the turn stops, and it must be active in every worktree. `scripts/setup-worktree.sh` enables it through `~/.claude/scripts/enable-review-gate.sh` and prints the hook's `state.json` path. A new worktree isn't ready for work until that line appears.
 
-Neither replaces the two-axis review; they add to it.
+None of these replaces the two-axis review; they add to it.
 
 Done when: both reports are in, and every finding is fixed, filed as an issue, or explicitly accepted with a reason.
 
