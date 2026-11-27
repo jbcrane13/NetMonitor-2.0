@@ -140,6 +140,51 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         #expect(box.detections == 1)
     }
 
+    /// Detail probes (ping, ports, services) take a token on the row's network: refused while held.
+    @Test func aDetailProbeOnAHeldNetworkMayNotWrite() throws {
+        let box = Box()
+        box.hint = .present(keyA)
+        let setup = try setUp(box)
+        let home = setup.local
+        #expect(setup.coordinator.mayWrite(setup.join.token(for: home)))
+        box.hint = .present(keyB)
+        setup.manager.detectLocalNetwork()
+        #expect(!setup.coordinator.mayWrite(setup.join.token(for: home)))
+        let question = try #require(setup.identity.question)
+        setup.identity.answer(.same(home), to: question)
+        setup.manager.detectLocalNetwork()
+        #expect(setup.coordinator.mayWrite(setup.join.token(for: home)))
+    }
+
+    /// A network that settles after a hold is scanned once: the held scan saved nothing.
+    @Test func identificationSettlingStartsOneScan() async throws {
+        let box = Box()
+        box.hint = .present(keyA)
+        let setup = try setUp(box)
+        let home = setup.local
+        box.hint = .present(keyB)
+        setup.manager.detectLocalNetwork()
+        let question = try #require(setup.identity.question)
+        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.20", "office-printer")]
+        setup.identity.answer(.same(home), to: question)
+        #expect(!setup.coordinator.isScanning)
+        setup.manager.detectLocalNetwork()
+        let deadline = ContinuousClock.now + .seconds(10)
+        while setup.coordinator.lastScanTime(for: home) == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(setup.coordinator.lastScanTime(for: home) != nil)
+    }
+
+    /// A legacy network with no saved devices has no history to mix: it binds quietly.
+    @Test func aLegacyNetworkWithNoSavedDevicesIsClear() async throws {
+        let box = Box()
+        let legacy = UUID()
+        let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
+        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.1", "rt-ax86u-7c10")]
+        #expect(await setup.coordinator.identificationProbe(legacy: legacy) == true)
+    }
+
     /// The identification probe scans and compares, and never reconciles, records or publishes.
     @Test func theIdentificationProbeNeverWrites() async throws {
         let box = Box()

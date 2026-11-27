@@ -604,7 +604,7 @@ private extension ProDeviceDetailView {
     /// The row a probe started on, to save its result: only if it still exists and its token is
     /// still current (#628), checked in the block that writes it.
     private func rowToUpdate(_ id: UUID, startedWith token: JoinToken) -> LocalDevice? {
-        guard coordinator?.isCurrent(token) == true else { return nil }
+        guard coordinator?.mayWrite(token) == true else { return nil }
         var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
         return (try? modelContext.fetch(descriptor))?.first

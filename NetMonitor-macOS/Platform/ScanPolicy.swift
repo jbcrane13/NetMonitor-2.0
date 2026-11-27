@@ -7,6 +7,8 @@ enum ScanReason {
     case periodic
     case menuBar
     case companion
+    /// The network was identified after a hold (#628 PR B): what was scanned meanwhile wasn't saved.
+    case identified
     /// The one scan that replaces a scan dropped because the path changed while it ran (#628): of
     /// the manual network it scanned, else the local network.
     case replacement(manual: NetworkProfile?)
@@ -22,6 +24,7 @@ enum ScanReason {
         case .periodic: "periodic"
         case .menuBar: "menuBar"
         case .companion: "companion"
+        case .identified: "identified"
         case .replacement: "replacement"
         case .user: "user"
         }
@@ -63,7 +66,7 @@ enum ScanPolicy {
             return isScanning ? .replace(local) : .start(local)
         case .replacement(let manual?):
             return isScanning ? .ignore : .start(manual)
-        case .launch, .periodic, .menuBar, .companion, .replacement:
+        case .launch, .periodic, .menuBar, .companion, .identified, .replacement:
             guard let local, !isScanning else { return .ignore }
             return .start(local)
         }

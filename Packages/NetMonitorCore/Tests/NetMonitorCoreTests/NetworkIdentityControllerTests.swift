@@ -219,6 +219,41 @@ struct NetworkIdentityControllerTests {
         #expect(identity.question == question)
     }
 
+    @Test func settlingAfterAHoldTellsTheOwnerOnceAndALaunchIdentificationDoesNot() throws {
+        let (store, _, _) = try makeStore()
+        let harness = Harness()
+        harness.hint = .present(keyA)
+        let identity = makeController(store, harness)
+        var settled: [UUID] = []
+        identity.onSettled = { settled.append($0) }
+        let siteA = identity.resolveID(group: home, defaultID: UUID())
+        #expect(settled.isEmpty, "the launch scan already runs under it")
+        harness.hint = .present(keyB)
+        _ = identity.resolveID(group: home, defaultID: siteA)
+        let question = try #require(identity.question)
+        identity.answer(.same(siteA), to: question)
+        _ = identity.resolveID(group: home, defaultID: siteA)
+        _ = identity.resolveID(group: home, defaultID: siteA)
+        #expect(settled == [siteA])
+    }
+
+    @Test func startOverClearsTheDamageAndDetectsAgain() throws {
+        let (_, dir, defaults) = try makeStore()
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("not json".utf8).write(to: dir.appending(path: NetworkIdentityStore.fileName))
+        let damaged = NetworkIdentityStore(directory: dir, defaults: defaults, legacyNetworks: { [:] }, reservedIDs: { [] })
+        let harness = Harness()
+        harness.hint = .present(keyA)
+        let identity = makeController(damaged, harness)
+        let id = identity.resolveID(group: home, defaultID: UUID())
+        #expect(identity.isDamaged)
+        identity.startOver()
+        #expect(!identity.isDamaged)
+        #expect(harness.detections == 1)
+        #expect(identity.resolveID(group: home, defaultID: id) == id)
+        #expect(identity.authorizes(id))
+    }
+
     @Test func aDamagedStoreHoldsEverything() throws {
         let (store, dir, defaults) = try makeStore()
         try Data("not json".utf8).write(to: dir.appending(path: NetworkIdentityStore.fileName))

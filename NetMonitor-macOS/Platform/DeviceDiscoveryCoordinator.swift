@@ -107,8 +107,18 @@ final class DeviceDiscoveryCoordinator {
     let replacementScans: ReplacementScans
     /// Where device observations' tokens come from (#628); detail probes take theirs here too.
     let joinClock: NetworkJoinClock
-    /// Which same-subnet network the Mac is on (#628 PR B); nil leaves identification off.
-    var identity: NetworkIdentityController?
+    /// Which same-subnet network the Mac is on (#628 PR B); nil leaves identification off. A network
+    /// identified after a hold is scanned once, after the detection that settled it returns.
+    var identity: NetworkIdentityController? {
+        didSet {
+            identity?.onSettled = { [weak self] _ in
+                Task { @MainActor in self?.rescan(.identified) }
+            }
+        }
+    }
+
+    /// The identification probe is running: it shares the Bonjour browser, so no scan starts meanwhile.
+    private var isProbing = false
     /// The routed IPv4 gateway, for the identification probe's site anchor.
     private let gatewayIP: @MainActor () -> String?
 
@@ -189,7 +199,7 @@ final class DeviceDiscoveryCoordinator {
     /// - Parameter countsTowardReviewPrompt: `false` for scans the user didn't start here
     ///   (launch scan, companion requests), so they don't trigger the review prompt (#337).
     func startScan(countsTowardReviewPrompt: Bool = true) {
-        guard !isScanning else { return }
+        guard !isScanning, !isProbing else { return }
         cancelSuggestions()
         isScanning = true
         scanProgress = 0.0
@@ -454,11 +464,26 @@ final class DeviceDiscoveryCoordinator {
         joinClock.isCurrent(token, networkIsCurrent: networkProfileManager.observationNetworkIsCurrent)
     }
 
+    /// Whether a detail probe that started with `token` may save to its row: still current, and its
+    /// network not held by identification (#628 PR B).
+    func mayWrite(_ token: JoinToken) -> Bool {
+        guard isCurrent(token) else { return false }
+        guard let identity, let network = token.networkID else { return true }
+        if identity.heldNetworkIDs.contains(network) {
+            return false
+        }
+        return network != networkProfileManager.localProfile?.id || identity.authorizes(network)
+    }
+
     /// The identification probe (#628 PR B): a scan of the current network with its own sink, for
     /// a legacy network's history. It compares what answers with the legacy network's saved devices
     /// (`LegacyOverlap`, anchored at the routed gateway) and never reconciles, records, publishes or
     /// calls the scan-completed handlers. Nil when the gateway is unknown or the probe was cancelled.
     func identificationProbe(legacy: UUID) async -> Bool? {
+        isProbing = true
+        defer { isProbing = false }
+        // One user of the Bonjour browser at a time: let a running scan finish first.
+        await scanTask?.value
         let pipeline = makePipeline()
         let context = makeScanContext()
         let devices = await ScanEngine().scan(pipeline: pipeline, context: context) { _, _ in }
@@ -472,7 +497,8 @@ final class DeviceDiscoveryCoordinator {
                 name: $0.hostname ?? $0.resolvedHostname
             )
         }
-        return LegacyOverlap.isClear(gatewayIP: gateway, observed: observed, saved: saved)
+        // No saved devices: no history to mix with.
+        return saved.isEmpty || LegacyOverlap.isClear(gatewayIP: gateway, observed: observed, saved: saved)
     }
 
     /// What became of a finished scan (#628).

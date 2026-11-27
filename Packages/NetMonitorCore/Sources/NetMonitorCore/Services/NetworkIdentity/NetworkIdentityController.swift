@@ -35,6 +35,13 @@ public final class NetworkIdentityController {
         case held(UUID, IdentityQuestion?)
         /// The store is damaged or can't be written: identification is paused.
         case paused(UUID)
+
+        var isHolding: Bool {
+            switch self {
+            case .identifying, .held, .paused: true
+            case .idle, .identified: false
+            }
+        }
     }
 
     /// The question for the current observation, if any.
@@ -43,11 +50,19 @@ public final class NetworkIdentityController {
     public private(set) var heldNetworkIDs: Set<UUID> = []
     /// The store is damaged: identification is paused until the user starts over.
     public var isDamaged: Bool { store.state == .damaged }
+    /// Called once a network held by a question, the probe or a router change is identified, so its
+    /// owner can scan it: what was scanned while held wasn't saved.
+    @ObservationIgnored public var onSettled: (@MainActor (UUID) -> Void)?
     /// The running identification probe, for tests.
     @ObservationIgnored public private(set) var probeTask: Task<Void, Never>?
 
     @ObservationIgnored private var state = State.idle {
-        didSet { publish() }
+        didSet {
+            publish()
+            if case .identified(let id, _, _) = state, oldValue.isHolding {
+                onSettled?(id)
+            }
+        }
     }
 
     @ObservationIgnored private var detectionPending = false
@@ -180,6 +195,18 @@ public final class NetworkIdentityController {
             return false
         }
         return true
+    }
+
+    /// Starts over after damage: a fresh migration from the v1 map, then detection again.
+    public func startOver() {
+        do {
+            try store.startOver()
+        } catch {
+            Self.logger.error("Couldn't start network recognition over")
+            return
+        }
+        detectionPending = true
+        requestDetection()
     }
 
     // MARK: - Answers
