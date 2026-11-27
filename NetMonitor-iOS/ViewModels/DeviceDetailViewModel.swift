@@ -174,8 +174,16 @@ final class DeviceDetailViewModel {
         }
         suggestionFingerprint = fingerprint
         suggestionTask?.cancel()
+        let discovery = deviceDiscoveryService
         suggestionTask = Task { [weak self, suggester] in
-            await suggester.suggest(for: [device])
+            // Ask once the evidence has settled: enrichment, service discovery and a port scan
+            // change it in quick succession, and a later change cancels this before anything is
+            // sent (#642 review).
+            try? await Task.sleep(for: Self.suggestionSettle)
+            guard !Task.isCancelled else {
+                return
+            }
+            await Self.suggestOutsideScans(device, suggester: suggester, discovery: discovery)
             guard !Task.isCancelled, let self else {
                 return
             }
@@ -187,6 +195,54 @@ final class DeviceDetailViewModel {
             self.saveContext()
             self.refreshSuggestionState()
         }
+    }
+
+    /// How long the evidence must stay unchanged before the model is asked.
+    static let suggestionSettle: Duration = .milliseconds(800)
+    /// How often a waiting suggestion checks whether the phone's scan is over.
+    static let scanPoll: Duration = .milliseconds(250)
+
+    /// Runs the suggestion pass for `device`, never during the phone's own scan (#447): it waits for
+    /// a scan to end, and a scan that starts meanwhile cancels the pass (which records nothing), to
+    /// run it again once that scan is over.
+    private static func suggestOutsideScans(
+        _ device: LocalDevice, suggester: DeviceSuggester, discovery: any DeviceDiscoveryServiceProtocol
+    ) async {
+        while !Task.isCancelled {
+            while discovery.isScanning {
+                try? await Task.sleep(for: scanPoll)
+                if Task.isCancelled {
+                    return
+                }
+            }
+            let finished = PassFlag()
+            let pass = Task {
+                await suggester.suggest(for: [device])
+                finished.isDone = true
+            }
+            var interrupted = false
+            while !finished.isDone, !Task.isCancelled {
+                if discovery.isScanning {
+                    pass.cancel()
+                    interrupted = true
+                    break
+                }
+                try? await Task.sleep(for: scanPoll)
+            }
+            if Task.isCancelled {
+                pass.cancel()
+            }
+            await pass.value
+            if !interrupted {
+                return
+            }
+        }
+    }
+
+    /// Set when a suggestion pass has finished.
+    @MainActor
+    private final class PassFlag {
+        var isDone = false
     }
 
     func acceptSuggestion() {
