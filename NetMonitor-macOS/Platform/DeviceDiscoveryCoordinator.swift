@@ -91,7 +91,7 @@ final class DeviceDiscoveryCoordinator {
     /// How the reconciler reads the rows; tests make it fail.
     private let reconcilerFetch: @MainActor (ModelContext) throws -> [LocalDevice]
 
-    private var scanTask: Task<Void, Never>?
+    private(set) var scanTask: Task<Void, Never>?
 
     /// Set once per scan the first time the engine reports progress from one of the four
     /// enrichment phases — gates the single sparse merge at the discovery→enrichment
@@ -118,9 +118,9 @@ final class DeviceDiscoveryCoordinator {
     }
 
     /// The identification probe is running: it shares the Bonjour browser, so no scan starts meanwhile.
-    private var isProbing = false
+    var isProbing = false
     /// The routed IPv4 gateway, for the identification probe's site anchor.
-    private let gatewayIP: @MainActor () -> String?
+    let gatewayIP: @MainActor () -> String?
 
     /// Matches iOS `DeviceDiscoveryService.maxHostsPerScan` — a bound on how many
     /// addresses `hostAddresses(limit:)` enumerates for very large subnets.
@@ -464,43 +464,6 @@ final class DeviceDiscoveryCoordinator {
         joinClock.isCurrent(token, networkIsCurrent: networkProfileManager.observationNetworkIsCurrent)
     }
 
-    /// Whether a detail probe that started with `token` may save to its row: still current, and its
-    /// network not held by identification (#628 PR B).
-    func mayWrite(_ token: JoinToken) -> Bool {
-        guard isCurrent(token) else { return false }
-        guard let identity, let network = token.networkID else { return true }
-        if identity.heldNetworkIDs.contains(network) {
-            return false
-        }
-        return network != networkProfileManager.localProfile?.id || identity.authorizes(network)
-    }
-
-    /// The identification probe (#628 PR B): a scan of the current network with its own sink, for
-    /// a legacy network's history. It compares what answers with the legacy network's saved devices
-    /// (`LegacyOverlap`, anchored at the routed gateway) and never reconciles, records, publishes or
-    /// calls the scan-completed handlers. Nil when the gateway is unknown or the probe was cancelled.
-    func identificationProbe(legacy: UUID) async -> Bool? {
-        isProbing = true
-        defer { isProbing = false }
-        // One user of the Bonjour browser at a time: let a running scan finish first.
-        await scanTask?.value
-        let pipeline = makePipeline()
-        let context = makeScanContext()
-        let devices = await ScanEngine().scan(pipeline: pipeline, context: context) { _, _ in }
-        guard !Task.isCancelled, let gateway = gatewayIP() else { return nil }
-        let observed = devices.filter { !$0.isCached }.map {
-            LegacyOverlap.Observation(ipAddress: $0.ipAddress, macAddress: $0.macAddress, name: $0.hostname)
-        }
-        let saved = fetchDevices(for: legacy).map {
-            LegacyOverlap.SavedDevice(
-                deviceID: $0.deviceGroupID ?? $0.id, ipAddress: $0.ipAddress, macAddress: $0.macAddress,
-                name: $0.hostname ?? $0.resolvedHostname
-            )
-        }
-        // No saved devices: no history to mix with.
-        return saved.isEmpty || LegacyOverlap.isClear(gatewayIP: gateway, observed: observed, saved: saved)
-    }
-
     /// What became of a finished scan (#628).
     enum ScanCommit: Equatable {
         case applied
@@ -715,7 +678,7 @@ final class DeviceDiscoveryCoordinator {
         discoveredDevices = devices.sorted { $0.lastSeen > $1.lastSeen }
     }
 
-    private func fetchDevices(for profileID: UUID?) -> [LocalDevice] {
+    func fetchDevices(for profileID: UUID?) -> [LocalDevice] {
         let descriptor: FetchDescriptor<LocalDevice>
         if let profileID {
             let predicate = #Predicate<LocalDevice> { $0.networkProfileID == profileID }
@@ -752,7 +715,7 @@ final class DeviceDiscoveryCoordinator {
     /// `requiredInterfaceType` is `nil` (any interface): unlike iOS, a wired Mac must still
     /// be able to discover devices (D15).
     /// The scan's pipeline, fed by this coordinator's Bonjour browser and services.
-    private func makePipeline() -> ScanPipeline {
+    func makePipeline() -> ScanPipeline {
         let bonjourScannerRef = bonjourScanner
         let bonjourProvider: @Sendable () async -> [BonjourServiceInfo] = {
             await MainActor.run {
@@ -775,7 +738,7 @@ final class DeviceDiscoveryCoordinator {
         ))
     }
 
-    private func makeScanContext() -> ScanContext {
+    func makeScanContext() -> ScanContext {
         if let profile = networkProfile {
             let hosts = profile.network.hostAddresses(limit: Self.maxHostsPerScan)
             let localIP = NetworkUtilities.detectLocalIPAddress(interface: profile.interfaceName)

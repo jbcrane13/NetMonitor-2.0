@@ -152,6 +152,7 @@
 		34402C29A62FFE42C44A8B1D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101F26E4BECFFBFB3797E920 /* ContentView.swift */; };
 		3443609DD098615E0019DFFA /* DeviceDiscoveryCoordinatorFixturePhases.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD009F26DFFECED8731E7A9F /* DeviceDiscoveryCoordinatorFixturePhases.swift */; };
 		3483622E72B9B31BC280B5F4 /* DeviceGroupReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC5B081FBF5CD73573930DF /* DeviceGroupReaderTests.swift */; };
+		34876C60944A4C8C4C2A1E14 /* DeviceDiscoveryCoordinator+Identity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50D5CA134B2A7D45F5DAE710 /* DeviceDiscoveryCoordinator+Identity.swift */; };
 		34CC050F63FE38D8C7A0C361 /* v2.2-default.store in Resources */ = {isa = PBXBuildFile; fileRef = 40BFE4DD96843BF4F289442C /* v2.2-default.store */; };
 		3576CA714E4C9571F0E0C068 /* PairWithMacView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C0374F0E5040CCC8DF76496 /* PairWithMacView.swift */; };
 		359A83ABBF2A83501EAC4A56 /* DeviceEventWiringTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1DFC80C84F3CE06BC7B477A /* DeviceEventWiringTests.swift */; };
@@ -986,6 +987,7 @@
 		4FAA2A8A1F011FBCFA824E15 /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
 		50682274C7A29F0561FF85F1 /* NetworkSwitchingUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSwitchingUITests.swift; sourceTree = "<group>"; };
 		50CDF38D7D09D40E66AF25A6 /* WiFiHeatmapToolUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiHeatmapToolUITests.swift; sourceTree = "<group>"; };
+		50D5CA134B2A7D45F5DAE710 /* DeviceDiscoveryCoordinator+Identity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DeviceDiscoveryCoordinator+Identity.swift"; sourceTree = "<group>"; };
 		50DCB3496E4191A54FE368F9 /* RulesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesSettingsView.swift; sourceTree = "<group>"; };
 		50F4C3C52B75ED936E81CA6E /* WiFiShortcutSetupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiShortcutSetupTests.swift; sourceTree = "<group>"; };
 		510EEA7FD3EAFD346225709B /* VPNInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNInfoView.swift; sourceTree = "<group>"; };
@@ -2178,6 +2180,7 @@
 				D7463FAF02969BDCF9623947 /* CoreWLANService.swift */,
 				A7191F3156FFC451BBDAA904 /* DefaultTargetsProvider.swift */,
 				1CA8D556A3CF18E6815DD8AC /* DeviceDiscoveryCoordinator.swift */,
+				50D5CA134B2A7D45F5DAE710 /* DeviceDiscoveryCoordinator+Identity.swift */,
 				09EBBD8E81DB9B166FF27A86 /* HistoryRetention.swift */,
 				9397061B694F2821A01D1805 /* HTTPMonitorService.swift */,
 				1E3F3A93C15C01F45D8E37D2 /* ICMPMonitorService.swift */,
@@ -3017,6 +3020,7 @@
 				AE0BFBDBD49196ABF777518B /* DefaultTargetsProvider.swift in Sources */,
 				737BD05750E732CBAB510C7C /* DeviceCardView.swift in Sources */,
 				4CC96EA143CB7A03C58AD8FF /* DeviceDetailView.swift in Sources */,
+				34876C60944A4C8C4C2A1E14 /* DeviceDiscoveryCoordinator+Identity.swift in Sources */,
 				77CED50CD8072ED9B9F87EC4 /* DeviceDiscoveryCoordinator.swift in Sources */,
 				1329D1CCCE4EE393F5FFECBE /* DeviceGroupingViewModel.swift in Sources */,
 				2D9BE1C7C0BA1A49F9182C8C /* DeviceGroupingViews.swift in Sources */,

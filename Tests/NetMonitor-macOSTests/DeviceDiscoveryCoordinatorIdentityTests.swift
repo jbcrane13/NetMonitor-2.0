@@ -64,7 +64,8 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: manager,
             pipelineFactory: { _ in
-                ScanPipeline(steps: [ScanPipeline.Step(phases: [FixturePhase(devices: { await MainActor.run { devices.devices } })], concurrent: false)])
+                let phase = FixturePhase(devices: { await MainActor.run { devices.devices } })
+                return ScanPipeline(steps: [ScanPipeline.Step(phases: [phase], concurrent: false)])
             },
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
