@@ -159,15 +159,7 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
     /// three controls: `notifyTargetDown`, `notifyTargetRecovery`, and
     /// `latencyThreshold`. Disabling the parent toggle must propagate.
     func testDisablingNotificationsDisablesDependentControls() {
-        // Tap the Settings sidebar row directly (actual ID is
-        // `sidebar_nav_settings` — the `navigateToSidebar` helper's
-        // `sidebar_\(section)` form does not currently match).
-        let settingsRow = ui("sidebar_nav_settings").firstMatch
-        requireExists(settingsRow, timeout: 5,
-                      message: "sidebar_nav_settings should exist")
-        settingsRow.click()
-        requireExists(ui("contentView_nav_settings").firstMatch, timeout: 5,
-                      message: "Settings container should mount")
+        navigateToSidebar("settings")
 
         // Try clicking multiple variants of the Notifications tab row.
         let tabCandidates: [XCUIElement] = [

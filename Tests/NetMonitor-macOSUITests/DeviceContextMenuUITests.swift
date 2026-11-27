@@ -87,7 +87,7 @@ final class DeviceContextMenuUITests: MacOSUITestCase {
         app.typeKey(.escape, modifierFlags: [])
     }
 
-    // MARK: - Ping action triggers ping sheet with device IP pre-filled
+    // MARK: - Ping action opens the ping sheet for the device
 
     func testPingActionOpensPingSheet() {
         openContextMenu()
@@ -97,18 +97,10 @@ final class DeviceContextMenuUITests: MacOSUITestCase {
         XCTAssertTrue(sheet.waitForExistence(timeout: 5),
                       "Ping sheet should appear after tapping Ping Device menu item")
 
-        // Verify the ping host field is pre-filled with the device IP
-        let hostField = app.textFields["ping_textfield_host"]
-        if hostField.waitForExistence(timeout: 5) {
-            let hostValue = hostField.value as? String ?? ""
-            XCTAssertTrue(!hostValue.isEmpty,
-                          "Ping host field should be pre-filled with device IP, got: '\(hostValue)'")
-            XCTAssertTrue(hostValue == seededIP || hostValue.contains("192.168"),
-                          "Ping host field should contain the device IP (\(seededIP)), got: '\(hostValue)'")
-        }
+        assertSheetShowsSeededTarget("Ping sheet")
     }
 
-    // MARK: - Scan Ports action triggers port scan sheet with device IP pre-filled
+    // MARK: - Scan Ports action opens the port scan sheet for the device
 
     func testScanPortsActionOpensPortScanSheet() {
         openContextMenu()
@@ -118,15 +110,7 @@ final class DeviceContextMenuUITests: MacOSUITestCase {
         XCTAssertTrue(sheet.waitForExistence(timeout: 5),
                       "Port scan sheet should appear after tapping Scan Ports menu item")
 
-        // Verify the port scan host field is pre-filled with the device IP
-        let hostField = app.textFields["portScan_textfield_host"]
-        if hostField.waitForExistence(timeout: 5) {
-            let hostValue = hostField.value as? String ?? ""
-            XCTAssertTrue(!hostValue.isEmpty,
-                          "Port scan host field should be pre-filled with device IP, got: '\(hostValue)'")
-            XCTAssertTrue(hostValue == seededIP || hostValue.contains("192.168"),
-                          "Port scan host field should contain the device IP (\(seededIP)), got: '\(hostValue)'")
-        }
+        assertSheetShowsSeededTarget("Port scan sheet")
     }
 
     // MARK: - Copy IP action copies device IP to clipboard
@@ -162,6 +146,18 @@ final class DeviceContextMenuUITests: MacOSUITestCase {
     }
 
     // MARK: - Helpers
+
+    /// The device sheets have no host field; they name their device as
+    /// "Target: <ip>". The card behind the sheet shows the IP too, so look
+    /// inside the sheet. A Text reports its string as its value on macOS 27.
+    private func assertSheetShowsSeededTarget(_ name: String) {
+        let sheetTexts = app.sheets.firstMatch.staticTexts
+        for text in ["Target:", seededIP] {
+            let match = sheetTexts.matching(NSPredicate(format: "value == %@ OR label == %@", text, text)).firstMatch
+            XCTAssertTrue(match.waitForExistence(timeout: 5),
+                          "\(name) should show '\(text)' for the device it was opened on")
+        }
+    }
 
     private func openContextMenu() {
         XCTAssertTrue(card.waitForExistence(timeout: 5),

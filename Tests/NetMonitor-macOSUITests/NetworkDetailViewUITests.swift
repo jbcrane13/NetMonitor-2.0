@@ -6,9 +6,8 @@ import XCTest
 // This view is shown when a network profile is selected from the sidebar.
 //
 // Navigation strategy: the app auto-navigates to the first (local) network
-// on launch (see ContentView.onAppear). When no network exists, we create
-// one via the "Add Network" sheet before testing the detail view. Both paths
-// are covered below.
+// on launch (see ContentView.onAppear), and every test relies on that. Adding
+// and selecting a network is covered by NetworkSwitchingUITests.
 //
 // Accessibility identifiers used (from source):
 //   NetworkDetailView wrapper:      "contentView_nav_network"
@@ -30,48 +29,11 @@ final class NetworkDetailViewUITests: MacOSUITestCase {
 
     // MARK: - Setup
 
-    /// Add a network and select it so NetworkDetailView is on screen.
-    /// Returns without failing if a network is already visible (auto-selected on launch).
+    /// The app selects the Mac's own network on launch, so NetworkDetailView
+    /// should already be on screen. Fails loudly when it is not.
     private func ensureNetworkDetailVisible() {
-        // The app auto-selects the first network on launch.
-        // If detail_network already exists we're done.
-        if ui("contentView_nav_network").firstMatch.waitForExistence(timeout: 4) {
-            return
-        }
-
-        // No network selected — add one via the sheet.
-        let addButton = app.buttons["sidebar_button_addNetwork"]
-        guard addButton.waitForExistence(timeout: 5) else {
-            XCTFail("sidebar_button_addNetwork not found — cannot create test network")
-            return
-        }
-        addButton.click()
-
-        guard app.sheets.firstMatch.waitForExistence(timeout: 3) else {
-            XCTFail("Add Network sheet did not appear")
-            return
-        }
-
-        clearAndTypeText("10.99.0.1", into: app.textFields["addNetwork_textfield_gateway"])
-        clearAndTypeText("10.99.0.0/24", into: app.textFields["addNetwork_textfield_subnet"])
-        clearAndTypeText("UITest Network", into: app.textFields["addNetwork_textfield_name"])
-
-        let addNetworkButton = app.buttons["addNetwork_button_add"]
-        XCTAssertTrue(addNetworkButton.waitForExistence(timeout: 3))
-        XCTAssertTrue(addNetworkButton.isEnabled, "Add button should be enabled after valid input")
-        addNetworkButton.click()
-
-        XCTAssertTrue(waitForDisappearance(app.sheets.firstMatch, timeout: 3),
-                      "Add Network sheet should dismiss after confirming")
-
-        // Select the new network item in the sidebar
-        let networkItem = app.staticTexts["UITest Network"]
-        if networkItem.waitForExistence(timeout: 5) {
-            networkItem.click()
-        }
-
-        XCTAssertTrue(ui("contentView_nav_network").firstMatch.waitForExistence(timeout: 5),
-                      "NetworkDetailView (detail_network) should appear after selecting network")
+        requireExists(ui("contentView_nav_network").firstMatch, timeout: 5,
+                      message: "The app should open on the active network's detail view (contentView_nav_network)")
     }
 
     // MARK: - Smoke: network detail view exists

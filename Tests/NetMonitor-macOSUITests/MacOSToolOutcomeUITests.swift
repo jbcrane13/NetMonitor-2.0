@@ -85,7 +85,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         // real data landed in the results area (not just a state flip).
         XCTAssertTrue(
             ui("traceroute_section_hops").firstMatch.waitForExistence(timeout: 25),
-            "Traceroute should render at least hop #1 against 1.1.1.1"
+            "Traceroute should render at least one hop row against 1.1.1.1"
         )
 
         if runButton.exists && runButton.label == "Stop" {
