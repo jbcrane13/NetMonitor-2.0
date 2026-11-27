@@ -36,11 +36,10 @@ enum AskUITestFixture {
     static let printerAnswer = "UITest Printer is a printer at 192.0.2.57."
     static let joinedAnswer = "Two devices joined this week: UITest Camera and UITest Speaker."
     static let monthAnswer = "Three devices joined in the last 30 days: UITest Camera, UITest Speaker and UITest Doorbell."
-    /// The first sentence states presence, as the real model does; the app drops it and shows its
-    /// own line. The seeded printer is offline and this network has no scan, so the app refuses
-    /// to ping it and says to run a scan first.
+    /// What the model says after calling a live tool. None of it is shown (#627): the app's own
+    /// line is the answer. The seeded printer is offline and this network has no scan, so the app
+    /// refuses to ping it and says to run a scan first.
     static let pingAnswer = "Yes, UITest Printer is answering right now. It is a printer."
-    static let pingShown = "It is a printer."
     static let pingRefusal = "UITest Printer (192.0.2.57): not pinged. Run a scan first: this network hasn't been checked since you joined it."
     /// Under `UITEST_FAKE_DEVICES`, after a scan: the first fake device, Online, answers. The
     /// model's "It pinged fine." is about the live result, so the app's line is the answer.
@@ -67,7 +66,7 @@ enum AskUITestFixture {
     }
 
     /// The live tools under a UI test (#579): nothing real is pinged. The device is on the network
-    /// asked about, on Wi-Fi, and joined it long ago, so any scan establishes it: the documentation
+    /// asked about, on Wi-Fi, established long ago, so any scan in the snapshot counts: the documentation
     /// network 192.0.2.0/24, or with `fakeDevices` the fake scan's 192.168.1.0/24.
     /// - Parameter network: the network the question is asked about.
     static func live(fakeDevices: Bool = false, network: @escaping @Sendable @MainActor () -> UUID?) -> AskLiveTools {
@@ -89,7 +88,8 @@ enum AskUITestFixture {
             },
             connection: { AskLiveTools.Connection(type: .wifi, gatewayIP: gatewayIP) },
             isScanning: { false },
-            joinedAt: { .distantPast }
+            // Established long ago: the snapshot's own scan decides (none means "scan first").
+            establishedScan: { .distantPast }
         )
     }
 

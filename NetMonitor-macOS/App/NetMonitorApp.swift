@@ -232,7 +232,7 @@ struct NetMonitorApp: App {
             connectivity.run(for: profileManager.localProfile)
             connectivityMonitor = connectivity
             // When the Mac joined its network: Ask pings only after a scan since (#579).
-            _ = NetworkJoinClock.shared
+            Self.startJoinClock()
             // Fill the dashboard without waiting for the user to press Scan (#358).
             discovery.rescan(.launch)
             // Rescan when the Mac moves to a different network while the app is open (#359).
@@ -732,6 +732,18 @@ enum UITestScanFixture {
                 await accumulator.upsert(device)
             }
             await onProgress(1.0)
+        }
+    }
+}
+
+@MainActor
+extension NetMonitorApp {
+    /// Starts the join clock at launch (#579). Waking from sleep may land on another LAN with the
+    /// same path, so it counts as a join.
+    static func startJoinClock() {
+        _ = NetworkJoinClock.shared
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { NetworkJoinClock.shared.noteResume() }
         }
     }
 }

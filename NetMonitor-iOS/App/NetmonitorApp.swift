@@ -246,11 +246,16 @@ struct NetmonitorApp: App {
                         networkChangeMonitor = monitor
                     }
                 }
-                .onChange(of: scenePhase) { _, phase in
+                .onChange(of: scenePhase) { previous, phase in
                     // A network change while the app was suspended may never reach the path
                     // monitor, so check again whenever the app comes back.
                     if phase == .active {
                         networkChangeMonitor?.checkNow()
+                    }
+                    // Back from the background, the phone may be on another LAN with the same path:
+                    // Ask pings again only after a scan (#579).
+                    if previous == .background, phase == .active {
+                        NetworkJoinClock.shared.noteResume()
                     }
                     // Save events still waiting for the write debounce before iOS suspends the app (#491).
                     if phase == .background {

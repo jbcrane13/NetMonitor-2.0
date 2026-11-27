@@ -134,13 +134,14 @@ final class AskUITests: IOSUITestCase {
     // MARK: - Live tools (#579)
 
     /// The seeded printer is offline and this network has no scan: the app refuses to ping it and
-    /// says to scan first. The model's "Yes, … is answering" is dropped; the saved status beside
-    /// the citation stays the scan's.
+    /// says to scan first. A live tool was called, so no model text shows (#627): the answer is
+    /// the app's line, and the saved status beside the citation stays the scan's.
     func testAPingBeforeAnyScanIsRefusedByTheApp() {
         openAsk()
         ask("Is the printer answering right now?")
 
-        let answer = waitForAnswer("It is a printer.")
+        let answer = waitForAnswer("The app's live check is below.")
+        XCTAssertFalse(ui("ask_label_generated").exists, "No model text is shown after a live tool")
         let line = ui("ask_label_measurement_1")
         requireExists(line, message: "The app's refusal should show under the answer")
         XCTAssertEqual(line.label,
@@ -156,7 +157,7 @@ final class AskUITests: IOSUITestCase {
         openAsk()
         ask("How is my connection?")
 
-        let answer = waitForAnswer("The connection is Wi-Fi.")
+        let answer = waitForAnswer("The app's live check is below.")
         let measurement = ui("ask_label_measurement_1")
         requireExists(measurement, message: "The app's connection measurement should show under the answer")
         XCTAssertTrue(measurement.label.hasPrefix(

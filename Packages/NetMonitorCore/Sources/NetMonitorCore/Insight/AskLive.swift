@@ -199,8 +199,12 @@ public final class NetworkJoinClock {
         task = Task { [weak self] in
             var last: String?
             for await key in changes where key != last {
+                // The first report is the path the app started on, which `joinedAt` already covers:
+                // a launch scan running when it arrives still establishes the network.
+                if last != nil {
+                    self?.join()
+                }
                 last = key
-                self?.join()
             }
         }
     }

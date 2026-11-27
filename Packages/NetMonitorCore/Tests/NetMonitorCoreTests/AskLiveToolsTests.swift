@@ -635,15 +635,17 @@ struct NetworkJoinClockTests {
         let clock = Clock()
         let join = NetworkJoinClock(changes: changes) { clock.now }
         #expect(join.joinedAt == Date(timeIntervalSince1970: 0))
-        clock.advance()
-        continuation.yield("satisfied|wifi-en0|192.168.1.1")
-        await waitFor(Date(timeIntervalSince1970: 60), on: join)
-        #expect(join.joinedAt == Date(timeIntervalSince1970: 60))
+        // The first report is the launch path: not a join.
         clock.advance()
         continuation.yield("satisfied|wifi-en0|192.168.1.1")
         try? await Task.sleep(for: .milliseconds(50))
-        #expect(join.joinedAt == Date(timeIntervalSince1970: 60))
+        #expect(join.joinedAt == Date(timeIntervalSince1970: 0))
+        // The same path again is not a join either.
+        continuation.yield("satisfied|wifi-en0|192.168.1.1")
+        try? await Task.sleep(for: .milliseconds(50))
+        #expect(join.joinedAt == Date(timeIntervalSince1970: 0))
         // A same-subnet move passes through another path on the way.
+        clock.advance()
         continuation.yield("unsatisfied")
         await waitFor(Date(timeIntervalSince1970: 120), on: join)
         #expect(join.joinedAt == Date(timeIntervalSince1970: 120))
@@ -669,6 +671,7 @@ struct NetworkJoinClockTests {
         let (changes, continuation) = AsyncStream<String>.makeStream()
         let clock = Clock()
         let join = NetworkJoinClock(changes: changes) { clock.now }
+        continuation.yield("satisfied|wifi-en0|network-a")
         let start = join.scanStarted()
         clock.advance()
         continuation.yield("satisfied|wifi-en0|network-b")

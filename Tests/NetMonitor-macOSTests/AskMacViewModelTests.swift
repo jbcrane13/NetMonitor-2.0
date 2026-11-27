@@ -122,7 +122,7 @@ struct AskMacViewModelTests {
             Issue.record("not answered: \(viewModel.state.phase)")
             return
         }
-        #expect(answer.text == AskUITestFixture.pingShown)
+        #expect(answer.text == nil)
         #expect(answer.measurements == [AskMeasurement(deviceID: printer.id, text: AskUITestFixture.pingRefusal, measuredAt: nil)])
         #expect(answer.devices.map(\.presence) == [.notCheckedRecently])
         #expect(printer.status == .offline)

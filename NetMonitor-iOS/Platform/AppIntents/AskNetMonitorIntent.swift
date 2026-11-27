@@ -35,6 +35,8 @@ enum AskIntentRunner {
     static let turnDeadline: Duration = .seconds(20)
     /// Most live checks one Siri turn makes.
     static let liveCallLimit = 2
+    /// Said when the turn's deadline passes before the answer is ready.
+    static let timedOutMessage = "That took too long to look up. Try again in a moment."
 
     /// Answers `question` from the saved store, the event log and the current network.
     static func answer(_ question: String) async -> String {
@@ -66,13 +68,62 @@ enum AskIntentRunner {
         }
         let live = live?.limited(to: liveCallLimit)
         let task = Task { await AskNetwork.answer(question, snapshot: snapshot, pinnedDeviceID: nil, model: model, live: live) }
-        let timer = Task {
-            try? await Task.sleep(for: deadline)
-            task.cancel()
-        }
-        let answer = await task.value
-        timer.cancel()
+        guard let answer = await firstOf(task, within: deadline) else { return timedOutMessage }
         return spoken(answer)
+    }
+
+    /// `task`'s answer, or nil once `deadline` passes or the caller is cancelled, whichever is
+    /// first; `task` is cancelled then. Never waits on a model that ignores cancellation.
+    static func firstOf(_ task: Task<AskAnswer, Never>, within deadline: Duration) async -> AskAnswer? {
+        let gate = ResumeGate()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<AskAnswer?, Never>) in
+                gate.set(continuation)
+                Task {
+                    let answer = await task.value
+                    gate.resume(answer)
+                }
+                Task {
+                    try? await Task.sleep(for: deadline)
+                    task.cancel()
+                    gate.resume(nil)
+                }
+            }
+        } onCancel: {
+            task.cancel()
+            gate.resume(nil)
+        }
+    }
+
+    /// Resumes a continuation once, from whichever side gets there first.
+    private final class ResumeGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var continuation: CheckedContinuation<AskAnswer?, Never>?
+        private var result: AskAnswer??
+
+        func set(_ continuation: CheckedContinuation<AskAnswer?, Never>) {
+            lock.lock()
+            if let result {
+                lock.unlock()
+                continuation.resume(returning: result)
+                return
+            }
+            self.continuation = continuation
+            lock.unlock()
+        }
+
+        func resume(_ answer: AskAnswer?) {
+            lock.lock()
+            guard result == nil else {
+                lock.unlock()
+                return
+            }
+            result = .some(answer)
+            let waiting = continuation
+            continuation = nil
+            lock.unlock()
+            waiting?.resume(returning: answer)
+        }
     }
 
     /// What Siri says: the answer, the app's live lines, then the statuses and freshness line the
@@ -81,11 +132,20 @@ enum AskIntentRunner {
     static func spoken(_ answer: AskAnswer) -> String {
         let text = answer.text ?? spokenFallbacks[answer.fallback] ?? answer.fallback
         var lines = answer.measurements.flatMap { line in
-            [line.measuredAt == nil ? "\(line.text)." : "\(line.text), measured just now."] + [line.lastScanNote].compactMap(\.self)
+            [line.measuredAt == nil ? sentence(line.text) : "\(line.text), measured just now."] + [line.lastScanNote].compactMap(\.self)
         }
-        let checked = Set(answer.measurements.compactMap(\.deviceID))
-        lines += answer.devices.prefix(5).filter { !checked.contains($0.id) }.map { "\($0.name): \($0.presence.label)." }
-        return ([text] + lines + [answer.freshness].compactMap(\.self)).joined(separator: " ")
+        // Checked live: measured, not refused.
+        let checked = Set(answer.measurements.filter { $0.measuredAt != nil }.compactMap(\.deviceID))
+        let unchecked = answer.devices.prefix(5).filter { !checked.contains($0.id) }
+        lines += unchecked.map { "\($0.name): \($0.presence.label)." }
+        // The scan's freshness only matters for a status Siri says.
+        let freshness = !answer.devices.isEmpty && unchecked.isEmpty ? nil : answer.freshness
+        return ([text] + lines + [freshness].compactMap(\.self)).joined(separator: " ")
+    }
+
+    /// `text` ending in one full stop.
+    private static func sentence(_ text: String) -> String {
+        text.hasSuffix(".") || text.hasSuffix("?") || text.hasSuffix("!") ? text : text + "."
     }
 
     /// The fallbacks that point at something "below", in words for a voice.

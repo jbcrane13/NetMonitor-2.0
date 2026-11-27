@@ -189,8 +189,8 @@ struct AskToolViewModelTests {
     // MARK: - Live tools (#579)
 
     /// "Is the printer answering right now?" on a network with no scan: the app refuses to ping
-    /// and says to scan first (#579 review), the model's presence sentence goes, and the saved
-    /// status stays the scan's.
+    /// and says to scan first (#579 review). A live tool was called, so no model text shows, and
+    /// the saved status stays the scan's.
     @Test func aPingQuestionBeforeAnyScanIsRefusedByTheApp() async {
         let printer = LocalDevice(
             ipAddress: AskUITestFixture.printer.ip, macAddress: AskUITestFixture.printer.mac, deviceType: .printer,
@@ -204,7 +204,8 @@ struct AskToolViewModelTests {
             Issue.record("not answered: \(viewModel.state.phase)")
             return
         }
-        #expect(answer.text == AskUITestFixture.pingShown)
+        #expect(answer.text == nil)
+        #expect(answer.shownText == AskNetwork.measuredFallback)
         #expect(answer.measurements == [AskMeasurement(deviceID: printer.id, text: AskUITestFixture.pingRefusal, measuredAt: nil)])
         #expect(answer.devices.map(\.presence) == [.notCheckedRecently])
         #expect(printer.status == .offline)
@@ -240,6 +241,8 @@ struct AskToolViewModelTests {
         #expect(text.hasPrefix("Here is the app's live check. Garage NAS (192.0.2.57): 3 of 3 replies, 4 ms average, measured just now. "))
         #expect(!text.contains("Garage NAS: Online"))
         #expect(!text.contains("below"))
+        // Every cited device was checked live, so the scan's freshness isn't said.
+        #expect(!text.contains("Device status as of the scan"))
     }
 
     /// A silent ping of a device the scan saw Online: the measurement, then the scan's word.
@@ -258,6 +261,7 @@ struct AskToolViewModelTests {
                                       devices: [nas], lastScan: nil)
         #expect(text.contains("Garage NAS (192.0.2.57): not pinged. Run a scan first"))
         #expect(!text.contains("measured just now"))
+        #expect(!text.contains(".."))
     }
 
     /// At most two live checks in one Siri turn.
@@ -270,16 +274,41 @@ struct AskToolViewModelTests {
         #expect(!text.contains("Box 3 (192.0.2.63)"))
     }
 
-    /// The whole turn has one deadline: a model that never finishes is cancelled.
-    @Test func theIntentTurnHasADeadline() async {
-        let script = AskScript(calls: [.networkStatus], answer: "Done.", delay: .seconds(60))
+    /// A model that ignores cancellation and takes 5 s.
+    struct UncooperativeAskModel: AskModelProtocol {
+        var isAvailable: Bool { true }
+
+        func answer(_ question: String, instructions: String, toolbox: AskToolbox) async -> String? {
+            let end = ContinuousClock.now + .seconds(5)
+            while ContinuousClock.now < end {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            return "Late."
+        }
+    }
+
+    /// The turn's deadline is hard (#627 verification): Siri doesn't wait for a model that ignores
+    /// cancellation.
+    @Test func theIntentTurnHasAHardDeadline() async {
         let snapshot = AskSnapshot(devices: [], events: [], networkProfileID: home, lastScan: nil, now: Date())
-        let home = home
         let clock = ContinuousClock(), start = clock.now
-        _ = await AskIntentRunner.answer(
-            "Q", model: ScriptedAskModel(scripts: ["Q": script]), snapshot: snapshot, isScanning: false,
-            live: AskUITestFixture.live { home }, deadline: .milliseconds(200)
+        let text = await AskIntentRunner.answer(
+            "Q", model: UncooperativeAskModel(), snapshot: snapshot, isScanning: false, live: nil, deadline: .milliseconds(200)
         )
-        #expect(clock.now - start < .seconds(10))
+        #expect(text == AskIntentRunner.timedOutMessage)
+        #expect(clock.now - start < .seconds(2))
+    }
+
+    /// Cancelling the intent reaches the turn: it ends without waiting for the model.
+    @Test func cancellingTheIntentEndsTheTurn() async {
+        let snapshot = AskSnapshot(devices: [], events: [], networkProfileID: home, lastScan: nil, now: Date())
+        let clock = ContinuousClock(), start = clock.now
+        let task = Task {
+            await AskIntentRunner.answer("Q", model: UncooperativeAskModel(), snapshot: snapshot, isScanning: false, live: nil)
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+        #expect(await task.value == AskIntentRunner.timedOutMessage)
+        #expect(clock.now - start < .seconds(2))
     }
 }
