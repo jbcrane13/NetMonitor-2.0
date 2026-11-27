@@ -67,11 +67,13 @@ public struct SystemModemLightExtractor: ModemLightExtractorProtocol {
             // Greedy: the same photo gets the same reading. One light past the app's limit is
             // allowed, so the app can say the reading is partial; 17 lights fit well inside the cap.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 600)
-            let response = try await session.respond(generating: GeneratedPanel.self, options: options) {
-                Self.prompt
-                Attachment(image)
+            // Registered with the admission control: while it runs, companion requests are busy (#586).
+            return try await ModelAdmission.shared.runLocal(.interactive) {
+                try await session.respond(generating: GeneratedPanel.self, options: options) {
+                    Self.prompt
+                    Attachment(image)
+                }.content.answer
             }
-            return response.content.answer
         } catch {
             return nil
         }

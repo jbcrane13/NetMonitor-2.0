@@ -22,6 +22,8 @@ final class CompanionMessageHandler {
     private let networkProfileManager: NetworkProfileManager
     /// Answers the iPhone's insight requests with this Mac's model (#457).
     private let insightResponder: CompanionInsightResponder
+    /// Reads the iPhone's typed rules and symptoms with this Mac's model (#586).
+    private let modelResponder: CompanionModelResponder
     /// The log each device's last change is read from (#585).
     private let eventService: any NetworkEventServiceProtocol
     /// The network's routed gateway, nil when the lookup fails: the phone tells networks apart by it
@@ -48,6 +50,8 @@ final class CompanionMessageHandler {
         icmpService: ICMPMonitorService,
         networkProfileManager: NetworkProfileManager,
         insightService: any InsightServiceProtocol = InsightService.shared,
+        companionModel: any CompanionModelAnswering = CompanionModel.shared,
+        modelAdmission: ModelAdmission = .shared,
         eventService: any NetworkEventServiceProtocol = NetworkEventService.shared,
         routedGateway: @escaping @MainActor (NetworkProfile) -> String? = { CompanionMessageHandler.routedGateway(for: $0) }
     ) {
@@ -59,11 +63,21 @@ final class CompanionMessageHandler {
         self.wakeOnLanService = wakeOnLanService
         self.icmpService = icmpService
         self.networkProfileManager = networkProfileManager
+        // Never ask the model during a scan.
+        let isScanning: @Sendable () async -> Bool = { [weak deviceDiscovery] in
+            await MainActor.run { deviceDiscovery?.isScanning ?? false }
+        }
         insightResponder = CompanionInsightResponder(
             service: insightService,
+            admission: modelAdmission,
             isAllowed: { Self.answersInsight },
-            // Never ask the model during a scan.
-            isScanning: { [weak deviceDiscovery] in await MainActor.run { deviceDiscovery?.isScanning ?? false } }
+            isScanning: isScanning
+        )
+        modelResponder = CompanionModelResponder(
+            model: companionModel,
+            admission: modelAdmission,
+            isAllowed: { Self.answersInsight },
+            isScanning: isScanning
         )
     }
 
@@ -82,6 +96,10 @@ final class CompanionMessageHandler {
         case .insightRequest(let payload):
             return await .insightResponse(insightResponder.respond(to: payload, authorization: authorization))
 
+        case .modelRequest(let payload):
+            // Nil once the phone cancelled it: nothing is sent then.
+            return await modelResponder.respond(to: payload, authorization: authorization).map(CompanionMessage.modelResponse)
+
         case .networkProfile(let payload):
             return handleNetworkProfileSync(payload)
 
@@ -90,11 +108,14 @@ final class CompanionMessageHandler {
         }
     }
 
-    /// This Mac's heartbeat: always `inventory.v1` (#585), and insight while its model can answer
-    /// and the user allows it (#457). An iPhone sends insight requests only after seeing it.
+    /// This Mac's heartbeat: always `inventory.v1` (#585), insight while its model can answer, it
+    /// isn't scanning and the user allows it (#457), and `rules.v1` and `symptoms.v1` while its
+    /// model can answer and the user allows it, scanning or not (#586). An iPhone sends a request
+    /// only after seeing its capability.
     func heartbeat() -> HeartbeatPayload {
-        let insight = insightResponder.capabilities(allowed: Self.answersInsight, isScanning: deviceDiscovery.isScanning) ?? []
-        return HeartbeatPayload(capabilities: insight + [CompanionCapability.inventory])
+        let allowed = Self.answersInsight
+        let insight = insightResponder.capabilities(allowed: allowed, isScanning: deviceDiscovery.isScanning) ?? []
+        return HeartbeatPayload(capabilities: insight + modelResponder.capabilities(allowed: allowed) + [CompanionCapability.inventory])
     }
 
     /// Calls `send` with the device list after each completed scan, so a connected phone shows

@@ -29,6 +29,9 @@ final class FakeCompanionMac: Sendable {
     private let dropsConnections: Bool
     /// The inventory this Mac sends for `refreshDevices` (#585); with one it advertises `inventory.v1`.
     private let inventory: DeviceListPayload?
+    /// Whether this Mac reads typed rules and symptoms (#586): it advertises `rules.v1` and
+    /// `symptoms.v1` and answers from `modelAnswers`.
+    private let answersModel: Bool
     private let state = Mutex(State())
 
     /// One link's fixed facts.
@@ -56,9 +59,11 @@ final class FakeCompanionMac: Sendable {
         pairedPins: [Data] = [],
         revealsWrongNonce: Bool = false,
         dropsConnections: Bool = false,
-        inventory: DeviceListPayload? = nil
+        inventory: DeviceListPayload? = nil,
+        answersModel: Bool = false
     ) throws {
         self.inventory = inventory
+        self.answersModel = answersModel
         self.name = name
         self.confirmation = confirmation
         self.confirmDelay = confirmDelay
@@ -194,6 +199,9 @@ final class FakeCompanionMac: Sendable {
             if case .command(let command) = message, command.action == .refreshDevices, let inventory {
                 send(.deviceList(inventory), on: connection)
             }
+            if case .modelRequest(let request) = message, answersModel {
+                send(.modelResponse(Self.modelAnswer(to: request)), on: connection)
+            }
         case .pairRequest:
             guard case .pairRequest(let request) = message,
                   let step = gate.beginPairing(
@@ -227,9 +235,41 @@ final class FakeCompanionMac: Sendable {
         }
     }
 
-    /// The heartbeat this Mac sends: `inventory.v1` while it has an inventory.
+    /// The heartbeat this Mac sends: `inventory.v1` while it has an inventory, and the model
+    /// schemas while it answers them.
     private var heartbeat: HeartbeatPayload {
-        HeartbeatPayload(capabilities: inventory == nil ? nil : [CompanionCapability.inventory])
+        var capabilities: [String] = []
+        if inventory != nil {
+            capabilities.append(CompanionCapability.inventory)
+        }
+        if answersModel {
+            capabilities += [CompanionCapability.rules, CompanionCapability.symptoms]
+        }
+        return HeartbeatPayload(capabilities: capabilities.isEmpty ? nil : capabilities)
+    }
+
+    /// What this Mac's stand-in model reads, by the lowercased text: the real model's kind of
+    /// answer, unchecked. The phone checks it as it would the real Mac's. Anything else is
+    /// unsupported.
+    static let modelRules: [String: RuleIntentRaw] = [
+        "scan web ports on the printer": RuleIntentRaw(kind: "portScan", device: "printer", portPreset: "web")
+    ]
+    static let modelSymptoms: [String: SymptomIntentRaw] = [
+        "the wifi is weak in the bedroom": SymptomIntentRaw(kind: "weakWiFi", room: "bedroom")
+    ]
+
+    static func modelAnswer(to request: ModelRequestPayload) -> ModelResponsePayload {
+        let key = request.input?.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        switch request.input {
+        case .rules?:
+            return ModelResponsePayload(requestID: request.requestID, output: .rules(modelRules[key] ?? RuleIntentRaw(kind: "unsupported")))
+        case .symptoms?:
+            return ModelResponsePayload(
+                requestID: request.requestID, output: .symptoms(modelSymptoms[key] ?? SymptomIntentRaw(kind: "unsupported"))
+            )
+        case nil:
+            return ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .refused)
+        }
     }
 
     /// Pins the phone once both the stand-in user and the phone have said yes.
@@ -273,7 +313,8 @@ enum UITestFakeMacPairing {
         let environment = ProcessInfo.processInfo.environment
         let inventory = environment["UITEST_FAKE_MAC_INVENTORY"] == "1" ? inventoryFixture : nil
         guard let fake = try? FakeCompanionMac(
-            port: port, code: code, confirmDelay: .seconds(3), inventory: inventory
+            port: port, code: code, confirmDelay: .seconds(3), inventory: inventory,
+            answersModel: environment["UITEST_FAKE_MAC_MODEL"] == "1"
         ) else { return nil }
         Task { _ = try? await fake.start() }
         return fake

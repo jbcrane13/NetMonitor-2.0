@@ -15,7 +15,9 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     // MARK: - Shared Instance
 
-    static let shared: MacConnectionService = .init(insightClient: PhoneInsight.linkClient, macStore: defaultMacStore(), defaults: defaultDefaults())
+    static let shared: MacConnectionService = .init(
+        insightClient: PhoneInsight.linkClient, modelClient: PhoneModel.linkClient, macStore: defaultMacStore(), defaults: defaultDefaults()
+    )
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.blakemiller.netmonitor", category: "MacConnectionService")
 
     // MARK: - Public State
@@ -78,16 +80,20 @@ final class MacConnectionService: MacConnectionServiceProtocol {
 
     /// Fed with the Mac's heartbeats and insight replies, and told when the link ends (#457).
     private let insightClient: CompanionInsightClient
+    /// Fed with the Mac's heartbeats and model replies on the current link, and told when it ends (#586).
+    private let modelClient: CompanionModelClient
 
     /// Tests make their own; the app uses `shared`.
     init(
         insightClient: CompanionInsightClient,
+        modelClient: CompanionModelClient = CompanionModelClient(send: { _, _, _ in false }),
         networkProfileManager: NetworkProfileManager = NetworkProfileManager(),
         macStore: PairedMacStore,
         defaults: UserDefaults = .standard,
         helloTimeout: Duration = .seconds(15)
     ) {
         self.insightClient = insightClient
+        self.modelClient = modelClient
         self.networkProfileManager = networkProfileManager
         self.macStore = macStore
         self.defaults = defaults
@@ -112,26 +118,6 @@ final class MacConnectionService: MacConnectionServiceProtocol {
         } catch {
             Self.logger.error("Couldn't read the paired Mac: \(String(describing: error), privacy: .public)")
         }
-    }
-
-    /// The Keychain, or memory for `--uitesting` launches of Debug builds.
-    private static func defaultMacStore() -> PairedMacStore {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--uitesting") {
-            return PairedMacStore(backing: UITestFakeMacPairing.store)
-        }
-        #endif
-        return PairedMacStore(backing: CompanionKeychain(service: "com.netmonitor.companion.mac", accessibility: .whenUnlocked))
-    }
-
-    private static func defaultDefaults() -> UserDefaults {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--uitesting"),
-           let suite = UserDefaults(suiteName: UITestFakeMacPairing.defaultsSuite) {
-            return suite
-        }
-        #endif
-        return .standard
     }
 
     // Note: cleanup is handled by disconnect() and stopBrowsing() which
@@ -249,6 +235,7 @@ extension MacConnectionService {
         session = nil
         awaitingHello = false
         insightClient.disconnected()
+        modelClient.disconnected()
     }
 
     private func setupConnection(_ conn: NWConnection, macName: String) {
@@ -358,6 +345,10 @@ extension MacConnectionService {
                     if !batch.errors.isEmpty {
                         Self.logger.error("Rejected \(batch.errors.count) companion frame(s)")
                     }
+                    // An oversized answer ends its request at once (#586).
+                    for case .oversizedModelFrame(let frame) in batch.errors where !frame.isRequest {
+                        self.modelClient.received(frame.tooLargeReply, onLink: generation)
+                    }
 
                     // A bad frame length leaves the stream out of step: end the link, which ends the Mac's
                     // inventory too. A malformed payload was consumed whole and is only skipped (#624).
@@ -422,10 +413,13 @@ extension MacConnectionService {
         case .heartbeat(let payload):
             Self.logger.debug("Heartbeat received")
             insightClient.received(heartbeat: payload)
+            modelClient.received(heartbeat: payload, onLink: connectionGeneration)
             inventoryLink.received(payload) { Task { await send(command: CommandPayload(action: .refreshDevices)) } }
         case .insightResponse(let payload):
             insightClient.received(payload)
-        case .command, .insightRequest, .pairRequest, .unpair, .serverHello, .pairChallenge, .pairResult:
+        case .modelResponse(let payload):
+            modelClient.received(payload, onLink: connectionGeneration)
+        case .command, .insightRequest, .modelRequest, .modelCancel, .pairRequest, .unpair, .serverHello, .pairChallenge, .pairResult:
             // Outbound only from iOS, or handled above; ignore if received
             break
         case .unknown:
@@ -685,6 +679,15 @@ extension MacConnectionService {
     /// Sends an insight request for the injected insight client; false when there is no link (#457).
     func sendInsight(_ message: CompanionMessage) async -> Bool {
         await sendMessage(message)
+    }
+
+    /// Sends a model request or cancel for the injected model client, only on the link it was
+    /// made for (#586): false once that link was replaced, so a request never reaches a new link.
+    /// `isWanted` (the user's consent) and the request's cancellation are checked here, on the
+    /// main actor where the consent switch changes, with no suspension before the send.
+    func sendModel(_ message: CompanionMessage, on link: UUID, if isWanted: @Sendable () -> Bool = { true }) async -> Bool {
+        guard connectionGeneration == link, !Task.isCancelled, isWanted() else { return false }
+        return await sendMessage(message)
     }
 
     /// Send a CompanionMessage with 4-byte big-endian length prefix + JSON payload, only on a

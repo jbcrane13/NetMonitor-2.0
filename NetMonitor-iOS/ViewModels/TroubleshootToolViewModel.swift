@@ -18,15 +18,26 @@ final class TroubleshootToolViewModel {
         var latestDownload: Double?
     }
 
+    private let classifier: any SymptomClassifierProtocol
+
+    /// Whether the user must first agree to let the Mac read what they type (#586). Read live:
+    /// the local model or a Mac can come and go.
+    var needsMacConsent: Bool { classifier.availability == .needsConsent }
+
+    /// The answer the prompt records.
+    var macConsent: MacInsightConsent? { classifier.macConsent }
+
     /// - Parameter joinedAt: when the phone joined the network it is on (`NetworkJoinClock`): a
     ///   path change or a return from the background. A modem reading from before it stops counting.
     init(
         env: AppEnvironment,
         mode: String? = UITestBootstrap.troubleshootMode,
+        classifier: any SymptomClassifierProtocol = PhoneModel.symptomClassifier,
         joinedAt: @escaping @MainActor () -> Date = { NetworkJoinClock.shared.joinedAt }
     ) {
         let inputs = Inputs()
         self.inputs = inputs
+        self.classifier = classifier
         #if DEBUG
         if let fixture = mode.flatMap(TroubleshootUITestFixture.Mode.init(rawValue:)) {
             state = TroubleshootUITestFixture.state(fixture)
@@ -43,7 +54,7 @@ final class TroubleshootToolViewModel {
                 canRunSpeedTest: { IOSScheduledSpeedTest.claimManualTest() },
                 speedTestFinished: { IOSScheduledSpeedTest.manualTestsRunning -= 1 }
             ),
-            classifier: SymptomClassifier.shared,
+            classifier: classifier,
             insight: env.insight,
             devices: { inputs.devices },
             isScanning: { discovery.isScanning },

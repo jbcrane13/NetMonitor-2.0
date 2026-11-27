@@ -25,6 +25,13 @@ public enum CompanionMessage: Codable, Sendable {
     case insightRequest(InsightRequestPayload)
     /// Mac → iPhone: the answer to one `insightRequest`, never sent unprompted (#457).
     case insightResponse(InsightResponsePayload)
+    /// iPhone → Mac: read typed text with the Mac's model under a schema such as `rules.v1`.
+    /// Sent only to a Mac whose latest heartbeat lists the schema (#586).
+    case modelRequest(ModelRequestPayload)
+    /// Mac → iPhone: the answer to one `modelRequest`, never sent unprompted (#586).
+    case modelResponse(ModelResponsePayload)
+    /// iPhone → Mac: the phone gave up on a `modelRequest` (#586).
+    case modelCancel(ModelCancelPayload)
     /// Mac → iPhone, first on every link once the Mac has verified the session: the phone sends
     /// nothing before it (#590).
     case serverHello(ServerHelloPayload)
@@ -60,6 +67,9 @@ public enum CompanionMessage: Codable, Sendable {
         case heartbeat
         case insightRequest
         case insightResponse
+        case modelRequest
+        case modelResponse
+        case modelCancel
         case serverHello
         case pairRequest
         case pairChallenge
@@ -105,6 +115,12 @@ public enum CompanionMessage: Codable, Sendable {
             self = try .insightRequest(container.decode(InsightRequestPayload.self, forKey: .payload))
         case .insightResponse:
             self = try .insightResponse(container.decode(InsightResponsePayload.self, forKey: .payload))
+        case .modelRequest:
+            self = try .modelRequest(container.decode(ModelRequestPayload.self, forKey: .payload))
+        case .modelResponse:
+            self = try .modelResponse(container.decode(ModelResponsePayload.self, forKey: .payload))
+        case .modelCancel:
+            self = try .modelCancel(container.decode(ModelCancelPayload.self, forKey: .payload))
         case .serverHello:
             self = try .serverHello(container.decode(ServerHelloPayload.self, forKey: .payload))
         case .pairRequest:
@@ -154,6 +170,15 @@ public enum CompanionMessage: Codable, Sendable {
             try container.encode(payload, forKey: .payload)
         case .insightResponse(let payload):
             try container.encode(MessageType.insightResponse, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .modelRequest(let payload):
+            try container.encode(MessageType.modelRequest, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .modelResponse(let payload):
+            try container.encode(MessageType.modelResponse, forKey: .type)
+            try container.encode(payload, forKey: .payload)
+        case .modelCancel(let payload):
+            try container.encode(MessageType.modelCancel, forKey: .type)
             try container.encode(payload, forKey: .payload)
         case .serverHello(let payload):
             try container.encode(MessageType.serverHello, forKey: .type)
@@ -497,6 +522,11 @@ public struct HeartbeatPayload: Codable, Sendable {
 
     /// Whether the sender pushes its device inventory (#585).
     public var offersInventory: Bool { capabilities?.contains(CompanionCapability.inventory) == true }
+
+    /// The model schemas the sender answers `modelRequest`s for (#586).
+    public var offeredSchemas: Set<ModelSchema> {
+        Set((capabilities ?? []).compactMap(ModelSchema.init(rawValue:)))
+    }
 }
 
 /// Capabilities a peer advertises in `HeartbeatPayload.capabilities`. New message types are
@@ -507,6 +537,10 @@ public enum CompanionCapability {
     /// The Mac sends its device inventory (`deviceList` with `network`, ages and identity) after
     /// each scan, and the phone shows it as the Mac's (#585).
     public static let inventory = "inventory.v1"
+    /// The Mac reads typed rules with its model (`modelRequest`, #586).
+    public static let rules = ModelSchema.rules.rawValue
+    /// The Mac reads typed symptoms with its model (`modelRequest`, #586).
+    public static let symptoms = ModelSchema.symptoms.rawValue
 }
 
 // MARK: - Logging
@@ -526,6 +560,9 @@ extension CompanionMessage {
         case .heartbeat: "heartbeat"
         case .insightRequest: "insightRequest"
         case .insightResponse: "insightResponse"
+        case .modelRequest: "modelRequest"
+        case .modelResponse: "modelResponse"
+        case .modelCancel: "modelCancel"
         case .serverHello: "serverHello"
         case .pairRequest: "pairRequest"
         case .pairChallenge: "pairChallenge"

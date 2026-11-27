@@ -63,7 +63,8 @@ final class TestMac: @unchecked Sendable {
         paired pins: [Data] = [],
         backing: InMemoryCompanionSecretStore = InMemoryCompanionSecretStore(),
         limits: CompanionService.Limits = CompanionService.Limits(authDeadline: .milliseconds(800), pairingDeadline: .seconds(20)),
-        handlerPause: AsyncGate? = nil
+        handlerPause: AsyncGate? = nil,
+        reply: (@Sendable (CompanionMessage, CompanionAuthorization) async -> CompanionMessage?)? = nil
     ) async throws -> TestMac {
         let phones = pins.map { PairedPhone(pin: $0, name: "Phone", pairedAt: Date()) }
         let credentials = CompanionCredentials.inMemory(
@@ -81,7 +82,7 @@ final class TestMac: @unchecked Sendable {
                 let current = authorization.isCurrent()
                 tokenAfterPause.with { $0 = current }
             }
-            return nil
+            return await reply?(message, authorization)
         })
         let port = try #require(await poll { await service.listeningPort.flatMap { $0 == 0 ? nil : $0 } })
         return TestMac(

@@ -61,8 +61,10 @@ struct SystemAskModel: AskModelProtocol {
         .onToolCall { _ in try toolbox.admit() }
         do {
             let session = LanguageModelSession(profile: profile)
-            let response = try await session.respond(to: question, options: GenerationOptions(maximumResponseTokens: 220))
-            return response.content
+            // Interactive: while it runs, companion requests are answered busy (#586).
+            return try await ModelAdmission.shared.runLocal(.interactive) {
+                try await session.respond(to: question, options: GenerationOptions(maximumResponseTokens: 220)).content
+            }
         } catch {
             // The error's type only: its description can quote the question or tool results.
             Self.logger.error("Ask model failed: \(String(describing: type(of: error)), privacy: .public)")
