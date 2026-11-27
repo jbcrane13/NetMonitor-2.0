@@ -244,3 +244,32 @@ extension NetworkJoinClock {
         return clock
     }
 }
+
+/// #628 PR B: the Mac's profile manager takes the local network's ID from identification.
+@Suite("Profile manager identity hook")
+@MainActor
+struct ProfileManagerIdentityHookTests {
+    @Test func theDetectedLocalNetworkTakesTheIdentitysID() throws {
+        let defaults = try #require(UserDefaults(suiteName: "identity-hook-\(UUID().uuidString)"))
+        let live = NetworkProfile(
+            interfaceName: "en0", ipAddress: "192.168.1.10",
+            network: NetworkUtilities.IPv4Network(networkAddress: 0xC0A8_0100, broadcastAddress: 0xC0A8_01FF, interfaceAddress: 0xC0A8_010A, netmask: 0xFFFF_FF00),
+            connectionType: .wifi
+        )
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [live] })
+        let legacy = try #require(manager.localProfile?.id)
+        #expect(NetworkProfileManager.knownLocalNetworkIDs(in: defaults) == ["en0|192.168.1.0/24": legacy])
+
+        let identified = UUID()
+        var asked: [NetworkGroup] = []
+        manager.localNetworkIdentity = { group, defaultID in
+            asked.append(group)
+            #expect(defaultID == legacy)
+            return identified
+        }
+        manager.detectLocalNetwork()
+        #expect(asked == [NetworkGroup(interface: "en0", subnet: "192.168.1.0/24")])
+        #expect(manager.localProfile?.id == identified)
+        #expect(NetworkProfileManager.savedLocalProfile(in: defaults)?.id == identified)
+    }
+}
