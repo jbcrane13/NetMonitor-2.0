@@ -160,7 +160,7 @@ public enum InsightAvailability: Sendable, Equatable {
 }
 
 /// Where an insight answer was written.
-public enum InsightSource: Sendable, Equatable {
+public enum InsightSource: String, Sendable, Equatable, Codable {
     /// By the model on this device.
     case device
     /// By the model on the connected Mac, over the companion link (#457).

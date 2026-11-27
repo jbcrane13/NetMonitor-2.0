@@ -12,12 +12,17 @@ public struct DeviceSuggestion: Sendable, Codable, Equatable {
     public var maker: String?
     public var model: String?
     public var confidence: Confidence
+    /// Who suggested it: nil (this device's model) or `.mac` (#586), shown with the suggestion.
+    public var source: InsightSource?
 
-    public init(deviceType: DeviceType? = nil, maker: String? = nil, model: String? = nil, confidence: Confidence) {
+    public init(
+        deviceType: DeviceType? = nil, maker: String? = nil, model: String? = nil, confidence: Confidence, source: InsightSource? = nil
+    ) {
         self.deviceType = deviceType
         self.maker = maker
         self.model = model
         self.confidence = confidence
+        self.source = source == .device ? nil : source
     }
 
     /// Whether the suggestion names a type, maker or model.
@@ -158,10 +163,10 @@ public struct DeviceEvidence: Sendable, Equatable {
         return lines
     }
 
-    /// The prompt text sent to the model.
+    /// The prompt text sent to the model: the projection's, so this device's model and the Mac's
+    /// read the same bytes (#586).
     public var prompt: String {
-        (["Evidence about the device:"] + promptLines.map { "- " + $0 } + ["Suggest its type, maker and model."])
-            .joined(separator: "\n")
+        projection.prompt
     }
 
     private static func list(_ items: [String]) -> String {

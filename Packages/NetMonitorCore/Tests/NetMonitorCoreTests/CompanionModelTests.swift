@@ -356,7 +356,7 @@ struct CompanionModelResponderTests {
     @Test("schemas are listed while the model runs and the setting is on, scanning or not")
     func capabilities() {
         let responder = CompanionModelResponder(model: ScriptedCompanionModel(output: nil), admission: ModelAdmission())
-        #expect(responder.capabilities(allowed: true) == ["rules.v1", "symptoms.v1"])
+        #expect(responder.capabilities(allowed: true) == ["rules.v1", "symptoms.v1", "identity.v1"])
         #expect(responder.capabilities(allowed: false).isEmpty)
         let none = CompanionModelResponder(model: ScriptedCompanionModel(output: nil, isAvailable: false), admission: ModelAdmission())
         #expect(none.capabilities(allowed: true).isEmpty)

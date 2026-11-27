@@ -354,9 +354,9 @@ struct CompanionMessageHandlerTests {
         let model = StubCompanionModel(output: .rules(RuleIntentRaw(kind: "deviceOffline", device: "NAS")))
         let (container, _, handler, discovery, _) = try makeFixture(companionModel: model)
         _ = container
-        #expect(handler.heartbeat().capabilities == ["rules.v1", "symptoms.v1", "inventory.v1"])
+        #expect(handler.heartbeat().capabilities == ["rules.v1", "symptoms.v1", "identity.v1", "inventory.v1"])
         discovery.setScanningForTesting(true)
-        #expect(handler.heartbeat().capabilities == ["rules.v1", "symptoms.v1", "inventory.v1"])
+        #expect(handler.heartbeat().capabilities == ["rules.v1", "symptoms.v1", "identity.v1", "inventory.v1"])
         let busy = await handler.handle(.modelRequest(ModelRequestPayload(requestID: UUID(), input: .rules(text: "NAS offline"))),
                                         from: UUID(), authorization: .always)
         guard case let .modelResponse(during)? = busy else {

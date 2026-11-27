@@ -29,6 +29,10 @@ public final class ModelAdmission: Sendable {
 
     /// Companion requests admitted per `budgetWindow`.
     public static let defaultCompanionBudget = 10
+    /// Background companion requests (a phone's identity suggestions, `identity.v1`) admitted per
+    /// `budgetWindow`: a budget of their own, smaller, so a phone's background pass can't use up
+    /// what typed requests need, nor typed requests starve it (#586).
+    public static let defaultBackgroundBudget = 6
     public static let defaultBudgetWindow: Duration = .seconds(60)
 
     private struct State {
@@ -37,6 +41,7 @@ public final class ModelAdmission: Sendable {
         /// Who still holds the companion ticket: the request, and every model call made for it.
         var companionHolds = 0
         var admitted: [ContinuousClock.Instant] = []
+        var backgroundAdmitted: [ContinuousClock.Instant] = []
     }
 
     /// The companion ticket the current task works under, if any. Tasks inherit it, so a model
@@ -51,15 +56,18 @@ public final class ModelAdmission: Sendable {
 
     private let state = Mutex(State())
     private let companionBudget: Int
+    private let backgroundBudget: Int
     private let budgetWindow: Duration
     private let now: @Sendable () -> ContinuousClock.Instant
 
     public init(
         companionBudget: Int = defaultCompanionBudget,
+        backgroundBudget: Int = defaultBackgroundBudget,
         budgetWindow: Duration = defaultBudgetWindow,
         now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }
     ) {
         self.companionBudget = companionBudget
+        self.backgroundBudget = backgroundBudget
         self.budgetWindow = budgetWindow
         self.now = now
     }
@@ -116,18 +124,25 @@ public final class ModelAdmission: Sendable {
     }
 
     /// The companion slot, or nil (answer `busy`) while interactive work runs, another companion
-    /// request holds the slot, or the budget is spent.
-    public func admitCompanion() -> Ticket? {
+    /// request holds the slot, or the budget for `priority` is spent: `.interactive` for typed
+    /// requests and insight, `.background` for identity, each with its own budget.
+    public func admitCompanion(_ priority: Priority = .interactive) -> Ticket? {
         let instant = now()
         let window = budgetWindow
-        let budget = companionBudget
+        let budget = priority == .interactive ? companionBudget : backgroundBudget
         return state.withLock { state in
             state.admitted.removeAll { instant - $0 >= window }
-            guard state.interactive == 0, state.companion == nil, state.admitted.count < budget else { return nil }
+            state.backgroundAdmitted.removeAll { instant - $0 >= window }
+            let spent = priority == .interactive ? state.admitted.count : state.backgroundAdmitted.count
+            guard state.interactive == 0, state.companion == nil, spent < budget else { return nil }
             let ticket = Ticket(id: UUID())
             state.companion = ticket
             state.companionHolds = 1
-            state.admitted.append(instant)
+            if priority == .interactive {
+                state.admitted.append(instant)
+            } else {
+                state.backgroundAdmitted.append(instant)
+            }
             return ticket
         }
     }

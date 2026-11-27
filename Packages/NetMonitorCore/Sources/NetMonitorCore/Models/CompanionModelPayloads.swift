@@ -10,6 +10,9 @@ public enum ModelSchema: String, Sendable, CaseIterable {
     case rules = "rules.v1"
     /// A symptom typed in the troubleshooter (#451): text in, a ``SymptomIntentRaw`` out.
     case symptoms = "symptoms.v1"
+    /// What a saved device is (#449): its ``DeviceEvidenceProjection`` in, an ``IdentityRaw`` out.
+    /// Background work, under its own lower-priority budget.
+    case identity = "identity.v1"
 
     /// The longest text a request may carry; a longer one isn't sent, never cut.
     public static let textLimit = 300
@@ -26,23 +29,32 @@ public enum ModelSchema: String, Sendable, CaseIterable {
 public enum ModelInput: Sendable, Equatable {
     case rules(text: String)
     case symptoms(text: String)
+    case identity(DeviceEvidenceProjection)
 
     public var schema: ModelSchema {
         switch self {
         case .rules: .rules
         case .symptoms: .symptoms
+        case .identity: .identity
         }
     }
 
-    /// The typed text.
-    public var text: String {
+    /// The typed text; nil for identity.
+    public var text: String? {
         switch self {
         case .rules(let text), .symptoms(let text): text
+        case .identity: nil
         }
     }
 
-    /// Whether the text is non-empty and within ``ModelSchema/textLimit``.
-    public var isWithinLimits: Bool { !text.isEmpty && text.count <= ModelSchema.textLimit }
+    /// Whether the input is within its bounds: typed text non-empty and within
+    /// ``ModelSchema/textLimit``; evidence lines as `DeviceEvidenceProjection(lines:)` accepts them.
+    public var isWithinLimits: Bool {
+        switch self {
+        case .rules(let text), .symptoms(let text): !text.isEmpty && text.count <= ModelSchema.textLimit
+        case .identity(let projection): DeviceEvidenceProjection(lines: projection.lines) != nil
+        }
+    }
 }
 
 /// The Mac model's unchecked answer for a schema. The phone checks it as it checks its own
@@ -50,11 +62,13 @@ public enum ModelInput: Sendable, Equatable {
 public enum ModelOutput: Sendable, Equatable {
     case rules(RuleIntentRaw)
     case symptoms(SymptomIntentRaw)
+    case identity(IdentityRaw)
 
     public var schema: ModelSchema {
         switch self {
         case .rules: .rules
         case .symptoms: .symptoms
+        case .identity: .identity
         }
     }
 
@@ -62,6 +76,7 @@ public enum ModelOutput: Sendable, Equatable {
         switch self {
         case .rules(let raw): raw.isWithinLimits
         case .symptoms(let raw): raw.isWithinLimits
+        case .identity(let raw): raw.isWithinLimits
         }
     }
 }
@@ -95,11 +110,11 @@ public struct ModelRequestPayload: Codable, Sendable, Equatable {
         requestID = try container.decode(UUID.self, forKey: .requestID)
         schema = try container.decode(String.self, forKey: .schema)
         // The envelope first: a known schema whose input is malformed is refused, not dropped.
-        let text = try? container.decode(TextInput.self, forKey: .input).text
-        switch (ModelSchema(rawValue: schema), text) {
-        case (.rules?, let text?): input = .rules(text: text)
-        case (.symptoms?, let text?): input = .symptoms(text: text)
-        default: input = nil
+        switch ModelSchema(rawValue: schema) {
+        case .rules?: input = (try? container.decode(TextInput.self, forKey: .input).text).map { .rules(text: $0) }
+        case .symptoms?: input = (try? container.decode(TextInput.self, forKey: .input).text).map { .symptoms(text: $0) }
+        case .identity?: input = (try? container.decode(DeviceEvidenceProjection.self, forKey: .input)).map(ModelInput.identity)
+        case nil: input = nil
         }
     }
 
@@ -107,8 +122,10 @@ public struct ModelRequestPayload: Codable, Sendable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(requestID, forKey: .requestID)
         try container.encode(schema, forKey: .schema)
-        if let input {
-            try container.encode(TextInput(text: input.text), forKey: .input)
+        switch input {
+        case .rules(let text)?, .symptoms(let text)?: try container.encode(TextInput(text: text), forKey: .input)
+        case .identity(let projection)?: try container.encode(projection, forKey: .input)
+        case nil: break
         }
     }
 }
@@ -175,6 +192,8 @@ public struct ModelResponsePayload: Codable, Sendable, Equatable {
             output = (try? container.decode(RuleIntentRaw.self, forKey: .output)).map(ModelOutput.rules)
         case .symptoms?:
             output = (try? container.decode(SymptomIntentRaw.self, forKey: .output)).map(ModelOutput.symptoms)
+        case .identity?:
+            output = (try? container.decode(IdentityRaw.self, forKey: .output)).map(ModelOutput.identity)
         case nil:
             output = nil
         }
@@ -189,6 +208,7 @@ public struct ModelResponsePayload: Codable, Sendable, Equatable {
         switch output {
         case .rules(let raw)?: try container.encode(raw, forKey: .output)
         case .symptoms(let raw)?: try container.encode(raw, forKey: .output)
+        case .identity(let raw)?: try container.encode(raw, forKey: .output)
         case nil: break
         }
     }

@@ -46,6 +46,8 @@ struct SystemCompanionModel: CompanionModelAnswering {
             await SystemRuleIntentParser.raw(for: text, submission: submission).map(ModelOutput.rules)
         case .symptoms(let text):
             await SystemSymptomClassifier.raw(for: text, submission: submission).map(ModelOutput.symptoms)
+        case .identity(let projection):
+            await SystemInsightService.identity(for: projection, submission: submission).map(ModelOutput.identity)
         }
     }
 }
@@ -124,7 +126,9 @@ public struct CompanionModelResponder: Sendable {
         guard isAllowed(), model.isAvailable else { return failure(.unavailable) }
         let scanning = await isScanning()
         guard authorization.isCurrent() else { return failure(.unavailable) }
-        guard !scanning, let ticket = admission.admitCompanion() else { return failure(.busy) }
+        // Identity is a phone's background pass: its own, lower-priority budget.
+        let priority: ModelAdmission.Priority = input.schema == .identity ? .background : .interactive
+        guard !scanning, let ticket = admission.admitCompanion(priority) else { return failure(.busy) }
 
         let isAllowed = isAllowed
         let submission = ModelSubmission(authorization: authorization, isAllowed: isAllowed, beforeCall: beforeSubmission)
