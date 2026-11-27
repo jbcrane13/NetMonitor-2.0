@@ -13,7 +13,7 @@ final class WiFiHeatmapToolUITests: MacOSUITestCase {
 
     /// The sidebar opens in Survey mode; the visualization controls are under Analyze.
     private func showAnalyzeSidebar() {
-        let analyze = app.radioGroups["heatmap_picker_sidebarMode"].radioButtons["Analyze"]
+        let analyze = app.radioButtons["Analyze"]
         requireExists(analyze, message: "Sidebar mode picker should offer Analyze").click()
     }
 
