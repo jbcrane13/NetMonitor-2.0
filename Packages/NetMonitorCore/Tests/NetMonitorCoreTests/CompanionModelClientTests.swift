@@ -254,6 +254,49 @@ struct RoutedModelFeatureTests {
         #expect(await parsed.value == nil)
     }
 
+    @Test("consent withdrawn and given again before the answer: the old answer is dropped (#586 review)")
+    func withdrawnThenReenabled() async throws {
+        let link = RecordingLink()
+        let linkID = UUID()
+        let mac = CompanionModelClient(send: { message, id in link.send(message, id) }, timeout: .seconds(5))
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["rules.v1"]), onLink: linkID)
+        let consent = MacInsightConsent(defaults: nil, decision: true)
+        let parser = RoutedRuleIntentParser(local: UnavailableRuleIntentParser(), mac: mac, consent: consent)
+        let parsed = Task { await parser.parse("tell me about new devices") }
+        await waitForModel { !link.sent.isEmpty }
+        let id = try #require(link.sent.first?.requestID)
+        consent.setAllowed(false)
+        consent.setAllowed(true)
+        mac.received(ModelResponsePayload(requestID: id, output: .rules(RuleIntentRaw(kind: "newDevice"))), onLink: linkID)
+        #expect(await parsed.value == nil)
+    }
+
+    @Test("withdrawing consent ends the request at once and tells the Mac (#586 review)")
+    func withdrawalCancels() async throws {
+        let link = RecordingLink()
+        let mac = CompanionModelClient(send: { message, id in link.send(message, id) }, timeout: .seconds(30))
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["symptoms.v1"]), onLink: UUID())
+        let consent = MacInsightConsent(defaults: nil, decision: true)
+        let classifier = RoutedSymptomClassifier(local: UnavailableSymptomClassifier(), mac: mac, consent: consent)
+        let started = ContinuousClock.now
+        let classified = Task { await classifier.classify("the wifi is weak") }
+        await waitForModel { !link.sent.isEmpty }
+        consent.setAllowed(false)
+        #expect(await classified.value == nil)
+        #expect(ContinuousClock.now - started < .seconds(3), "not left to its timeout")
+        await waitForModel { link.sent.count == 2 }
+        #expect(link.sent.map(\.type) == ["modelRequest", "modelCancel"])
+    }
+
+    @Test("a request whose consent is gone by the time it would be sent sends nothing (#586 review)")
+    func noTransmissionWithoutConsent() async {
+        let link = RecordingLink()
+        let mac = CompanionModelClient(send: { message, id in link.send(message, id) }, timeout: .seconds(5))
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["rules.v1"]), onLink: UUID())
+        #expect(await mac.request(.rules(text: "x"), while: { false }) == .unavailable)
+        #expect(link.sent.isEmpty)
+    }
+
     @Test("with the local model available, the Mac isn't used")
     func localFirst() async {
         let (mac, link, _) = Self.makeMac(answer: .rules(RuleIntentRaw(kind: "newDevice")))

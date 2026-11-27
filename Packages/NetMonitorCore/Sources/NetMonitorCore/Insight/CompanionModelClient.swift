@@ -38,6 +38,8 @@ public final class CompanionModelClient: Sendable, Observable {
     private struct Pending {
         let schema: ModelSchema
         let link: UUID
+        /// Whether the request may still go out and its answer be used (the user's consent).
+        let isWanted: @Sendable () -> Bool
         let continuation: CheckedContinuation<ModelClientResult, Never>
         var sending: Task<Void, Never>?
         var timer: Task<Void, Never>?
@@ -91,6 +93,7 @@ public final class CompanionModelClient: Sendable, Observable {
         let id = response.requestID
         let result: ModelClientResult? = state.withLock { state in
             guard let pending = state.pending[id], pending.link == link else { return nil }
+            guard pending.isWanted() else { return .unavailable }
             switch response.result(expecting: pending.schema) {
             case .output(let output)?: return .output(output)
             case .failure(.busy)?: return .busy
@@ -120,9 +123,10 @@ public final class CompanionModelClient: Sendable, Observable {
         }
     }
 
-    /// Asks the Mac's model to read `input`. Returns at once with `.unavailable` when the Mac
-    /// doesn't offer the schema or the input is over its limit.
-    public func request(_ input: ModelInput) async -> ModelClientResult {
+    /// Asks the Mac's model to read `input`, while `isWanted` holds: it is checked right before the
+    /// request goes out and before an answer is used. Returns at once with `.unavailable` when the
+    /// Mac doesn't offer the schema or the input is over its limit.
+    public func request(_ input: ModelInput, while isWanted: @escaping @Sendable () -> Bool = { true }) async -> ModelClientResult {
         guard input.isWithinLimits else { return .unavailable }
         let id = UUID()
         let message = CompanionMessage.modelRequest(ModelRequestPayload(requestID: id, input: input))
@@ -134,7 +138,7 @@ public final class CompanionModelClient: Sendable, Observable {
             await withCheckedContinuation { continuation in
                 let link: UUID? = state.withLock { state in
                     guard state.offered.contains(schema), let link = state.link else { return nil }
-                    state.pending[id] = Pending(schema: schema, link: link, continuation: continuation)
+                    state.pending[id] = Pending(schema: schema, link: link, isWanted: isWanted, continuation: continuation)
                     return link
                 }
                 guard let link else {
@@ -149,6 +153,12 @@ public final class CompanionModelClient: Sendable, Observable {
                 let send = send
                 let timeout = timeout
                 let sending = Task { [weak self] in
+                    // Checked right before it goes out: a queued request whose consent was
+                    // withdrawn meanwhile is never sent.
+                    guard isWanted() else {
+                        self?.finish(id, with: .unavailable)
+                        return
+                    }
                     if await !send(message, link) {
                         self?.finish(id, with: .unavailable)
                     }

@@ -19,21 +19,46 @@ public final class MacInsightConsent: Sendable, Observable {
     // `UserDefaults` is documented as thread-safe; it isn't marked Sendable.
     nonisolated(unsafe) private let defaults: UserDefaults?
     private let key: String
-    private let stored: Mutex<Bool?>
+    private let stored: Mutex<State>
     private let registrar = ObservationRegistrar()
+
+    private struct State {
+        var decision: Bool?
+        /// Goes up with every change of answer (#586), so work begun under an earlier "yes" can
+        /// tell the answer changed even when it is "yes" again.
+        var generation = 0
+        var onWithdrawal: [UUID: @Sendable () -> Void] = [:]
+    }
 
     /// Reads the answer under `key` from `defaults`; nil `defaults` keeps it in memory only,
     /// starting at `decision`.
     public init(defaults: UserDefaults?, decision: Bool? = nil, key: String = MacInsightConsent.defaultsKey) {
         self.defaults = defaults
         self.key = key
-        stored = Mutex(defaults?.object(forKey: key) as? Bool ?? decision)
+        stored = Mutex(State(decision: defaults?.object(forKey: key) as? Bool ?? decision))
     }
 
     /// True once the user agreed, false once they declined, nil before they are asked.
     public var decision: Bool? {
         registrar.access(self, keyPath: \.decision)
-        return stored.withLock { $0 }
+        return stored.withLock { $0.decision }
+    }
+
+    /// The current answer's generation while it is "yes"; nil otherwise. Work sent under one
+    /// generation is valid only while it is still the current one.
+    public var allowedGeneration: Int? {
+        stored.withLock { $0.decision == true ? $0.generation : nil }
+    }
+
+    /// Calls `handler` the next times the user withdraws a "yes", until `removeWithdrawalHandler`.
+    public func addWithdrawalHandler(_ handler: @escaping @Sendable () -> Void) -> UUID {
+        let id = UUID()
+        stored.withLock { $0.onWithdrawal[id] = handler }
+        return id
+    }
+
+    public func removeWithdrawalHandler(_ id: UUID) {
+        _ = stored.withLock { $0.onWithdrawal.removeValue(forKey: id) }
     }
 
     /// Whether requests may go to the Mac.
@@ -47,9 +72,16 @@ public final class MacInsightConsent: Sendable, Observable {
 
     /// The Settings switch.
     public func setAllowed(_ allowed: Bool) {
-        registrar.withMutation(of: self, keyPath: \.decision) {
-            stored.withLock { $0 = allowed }
+        let withdrawn: [@Sendable () -> Void] = registrar.withMutation(of: self, keyPath: \.decision) {
+            stored.withLock { state in
+                guard state.decision != allowed else { return [] }
+                let wasAllowed = state.decision == true
+                state.decision = allowed
+                state.generation += 1
+                return wasAllowed ? Array(state.onWithdrawal.values) : []
+            }
         }
         defaults?.set(allowed, forKey: key)
+        withdrawn.forEach { $0() }
     }
 }

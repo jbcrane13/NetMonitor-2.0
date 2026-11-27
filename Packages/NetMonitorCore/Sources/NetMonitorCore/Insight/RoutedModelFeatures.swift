@@ -25,10 +25,23 @@ public struct MacModelRoute: Sendable {
         }
     }
 
-    /// The Mac's unchecked answer, or nil. Nothing is sent without consent, and an answer that
-    /// arrives after the user withdrew it is dropped.
+    /// The Mac's unchecked answer, or nil. Everything runs under the consent generation it began
+    /// with: nothing is sent, and no answer is used, once the user withdrew it (even if they agreed
+    /// again meanwhile), and withdrawing ends the request at once.
     func request(_ input: ModelInput) async -> ModelOutput? {
-        guard consent.isAllowed, case .output(let output) = await mac.request(input), consent.isAllowed else { return nil }
+        let consent = consent
+        guard let generation = consent.allowedGeneration else { return nil }
+        let isCurrent: @Sendable () -> Bool = { consent.allowedGeneration == generation }
+        let mac = mac
+        let work = Task { await mac.request(input, while: isCurrent) }
+        let handler = consent.addWithdrawalHandler { work.cancel() }
+        defer { consent.removeWithdrawalHandler(handler) }
+        // Withdrawn between the check and registering the handler.
+        if !isCurrent() {
+            work.cancel()
+        }
+        let result = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
+        guard isCurrent(), case .output(let output) = result else { return nil }
         return output
     }
 }
