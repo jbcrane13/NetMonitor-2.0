@@ -66,6 +66,7 @@ public final class NetworkIdentityController {
     }
 
     @ObservationIgnored private var detectionPending = false
+    @ObservationIgnored private var lastLoggedHintKind: String?
     @ObservationIgnored private let store: NetworkIdentityStore
     @ObservationIgnored private let clock: NetworkJoinClock
     @ObservationIgnored private let launchID: UUID
@@ -110,6 +111,10 @@ public final class NetworkIdentityController {
             return defaultID
         }
         let hint = readHint(group.interface)
+        if hint.kind != lastLoggedHintKind {
+            lastLoggedHintKind = hint.kind
+            Self.logger.notice("Router hint: \(hint.kind, privacy: .public)")
+        }
         if case .identifying(let id, let probing, let probedHint) = state, probing == group, probedHint == hint, probeTask != nil {
             return id
         }

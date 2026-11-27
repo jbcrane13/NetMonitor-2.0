@@ -30,6 +30,15 @@ public enum RouterHintStatus: Equatable, Sendable {
     /// The routing table couldn't be read.
     case failed
     case present(RouterKey)
+
+    /// "absent", "failed" or "present": safe to log, unlike the key.
+    public var kind: String {
+        switch self {
+        case .absent: "absent"
+        case .failed: "failed"
+        case .present: "present"
+        }
+    }
 }
 
 /// How a known network is identified (#628).

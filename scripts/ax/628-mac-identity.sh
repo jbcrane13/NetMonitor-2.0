@@ -46,7 +46,7 @@ expect "$("$AX" wait $TITLE 15)" found "the question never showed"
 expect "$("$AX" value $TITLE)" "Which network is this?" "the card doesn't ask which network this is"
 expect "$("$AX" wait $SEED 10)" found "the seeded device's card never showed"
 expect "$("$AX" textin $SEED "Not checked: which network is this?" 5)" "found text" "the saved device isn't shown as history"
-"$AX" capture-union "$OUT/628b-1-question-history.png" devices_identity_card $SEED
+"$AX" capture-union "$OUT/628b-1-question-history.png" $TITLE devices_identity_detail $NEW $SEED
 
 # 2. A scan while it's open saves nothing.
 "$AX" menu "Scan Network"
@@ -67,4 +67,24 @@ SETTLED=$(print -r -- "$LOGS" | grep -c "Scan started (identified)" || true)
 [[ $HELD -ge 1 ]] || fail "expected the held scan in the app's log (got $HELD)"
 [[ $SETTLED -eq 1 ]] || fail "expected one scan once identified (got $SETTLED)"
 echo "log: $HELD held scan(s), $SETTLED scan once identified"
+
+# 4. A network known only from before identification, whose devices the probe can't clearly match:
+# "Is this Home office?", its saved device shown as history meanwhile. One Debug app at a time.
+kill $PID 2>/dev/null || true
+wait $PID 2>/dev/null || true
+UITEST_IDENTITY=legacy \
+  "$APP/Contents/MacOS/NetMonitor-macOS" --uitesting --in-memory-store --reset-history-files --seed-test-device \
+  > "$OUT/app-legacy.log" 2>&1 &
+PID=$!
+export AX_PID=$PID
+expect "$("$AX" wait networkDetail_section_devices 40)" found "the dashboard never appeared (legacy)"
+if [[ "$("$AX" wait sidebar_nav_devices 3)" != found* ]]; then
+  "$AX" resize 1400 900 > /dev/null
+  "$AX" clickat main-AppWindow-1 113 26 > /dev/null
+fi
+"$AX" click sidebar_nav_devices > /dev/null
+expect "$("$AX" wait $TITLE 20)" found "the legacy question never showed"
+expect "$("$AX" value $TITLE)" "Is this Home office?" "the card doesn't ask whether this is Home office"
+expect "$("$AX" textin $SEED "Not checked: which network is this?" 5)" "found text" "the legacy network's device isn't history"
+"$AX" capture-union "$OUT/628b-3-legacy-question.png" $TITLE devices_identity_detail $NEW $SEED
 echo PASS

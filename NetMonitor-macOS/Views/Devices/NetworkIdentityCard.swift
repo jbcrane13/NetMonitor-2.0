@@ -44,7 +44,7 @@ struct NetworkIdentityCard: View {
         case .isLegacy(_, _, let record):
             card(
                 title: "Is this \(name(of: record))?",
-                detail: "The network with \(savedCount(record)) saved devices. Until you choose, they're shown as history."
+                detail: "The network with \(savedDevices(record)). Until you choose, they're shown as history."
             ) {
                 Button("Yes") { identity.answer(.same(record), to: question) }
                     .accessibilityIdentifier("devices_identity_same_\(record.uuidString)")
@@ -74,6 +74,7 @@ struct NetworkIdentityCard: View {
             Text(detail)
                 .font(.callout)
                 .foregroundStyle(MacTheme.Colors.labelSecondary)
+                .accessibilityIdentifier("devices_identity_detail")
             HStack(spacing: 8) {
                 actions()
             }
@@ -90,7 +91,13 @@ struct NetworkIdentityCard: View {
     }
 
     private func name(of id: UUID) -> String {
-        networks.first { $0.id == id }?.displayName ?? "the network you used before"
+        // A network the Mac isn't on has no profile: name it by what it holds, so options differ.
+        networks.first { $0.id == id }?.displayName ?? "the network with \(savedDevices(id))"
+    }
+
+    private func savedDevices(_ id: UUID) -> String {
+        let count = savedCount(id)
+        return count == 1 ? "1 saved device" : "\(count) saved devices"
     }
 
     private func savedCount(_ id: UUID) -> Int {
