@@ -107,10 +107,9 @@ public enum AskNetwork {
         }
         // The model's presence and freshness sentences go first; the rest must pass the checks.
         var filtered = text.map(withoutHandles).flatMap { AskPresenceFilter.filtered($0, outputs: record.outputs) }
-        // After a live tool, the app's lines are the answer (#579).
-        if record.usedLiveTools {
-            filtered = filtered.flatMap(AskLiveTextFilter.filtered)
-        }
+        // Once the model called a live tool, the app's lines are the answer and no model text is
+        // shown (#579, lead decision on #627); without one, it may not claim a check it didn't run.
+        filtered = record.usedLiveTools ? nil : filtered.flatMap(AskLiveTextFilter.withoutClaimedChecks)
         let accepted = filtered.flatMap { AskAnswerCheck.accepts($0, question: question, record: record, snapshot: snapshot) ? $0 : nil }
         return AskAnswer(
             text: accepted, devices: devices, events: events, freshness: cited.isEmpty ? nil : snapshot.freshnessNote,

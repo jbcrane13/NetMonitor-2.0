@@ -14,7 +14,7 @@ public struct AskRecord: Sendable, Equatable {
     public internal(set) var eventIDs: [UUID] = []
     /// The live tools' lines (#579), in order, one per device or connection, as the app shows them.
     public internal(set) var measurements: [AskMeasurement] = []
-    /// Whether a live tool ran: then the app's lines are the answer (`AskLiveTextFilter`).
+    /// Whether the model called a live tool, whatever came of it: then no model text is shown.
     public internal(set) var usedLiveTools = false
 }
 
@@ -205,13 +205,14 @@ public final class AskToolbox: Sendable {
     /// measured. The count is taken before the measurement, so parallel calls can't exceed it.
     private func runLive(_ body: () async -> ([UUID], String, AskMeasurement?)) async -> String {
         let allowed = state.withLock { state in
+            // Set before the cap: a live call the cap refused still makes the app's lines the answer.
+            state.record.usedLiveTools = true
             state.record.calls += 1
             return state.record.calls <= Self.softCap
         }
         guard allowed else { return Self.limitMessage }
         let withinLimit = state.withLock { state in
             state.liveCalls += 1
-            state.record.usedLiveTools = true
             return live?.callLimit.map { state.liveCalls <= $0 } ?? true
         }
         guard withinLimit else { return Self.liveLimitMessage }

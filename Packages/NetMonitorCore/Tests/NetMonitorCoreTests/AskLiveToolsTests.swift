@@ -399,28 +399,51 @@ struct AskNetworkLiveTests {
         return await AskNetwork.answer(question, snapshot: Live.snapshot, pinnedDeviceID: nil, model: model, live: Live.live(pinger))
     }
 
+    /// Verification of #627 (lead decision): word lists leaked, so once the model calls a live tool,
+    /// whatever its outcome, no model sentence is shown; the app's lines are the answer.
+    @Test(arguments: ["It works.", "It passed.", "It is doing great.", "Nothing came through.", "All three got through.",
+                      "It took three milliseconds."])
+    func noModelTextIsShownAfterALiveTool(_ sentence: String) async {
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
+        let answer = await ask([.pingDevice("dev-b")], answer: sentence + " It is a storage device.", pinger: pinger)
+        #expect(answer.text == nil)
+        #expect(answer.shownText == AskNetwork.measuredFallback)
+        #expect(answer.measurements.count == 1)
+    }
+
+    @Test func aLiveCallPastTheSoftCapStillDropsTheModelsText() async {
+        let calls = Array(repeating: AskToolCall.findDevices("NAS"), count: AskToolbox.softCap) + [.pingDevice("dev-b")]
+        let answer = await ask(calls, answer: "It works.", pinger: MockScriptedPinger([:]))
+        #expect(answer.text == nil)
+        #expect(answer.measurements.isEmpty)
+    }
+
+    @Test func aRefusedLiveCallStillDropsTheModelsText() async {
+        let pinger = MockScriptedPinger([:])
+        let question = "Is the printer up?"
+        let model = ScriptedAskModel(scripts: [question: AskScript(calls: [.pingDevice("dev-a")], answer: "It is a printer.")])
+        let answer = await AskNetwork.answer(question, snapshot: Live.snapshot, pinnedDeviceID: nil, model: model, live: Live.live(pinger))
+        #expect(answer.text == nil)
+        #expect(answer.measurements.first?.measuredAt == nil)
+    }
+
+    /// With no live tool called, the model may not claim a check it didn't run.
+    @Test func aClaimedPingWithoutALiveToolIsDropped() async {
+        let question = "Is the NAS up?"
+        let model = ScriptedAskModel(scripts: [question: AskScript(
+            calls: [.findDevices("NAS")], answer: "It pinged fine. Synology DS920 is a storage device."
+        )])
+        let answer = await AskNetwork.answer(question, snapshot: Live.snapshot, pinnedDeviceID: nil, model: model, live: Live.live(MockScriptedPinger([:])))
+        #expect(answer.text == "Synology DS920 is a storage device.")
+    }
+
     @Test func theModelsPresenceSentenceGoesAndTheAppsMeasurementShows() async {
         let pinger = MockScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
         let answer = await ask([.findDevices("NAS"), .pingDevice("dev-b")],
                                answer: "Yes, Synology DS920 is answering right now. It is a storage device.", pinger: pinger)
-        #expect(answer.text == "It is a storage device.")
+        #expect(answer.text == nil)
         #expect(answer.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): 3 of 3 replies, 4 ms average"])
         #expect(answer.devices.map(\.id) == [Fix.nas.id])
-    }
-
-    /// Codex review of #627: paraphrases with no presence word still asserted the live result,
-    /// and "3 ms" passed grounding because 3 is the probe count. Once a live tool ran, the app's
-    /// line is the answer: no model sentence with a digit or the live vocabulary is shown.
-    @Test(arguments: [
-        "It pinged fine.", "The ping succeeded.", "It got a reply in 4 ms.", "Its average latency is 3 ms.",
-        "Synology DS920 did not reply to 3 pings."
-    ])
-    func aModelSentenceAboutTheLiveResultIsDropped(_ sentence: String) async {
-        let pinger = MockScriptedPinger(["192.168.1.20": .times([4, 4, 4])])
-        let answer = await ask([.pingDevice("dev-b")], answer: sentence + " It is a storage device.", pinger: pinger)
-        // A name with digits ("DS920") goes too: after a live tool no digit is the model's.
-        #expect(answer.text == "It is a storage device.")
-        #expect(answer.measurements.count == 1)
     }
 
     @Test func aNoReplyPingWithAModelSayingItPingedFineShowsOnlyTheApp() async {
@@ -442,7 +465,7 @@ struct AskNetworkLiveTests {
     @Test func aSentenceSayingNothingRepliedIsDropped() async {
         let answer = await ask([.pingDevice("dev-b")], answer: "Synology DS920 did not reply. It is a storage device.",
                                pinger: MockScriptedPinger([:]))
-        #expect(answer.text == "It is a storage device.")
+        #expect(answer.text == nil)
     }
 
     /// Real model, 2026-11-26: "The gateway at 192.168.1.1 responded in 2 ms" for "Why is the
@@ -454,7 +477,7 @@ struct AskNetworkLiveTests {
             calls: [.networkStatus], answer: "The gateway responded quickly. The connection is Wi-Fi."
         )])
         let answer = await AskNetwork.answer(question, snapshot: Live.snapshot, pinnedDeviceID: nil, model: model, live: Live.live(pinger))
-        #expect(answer.text == "The connection is Wi-Fi.")
+        #expect(answer.text == nil)
     }
 
     /// The model's sentences through the pipeline for each refusal: only the app's line says it.
@@ -476,7 +499,7 @@ struct AskNetworkLiveTests {
         let moved = await answer("dev-b", live: Live.live(MockScriptedPinger([:]), joined: Fix.now.addingTimeInterval(60)))
         #expect(moved.measurements.first?.text.hasSuffix(AskToolbox.scanFirst) == true)
         for result in [offNetwork, scanning, timedOut, moved] {
-            #expect(result.text == "It is a device.")
+            #expect(result.text == nil)
         }
     }
 
