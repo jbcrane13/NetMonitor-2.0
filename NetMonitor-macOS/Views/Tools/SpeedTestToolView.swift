@@ -280,6 +280,7 @@ struct SpeedTestToolView: View {
             }
             .accessibilityIdentifier("speedTest_label_server")
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("speedTest_section_results")
     }
 
