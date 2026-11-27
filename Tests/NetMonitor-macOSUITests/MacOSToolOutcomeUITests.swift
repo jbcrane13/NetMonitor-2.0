@@ -80,10 +80,11 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         runButton.click()
 
         // Verify at least one hop row is rendered — the service streams hops as
-        // they arrive, so `traceroute_row_1` appearing proves real data landed
-        // in the results area (not just a state flip).
+        // they arrive. Each hop row carries `traceroute_section_hops` (the ForEach's
+        // id replaces the row's own `traceroute_row_<n>`), so its appearance proves
+        // real data landed in the results area (not just a state flip).
         XCTAssertTrue(
-            ui("traceroute_row_1").waitForExistence(timeout: 25),
+            ui("traceroute_section_hops").firstMatch.waitForExistence(timeout: 25),
             "Traceroute should render at least hop #1 against 1.1.1.1"
         )
 
