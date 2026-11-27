@@ -9,11 +9,14 @@ import XCTest
 /// launch flag so a deterministic device is present before the menu is
 /// opened.
 @MainActor
-final class DeviceContextMenuUITests: XCTestCase {
-    private var app: XCUIApplication!
-
+final class DeviceContextMenuUITests: MacOSUITestCase {
     private let seededIP = "192.168.77.77"
 
+    /// The card's id is stamped onto its icon and labels on macOS 27, so match the first.
+    private var card: XCUIElement { ui("devices_card_\(seededIP)").firstMatch }
+
+    /// Launches with `--seed-test-device`, which `MacOSUITestCase` has no hook for,
+    /// so this replaces the base launch instead of launching twice.
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
@@ -24,34 +27,23 @@ final class DeviceContextMenuUITests: XCTestCase {
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10),
                       "App main window should appear after launch")
 
-        // Navigate to Devices list.
-        let sidebarItem = app.descendants(matching: .any)["sidebar_devices"]
-        XCTAssertTrue(sidebarItem.waitForExistence(timeout: 5),
-                      "Devices sidebar item should exist")
-        sidebarItem.tap()
+        navigateToSidebar("devices")
 
         // Wait for the seeded card to appear — seeding runs ~1s after launch.
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.waitForExistence(timeout: 10),
                       "Seeded device card should appear before tests run")
-    }
-
-    override func tearDownWithError() throws {
-        app?.terminate()
-        app = nil
     }
 
     // MARK: - Menu opens with expected items
 
     func testContextMenuOpensWithAllActions() {
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.waitForExistence(timeout: 5))
         card.rightClick()
 
         // SwiftUI context menu buttons surface either as menuItems or
         // buttons on macOS depending on representation — accept either.
         XCTAssertTrue(
-            waitForAny(
+            waitForEither(
                 [
                     app.menuItems["devices_menu_copyIP"],
                     app.buttons["devices_menu_copyIP"]
@@ -61,7 +53,7 @@ final class DeviceContextMenuUITests: XCTestCase {
             "Copy IP menu item should be present after right-click"
         )
         XCTAssertTrue(
-            waitForAny(
+            waitForEither(
                 [
                     app.menuItems["devices_menu_ping"],
                     app.buttons["devices_menu_ping"]
@@ -71,7 +63,7 @@ final class DeviceContextMenuUITests: XCTestCase {
             "Ping Device menu item should be present"
         )
         XCTAssertTrue(
-            waitForAny(
+            waitForEither(
                 [
                     app.menuItems["devices_menu_portScan"],
                     app.buttons["devices_menu_portScan"]
@@ -81,7 +73,7 @@ final class DeviceContextMenuUITests: XCTestCase {
             "Scan Ports menu item should be present"
         )
         XCTAssertTrue(
-            waitForAny(
+            waitForEither(
                 [
                     app.menuItems["devices_menu_remove"],
                     app.buttons["devices_menu_remove"]
@@ -101,7 +93,7 @@ final class DeviceContextMenuUITests: XCTestCase {
         openContextMenu()
         tapMenuItem("devices_menu_ping")
 
-        let sheet = app.descendants(matching: .any)["devices_section_pingSheet"]
+        let sheet = ui("devices_section_pingSheet").firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 5),
                       "Ping sheet should appear after tapping Ping Device menu item")
 
@@ -122,7 +114,7 @@ final class DeviceContextMenuUITests: XCTestCase {
         openContextMenu()
         tapMenuItem("devices_menu_portScan")
 
-        let sheet = app.descendants(matching: .any)["devices_section_portScanSheet"]
+        let sheet = ui("devices_section_portScanSheet").firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 5),
                       "Port scan sheet should appear after tapping Scan Ports menu item")
 
@@ -145,7 +137,6 @@ final class DeviceContextMenuUITests: XCTestCase {
 
         // After copying IP, verify the device card still exists (no unexpected navigation)
         // and the menu has dismissed (card is hittable again)
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.waitForExistence(timeout: 3),
                       "Device card should still exist after Copy IP action")
 
@@ -158,7 +149,6 @@ final class DeviceContextMenuUITests: XCTestCase {
     // MARK: - Remove action removes the device from the list
 
     func testRemoveActionDeletesDeviceCard() {
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.exists, "Seeded card should exist before removal")
 
         openContextMenu()
@@ -174,7 +164,6 @@ final class DeviceContextMenuUITests: XCTestCase {
     // MARK: - Helpers
 
     private func openContextMenu() {
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.waitForExistence(timeout: 5),
                       "Seeded card should exist before right-click")
         card.rightClick()
@@ -186,21 +175,12 @@ final class DeviceContextMenuUITests: XCTestCase {
     private func tapMenuItem(_ identifier: String) {
         let menuItem = app.menuItems[identifier]
         if menuItem.waitForExistence(timeout: 3), menuItem.isHittable {
-            menuItem.tap()
+            menuItem.click()
             return
         }
         let button = app.buttons[identifier]
         XCTAssertTrue(button.waitForExistence(timeout: 3),
                       "Menu entry \(identifier) should be findable as menuItem or button")
-        button.tap()
-    }
-
-    private func waitForAny(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if elements.contains(where: { $0.exists }) { return true }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        return false
+        button.click()
     }
 }
