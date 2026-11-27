@@ -176,20 +176,20 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
     func testSettingsTabSwitchingShowsCorrectControls() {
         navigateToSidebar("settings")
 
-        // General tab — checkboxes
+        // General tab — switches
         app.staticTexts["settings_tab_General"].click()
         requireExists(app.switches["settings_toggle_launchAtLogin"], timeout: 3,
-                      message: "Launch at login checkbox should appear on General tab")
+                      message: "Launch at login switch should appear on General tab")
 
         // Monitoring tab — pickers
         app.staticTexts["settings_tab_Monitoring"].click()
         requireExists(app.popUpButtons["settings_picker_defaultInterval"], timeout: 3,
                       message: "Default interval picker should appear on Monitoring tab")
 
-        // Notifications tab — checkboxes + slider
+        // Notifications tab — switches + slider
         app.staticTexts["settings_tab_Notifications"].click()
         requireExists(app.switches["settings_toggle_notificationsEnabled"], timeout: 3,
-                      message: "Notifications enabled checkbox should appear on Notifications tab")
+                      message: "Notifications enabled switch should appear on Notifications tab")
 
         // Network tab — pickers
         app.staticTexts["settings_tab_Network"].click()
@@ -206,10 +206,10 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         requireExists(app.buttons["appearance_button_colorcyan"], timeout: 3,
                       message: "Cyan color button should appear on Appearance tab")
 
-        // Companion tab — checkbox
+        // Companion tab — switch
         app.staticTexts["settings_tab_Companion"].click()
         requireExists(app.switches["settings_toggle_companionEnabled"], timeout: 3,
-                      message: "Companion enabled checkbox should appear on Companion tab")
+                      message: "Companion enabled switch should appear on Companion tab")
     }
 
     func testSettingsGeneralCheckboxToggleInteraction() {
@@ -218,7 +218,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
         let showInDock = requireExists(
             app.switches["settings_toggle_showInDock"], timeout: 3,
-            message: "Show in Dock checkbox should exist"
+            message: "Show in Dock switch should exist"
         )
         let initialValue = stringValue(showInDock)
 
@@ -226,7 +226,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
         // The value should change after toggling.
         XCTAssertNotEqual(initialValue, stringValue(showInDock),
-                          "Show in Dock checkbox value should change after toggling")
+                          "Show in Dock switch value should change after toggling")
 
         // Toggle back to restore original state.
         showInDock.click()
@@ -301,7 +301,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
         let enabledToggle = requireExists(
             app.switches["settings_toggle_companionEnabled"], timeout: 3,
-            message: "Companion enabled checkbox should exist"
+            message: "Companion enabled switch should exist"
         )
 
         // If companion is enabled, the port field should be visible.

@@ -4,7 +4,6 @@ import XCTest
 ///
 /// Tests verify **outcomes** of sidebar interactions: content area updates,
 /// network detail loading, and keyboard shortcut navigation.
-/// Existing tests in SidebarNavigationUITests are NOT modified.
 @MainActor
 final class SidebarFunctionalUITests: MacOSUITestCase {
 
@@ -167,7 +166,7 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
 
             captureScreenshot(named: "Sidebar_NetworkDetail")
         } else {
-            // No networks in sidebar — check if detail_network auto-loaded
+            // No networks in sidebar — check if contentView_nav_network auto-loaded
             if ui("contentView_nav_network").firstMatch.waitForExistence(timeout: 3) {
                 // Auto-selected network is fine
                 captureScreenshot(named: "Sidebar_AutoSelectedNetwork")
@@ -178,12 +177,11 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     // MARK: - 3. Keyboard Shortcut Cmd+1 through Cmd+4 -> Verify Navigation
 
     func testKeyboardShortcutCmd1NavigatesToFirstSection() {
-        // Cmd+1 should navigate to first section (usually Dashboard or Network)
+        // Cmd+1 should navigate to the network dashboard
         app.typeKey("1", modifierFlags: .command)
 
         // Wait a moment for navigation
         let navigated = waitForEither([
-            ui("contentView_nav_network").firstMatch,
             ui("contentView_nav_network").firstMatch
         ], timeout: 5)
 
@@ -196,9 +194,8 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     func testKeyboardShortcutCmd2NavigatesToSecondSection() {
         app.typeKey("2", modifierFlags: .command)
 
-        // Second section varies — could be targets, devices, or tools
+        // Second section varies — could be devices or the network dashboard
         let navigated = waitForEither([
-            app.otherElements["detail_targets"],
             ui("contentView_nav_devices").firstMatch,
             ui("contentView_nav_network").firstMatch
         ], timeout: 5)
@@ -214,8 +211,7 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
 
         let navigated = waitForEither([
             ui("contentView_nav_devices").firstMatch,
-            ui("contentView_nav_tools").firstMatch,
-            app.otherElements["detail_targets"]
+            ui("contentView_nav_tools").firstMatch
         ], timeout: 5)
 
         XCTAssertTrue(navigated || app.windows.firstMatch.exists,
@@ -243,7 +239,6 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
 
     func testFullSidebarCycleVerifiesContentUpdates() {
         let sections: [(sidebar: String, detail: String)] = [
-            ("sidebar_targets", "detail_targets"),
             ("sidebar_nav_devices", "contentView_nav_devices"),
             ("sidebar_nav_tools", "contentView_nav_tools"),
             ("sidebar_nav_settings", "contentView_nav_settings")
@@ -294,7 +289,6 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     func testCmdRTriggersRescan() {
         // Ensure we're on a network detail or dashboard
         let hasDetail = ui("contentView_nav_network").firstMatch.waitForExistence(timeout: 3)
-            || ui("contentView_nav_network").firstMatch.waitForExistence(timeout: 3)
 
         guard hasDetail else { return }
 
@@ -343,9 +337,8 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     // MARK: - 8. Default Selection is Dashboard or Network
 
     func testDefaultSelectionShowsContent() {
-        // On launch, either dashboard or network detail should be visible
+        // On launch, the network dashboard (or Tools) should be visible
         let hasDefaultContent = waitForEither([
-            ui("contentView_nav_network").firstMatch,
             ui("contentView_nav_network").firstMatch,
             ui("contentView_nav_tools").firstMatch
         ], timeout: 8)
