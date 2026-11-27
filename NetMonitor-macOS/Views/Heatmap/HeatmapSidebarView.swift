@@ -23,7 +23,6 @@ struct HeatmapSidebarView: View {
             }
         }
         .frame(width: 220)
-        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen_heatmapSidebar")
     }
 

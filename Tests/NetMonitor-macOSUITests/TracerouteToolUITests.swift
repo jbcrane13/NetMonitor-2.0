@@ -66,9 +66,9 @@ final class TracerouteToolUITests: MacOSUITestCase {
         clearAndTypeText("1.1.1.1", into: app.textFields["traceroute_textfield_host"])
         app.buttons["traceroute_button_run"].click()
 
-        // Verify real hop rows appear. On macOS 27 the list's `traceroute_section_hops` id is
-        // stamped over each row's `traceroute_row_<hopNumber>`, so find hop #1 (the first
-        // upstream gateway) by its hop number.
+        // Verify real hop rows appear. The list's `traceroute_section_hops` id replaces each
+        // row's `traceroute_row_<hopNumber>` in the tree, so find hop #1 (the first upstream
+        // gateway) by its hop number.
         let firstHop = hopTexts.matching(NSPredicate(format: "value MATCHES %@", "\\s*1\\s*")).firstMatch
         XCTAssertTrue(
             firstHop.waitForExistence(timeout: 20),
