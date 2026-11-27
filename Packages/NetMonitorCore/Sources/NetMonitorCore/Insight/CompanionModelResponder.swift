@@ -77,14 +77,24 @@ public struct CompanionModelResponder: Sendable {
     private let isScanning: @Sendable () async -> Bool
     private let beforeSubmission: (@Sendable () async -> Void)?
 
-    /// - Parameter beforeSubmission: tests only, see ``ModelSubmission``.
     public init(
         model: any CompanionModelAnswering = CompanionModel.shared,
         admission: ModelAdmission = .shared,
         timeout: Duration = defaultTimeout,
         isAllowed: @escaping @Sendable () -> Bool = { true },
+        isScanning: @escaping @Sendable () async -> Bool = { false }
+    ) {
+        self.init(model: model, admission: admission, timeout: timeout, isAllowed: isAllowed, isScanning: isScanning, beforeSubmission: nil)
+    }
+
+    /// - Parameter beforeSubmission: tests only, see ``ModelSubmission``.
+    init(
+        model: any CompanionModelAnswering,
+        admission: ModelAdmission,
+        timeout: Duration = defaultTimeout,
+        isAllowed: @escaping @Sendable () -> Bool = { true },
         isScanning: @escaping @Sendable () async -> Bool = { false },
-        beforeSubmission: (@Sendable () async -> Void)? = nil
+        beforeSubmission: (@Sendable () async -> Void)?
     ) {
         self.model = model
         self.admission = admission
@@ -117,14 +127,18 @@ public struct CompanionModelResponder: Sendable {
         guard !scanning, let ticket = admission.admitCompanion() else { return failure(.busy) }
 
         let isAllowed = isAllowed
-        let submission = ModelSubmission(
-            mayStart: { authorization.isCurrent() && isAllowed() },
-            beforeStart: beforeSubmission
-        )
-        let work = Task { [model, admission] () -> ModelOutput? in
-            // Released only when the model has returned, whatever happened to the request.
-            defer { admission.release(ticket) }
-            return await model.answer(input, submission: submission)
+        let submission = ModelSubmission(authorization: authorization, isAllowed: isAllowed, beforeCall: beforeSubmission)
+        // Started inside the link's lock and registered with it: a close or revoke from here on
+        // cancels the work, and with it the model call.
+        guard let work = admission.withTicket(ticket, {
+            authorization.start { [model, admission] () -> ModelOutput? in
+                // Released only when the model has returned, whatever happened to the request.
+                defer { admission.release(ticket) }
+                return await model.answer(input, submission: submission)
+            }
+        }) else {
+            admission.release(ticket)
+            return failure(.unavailable)
         }
         switch await Self.first(of: work, timeout: timeout) {
         case .cancelled:
@@ -133,7 +147,8 @@ public struct CompanionModelResponder: Sendable {
             work.cancel()
             return failure(.timeout)
         case .answered(let output):
-            guard authorization.isCurrent() else { return failure(.unavailable) }
+            // The owner may have turned answering off while the model worked: no answer then.
+            guard authorization.isCurrent(), isAllowed() else { return failure(.unavailable) }
             guard let output, output.schema == input.schema else { return failure(.refused) }
             return output.isWithinLimits ? ModelResponsePayload(requestID: id, output: output) : failure(.refused)
         }

@@ -379,9 +379,7 @@ struct SystemRuleIntentParser: RuleIntentParsing {
     var isAvailable: Bool { SystemLanguageModel.default.isAvailable }
 
     func parse(_ text: String) async -> RuleIntent? {
-        await ModelAdmission.shared.runLocal(.interactive) {
-            await Self.raw(for: text, submission: .local)?.intent(for: text)
-        }
+        await Self.raw(for: text, submission: .local)?.intent(for: text)
     }
 
     /// The model's unchecked answer for `text`; nil when the model failed or `submission`
@@ -391,11 +389,15 @@ struct SystemRuleIntentParser: RuleIntentParsing {
             let session = LanguageModelSession(instructions: GeneratedRuleIntent.instructions)
             // Greedy: the same sentence gets the same reading.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 120)
-            let raw = try await session.respond(to: text, generating: GeneratedRuleIntent.self, options: options).content
-            return RuleIntentRaw(
-                kind: raw.kind, device: raw.device, thresholdMilliseconds: raw.thresholdMilliseconds,
-                durationSeconds: raw.durationSeconds, portPreset: raw.portPreset
-            )
+            // Registered with the admission control: interactive for this device, and holding the
+            // request's ticket when the Mac answers a phone (#586).
+            return try await ModelAdmission.shared.runLocal(.interactive) {
+                let raw = try await session.respond(to: text, generating: GeneratedRuleIntent.self, options: options).content
+                return RuleIntentRaw(
+                    kind: raw.kind, device: raw.device, thresholdMilliseconds: raw.thresholdMilliseconds,
+                    durationSeconds: raw.durationSeconds, portPreset: raw.portPreset
+                )
+            }
         }
     }
 }

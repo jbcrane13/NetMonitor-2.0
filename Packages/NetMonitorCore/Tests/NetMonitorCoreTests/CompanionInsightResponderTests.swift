@@ -230,3 +230,52 @@ private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool)
         try? await Task.sleep(for: .milliseconds(10))
     }
 }
+
+/// An insight model like the system one: its work runs in a task of its own, registered with the
+/// admission control, and it ignores cancellation until released (#586 review).
+final class UncooperativeInsightService: InsightServiceProtocol, Sendable {
+    private let admission: ModelAdmission
+    private let gate = TestLatch()
+
+    init(admission: ModelAdmission) {
+        self.admission = admission
+    }
+
+    var isAvailable: Bool { true }
+    var isRunning: Bool { gate.isReached }
+
+    func stop() {
+        gate.open()
+    }
+
+    func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        AsyncStream { continuation in
+            let admission = admission, gate = gate
+            Task {
+                await admission.runLocal(.interactive) { await gate.wait() }
+                continuation.yield(.failed)
+                continuation.finish()
+            }
+        }
+    }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
+}
+
+/// The insight responder shares the companion slot properly (#586 review).
+struct CompanionInsightSlotTests {
+    @Test("a timed-out insight request keeps the slot until its model really stops")
+    func timeoutHoldsTheSlot() async {
+        let admission = ModelAdmission()
+        let model = UncooperativeInsightService(admission: admission)
+        let responder = CompanionInsightResponder(service: model, admission: admission, timeout: .milliseconds(100))
+        let payload = InsightRequestPayload(requestID: UUID(), request: InsightRequest(subject: "s", facts: ["a"]))
+        let response = await responder.respond(to: payload, authorization: .always)
+        #expect(response.failureReason == .timeout)
+        #expect(model.isRunning)
+        #expect(admission.isCompanionSlotHeld, "the model is still working: the slot stays taken")
+        model.stop()
+        await waitForModel { !admission.isCompanionSlotHeld }
+        #expect(!admission.isCompanionSlotHeld)
+    }
+}

@@ -215,6 +215,28 @@ final class ScriptedCompanionModel: CompanionModelAnswering, Sendable {
     }
 }
 
+/// A stand-in model call that waits, cooperatively, until it is cancelled or 5 s pass, and records
+/// whether it saw the cancellation.
+final class CancellationWatchingModel: CompanionModelAnswering, Sendable {
+    private let state = Mutex<(calls: Int, cancelled: Bool)>((0, false))
+    var isAvailable: Bool { true }
+    var calls: Int { state.withLock { $0.calls } }
+    var sawCancellation: Bool { state.withLock { $0.cancelled } }
+
+    func answer(_ input: ModelInput, submission: ModelSubmission) async -> ModelOutput? {
+        try? await submission.run {
+            state.withLock { $0.calls += 1 }
+            let deadline = ContinuousClock.now + .seconds(5)
+            while !Task.isCancelled, ContinuousClock.now < deadline {
+                await Task.yield()
+                try? await Task.sleep(for: .milliseconds(5))
+            }
+            state.withLock { $0.cancelled = Task.isCancelled }
+            return nil
+        }
+    }
+}
+
 /// Opens once, for a test to pause the responder at the model call.
 final class TestLatch: Sendable {
     private let state = Mutex<(open: Bool, reached: Bool, waiters: [CheckedContinuation<Void, Never>])>((false, false, []))
@@ -305,16 +327,36 @@ struct CompanionModelResponderTests {
         #expect(model.submissions == 0)
     }
 
-    @Test("a link revoked after the work starts but before the model is asked: zero model calls")
+    @Test("a link closed between the successful check and the model call: zero model calls")
+    func closedAtSubmission() async {
+        let model = ScriptedCompanionModel(output: .rules(Self.rule))
+        let latch = TestLatch()
+        let lock = CompanionSubmissionLock()
+        let responder = CompanionModelResponder(
+            model: model, admission: ModelAdmission(), beforeSubmission: { await latch.wait() }
+        )
+        // A real link token: its lock is what the Mac's Remove closes before it revokes the key.
+        let authorization = CompanionAuthorization(lock: lock) { true }
+        let reply = Task { await responder.respond(to: Self.request(), authorization: authorization) }
+        await waitForModel { latch.isReached }
+        lock.close()
+        latch.open()
+        _ = await reply.value
+        #expect(model.submissions == 0)
+    }
+
+    @Test("a phone revoked (its key denied) between the check and the model call: zero model calls")
     func revokedAtSubmission() async {
         let model = ScriptedCompanionModel(output: .rules(Self.rule))
         let latch = TestLatch()
-        let authorised = Mutex(true)
-        let responder = CompanionModelResponder(model: model, admission: ModelAdmission(), beforeSubmission: { await latch.wait() })
-        let authorization = CompanionAuthorization { authorised.withLock { $0 } }
+        let trusted = Mutex(true)
+        let responder = CompanionModelResponder(
+            model: model, admission: ModelAdmission(), beforeSubmission: { await latch.wait() }
+        )
+        let authorization = CompanionAuthorization(lock: CompanionSubmissionLock()) { trusted.withLock { $0 } }
         let reply = Task { await responder.respond(to: Self.request(), authorization: authorization) }
         await waitForModel { latch.isReached }
-        authorised.withLock { $0 = false }
+        trusted.withLock { $0 = false }
         latch.open()
         #expect(await reply.value?.failure == "unavailable")
         #expect(model.submissions == 0)
@@ -364,6 +406,54 @@ struct CompanionModelResponderTests {
         model.release()
         await waitForModel { !admission.isCompanionSlotHeld }
         #expect(!admission.isCompanionSlotHeld)
+    }
+
+    @Test("closing the link while the model call is in flight cancels that call (#586 review)")
+    func linkCloseCancelsTheModelCall() async {
+        let model = CancellationWatchingModel()
+        let lock = CompanionSubmissionLock()
+        let authorization = CompanionAuthorization(lock: lock) { true }
+        let responder = CompanionModelResponder(model: model, admission: ModelAdmission())
+        let reply = Task { await responder.respond(to: Self.request(), authorization: authorization) }
+        await waitForModel { model.calls == 1 }
+        lock.close()
+        await waitForModel { model.sawCancellation }
+        #expect(model.sawCancellation, "the close reached the model call")
+        _ = await reply.value
+    }
+
+    @Test("the setting turned off while the model answers: the answer isn't sent (#586 review)")
+    func settingOffAfterTheCheckSendsNoAnswer() async {
+        let model = ScriptedCompanionModel(output: .rules(Self.rule), holds: true)
+        let allowed = Mutex(true)
+        let responder = CompanionModelResponder(model: model, admission: ModelAdmission(), isAllowed: { allowed.withLock { $0 } })
+        let reply = Task { await responder.respond(to: Self.request(), authorization: .always) }
+        await waitForModel { model.submissions == 1 }
+        allowed.withLock { $0 = false }
+        model.release()
+        let response = await reply.value
+        #expect(response?.output == nil, "no answer goes out once the owner turned answering off")
+    }
+
+    @Test("a Mac request during a companion inference runs at once, and goes ahead of the next phone request")
+    func macRequestDuringCompanionInference() async {
+        let model = ScriptedCompanionModel(output: .rules(Self.rule), holds: true)
+        let admission = ModelAdmission()
+        let responder = CompanionModelResponder(model: model, admission: admission)
+        let phone = Task { await responder.respond(to: Self.request(), authorization: .always) }
+        await waitForModel { model.submissions == 1 }
+        // The Mac's own request starts while the phone's inference runs: it never waits
+        // (worst case it shares the model with that one inference, at most the 10 s timeout).
+        let started = ContinuousClock.now
+        let local = await admission.runLocal(.interactive) {
+            // Meanwhile the phone's inference ends, and the next phone request comes in.
+            model.release()
+            _ = await phone.value
+            return await responder.respond(to: Self.request(), authorization: .always)
+        }
+        #expect(ContinuousClock.now - started < .seconds(2))
+        #expect(local?.failure == "busy", "the Mac's request goes first; the phone's next one is busy")
+        #expect(await responder.respond(to: Self.request(), authorization: .always)?.result(expecting: .rules) != nil)
     }
 
     @Test("an answer for another schema, or over its limits, is refused")

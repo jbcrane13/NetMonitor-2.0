@@ -207,9 +207,7 @@ struct SystemSymptomClassifier: SymptomClassifierProtocol {
     var isAvailable: Bool { SystemLanguageModel.default.isAvailable }
 
     func classify(_ symptom: String) async -> SymptomIntent? {
-        await ModelAdmission.shared.runLocal(.interactive) {
-            await Self.raw(for: symptom, submission: .local)?.intent(for: symptom)
-        }
+        await Self.raw(for: symptom, submission: .local)?.intent(for: symptom)
     }
 
     /// The model's unchecked answer for `symptom`; nil when the model failed or `submission`
@@ -220,8 +218,12 @@ struct SystemSymptomClassifier: SymptomClassifierProtocol {
             // Greedy: the same words get the same kind.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 120)
             let input = InsightRequest.line(symptom, limit: 300)
-            let answer = try await session.respond(to: "Problem: \(input)", generating: GeneratedSymptom.self, options: options).content
-            return SymptomIntentRaw(kind: answer.kind, device: answer.device, room: answer.room, website: answer.website)
+            // Registered with the admission control: interactive for this device, and holding the
+            // request's ticket when the Mac answers a phone (#586).
+            return try await ModelAdmission.shared.runLocal(.interactive) {
+                let answer = try await session.respond(to: "Problem: \(input)", generating: GeneratedSymptom.self, options: options).content
+                return SymptomIntentRaw(kind: answer.kind, device: answer.device, room: answer.room, website: answer.website)
+            }
         }
     }
 }

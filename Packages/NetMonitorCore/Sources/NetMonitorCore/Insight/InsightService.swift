@@ -128,8 +128,10 @@ struct SystemInsightService: InsightServiceProtocol {
             let session = LanguageModelSession(instructions: DeviceEvidence.instructions)
             // Guided generation into a typed answer; greedy so the same evidence gets the same answer.
             let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 120)
-            let response = try await session.respond(to: evidence.prompt, generating: GeneratedIdentity.self, options: options)
-            return response.content.suggestion
+            // Background: registered with the admission control, but never holds companion work back (#586).
+            return try await ModelAdmission.shared.runLocal(.background) {
+                try await session.respond(to: evidence.prompt, generating: GeneratedIdentity.self, options: options).content.suggestion
+            }
         } catch {
             return nil
         }

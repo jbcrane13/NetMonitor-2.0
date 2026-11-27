@@ -61,8 +61,8 @@ public actor CompanionInsightResponder {
         guard authorization.isCurrent() else {
             return InsightResponsePayload(requestID: id, failure: .unavailable)
         }
-        // The slot is released only once the summarizer has returned, which it does only
-        // after the model's stream has ended.
+        // The summarizer returns at its timeout or on cancellation, but the model call it started
+        // may run on: made under the ticket, that call holds the slot until it really returns.
         guard !scanning, let ticket = admission.admitCompanion() else {
             return InsightResponsePayload(requestID: id, failure: .busy)
         }
@@ -71,9 +71,11 @@ public actor CompanionInsightResponder {
         let clock = ContinuousClock()
         let started = clock.now
         // The summarizer checks `authorization` again in the very step that asks the model.
-        guard let answer = await InsightSummarizer.summary(
-            for: request, service: service, timeout: timeout, authorization: authorization
-        ) else {
+        let service = service
+        let timeout = timeout
+        guard let answer = await admission.withTicket(ticket, {
+            await InsightSummarizer.summary(for: request, service: service, timeout: timeout, authorization: authorization)
+        }) else {
             guard authorization.isCurrent() else {
                 return InsightResponsePayload(requestID: id, failure: .unavailable)
             }
