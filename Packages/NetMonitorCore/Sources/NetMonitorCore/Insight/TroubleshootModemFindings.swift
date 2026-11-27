@@ -23,8 +23,18 @@ extension TroubleshootRules {
     /// Lights whose red means the modem or router has no internet.
     static let internetLights: Set<ModemLightKind> = [.broadband, .internet, .wan, .upstream, .downstream]
 
+    /// The app's lines for the lights that are findings: red ones, and those that need a look.
+    /// Off lights and normal ones aren't among them. Unknown lights are named by colour only.
+    static func modemLines(_ report: ModemPanelReport) -> (problem: [String], check: [String]) {
+        let problem = report.verdicts.compactMap { $0.meaning?.severity == .problem ? $0.meaning?.text : nil }
+        let check = report.verdicts.compactMap { $0.meaning?.severity == .attention && $0.meaning?.readsAsOff == false ? $0.meaning?.text : nil }
+            + report.unknownColoured.map { "A light the app doesn't know reads as \($0.color.rawValue)." }
+        return (problem, check)
+    }
+
     static func modemFindings(_ report: ModemPanelReport, reachedInternet: Bool) -> [TroubleshootFinding] {
         var findings: [TroubleshootFinding] = []
+        let lines = modemLines(report)
         let red = report.verdicts.filter { $0.meaning?.severity == .problem }
         if !red.isEmpty {
             let names = red.compactMap(\.name)
@@ -35,7 +45,7 @@ extension TroubleshootRules {
                 title: names.count == 1
                     ? "The modem's \(names[0]) light reads as red"
                     : "\(names.count) modem lights read as red: \(names.joined(separator: ", "))",
-                detail: red.compactMap(\.meaning?.text).joined(separator: " ") + photoNote + (internet && reachedInternet ? misreadNote : ""),
+                detail: lines.problem.joined(separator: " ") + photoNote + (internet && reachedInternet ? misreadNote : ""),
                 nextStep: internet
                     ? "Restart the modem, and if the light stays red, contact your internet provider."
                     : kinds.contains(.power)
@@ -45,36 +55,44 @@ extension TroubleshootRules {
                 lights: kinds
             ))
         }
-        let look = report.verdicts.filter { $0.meaning?.severity == .attention && $0.meaning?.readsAsOff == false }
-        let unknown = report.unknownColoured
-        if !look.isEmpty || !unknown.isEmpty {
-            let lines = look.compactMap(\.meaning?.text) + unknown.map { "A light the app doesn't know reads as \($0.color.rawValue)." }
-            let count = lines.count
+        if !lines.check.isEmpty {
+            let count = lines.check.count
             findings.append(TroubleshootFinding(
                 kind: .modemCheck,
                 title: count == 1 ? "A modem light needs a look" : "\(count) modem lights need a look",
-                detail: lines.joined(separator: " ") + photoNote,
+                detail: lines.check.joined(separator: " ") + photoNote,
                 nextStep: "Check what the light means in the modem's guide.",
-                lights: look.compactMap(\.kind)
+                lights: report.verdicts.filter { $0.meaning?.severity == .attention && $0.meaning?.readsAsOff == false }.compactMap(\.kind)
             ))
         }
         return findings
     }
 
-    /// Whether the run got an answer from the internet: a download measured, or a website that
-    /// answered a ping. A lookup alone doesn't count: the router may answer from its cache.
+    /// Whether the run got an answer from the internet: a download measured, or a public website
+    /// that answered a ping. A lookup alone doesn't count: the router may answer from its cache. A
+    /// typed address or local name doesn't either: the router's own page answers in an outage.
     static func reachedInternet(_ results: [TroubleshootResult]) -> Bool {
         results.contains { result in
             switch result {
             case .speed: true
             case let .ping(summary):
-                if case .host = summary.target {
-                    summary.received > 0
+                if case let .host(name) = summary.target {
+                    summary.received > 0 && isPublicName(name)
                 } else {
                     false
                 }
             default: false
             }
         }
+    }
+
+    /// Local name suffixes (mDNS, home routers, RFC 8375).
+    static let localSuffixes = [".local", ".lan", ".home", ".internal", ".localdomain", ".arpa", ".box"]
+
+    /// Whether `host` is a name on the internet: not an address, and not a local name.
+    static func isPublicName(_ host: String) -> Bool {
+        let name = host.lowercased()
+        let isAddress = name.contains(":") || name.allSatisfy { $0.isNumber || $0 == "." }
+        return !isAddress && name.contains(".") && !localSuffixes.contains(where: name.hasSuffix)
     }
 }

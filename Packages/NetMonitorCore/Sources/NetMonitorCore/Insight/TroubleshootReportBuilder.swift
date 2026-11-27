@@ -44,8 +44,9 @@ public enum TroubleshootReportBuilder {
             )
         }
         // Only the top cause carries figures; the others are named, so no figure can be paired with
-        // the wrong cause (#451 review).
-        var facts = ["Most likely cause (\(top.title)): \(top.detail)"] + findings.dropFirst().map { "Also found: \($0.title)" }
+        // the wrong cause (#451 review). A modem light's lines are facts of their own (#625).
+        let topFact = isModem(top) ? "Most likely cause (\(top.title))." : "Most likely cause (\(top.title)): \(top.detail)"
+        var facts = [topFact] + findings.dropFirst().map { "Also found: \($0.title)" }
         // A name inside a longer fact is refused by `InsightTextFilter`; stated whole, it may be repeated.
         var names: [String] = []
         for finding in findings where [.dnsFailed, .dnsSlow, .siteNotAnswering].contains(finding.kind) {
@@ -66,16 +67,30 @@ public enum TroubleshootReportBuilder {
         )
     }
 
-    /// The modem lines that aren't already the top finding's detail, in the app's words. Off
-    /// readings, the read time and the labels the model read stay out.
+    static func isModem(_ finding: TroubleshootFinding) -> Bool {
+        [.modemProblem, .modemCheck].contains(finding.kind)
+    }
+
+    /// The modem lights as facts, one line each so none is cut at the prompt's line cap, in the
+    /// app's words. Off readings, the read time and the labels the model read stay out.
     static func modemFacts(_ findings: [TroubleshootFinding], modem: ModemPanelReport?) -> [String] {
         guard let modem else { return [] }
         let prefix = "Modem lights, read from a photo: "
         if modem.looksNormal {
             return [prefix + "they look normal. That alone doesn't show the internet is working."]
         }
-        return findings.dropFirst().filter { [.modemProblem, .modemCheck].contains($0.kind) }
-            .map { prefix + $0.detail.replacingOccurrences(of: TroubleshootRules.photoNote, with: "") }
+        let lines = TroubleshootRules.modemLines(modem)
+        var facts: [String] = []
+        if let red = findings.first(where: { $0.kind == .modemProblem }) {
+            facts += lines.problem
+            if red.detail.hasSuffix(TroubleshootRules.misreadNote) {
+                facts.append(TroubleshootRules.misreadNote.trimmingCharacters(in: .whitespaces))
+            }
+        }
+        if findings.contains(where: { $0.kind == .modemCheck }) {
+            facts += lines.check
+        }
+        return facts.map { prefix + $0 }
     }
 
     // MARK: - Denials (#451 review)
@@ -163,6 +178,9 @@ public enum TroubleshootReportBuilder {
     static let modemHealthy: Set<String> = [
         "fine", "good", "ok", "okay", "working", "works", "online", "connected", "normal", "healthy", "stable", "reachable", "green", "up"
     ]
+    /// Colours a lit red or amber light was not read as. "Turn it off" is advice, not a reading.
+    static let otherReadings: Set<String> = ["off", "dark", "unlit", "blue", "white"]
+    static let switchingWords: Set<String> = ["turn", "turning", "switch", "switching", "power", "powering", "unplug", "it", "modem", "router"]
     /// "start up", "set up": not a claim that the internet is up.
     static let phrasalBeforeUp: Set<String> = ["start", "starts", "starting", "set", "boot", "boots", "booting", "back"]
     /// Words that keep a fault in view: the fault itself, a negation, or advice to act on it.
@@ -189,6 +207,12 @@ public enum TroubleshootReportBuilder {
             let allClear = ["no problem", "no issue", "nothing wrong", "nothing is wrong", "isn't the", "not the", "is not the"]
             if allClear.contains(where: line.contains) {
                 return true
+            }
+            for (index, word) in words.enumerated() where otherReadings.contains(word) && (words.contains("light") || words.contains("lights")) {
+                let previous = index > 0 ? words[index - 1] : ""
+                if !negators.contains(previous), previous != "isn't", !switchingWords.contains(previous) {
+                    return true
+                }
             }
             for (index, word) in words.enumerated() where modemHealthy.contains(word) {
                 let previous = index > 0 ? words[index - 1] : ""

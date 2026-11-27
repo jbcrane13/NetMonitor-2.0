@@ -331,6 +331,13 @@ struct TroubleshootToolView: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                // Doubts about the reading itself (partial, more than one device) stay in view.
+                ForEach(Array(reading.report.notices.enumerated()), id: \.offset) { _, notice in
+                    Label(notice, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 ForEach(Array(reading.report.keyPoints.enumerated()), id: \.offset) { _, line in
                     Text(line)
                         .font(.caption)

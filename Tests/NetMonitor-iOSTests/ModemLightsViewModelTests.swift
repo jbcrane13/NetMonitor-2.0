@@ -68,13 +68,13 @@ struct ModemLightsViewModelTests {
     @Test("A reading the user closed the sheet on is not handed over (#625)")
     func cancelledReadingIsNotHandedOver() async throws {
         var handed = 0
-        let viewModel = ModemLightsViewModel(
-            extractor: ScriptedExtractor(Self.redInternet, delay: .milliseconds(200)), isScanning: { false }, testImage: { nil },
-            onReading: { _ in handed += 1 }
-        )
+        let extractor = ScriptedExtractor(Self.redInternet, delay: .seconds(1))
+        let viewModel = ModemLightsViewModel(extractor: extractor, isScanning: { false }, testImage: { nil }, onReading: { _ in handed += 1 })
         let image = try Self.image
         let task = Task { await viewModel.read(image) }
-        try? await Task.sleep(for: .milliseconds(20))
+        // Cancel while the model is reading, not before it starts.
+        await waitUntil { extractor.calls == 1 }
+        #expect(extractor.calls == 1)
         task.cancel()
         await task.value
         #expect(handed == 0)

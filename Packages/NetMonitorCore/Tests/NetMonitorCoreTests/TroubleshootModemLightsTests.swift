@@ -85,6 +85,20 @@ struct TroubleshootModemLightsTests {
         #expect(modem.detail.hasSuffix("This run still reached the internet, so check the light again: it may have been read wrongly."))
     }
 
+    @Test(arguments: ["192.168.1.1", "10.0.0.1", "router.local", "fritz.box.lan", "gateway.home.arpa", "fe80::1"])
+    func aLocalHostAnsweringIsNotTheInternet(host: String) throws {
+        // The website script pings whatever was typed; a router's own address answers in an outage (#629 review).
+        let results: [TroubleshootResult] = [.ping(PingSummary(target: .host(host), sent: 5, received: 5, averageMs: 2, jitterMs: 1))]
+        let modem = try #require(findings(results, Self.redInternet).first { $0.kind == .modemProblem })
+        #expect(!modem.detail.contains("still reached the internet"))
+    }
+
+    @Test func aPublicSiteAnsweringIsTheInternet() throws {
+        let results: [TroubleshootResult] = [.ping(PingSummary(target: .host("example.com"), sent: 5, received: 5, averageMs: 20, jitterMs: 1))]
+        let modem = try #require(findings(results, Self.redInternet).first { $0.kind == .modemProblem })
+        #expect(modem.detail.contains("still reached the internet"))
+    }
+
     @Test func aRedWiFiLightPointsAtTheModemNotTheProvider() throws {
         let modem = try #require(findings([Self.healthyRouter], Self.panel([("POWER", .green), ("WLAN", .red)])).first)
         #expect(modem.kind == .modemProblem)
@@ -137,6 +151,21 @@ struct TroubleshootModemLightsTests {
         #expect(!facts.joined().contains("INTERNET"))
     }
 
+    @Test func eachLightIsItsOwnFactSoNoCaveatIsCutOff() throws {
+        // Several red lights and a run that reached the internet: one fact per line, each under the
+        // prompt's line cap, with the misread caveat whole (#629 review).
+        let lights = Self.panel([("POWER", .red), ("DSL", .red), ("INTERNET", .red), ("WAN", .red), ("US", .red)])
+        let results: [TroubleshootResult] = [Self.healthyRouter, .speed(downloadMbps: 85, baselineMbps: 90)]
+        let facts = try report(results, lights).request.facts
+        #expect(facts.allSatisfy { $0.count <= InsightRequest.lineLimit })
+        #expect(facts.contains(
+            "Modem lights, read from a photo: This run still reached the internet, so check the light again: it may have been read wrongly."
+        ))
+        #expect(facts.contains("Modem lights, read from a photo: Upstream light reads as red: "
+                + "this normally means the modem has no upstream connection to your provider."))
+        #expect(facts.first == "Most likely cause (5 modem lights read as red: Power, Broadband, Internet, WAN, Upstream).")
+    }
+
     @Test func anAllNormalPanelIsAWeakFact() throws {
         let facts = try report([Self.healthyRouter], Self.allGreen).request.facts
         #expect(facts.contains("Modem lights, read from a photo: they look normal. That alone doesn't show the internet is working."))
@@ -166,7 +195,10 @@ struct TroubleshootModemLightsTests {
         "Your signal is weak, though you are online.",
         "Your signal is weak, so check the router, since your internet connection is fine.",
         "Your signal is weak. There is no problem with your connection.",
-        "Your signal is weak; the modem isn't the cause."
+        "Your signal is weak; the modem isn't the cause.",
+        // A colour other than the one read (#629 review).
+        "Your signal is weak. The Internet light is off, so restart the modem.",
+        "Your signal is weak and the modem's Internet light is dark; restart it."
     ])
     func aParaphraseThatDeniesTheRedLightIsDropped(answer: String) throws {
         #expect(try !report(Self.outage, Self.redInternet).accepts(answer))
@@ -175,7 +207,8 @@ struct TroubleshootModemLightsTests {
     @Test(arguments: [
         "Your Wi-Fi signal is weak. Restart the modem, and if the Internet light stays red, contact your provider.",
         "Your signal is weak and the modem may be offline, since its Internet light reads as red.",
-        "Your Wi-Fi signal is weak, so the connection keeps dropping; move closer to the router."
+        "Your Wi-Fi signal is weak, so the connection keeps dropping; move closer to the router.",
+        "Your Wi-Fi signal is weak. The Internet light reads as red: turn the modem off and on again."
     ])
     func answersThatKeepTheRedLightPass(answer: String) throws {
         #expect(try report(Self.outage, Self.redInternet).accepts(answer))
