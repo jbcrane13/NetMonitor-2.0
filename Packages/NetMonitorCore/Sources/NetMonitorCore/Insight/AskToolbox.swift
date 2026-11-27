@@ -51,7 +51,7 @@ public final class AskToolbox: Sendable {
         var measured: [UUID?: String] = [:]
         /// The live check running for a device (nil for the connection): a parallel call for the
         /// same one waits for it instead of probing again.
-        var running: [UUID?: Task<(String, AskMeasurement?), Never>] = [:]
+        var running: [UUID?: (task: Task<(String, AskMeasurement?), Never>, waiters: Int)] = [:]
         var liveCalls = 0
     }
 
@@ -419,8 +419,9 @@ extension AskToolbox {
     /// Pings the one device `id` names at its current address (#594: a device of several
     /// interfaces is pinged on the current one), `AskLiveTools.pingCount` times. Refused:
     /// - during a scan;
-    /// - before a scan reconciled since this device joined its network: profile IDs are keyed by
-    ///   interface and subnet, so a same-subnet LAN reads as the same network until one runs;
+    /// - before a scan that ran wholly since this device joined its network (`NetworkJoinClock`):
+    ///   profile IDs are keyed by interface and subnet, so a same-subnet LAN reads as the same
+    ///   network until one runs;
     /// - for an address outside the network this device is on now;
     /// - for a device that wasn't Online (or in grace) at that scan: its address may be someone
     ///   else's now;
@@ -448,20 +449,39 @@ extension AskToolbox {
     }
 
     /// Runs `work` once per device (nil for the connection) per question: a parallel call waits for
-    /// the running one. Cancelling the caller cancels the check.
+    /// the running one. The check is cancelled only when every caller waiting on it is, and it
+    /// leaves the running table when it finishes.
     private func once(
         _ key: UUID?, _ work: @escaping @Sendable () async -> (String, AskMeasurement?)
     ) async -> (String, AskMeasurement?) {
         let task = state.withLock { state in
             if let running = state.running[key] {
-                return running
+                state.running[key]?.waiters += 1
+                return running.task
             }
-            let task = Task { await work() }
-            state.running[key] = task
+            let task = Task { [weak self] in
+                let result = await work()
+                self?.state.withLock { $0.running[key] = nil }
+                return result
+            }
+            state.running[key] = (task, 1)
             return task
         }
-        return await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+        return await withTaskCancellationHandler { await task.value } onCancel: {
+            let last = state.withLock { state -> Bool in
+                guard var entry = state.running[key] else { return false }
+                entry.waiters -= 1
+                state.running[key] = entry
+                return entry.waiters == 0
+            }
+            if last {
+                task.cancel()
+            }
+        }
     }
+
+    /// Whether a live check is still running, for tests.
+    var hasRunningLiveCheck: Bool { state.withLock { !$0.running.isEmpty } }
 
     /// One device's ping, or why it wasn't pinged, as the model's fact and the app's line. A
     /// cancelled run has no line.
@@ -475,20 +495,24 @@ extension AskToolbox {
             return (Self.scanRunning, AskMeasurement(deviceID: device.id, text: "\(label): not pinged, a device scan is running",
                                                      measuredAt: nil))
         }
-        guard let joined = await live.joinedAt(), let lastScan = snapshot.lastScan, lastScan > joined else {
+        // The scan the snapshot reads must be one that ran wholly since this device joined.
+        guard let established = await live.establishedScan(), let lastScan = snapshot.lastScan, lastScan >= established else {
             return ("\(Self.scanFirst) \(name) was not pinged.",
                     AskMeasurement(deviceID: device.id, text: "\(label): not pinged. \(Self.scanFirst)", measuredAt: nil))
         }
         guard await isOnCurrentNetwork(device.ipAddress, live: live) else {
             return refusal("its address is not on the network this device is on now.", "not on the network this device is on now")
         }
-        guard device.status == .online else {
+        // Online by the app's freshness rule (#583): a days-old scan's "online" doesn't qualify.
+        guard snapshot.presence(of: device) == .online else {
             let ago = snapshot.ago(device.lastSeen)
             return refusal("it didn't answer the last scan; it was last seen at this address \(ago).",
                            "last seen at this address \(ago)")
         }
-        let holder = snapshot.devices.first {
-            $0.id != device.id && $0.addresses.contains(device.ipAddress) && $0.lastSeen >= device.lastSeen
+        // Per member row: another device's interface seen at this address after ours was.
+        let seenHere = device.interfaces.filter { $0.address == device.ipAddress }.map(\.lastSeen).max() ?? device.lastSeen
+        let holder = snapshot.devices.first { other in
+            other.id != device.id && other.interfaces.contains { $0.address == device.ipAddress && $0.lastSeen > seenHere }
         }
         if let holder {
             return refusal("another saved device, \(self.name(holder)), has its address now.", "\(self.name(holder)) has this address now")

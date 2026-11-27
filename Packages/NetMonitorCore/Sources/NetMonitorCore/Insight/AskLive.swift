@@ -38,7 +38,7 @@ public struct AskLiveTools: Sendable {
     let currentNetwork: @Sendable @MainActor () -> NetworkProfile?
     let connection: @Sendable @MainActor () -> Connection
     let isScanning: @Sendable @MainActor () -> Bool
-    let joinedAt: @Sendable @MainActor () -> Date?
+    let establishedScan: @Sendable @MainActor () -> Date?
     let now: @Sendable () -> Date
     let deadline: Duration
     /// Most live tool calls one question may make; nil for the toolbox's own cap only.
@@ -49,16 +49,17 @@ public struct AskLiveTools: Sendable {
     ///     saved network. A device is pinged only inside it.
     ///   - connection: the connection type and routed gateway now.
     ///   - isScanning: whether a device scan is running; no measurement starts during one.
-    ///   - joinedAt: when this device joined the network it is on now (`NetworkJoinClock`); nil
-    ///     when unknown. A device is pinged only after a scan reconciled since then: profile IDs
-    ///     are keyed by interface and subnet, so two LANs with one subnet share an ID.
+    ///   - establishedScan: when the last scan that ran wholly since this device joined its network
+    ///     was reconciled (`NetworkJoinClock.establishedAt`); nil when none has. A device is pinged
+    ///     only when the snapshot's scan is that one or later: profile IDs are keyed by interface
+    ///     and subnet, so two LANs with one subnet share an ID.
     ///   - now: the clock that stamps measurements and reads "last seen N ago".
     public init(
         pinger: any PingServiceProtocol,
         currentNetwork: @escaping @Sendable @MainActor () -> NetworkProfile?,
         connection: @escaping @Sendable @MainActor () -> Connection,
         isScanning: @escaping @Sendable @MainActor () -> Bool,
-        joinedAt: @escaping @Sendable @MainActor () -> Date?,
+        establishedScan: @escaping @Sendable @MainActor () -> Date?,
         now: @escaping @Sendable () -> Date = Date.init,
         deadline: Duration = AskLiveTools.deadline,
         callLimit: Int? = nil
@@ -67,7 +68,7 @@ public struct AskLiveTools: Sendable {
         self.currentNetwork = currentNetwork
         self.connection = connection
         self.isScanning = isScanning
-        self.joinedAt = joinedAt
+        self.establishedScan = establishedScan
         self.now = now
         self.deadline = deadline
         self.callLimit = callLimit
@@ -76,7 +77,7 @@ public struct AskLiveTools: Sendable {
     /// These tools, allowing at most `limit` live calls per question (the Siri intent's turn).
     public func limited(to limit: Int) -> AskLiveTools {
         AskLiveTools(
-            pinger: pinger, currentNetwork: currentNetwork, connection: connection, isScanning: isScanning, joinedAt: joinedAt,
+            pinger: pinger, currentNetwork: currentNetwork, connection: connection, isScanning: isScanning, establishedScan: establishedScan,
             now: now, deadline: deadline, callLimit: limit
         )
     }
@@ -168,33 +169,63 @@ public extension AskLiveTools {
                 Connection(type: monitor.isConnected ? monitor.connectionType : nil, gatewayIP: NetworkUtilities.detectRoutedGateway())
             },
             isScanning: isScanning,
-            joinedAt: { NetworkJoinClock.shared.joinedAt }
+            establishedScan: { NetworkJoinClock.shared.establishedAt }
         )
     }
 }
 
 /// When this device joined the network it is on now (#579), kept in memory: the time of the last
-/// change in the network path (its status, interfaces or gateways). It starts at launch, so a
-/// scan from before launch never establishes the network. A same-subnet move between two LANs
-/// changes the path on the way, so a scan must follow it before a device is pinged.
+/// change in the network path (its status, interfaces or gateways), or of the app's return from
+/// the background, when a same-subnet IPv4-only LAN can give the same path. It starts at launch,
+/// so a scan from before launch never establishes the network.
+///
+/// A scan establishes the network only if no join happened while it ran: the apps take
+/// `scanStarted()` when a scan starts and pass it to `scanReconciled(joinedAtStart:at:)`.
 @MainActor
 public final class NetworkJoinClock {
     /// Started once at app launch (both apps touch it at startup).
     public static let shared = NetworkJoinClock(changes: NetworkJoinClock.systemPathChanges())
 
     public private(set) var joinedAt: Date
+    /// When the last scan that ran wholly since the join was reconciled; nil until one has.
+    public private(set) var establishedAt: Date?
+    private let now: @Sendable () -> Date
     private var task: Task<Void, Never>?
 
     /// - Parameter changes: a key per path update; a new key is a new join.
     public init(changes: AsyncStream<String>, now: @escaping @Sendable () -> Date = Date.init) {
         joinedAt = now()
+        self.now = now
         task = Task { [weak self] in
             var last: String?
             for await key in changes where key != last {
                 last = key
-                self?.joinedAt = now()
+                self?.join()
             }
         }
+    }
+
+    /// The app came back from the background or suspension: the network may have changed with
+    /// the same path key, so it counts as a join.
+    public func noteResume() {
+        join()
+    }
+
+    /// A scan is starting: the join it runs under, for `scanReconciled`.
+    public func scanStarted() -> Date {
+        joinedAt
+    }
+
+    /// A scan was reconciled at `reconciled`: it establishes the network if no join happened since
+    /// it started.
+    public func scanReconciled(joinedAtStart: Date, at reconciled: Date) {
+        guard joinedAtStart == joinedAt else { return }
+        establishedAt = max(establishedAt ?? reconciled, reconciled)
+    }
+
+    private func join() {
+        joinedAt = now()
+        establishedAt = nil
     }
 
     /// The system path's status, interfaces and gateways, one key per update.

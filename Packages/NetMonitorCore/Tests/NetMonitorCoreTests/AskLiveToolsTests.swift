@@ -8,6 +8,8 @@ import Synchronization
 final class MockScriptedPinger: PingServiceProtocol, Sendable {
     enum Reply: Sendable {
         case times([Double?])
+        /// The replies after a wait, so a test can act while the probe runs.
+        case delayed(Duration, [Double?])
         case hang
     }
 
@@ -30,6 +32,17 @@ final class MockScriptedPinger: PingServiceProtocol, Sendable {
                 }
                 continuation.finish()
             }
+        case let .delayed(wait, times):
+            return AsyncStream { continuation in
+                let task = Task {
+                    try? await Task.sleep(for: wait)
+                    for (index, time) in times.enumerated() {
+                        continuation.yield(PingResult(sequence: index + 1, host: host, ttl: 64, time: time ?? 0, isTimeout: time == nil))
+                    }
+                    continuation.finish()
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
         case .hang:
             return AsyncStream { _ in }
         }
@@ -49,7 +62,7 @@ private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool)
 }
 
 /// The fixture network as the live tools see it (#579): 192.168.1.0/24, which the phone is on,
-/// joined an hour before the scan at `Fix.now`.
+/// joined before the scan at `Fix.now`, which established it.
 enum AskLiveFixture {
     typealias Fix = AskFixture
 
@@ -70,8 +83,8 @@ enum AskLiveFixture {
 
     /// The time the app stamps on a measurement.
     static let measuredAt = Fix.now.addingTimeInterval(5)
-    /// Joined the network an hour before the last scan.
-    static let joined = Fix.now.addingTimeInterval(-3600)
+    /// The scan that established the network since the phone joined it: the last one.
+    static let established = Fix.now
 
     final class Flag: Sendable {
         private let value: Mutex<Bool>
@@ -85,12 +98,12 @@ enum AskLiveFixture {
         network: NetworkProfile? = network,
         connection: AskLiveTools.Connection = .init(type: .wifi, gatewayIP: "192.168.1.1"),
         scanning: Flag = Flag(),
-        joined: Date? = joined,
+        established: Date? = established,
         deadline: Duration = .seconds(5)
     ) -> AskLiveTools {
         AskLiveTools(
             pinger: pinger, currentNetwork: { network }, connection: { connection }, isScanning: { scanning.isSet },
-            joinedAt: { joined }, now: { measuredAt }, deadline: deadline
+            establishedScan: { established }, now: { measuredAt }, deadline: deadline
         )
     }
 
@@ -182,7 +195,7 @@ struct AskLiveToolsTests {
     /// is pinged until a scan of the new network; then the ping runs.
     @Test func aSameSubnetMoveWithNoScanSinceIsRefused() async {
         let pinger = MockScriptedPinger(["192.168.1.20": .times([2, 2, 2])])
-        let movedAfterTheScan = Live.toolbox(Live.live(pinger, joined: Fix.now.addingTimeInterval(60)))
+        let movedAfterTheScan = Live.toolbox(Live.live(pinger, established: nil))
         let output = await movedAfterTheScan.pingDevice("dev-b")
         #expect(output == "Run a scan first: this network hasn't been checked since you joined it. Synology DS920 was not pinged.")
         #expect(movedAfterTheScan.record.measurements.map(\.text)
@@ -190,15 +203,18 @@ struct AskLiveToolsTests {
         #expect(movedAfterTheScan.record.measurements.first?.measuredAt == nil)
         #expect(pinger.hosts.isEmpty)
 
-        let unknownJoin = await Live.toolbox(Live.live(pinger, joined: nil)).pingDevice("dev-b")
+        let unknownJoin = await Live.toolbox(Live.live(pinger, established: nil)).pingDevice("dev-b")
         #expect(unknownJoin.hasPrefix(AskToolbox.scanFirst))
         let neverScanned = AskSnapshot(devices: Fix.devices, events: [], networkProfileID: Live.network.id, lastScan: nil, now: Fix.now,
                                        calendar: Fix.calendar)
         #expect(await Live.toolbox(Live.live(pinger), snapshot: neverScanned).pingDevice("dev-b").hasPrefix(AskToolbox.scanFirst))
         #expect(pinger.hosts.isEmpty)
 
+        // An earlier scan established it, but the snapshot's last scan is older: refused.
+        let olderSnapshot = Live.toolbox(Live.live(pinger, established: Fix.now.addingTimeInterval(60)))
+        #expect(await olderSnapshot.pingDevice("dev-b").hasPrefix(AskToolbox.scanFirst))
         // A scan after the move establishes the network.
-        let scannedSince = Live.toolbox(Live.live(pinger, joined: Fix.now.addingTimeInterval(-60)))
+        let scannedSince = Live.toolbox(Live.live(pinger, established: Fix.now))
         #expect(await scannedSince.pingDevice("dev-b") == "Pinged Synology DS920 (192.168.1.20): 3 of 3 replies, average 2 ms.")
     }
 
@@ -229,6 +245,55 @@ struct AskLiveToolsTests {
         // The device that holds the address is pinged.
         #expect(await toolbox.pingDevice("Bob's TV") == "Pinged Bob's TV (192.168.1.50): 3 of 3 replies, average 3 ms.")
         #expect(pinger.hosts == ["192.168.1.50"])
+    }
+
+    /// Verification of #627: Online means Online by `PresenceFreshness`: a days-old scan doesn't
+    /// qualify, even if it established the network.
+    @Test func aDeviceOnlineOnlyInADaysOldScanIsNotPinged() async {
+        let old = Fix.now.addingTimeInterval(-2 * 86400)
+        let nas = Fix.device("Synology DS920", .storage, ip: "192.168.1.20", lastSeen: old)
+        let snapshot = AskSnapshot(devices: [nas], events: [], networkProfileID: Live.network.id, lastScan: old, now: Fix.now,
+                                   calendar: Fix.calendar)
+        let pinger = MockScriptedPinger(["192.168.1.20": .times([2, 2, 2])])
+        let toolbox = Live.toolbox(Live.live(pinger, established: old), snapshot: snapshot)
+        #expect(await toolbox.pingDevice("dev-a")
+            == "Synology DS920 was not pinged: it didn't answer the last scan; it was last seen at this address 2 days ago.")
+        #expect(pinger.hosts.isEmpty)
+    }
+
+    /// Verification of #627: DHCP is judged per member row. A group's stale interface at the
+    /// address doesn't make the device seen there now someone else's.
+    @Test func aGroupsStaleInterfaceAtTheAddressDoesNotRefuse() async {
+        let laptop = AskDevice(
+            id: UUID(), displayName: "Studio Laptop", deviceType: .laptop, maker: nil, ipAddress: "192.168.1.31",
+            status: .online, lastSeen: Fix.now, lastLatency: nil, latencyHistory: [],
+            interfaces: [
+                AskDevice.Interface(id: UUID(), address: "192.168.1.31", lastSeen: Fix.now),
+                AskDevice.Interface(id: UUID(), address: "192.168.1.40", lastSeen: Fix.now.addingTimeInterval(-3600))
+            ]
+        )
+        let printer = Fix.device("Hall Printer", .printer, ip: "192.168.1.40")
+        let snapshot = AskSnapshot(devices: [laptop, printer], events: [], networkProfileID: Live.network.id, lastScan: Fix.now,
+                                   now: Fix.now, calendar: Fix.calendar)
+        let pinger = MockScriptedPinger(["192.168.1.40": .times([3, 3, 3])])
+        let toolbox = Live.toolbox(Live.live(pinger), snapshot: snapshot)
+        #expect(await toolbox.pingDevice("Hall Printer") == "Pinged Hall Printer (192.168.1.40): 3 of 3 replies, average 3 ms.")
+    }
+
+    /// Verification of #627: one waiter's cancellation doesn't cancel the shared check for the
+    /// others, and a finished check is cleared from the running table.
+    @Test func cancellingOneWaiterLeavesTheSharedCheckRunning() async {
+        let pinger = MockScriptedPinger(["192.168.1.20": .delayed(.milliseconds(300), [2, 2, 2])])
+        let toolbox = Live.toolbox(Live.live(pinger))
+        let first = Task { await toolbox.pingDevice("dev-b") }
+        await waitUntil { !pinger.hosts.isEmpty }
+        let second = Task { await toolbox.pingDevice("dev-b") }
+        try? await Task.sleep(for: .milliseconds(50))
+        first.cancel()
+        #expect(await second.value == "Pinged Synology DS920 (192.168.1.20): 3 of 3 replies, average 2 ms.")
+        _ = await first.value
+        #expect(pinger.hosts == ["192.168.1.20"])
+        #expect(!toolbox.hasRunningLiveCheck)
     }
 
     /// Devin review of #627: two calls for one device in one parallel batch probe once.
@@ -433,7 +498,9 @@ struct AskNetworkLiveTests {
         let model = ScriptedAskModel(scripts: [question: AskScript(
             calls: [.findDevices("NAS")], answer: "It pinged fine. Synology DS920 is a storage device."
         )])
-        let answer = await AskNetwork.answer(question, snapshot: Live.snapshot, pinnedDeviceID: nil, model: model, live: Live.live(MockScriptedPinger([:])))
+        let answer = await AskNetwork.answer(
+            question, snapshot: Live.snapshot, pinnedDeviceID: nil, model: model, live: Live.live(MockScriptedPinger([:]))
+        )
         #expect(answer.text == "Synology DS920 is a storage device.")
     }
 
@@ -496,23 +563,21 @@ struct AskNetworkLiveTests {
         #expect(scanning.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): not pinged, a device scan is running"])
         let timedOut = await answer("dev-b", live: Live.live(MockScriptedPinger(["192.168.1.20": .hang]), deadline: .milliseconds(100)))
         #expect(timedOut.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): not measured, timed out"])
-        let moved = await answer("dev-b", live: Live.live(MockScriptedPinger([:]), joined: Fix.now.addingTimeInterval(60)))
+        let moved = await answer("dev-b", live: Live.live(MockScriptedPinger([:]), established: nil))
         #expect(moved.measurements.first?.text.hasSuffix(AskToolbox.scanFirst) == true)
         for result in [offNetwork, scanning, timedOut, moved] {
             #expect(result.text == nil)
         }
     }
 
-    @Test func aLiveReplyDoesNotChangeTheSavedStatus() async {
-        // The last scan is 50 minutes old, so the NAS's status reads "not checked recently"; a
-        // reply now is shown as a measurement only.
-        let stale = AskSnapshot(devices: Fix.devices, events: [], networkProfileID: Live.network.id,
-                                lastScan: Fix.now.addingTimeInterval(-3000), now: Fix.now, calendar: Fix.calendar)
+    /// A live result never changes the saved status: a silent ping of a device the scan saw
+    /// Online leaves its status Online and shows the app's no-reply line beside it.
+    @Test func aLiveResultDoesNotChangeTheSavedStatus() async {
         let model = ScriptedAskModel(scripts: ["Q": AskScript(calls: [.pingDevice("dev-b")], answer: "It is a storage device.")])
-        let answer = await AskNetwork.answer("Q", snapshot: stale, pinnedDeviceID: nil, model: model,
-                                             live: Live.live(MockScriptedPinger(["192.168.1.20": .times([6, 6, 6])])))
-        #expect(answer.devices.map(\.presence) == [.notCheckedRecently])
-        #expect(answer.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): 3 of 3 replies, 6 ms average"])
+        let answer = await AskNetwork.answer("Q", snapshot: Live.snapshot, pinnedDeviceID: nil, model: model,
+                                             live: Live.live(MockScriptedPinger([:])))
+        #expect(answer.devices.map(\.presence) == [.online])
+        #expect(answer.measurements.map(\.text) == ["Synology DS920 (192.168.1.20): no reply to 3 pings"])
         #expect(Fix.nas.status == .online)
     }
 
@@ -582,5 +647,57 @@ struct NetworkJoinClockTests {
         continuation.yield("unsatisfied")
         await waitFor(Date(timeIntervalSince1970: 120), on: join)
         #expect(join.joinedAt == Date(timeIntervalSince1970: 120))
+    }
+
+    /// Verification of #627: a same-subnet IPv4-only LAN gives the same path key, so coming back
+    /// from the background is a possible join.
+    @Test func aResumeIsAPossibleJoin() {
+        let (changes, _) = AsyncStream<String>.makeStream()
+        let clock = Clock()
+        let join = NetworkJoinClock(changes: changes) { clock.now }
+        let start = join.scanStarted()
+        join.scanReconciled(joinedAtStart: start, at: Date(timeIntervalSince1970: 30))
+        #expect(join.establishedAt == Date(timeIntervalSince1970: 30))
+        clock.advance()
+        join.noteResume()
+        #expect(join.joinedAt == Date(timeIntervalSince1970: 60))
+        #expect(join.establishedAt == nil)
+    }
+
+    /// Verification of #627: a scan that spans a move (A to B) doesn't establish B.
+    @Test func aScanThatSpansAMoveDoesNotEstablishTheNetwork() async {
+        let (changes, continuation) = AsyncStream<String>.makeStream()
+        let clock = Clock()
+        let join = NetworkJoinClock(changes: changes) { clock.now }
+        let start = join.scanStarted()
+        clock.advance()
+        continuation.yield("satisfied|wifi-en0|network-b")
+        await waitFor(Date(timeIntervalSince1970: 60), on: join)
+        join.scanReconciled(joinedAtStart: start, at: Date(timeIntervalSince1970: 90))
+        #expect(join.establishedAt == nil)
+        // The next scan, all on B, does.
+        let next = join.scanStarted()
+        join.scanReconciled(joinedAtStart: next, at: Date(timeIntervalSince1970: 150))
+        #expect(join.establishedAt == Date(timeIntervalSince1970: 150))
+    }
+}
+
+/// Verification of #627: the network the snapshot is asked about (iOS: the saved local profile)
+/// and the one the live tools check against (`currentProfile`) are the same profile ID.
+@Suite("Ask network ID sources")
+@MainActor
+struct AskNetworkIDSourceTests {
+    @Test func theSavedLocalProfileAndTheCurrentProfileAgree() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ask-network-id-\(UUID().uuidString)"))
+        let live = NetworkProfile(
+            interfaceName: "en0", ipAddress: "192.168.1.10", network: AskLiveFixture.network.network, connectionType: .wifi
+        )
+        let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [live] })
+        _ = manager
+        let saved = try #require(NetworkProfileManager.savedLocalProfile(in: defaults))
+        let current = NetworkProfileManager.currentProfile(active: { [live] }, saved: { NetworkProfileManager.savedLocalProfile(in: defaults) })
+        #expect(current?.id == saved.id)
+        // Off that network: no current profile, so nothing is pinged.
+        #expect(NetworkProfileManager.currentProfile(active: { [] }, saved: { saved }) == nil)
     }
 }
