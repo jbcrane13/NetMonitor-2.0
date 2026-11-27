@@ -1,6 +1,7 @@
 import Foundation
 import Network
 import NetworkScanKit
+import Synchronization
 
 @MainActor
 @Observable
@@ -11,7 +12,14 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     // MARK: - Observable properties (read by SwiftUI on MainActor)
 
     public private(set) var discoveredDevices: [DiscoveredDevice] = []
-    public private(set) var isScanning: Bool = false
+    public private(set) var isScanning: Bool = false {
+        didSet { Self.scanningNow.withLock { $0 = isScanning } }
+    }
+
+    /// Whether the phone's scan runs now, readable from any thread: the identity route checks it at
+    /// the send itself (#642). The app runs one discovery service, so this is its `isScanning`.
+    private nonisolated static let scanningNow = Mutex(false)
+    public nonisolated static var isScanningNow: Bool { scanningNow.withLock { $0 } }
     public private(set) var scanProgress: Double = 0
     public private(set) var scanPhase: ScanDisplayPhase = .idle
     public private(set) var lastScanDate: Date?

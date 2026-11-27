@@ -32,6 +32,8 @@ final class DeviceDetailViewModel {
     private let bonjourService: any BonjourDiscoveryServiceProtocol
     private let deviceDiscoveryService: any DeviceDiscoveryServiceProtocol
     private let suggester: DeviceSuggester
+    /// Whether a suggestion can be asked for now.
+    var suggesterCanSuggest: Bool { suggester.canSuggest }
     private let wakeService: any WakeOnLANServiceProtocol
     /// Stores that name rows by ID; removing an interface re-points them to the device (#594).
     let references: [any DeviceReferenceStore]
@@ -47,6 +49,8 @@ final class DeviceDetailViewModel {
     /// The running suggestion. Cancelled on reload and when the view model goes away, so it
     /// never writes to a row that has been replaced or deleted.
     nonisolated(unsafe) private(set) var suggestionTask: Task<Void, Never>?
+    /// Waits for the Mac to be askable again after a pass that got no answer (#642 final check).
+    nonisolated(unsafe) var suggestionRetryTask: Task<Void, Never>?
     /// Fingerprint of the evidence the running or last suggestion pass was started with.
     private var suggestionFingerprint: String?
     /// Which address DNS, the port scan and service discovery may probe (``probeAddress``).
@@ -92,6 +96,7 @@ final class DeviceDetailViewModel {
 
     deinit {
         suggestionTask?.cancel()
+        suggestionRetryTask?.cancel()
     }
 
     /// The ports a device-page scan probes: common service ports plus every port a device-type
@@ -176,6 +181,7 @@ final class DeviceDetailViewModel {
         }
         suggestionFingerprint = fingerprint
         suggestionTask?.cancel()
+        suggestionRetryTask?.cancel()
         let discovery = deviceDiscoveryService
         suggestionTask = Task { [weak self, suggester] in
             // Ask once the evidence has settled: enrichment, service discovery and a port scan
@@ -193,6 +199,7 @@ final class DeviceDetailViewModel {
             // is over, instead of skipping this evidence as already asked about (#586).
             if !suggester.wasAsked(about: device) {
                 self.suggestionFingerprint = nil
+                self.retrySuggestionWhenAskable()
             }
             self.saveContext()
             self.refreshSuggestionState()

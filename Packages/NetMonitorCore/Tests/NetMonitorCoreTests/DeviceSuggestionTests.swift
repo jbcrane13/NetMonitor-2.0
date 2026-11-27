@@ -511,6 +511,18 @@ extension DeviceSuggesterTests {
     }
 }
 
+extension DeviceSuggesterTests {
+    @Test("'Suggested by your Mac' never labels a suggestion for older evidence (#642 final check)")
+    func staleSourceIsNotShown() {
+        let device = bridge()
+        store.setRecord(
+            DeviceSuggestionStore.Record(fingerprint: "old-evidence", suggestion: DeviceSuggestion(deviceType: .camera, confidence: .high, source: .mac)),
+            for: device.id
+        )
+        #expect(DeviceSuggester(service: UnavailableInsightService(), store: store).suggestionSource(for: device) == nil)
+    }
+}
+
 @Suite("Suggestion claims (#586 PR 2)")
 struct SuggestionClaimTests {
     @Test("a claim for a field the evidence already settles is dropped; the rest stays a suggestion to accept")

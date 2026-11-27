@@ -29,7 +29,9 @@ enum PhoneModel {
     static let identityService = RoutedIdentityService(
         local: UITestFakeMacModel.isActive ? UnavailableInsightService() : InsightService.shared,
         mac: linkClient,
-        consent: consent
+        consent: consent,
+        // Never during the phone's own scan, checked at the send itself (#642).
+        isPhoneScanning: { DeviceDiscoveryService.isScanningNow }
     )
 
     static let symptomClassifier = RoutedSymptomClassifier(

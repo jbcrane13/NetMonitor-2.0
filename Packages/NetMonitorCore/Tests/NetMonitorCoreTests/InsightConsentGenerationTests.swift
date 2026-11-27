@@ -77,4 +77,25 @@ struct InsightConsentGenerationTests {
         client.received(InsightResponsePayload(requestID: id, answer: "Written for the old consent."))
         #expect(await updates.value == [.unreachable])
     }
+
+    @Test("the withdrawal handler is removed however the explanation ends (#642 final check)")
+    func handlerAlwaysRemoved() async throws {
+        let consent = MacInsightConsent(defaults: nil, decision: true)
+        let link = Link()
+        let (service, client) = Self.routed(link, consent: consent)
+        // Ends with an answer.
+        let answered = Task { await Self.collect(service.explain(Self.request)) }
+        await waitForModel { !link.requestIDs.isEmpty }
+        try client.received(InsightResponsePayload(requestID: #require(link.requestIDs.first), answer: "Fine."))
+        _ = await answered.value
+        await waitForModel { consent.withdrawalHandlerCount == 0 }
+        #expect(consent.withdrawalHandlerCount == 0)
+        // Ends with a withdrawal.
+        let withdrawn = Task { await Self.collect(service.explain(Self.request)) }
+        await waitForModel { link.requestIDs.count == 2 }
+        consent.setAllowed(false)
+        _ = await withdrawn.value
+        await waitForModel { consent.withdrawalHandlerCount == 0 }
+        #expect(consent.withdrawalHandlerCount == 0)
+    }
 }

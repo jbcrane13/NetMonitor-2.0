@@ -651,7 +651,9 @@ It never holds notes, address or MAC fields, or the device list. Names and hostn
 - lines with a known label, each once;
 - no line break;
 - each line within the character bound, and at most 4 KiB in all (`byteLimit`);
-- service and port lists of at most 12 items, ending in "and K more" only after a full list, with a count that matches (and ports as numbers).
+- service and port lists of one to 12 items, then "and K more" for what didn't fit, with a count that matches (and ports as numbers).
+
+The phone builds those lists from whole items only: as many as fit the line, then the true remainder. A comma inside a name becomes a semicolon, and one very long name is shortened as one item. So whatever the phone builds, the Mac accepts (a seeded property test checks this). The byte bound is the worst case of what the phone can build.
 
 Anything else is `refused`.
 
@@ -664,10 +666,11 @@ On the phone, `RoutedIdentityService` reads the answer into a suggestion marked 
 Suggestions run in the background, never prompt, and go to the Mac only once the user agreed to "Let your Mac read what you type and your device details?" (whose wording covers device evidence). Scheduling (#642 review):
 - They go one device at a time.
 - Device detail asks only once the evidence has stayed the same for 0.8 s, and never during the phone's own scan: it waits for the scan to end, and a scan starting mid-ask cancels the ask, which records nothing, and asks again after.
-- `refused`, `timeout`, `tooLarge` and an oversized projection are recorded against that device's evidence, like a local failure, so the device isn't re-sent on every trigger.
+- `refused`, `tooLarge` and an oversized projection are recorded against that device's evidence, like a local failure, so the device isn't re-sent on every trigger. A `timeout` is for now: it backs off like a link failure and isn't recorded.
 - `busy` backs off 15 s (`busyRetryAfter`), and a link failure 30 s (`linkRetryAfter`). The pass then stops without recording, so the device is asked about again later.
 - A `busy` within 13 s of the phone giving up on a request is the Mac still finishing that request, so it is retried every 2 s instead of backed off.
-- Consent withdrawal, a disconnect or the caller's cancel never back off.
+- Consent withdrawal, a disconnect, the phone's scan or the caller's cancel never back off. The phone's scan is also checked at the send itself (the connection's condition, on the main actor), not only before.
+- While device detail stays open, a pass that got no answer is asked again once the Mac can be asked: after its back-off, a re-agree or a reconnect, without the user reopening the screen.
 - A suggestion recorded for older evidence is dropped on every path, and its type is never shown or accepted.
 
 ### 12. modelCancel

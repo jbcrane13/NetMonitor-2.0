@@ -335,9 +335,9 @@ struct IdentityFailureTests {
         LocalDevice(ipAddress: "192.168.2.\(last)", macAddress: "00:17:88:00:00:\(last)", hostname: "device-\(last).lan")
     }
 
-    @Test("a refusal, a timeout or too large is recorded for that device, without silencing the others")
+    @Test("a refusal or too large is recorded for that device, without silencing the others")
     func refusedIsPerDevice() async {
-        for reason in [InsightFailureReason.refused, .timeout, .tooLarge] {
+        for reason in [InsightFailureReason.refused, .tooLarge] {
             let (mac, sent) = Self.mac { ModelResponsePayload(requestID: $0.requestID, schema: $0.schema, failure: reason) }
             let consent = MacInsightConsent(defaults: nil, decision: true)
             let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: consent)
@@ -348,6 +348,70 @@ struct IdentityFailureTests {
             #expect(sent.count == 2, "\(reason): the other device is still asked")
             #expect(service.isAvailable, "\(reason): no back-off")
         }
+    }
+
+    @Test("a timeout is for now: not recorded, it backs off, and the device is asked again later (#642 final check)")
+    func timeoutIsTransient() async {
+        let (mac, _) = Self.mac { ModelResponsePayload(requestID: $0.requestID, schema: $0.schema, failure: .timeout) }
+        let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
+        let store = store()
+        let first = device(11)
+        await DeviceSuggester(service: service, store: store).suggest(for: [first])
+        #expect(store.record(for: first.id) == nil)
+        #expect(!service.isAvailable, "backing off")
+    }
+
+    @Test("a cancel during the retry wait sends nothing more (#642 final check)")
+    func cancelDuringRetryWait() async {
+        let replies = Mutex(0)
+        let (mac, sent) = Self.mac { request in
+            let reply = replies.withLock { value -> Int in
+                value += 1
+                return value
+            }
+            return reply == 1 ? nil : ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .busy)
+        }
+        let service = RoutedIdentityService(
+            local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true), retryInterval: .milliseconds(300)
+        )
+        let first = Task { await service.suggestIdentity(DeviceEvidence(device: device(12))) }
+        await waitForModel { sent.count == 1 }
+        first.cancel()
+        _ = await first.value
+        let second = Task { await service.suggestIdentity(DeviceEvidence(device: device(13))) }
+        await waitForModel { sent.count == 2 }
+        // In the retry wait after its busy: cancel it there.
+        try? await Task.sleep(for: .milliseconds(100))
+        second.cancel()
+        _ = await second.value
+        try? await Task.sleep(for: .milliseconds(500))
+        #expect(sent.count == 2, "nothing sent after the cancel")
+    }
+
+    @Test("the phone's scan is checked at the send itself: a scan starting right before it sends nothing (#642 final check)")
+    func scanCheckedAtTheSend() async {
+        let scanning = Mutex(false)
+        let sent = Counter()
+        let mac = CompanionModelClient(send: { message, _, isWanted in
+            // The scan starts after the route's own check, right before the connection sends.
+            scanning.withLock { $0 = true }
+            guard isWanted(), case .modelRequest = message else { return false }
+            sent.add()
+            return true
+        }, timeout: .seconds(2))
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
+        let service = RoutedIdentityService(
+            local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true),
+            isPhoneScanning: { scanning.withLock { $0 } }
+        )
+        let store = store()
+        let device = device(14)
+        await DeviceSuggester(service: service, store: store).suggest(for: [device])
+        #expect(sent.count == 0)
+        #expect(store.record(for: device.id) == nil, "not recorded: asked again after the scan")
+        #expect(!service.isAvailable, "not while the phone scans")
+        scanning.withLock { $0 = false }
+        #expect(service.isAvailable, "no back-off for the phone's own scan")
     }
 
     @Test("busy backs off, and after the back-off the Mac is really asked again")

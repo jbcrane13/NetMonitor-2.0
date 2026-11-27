@@ -177,6 +177,10 @@ public final class DeviceSuggester {
         store.setRecord(nil, for: device.id)
     }
 
+    /// Whether a suggestion can be asked for now: the service is available (for the Mac: it offers
+    /// identity, the user agreed, it isn't backing off, and the phone isn't scanning).
+    public var canSuggest: Bool { service.isAvailable }
+
     /// Whether the model answered about the device's current evidence (whatever it suggested).
     public func wasAsked(about device: LocalDevice) -> Bool {
         store.record(for: device.id)?.fingerprint == DeviceEvidence(device: device).fingerprint
@@ -185,7 +189,9 @@ public final class DeviceSuggester {
     /// Who suggested what the device shows: this device's model or the Mac's (#586); nil when it
     /// shows no suggestion.
     public func suggestionSource(for device: LocalDevice) -> InsightSource? {
-        guard let record = store.record(for: device.id), !record.dismissed, let suggestion = record.suggestion else { return nil }
+        guard let record = store.record(for: device.id), !record.dismissed, let suggestion = record.suggestion,
+              record.fingerprint == DeviceEvidence(device: device).fingerprint
+        else { return nil }
         return suggestion.source ?? .device
     }
 

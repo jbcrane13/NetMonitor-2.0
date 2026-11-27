@@ -261,17 +261,19 @@ public struct RoutedInsightService: InsightServiceProtocol {
                 }
                 continuation.finish()
             }
-            // The final update goes out before the relay is cancelled, so its own finish can't
-            // overtake it.
-            let remove = scope.onWithdrawal {
+            // The termination handler is set first, so the withdrawal handler is removed however the
+            // stream ends, even when it fires at once (already withdrawn). The final update goes out
+            // before the relay is cancelled, so its own finish can't overtake it.
+            let removal = Removal()
+            continuation.onTermination = { _ in
+                relay.cancel()
+                removal.run()
+            }
+            removal.set(scope.onWithdrawal {
                 continuation.yield(.unreachable)
                 continuation.finish()
                 relay.cancel()
-            }
-            continuation.onTermination = { _ in
-                relay.cancel()
-                remove()
-            }
+            })
         }
     }
 
@@ -285,5 +287,29 @@ extension InsightService {
     /// it, this device otherwise.
     public static func source(of service: any InsightServiceProtocol) -> InsightSource {
         (service as? RoutedInsightService)?.answerSource ?? .device
+    }
+}
+
+/// Removes a withdrawal handler once, whether the stream ended before or after it was registered.
+private final class Removal: Sendable {
+    private let state = Mutex<(ended: Bool, remove: (@Sendable () -> Void)?)>((false, nil))
+
+    func set(_ remove: @escaping @Sendable () -> Void) {
+        let endedAlready = state.withLock { state in
+            state.remove = remove
+            return state.ended
+        }
+        if endedAlready {
+            run()
+        }
+    }
+
+    func run() {
+        let remove = state.withLock { state in
+            state.ended = true
+            defer { state.remove = nil }
+            return state.remove
+        }
+        remove?()
     }
 }

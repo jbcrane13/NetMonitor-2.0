@@ -34,11 +34,13 @@ public struct MacModelRoute: Sendable {
         return output
     }
 
-    /// As `request`, with why there's no answer: `busy`, or `unavailable` for everything else.
-    func result(_ input: ModelInput) async -> ModelClientResult {
+    /// As `request`, with why there's no answer. `alsoWhile` joins the consent in the condition the
+    /// connection checks at the send itself (for identity, that the phone isn't scanning).
+    func result(_ input: ModelInput, alsoWhile extra: @escaping @Sendable () -> Bool = { true }) async -> ModelClientResult {
         guard let scope = consent.currentGeneration else { return .unavailable }
         let mac = mac
-        let work = Task { await mac.request(input, while: scope.isCurrent) }
+        let isCurrent = scope.isCurrent
+        let work = Task { await mac.request(input, while: { isCurrent() && extra() }) }
         let remove = scope.onWithdrawal { work.cancel() }
         defer { remove() }
         let result = await withTaskCancellationHandler { await work.value } onCancel: { work.cancel() }
@@ -131,24 +133,30 @@ public struct RoutedIdentityService: InsightServiceProtocol {
     public let route: MacModelRoute
     private let state: RetryState
     private let retryInterval: Duration
+    /// Whether the phone is scanning now, safe to read from any thread: never ask during it (#447).
+    private let isPhoneScanning: @Sendable () -> Bool
 
     public init(
         local: any InsightServiceProtocol,
         mac: CompanionModelClient,
         consent: MacInsightConsent,
         retryInterval: Duration = .seconds(2),
+        isPhoneScanning: @escaping @Sendable () -> Bool = { false },
         now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }
     ) {
         self.local = local
         route = MacModelRoute(mac: mac, consent: consent, schema: .identity)
         state = RetryState(now: now)
         self.retryInterval = retryInterval
+        self.isPhoneScanning = isPhoneScanning
     }
 
     /// The local model, or a Mac offering identity once the user has said yes and not backing off
     /// after a busy or link failure; never "ask first". `DeviceSuggester` stops its pass, without
     /// recording, when this turns false under it.
-    public var isAvailable: Bool { local.isAvailable || (route.availability == .available && !state.isBackingOff) }
+    public var isAvailable: Bool {
+        local.isAvailable || (route.availability == .available && !state.isBackingOff && !isPhoneScanning())
+    }
 
     /// Explanations aren't this service's job: `RoutedInsightService` routes them. It forwards to
     /// the local model only because `DeviceSuggester` takes an `InsightServiceProtocol`, which
@@ -158,18 +166,21 @@ public struct RoutedIdentityService: InsightServiceProtocol {
     }
 
     /// The Mac's suggestion, or nil:
-    /// - refused, timed out or too large: nil with the service still available, so `DeviceSuggester`
-    ///   records it against that device's evidence, like a local failure;
+    /// - refused or too large: nil with the service still available, so `DeviceSuggester` records it
+    ///   against that device's evidence, like a local failure;
+    /// - timed out: for now, like a link failure;
     /// - busy: back off `busyRetryAfter`, unless it follows this phone's own cancel, when the Mac is
     ///   still finishing the abandoned request: then it is retried until `abandonedWindow` passes;
-    /// - a link failure while the Mac still offers identity: back off `linkRetryAfter`;
-    /// - consent withdrawn, a disconnect, or the caller's cancel: no back-off.
+    /// - a link failure or a timeout while the Mac still offers identity: back off `linkRetryAfter`;
+    /// - consent withdrawn, a disconnect, the phone's scan, or the caller's cancel: no back-off.
     public func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
         if local.isAvailable {
             return await local.suggestIdentity(evidence)
         }
-        while route.availability == .available, !state.isBackingOff {
-            let result = await route.result(.identity(evidence.projection))
+        let isPhoneScanning = isPhoneScanning
+        while route.availability == .available, !state.isBackingOff, !isPhoneScanning() {
+            // The scan is checked again by the connection, in the same step as the send.
+            let result = await route.result(.identity(evidence.projection), alsoWhile: { !isPhoneScanning() })
             if Task.isCancelled {
                 state.cancelled()
                 return nil
@@ -185,8 +196,14 @@ public struct RoutedIdentityService: InsightServiceProtocol {
                     return nil
                 }
                 try? await Task.sleep(for: retryInterval)
+                if Task.isCancelled {
+                    state.cancelled()
+                    return nil
+                }
             case .unavailable:
-                if route.availability == .available {
+                // A link failure or a Mac too slow backs off; consent withdrawn, a disconnect or the
+                // phone's own scan don't.
+                if route.availability == .available, !isPhoneScanning() {
                     state.backOff(for: Self.linkRetryAfter)
                 }
                 return nil

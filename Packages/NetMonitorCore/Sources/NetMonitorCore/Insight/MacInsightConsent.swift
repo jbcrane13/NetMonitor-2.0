@@ -57,6 +57,9 @@ public final class MacInsightConsent: Sendable, Observable {
         return id
     }
 
+    /// How many withdrawal handlers are registered (tests).
+    var withdrawalHandlerCount: Int { stored.withLock { $0.onWithdrawal.count } }
+
     public func removeWithdrawalHandler(_ id: UUID) {
         _ = stored.withLock { $0.onWithdrawal.removeValue(forKey: id) }
     }
