@@ -18,8 +18,8 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     /// Whether the phone's scan runs now, readable from any thread: the identity route checks it at
     /// the send itself (#642). The app runs one discovery service, so this is its `isScanning`.
-    private nonisolated static let scanningNow = Mutex(false)
-    public nonisolated static var isScanningNow: Bool { scanningNow.withLock { $0 } }
+    nonisolated private static let scanningNow = Mutex(false)
+    nonisolated public static var isScanningNow: Bool { scanningNow.withLock { $0 } }
     public private(set) var scanProgress: Double = 0
     public private(set) var scanPhase: ScanDisplayPhase = .idle
     public private(set) var lastScanDate: Date?

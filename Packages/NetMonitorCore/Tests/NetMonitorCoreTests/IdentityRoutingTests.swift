@@ -407,7 +407,7 @@ struct IdentityFailureTests {
         let store = store()
         let device = device(14)
         await DeviceSuggester(service: service, store: store).suggest(for: [device])
-        #expect(sent.count == 0)
+        #expect(sent.count < 1, "nothing sent")
         #expect(store.record(for: device.id) == nil, "not recorded: asked again after the scan")
         #expect(!service.isAvailable, "not while the phone scans")
         scanning.withLock { $0 = false }

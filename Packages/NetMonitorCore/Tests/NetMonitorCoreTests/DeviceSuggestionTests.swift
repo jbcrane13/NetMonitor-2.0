@@ -516,7 +516,9 @@ extension DeviceSuggesterTests {
     func staleSourceIsNotShown() {
         let device = bridge()
         store.setRecord(
-            DeviceSuggestionStore.Record(fingerprint: "old-evidence", suggestion: DeviceSuggestion(deviceType: .camera, confidence: .high, source: .mac)),
+            DeviceSuggestionStore.Record(
+                fingerprint: "old-evidence", suggestion: DeviceSuggestion(deviceType: .camera, confidence: .high, source: .mac)
+            ),
             for: device.id
         )
         #expect(DeviceSuggester(service: UnavailableInsightService(), store: store).suggestionSource(for: device) == nil)
