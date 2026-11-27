@@ -43,6 +43,8 @@ final class PlainRuleIOSViewModel {
     /// The token the request's scan was observed under, else the path the request started on (#628).
     private var requestToken: JoinToken?
 
+    /// Shown when a scanned device didn't answer the last scan: its address is an old one (#628).
+    static let notAnsweringMessage = "That device didn't answer the last scan. Scan again, then try this rule again."
     /// Shown when the scan or port check a scanned device's row would come from is no longer current (#628).
     static let networkChangedMessage = "The network changed since the scan. Scan again, then try this rule again."
 
@@ -224,6 +226,13 @@ final class PlainRuleIOSViewModel {
             return
         }
         targetDraft = nil
+        // A device the scan lists only as cached didn't answer it; its address is an old one, so it
+        // is neither probed nor saved as a row (#628).
+        if scannedOnly[draft.deviceID]?.isCached == true {
+            refusal = Self.notAnsweringMessage
+            scannedOnly = [:]
+            return
+        }
         if draft.port == nil {
             // Discovery on iOS never records open ports, so a device a scan found has none: check
             // a few common ports now. This deliberately extends "a port the last scan found open"

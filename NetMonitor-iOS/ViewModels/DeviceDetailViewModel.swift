@@ -117,12 +117,12 @@ final class DeviceDetailViewModel {
         let live = Self.liveScan(deviceDiscoveryService)
         let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
         let network = networkID ?? scanned?.networkProfileID
-        // Only a device the current scan lists, under a token still current, makes, moves or fills a
-        // row (#628). Otherwise (a stale or unstamped list, one from disk, another network's cache)
-        // the saved row the entry names opens read-only, and nothing is probed. Checked here, in the
-        // block that writes.
+        // Only a device that answered the current scan, under a token still current, makes, moves or
+        // fills a row (#628). Otherwise (a stale or unstamped list, one from disk, another network's
+        // cache, or a cached entry: listed but silent this scan, at an old address) the saved row the
+        // entry names opens read-only, and nothing is probed. Checked here, in the block that writes.
         let listToken = deviceDiscoveryService.discoveredDevicesToken
-        guard scanned != nil, Self.observationIsCurrent(listToken, on: joinClock) else {
+        guard scanned?.isCached == false, Self.observationIsCurrent(listToken, on: joinClock) else {
             probeToken = nil
             let row = Self.existingRow(ipAddress: ipAddress, macAddress: macAddress, networkID: network, in: context)
             openedMember = row

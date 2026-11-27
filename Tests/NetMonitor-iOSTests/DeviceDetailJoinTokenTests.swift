@@ -179,6 +179,41 @@ extension DeviceDetailViewModelTests {
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
     }
 
+    /// Stop-time review on #633: a cached entry (listed, but it didn't answer this scan; its address
+    /// is an old one) is published under the current scan's token. It makes, moves or probes nothing.
+    @Test func aCachedEntryInTheCurrentScanMakesNoRowAndIsNotProbed() throws {
+        let schema = Schema([LocalDevice.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+        let network = UUID()
+        let saved = LocalDevice(ipAddress: "192.168.1.30", macAddress: "", hostname: "nas", networkProfileID: network)
+        context.insert(saved)
+        let join = NetworkJoinClock.forTests
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [
+            DiscoveredDevice(
+                ipAddress: "192.168.1.30", hostname: nil, vendor: "Brother", macAddress: "00:1B:A9:00:00:30", latency: nil,
+                discoveredAt: Date(), source: .local, networkProfileID: network, isCached: true
+            ),
+            DiscoveredDevice(
+                ipAddress: "192.168.1.31", hostname: nil, vendor: "Brother", macAddress: "00:1B:A9:00:00:31", latency: nil,
+                discoveredAt: Date(), source: .local, networkProfileID: network, isCached: true
+            )
+        ]
+        discovery.discoveredDevicesToken = join.token(for: network)
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery, joinClock: join)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.31", networkID: network, context: context)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.30", networkID: network, context: context)
+        #expect(viewModel.device?.id == saved.id)
+        #expect(saved.vendor == nil)
+        #expect(saved.macAddress.isEmpty)
+        #expect(viewModel.probeAddress == nil)
+    }
+
     static func scanned(_ ip: String, mac: String, vendor: String, network: UUID) -> DiscoveredDevice {
         DiscoveredDevice(
             ipAddress: ip, hostname: nil, vendor: vendor, macAddress: mac, latency: 3, discoveredAt: Date(), source: .local,

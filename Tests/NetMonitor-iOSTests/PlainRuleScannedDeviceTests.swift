@@ -161,6 +161,22 @@ struct PlainRuleScannedDeviceTests {
         #expect(try container.mainContext.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
     }
 
+    /// Stop-time review on #633: a device the scan lists only as cached (it didn't answer; its
+    /// address is old) gets no saved row from a rule draft.
+    @Test func aCachedScannedDeviceSavesNoRow() async throws {
+        let container = try makeContainer()
+        let cached = DiscoveredDevice(
+            ipAddress: "192.168.1.40", hostname: "basement-nas", vendor: "Synology", macAddress: "02:00:00:01:00:40",
+            latency: nil, discoveredAt: Date(), source: .local, networkProfileID: home, openPorts: [445], isCached: true
+        )
+        let model = viewModel(offline)
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [cached], targets: [], networkID: home, isScanning: false, context: container.mainContext)
+        #expect(model.targetDraft == nil)
+        #expect(model.displayedOutcome == .message(PlainRuleIOSViewModel.notAnsweringMessage))
+        #expect(try container.mainContext.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+    }
+
     private func scanned(_ name: String, at ip: String, mac: String?, openPorts: [Int]) -> DiscoveredDevice {
         DiscoveredDevice(
             ipAddress: ip, hostname: name, vendor: nil, macAddress: mac,

@@ -199,6 +199,11 @@ final class LabelCaptureViewModel: PhotoReading {
                 return
             }
             let network = scan(for: device)
+            // Only an owner that answered the scan: a cached entry's address is an old one (#628).
+            guard network.first(where: { $0.ipAddress == ipAddress })?.isCached != true else {
+                saveError = Self.notAnsweringMessage
+                return
+            }
             target = network.first { $0.ipAddress == ipAddress }.map { observed in
                 DeviceDetailViewModel.savedRow(
                     ipAddress: ipAddress, scanned: observed, macAddress: observed.macAddress,
@@ -212,6 +217,9 @@ final class LabelCaptureViewModel: PhotoReading {
             phase = .savedToOther(name: DeviceGroupResolver(rows: savedRows()).device(for: target.id)?.displayName ?? target.displayName)
         }
     }
+
+    /// Shown when the MAC's owner is listed only from an earlier scan: it didn't answer this one (#628).
+    static let notAnsweringMessage = "That device didn't answer the last scan. Scan again to attach this to it."
 
     /// Shown when the scan that found the MAC's owner is no longer current (#628).
     static let networkChangedMessage = "The network changed. Scan again to attach this to a device."
