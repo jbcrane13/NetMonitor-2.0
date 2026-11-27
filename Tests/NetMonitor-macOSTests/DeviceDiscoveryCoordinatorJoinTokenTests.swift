@@ -174,6 +174,9 @@ extension NetworkJoinClock {
     /// A clock of the test's own (#628): the shared one counts this Mac's real path updates, which
     /// would drop a test's scans at random.
     static var forTests: NetworkJoinClock {
-        NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
+        let clock = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
+        // The network check fails closed until set; a test's networks all count.
+        clock.networkIsCurrent = { _ in true }
+        return clock
     }
 }

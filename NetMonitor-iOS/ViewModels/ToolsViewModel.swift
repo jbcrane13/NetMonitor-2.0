@@ -139,7 +139,10 @@ final class ToolsViewModel {
 
     func runNetworkScan() async {
         // The current network, so the devices are saved and listed under its ID (#582).
+        let dropped = deviceDiscoveryService.droppedScanCount
         await deviceDiscoveryService.scanNetwork(profile: currentNetwork())
+        // A scan dropped at publish or after it leaves no trace (#628).
+        guard deviceDiscoveryService.droppedScanCount == dropped, deviceDiscoveryService.lastScanIsCurrent else { return }
 
         addActivity(
             tool: "Network Scan",

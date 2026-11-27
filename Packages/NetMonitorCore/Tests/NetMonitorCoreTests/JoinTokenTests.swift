@@ -18,7 +18,18 @@ private func waitUntil(timeout: Duration = .seconds(5), _ condition: () -> Bool)
 struct JoinTokenTests {
     private func makeClock() -> NetworkJoinClock {
         let (changes, _) = AsyncStream<String>.makeStream()
-        return NetworkJoinClock(changes: changes)
+        let clock = NetworkJoinClock(changes: changes)
+        clock.networkIsCurrent = { _ in true }
+        return clock
+    }
+
+    /// Lead verification on #633: until an app sets the network check (a background task or intent
+    /// launched without the scene), a token naming a network is not current.
+    @Test func anUnsetNetworkCheckFailsClosed() {
+        let (changes, _) = AsyncStream<String>.makeStream()
+        let clock = NetworkJoinClock(changes: changes)
+        #expect(!clock.isCurrent(clock.token(for: UUID())))
+        #expect(clock.isCurrent(clock.token(for: nil)))
     }
 
     @Test func aTokenStaysCurrentWithoutAPathUpdate() {
@@ -131,7 +142,9 @@ struct ReplacementScansTests {
         let gate = Gate()
         let replacements = ReplacementScans(generation: generation) { _ in await gate.sleep() }
         var started = 0
-        #expect(replacements.scanDropped { started += 1 })
+        #expect(replacements.scanDropped { started += 1
+        return true
+        })
         await sleeping(gate)
         gate.release()
         await waitUntil { started == 1 }
@@ -144,7 +157,9 @@ struct ReplacementScansTests {
         let gate = Gate()
         let replacements = ReplacementScans(generation: generation) { _ in await gate.sleep() }
         var started = 0
-        replacements.scanDropped { started += 1 }
+        replacements.scanDropped { started += 1
+        return true
+        }
         await sleeping(gate)
         generation.notePathUpdate()
         gate.release()
@@ -162,15 +177,36 @@ struct ReplacementScansTests {
         let replacements = ReplacementScans(generation: generation) { _ in await gate.sleep() }
         var started = 0
         for attempt in 1...2 {
-            #expect(replacements.scanDropped { started += 1 })
+            #expect(replacements.scanDropped { started += 1
+            return true
+            })
             await sleeping(gate)
             gate.release()
             await waitUntil { started == attempt }
         }
         generation.notePathUpdate()
         generation.notePathUpdate()
-        #expect(!replacements.scanDropped { started += 1 })
+        #expect(!replacements.scanDropped { started += 1
+        return true
+        })
         #expect(started == 2)
+    }
+
+    /// Lead verification on #633: a replacement that couldn't start (the app left the foreground)
+    /// doesn't spend an attempt.
+    @Test func anAttemptThatCouldNotStartIsNotSpent() async {
+        let generation = JoinGeneration()
+        let gate = Gate()
+        let replacements = ReplacementScans(generation: generation) { _ in await gate.sleep() }
+        var asked = 0
+        replacements.scanDropped {
+            asked += 1
+            return false
+        }
+        await sleeping(gate)
+        gate.release()
+        await waitUntil { asked == 1 && replacements.attempts == 0 }
+        #expect(replacements.attempts == 0)
     }
 
     @Test func aCommitStartsANewChain() async {
@@ -179,13 +215,17 @@ struct ReplacementScansTests {
         let replacements = ReplacementScans(generation: generation) { _ in await gate.sleep() }
         var started = 0
         for attempt in 1...2 {
-            replacements.scanDropped { started += 1 }
+            replacements.scanDropped { started += 1
+            return true
+            }
             await sleeping(gate)
             gate.release()
             await waitUntil { started == attempt }
         }
         replacements.reset()
-        #expect(replacements.scanDropped { started += 1 })
+        #expect(replacements.scanDropped { started += 1
+        return true
+        })
         await sleeping(gate)
         gate.release()
         await waitUntil { started == 3 }
@@ -197,12 +237,16 @@ struct ReplacementScansTests {
         let generation = JoinGeneration()
         let replacements = ReplacementScans(generation: generation) { _ in try? await Task.sleep(for: .seconds(30)) }
         var started = 0
-        replacements.scanDropped { started += 1 }
+        replacements.scanDropped { started += 1
+        return true
+        }
         replacements.reset()
         #expect(started == 0)
         #expect(replacements.attempts == 0)
         // A new chain can schedule again at once.
-        #expect(replacements.scanDropped { started += 1 })
+        #expect(replacements.scanDropped { started += 1
+        return true
+        })
         #expect(replacements.attempts == 1)
     }
 
@@ -211,8 +255,12 @@ struct ReplacementScansTests {
         let gate = Gate()
         let replacements = ReplacementScans(generation: generation) { _ in await gate.sleep() }
         var started = 0
-        replacements.scanDropped { started += 1 }
-        replacements.scanDropped { started += 1 }
+        replacements.scanDropped { started += 1
+        return true
+        }
+        replacements.scanDropped { started += 1
+        return true
+        }
         await sleeping(gate)
         gate.release()
         await waitUntil { started == 1 }
@@ -293,7 +341,7 @@ struct DiscoveryDropTests {
             )])
         }
         var drops = 0
-        service.onScanDropped = { drops += 1 }
+        service.onScanDropped = { _ in drops += 1 }
 
         await service.scanNetwork(subnet: "192.0.2")
         #expect(drops == 1)
@@ -309,5 +357,38 @@ struct DiscoveryDropTests {
         #expect(service.completedScanDevices.map(\.ipAddress) == ["192.0.2.20"])
         #expect(clock.isCurrent(service.completedScanToken))
         #expect(clock.isCurrent(service.discoveredDevicesToken))
+    }
+
+    /// Lead verification on #633: a published scan whose token goes stale before it is saved is
+    /// retracted as dropped: the last scan date, completed list and cache go back, and the same
+    /// "dropped" signal fires with the network it scanned.
+    @Test func aPublishedScanRetractedBeforeItIsSavedLeavesNoTrace() async throws {
+        let (changes, _) = AsyncStream<String>.makeStream()
+        let clock = NetworkJoinClock(changes: changes)
+        clock.generation.notePathUpdate()
+        let generation = clock.generation
+        let defaults = try #require(UserDefaults(suiteName: "discovery-retract-\(UUID().uuidString)"))
+        let service = DeviceDiscoveryService(userDefaults: defaults, joinClock: clock) { _, _ in
+            ScanPipeline(steps: [ScanPipeline.Step(
+                phases: [FixturePhase(generation: generation, changesPath: { false })], concurrent: false
+            )])
+        }
+        var dropped: [String?] = []
+        service.onScanDropped = { dropped.append($0?.name) }
+
+        await service.scanNetwork(subnet: "192.0.2")
+        let first = try #require(service.lastScanDate)
+        let firstToken = try #require(service.completedScanToken)
+        #expect(!service.retractScan(firstToken), "A current scan isn't retracted")
+
+        await service.scanNetwork(subnet: "192.0.2")
+        let token = try #require(service.completedScanToken)
+        #expect(service.lastScanDate != first)
+        clock.noteResume()
+        #expect(service.retractScan(token))
+        #expect(service.lastScanDate == first)
+        #expect(service.completedScanToken == firstToken)
+        #expect(service.droppedScanCount == 1)
+        #expect(dropped == [nil])
     }
 }

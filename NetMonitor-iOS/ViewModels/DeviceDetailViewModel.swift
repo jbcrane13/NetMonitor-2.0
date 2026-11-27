@@ -59,6 +59,9 @@ final class DeviceDetailViewModel {
     }
 
     private var nameLookup = NameLookup.savedAddress
+    /// The token of the observation that says where the device is (#628): the current scan that
+    /// listed it, or the completed scan that confirmed it. Probes run and save only under it.
+    private var probeToken: JoinToken?
     private let maxServiceResolves = 80
     private let maxServiceResolveConcurrency = 8
 
@@ -114,11 +117,13 @@ final class DeviceDetailViewModel {
         let live = Self.liveScan(deviceDiscoveryService)
         let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
         let network = networkID ?? scanned?.networkProfileID
-        // The list was observed under a token a path update, resume or join has since invalidated
-        // (or before this launch, from disk; #628): its entries may be another network's devices,
-        // so open the saved row the tapped entry names, never make, move or fill one. Checked here,
-        // in the block that writes.
-        guard Self.observationIsCurrent(deviceDiscoveryService.discoveredDevicesToken, on: joinClock) else {
+        // Only a device the current scan lists, under a token still current, makes, moves or fills a
+        // row (#628). Otherwise (a stale or unstamped list, one from disk, another network's cache)
+        // the saved row the entry names opens read-only, and nothing is probed. Checked here, in the
+        // block that writes.
+        let listToken = deviceDiscoveryService.discoveredDevicesToken
+        guard scanned != nil, Self.observationIsCurrent(listToken, on: joinClock) else {
+            probeToken = nil
             let row = Self.existingRow(ipAddress: ipAddress, macAddress: macAddress, networkID: network, in: context)
             openedMember = row
             showDevice(of: row)
@@ -127,6 +132,7 @@ final class DeviceDetailViewModel {
             }
             return
         }
+        probeToken = listToken
         let row = Self.savedRow(
             ipAddress: ipAddress,
             scanned: scanned,
@@ -235,10 +241,10 @@ final class DeviceDetailViewModel {
     /// Enrich device data with the MAC-prefix maker and resolved hostname, on the probed member
     /// (else the current one): both describe one interface.
     func enrichDevice(bonjourServices _: [BonjourService]) async {
-        guard let device = probedMember?.row ?? current else { return }
-        // Values and the row's ID across the awaits; the row is fetched by ID to save (#628).
+        // Values and the row's ID across the awaits; the row is fetched by ID and saved only under
+        // the observation's token (#628).
+        guard let device = probedMember?.row ?? current, let token = probeToken else { return }
         let rowID = device.id
-        let token = joinClock.token(for: device.networkProfileID)
         let needsVendor = device.vendor?.isEmpty ?? true
         let needsHostname = device.resolvedHostname == nil
         isLoading = true
@@ -294,9 +300,8 @@ final class DeviceDetailViewModel {
 
     /// Discover Bonjour services at ``probeAddress``; they are saved on the member probed.
     func discoverServices() async {
-        guard let (device, deviceIP) = probedMember else { return }
+        guard let (device, deviceIP) = probedMember, let token = probeToken else { return }
         let rowID = device.id
-        let token = joinClock.token(for: device.networkProfileID)
         isDiscovering = true
         defer { isDiscovering = false }
 
@@ -467,8 +472,14 @@ extension DeviceDetailViewModel {
         // DHCP may have given the saved address to another device.
         nameLookup = .confirmedByScan
         defer { startSuggestion() }
-        // The latest completed scan fills a member only while its token is current (#628).
-        guard Self.observationIsCurrent(deviceDiscoveryService.completedScanToken, on: joinClock) else { return }
+        // The latest completed scan fills a member, and says where to probe, only while its token is
+        // current (#628).
+        let scanToken = deviceDiscoveryService.completedScanToken
+        guard Self.observationIsCurrent(scanToken, on: joinClock) else {
+            probeToken = nil
+            return
+        }
+        probeToken = scanToken
         for member in members {
             if let scanned = confirmedSighting(of: member) {
                 Self.adopt(scanned, into: member)
@@ -501,7 +512,8 @@ extension DeviceDetailViewModel {
     /// The member ``probeAddress`` belongs to; probes write to its row (#594: ports and services
     /// stay on the interface they were measured on).
     var probedMember: (row: LocalDevice, address: String)? {
-        guard device != nil else { return nil }
+        // Only while the observation that placed the device there is current (#628).
+        guard device != nil, Self.observationIsCurrent(probeToken, on: joinClock) else { return nil }
         switch nameLookup {
         case .savedAddress:
             guard let row = openedMember ?? current else { return nil }
@@ -533,9 +545,8 @@ extension DeviceDetailViewModel {
 
     /// Scan common ports on the device, at ``probeAddress``.
     func scanPorts() async {
-        guard let (device, address) = probedMember else { return }
+        guard let (device, address) = probedMember, let token = probeToken else { return }
         let rowID = device.id
-        let token = joinClock.token(for: device.networkProfileID)
         isScanning = true
         defer { isScanning = false }
 
@@ -713,10 +724,10 @@ extension DeviceDetailViewModel {
         return (members + [device].compactMap { $0 }).first { $0.id == id }
     }
 
-    /// Whether results observed under `token` may still be written to device rows (#628): a
-    /// conformer that doesn't stamp scans (nil) always; otherwise only while the token is current.
+    /// Whether results observed under `token` may still be written to device rows (#628): only
+    /// while the token is current. No token fails closed.
     static func observationIsCurrent(_ token: JoinToken?, on clock: NetworkJoinClock) -> Bool {
-        token.map(clock.isCurrent) ?? true
+        clock.isCurrent(token)
     }
 
     /// The saved row on `networkID` with `macAddress`'s real MAC, else at `ipAddress`; read only.

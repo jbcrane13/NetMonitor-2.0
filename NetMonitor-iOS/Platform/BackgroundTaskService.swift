@@ -406,7 +406,10 @@ final class BackgroundTaskService {
         // Only while no path update or resume happened since it started (#628), checked in the same
         // main-actor block as the reconcile.
         if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore,
-           NetworkJoinClock.shared.isCurrent(DeviceDiscoveryService.shared.completedScanToken),
+           let token = DeviceDiscoveryService.shared.completedScanToken, !NetworkJoinClock.shared.isCurrent(token) {
+            // Stale before it was saved: retracted as dropped, so it leaves no trace (#628).
+            DeviceDiscoveryService.shared.retractScan(token)
+        } else if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore,
            reconcileSavedDevices(
                DeviceDiscoveryService.shared.completedScanDevices, macSightings: DeviceDiscoveryService.shared.completedScanMacSightings,
                scanDate: scanDate, network: network?.id

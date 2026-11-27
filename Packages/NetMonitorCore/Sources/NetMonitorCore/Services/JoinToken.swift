@@ -10,6 +10,11 @@ public struct JoinToken: Sendable, Equatable {
     public let generation: UInt64
     public let networkID: UUID?
 
+    public init(generation: UInt64, networkID: UUID?) {
+        self.generation = generation
+        self.networkID = networkID
+    }
+
     /// For results observed before this launch (a list cached on disk): never current, so they're
     /// shown but never written to device rows.
     public static let unverified = JoinToken(generation: .max, networkID: nil)
@@ -74,10 +79,11 @@ public final class ReplacementScans {
     }
 
     /// A scan was dropped. Schedules `start` once the path is quiet, unless one is already waiting
-    /// (it covers this drop too) or the chain's attempts are spent. Returns whether a replacement is
-    /// waiting.
+    /// (it covers this drop too) or the chain's attempts are spent. `start` returns whether it
+    /// started a scan; one that couldn't (the app left the foreground) gives its attempt back.
+    /// Returns whether a replacement is waiting.
     @discardableResult
-    public func scanDropped(start: @escaping @MainActor () -> Void) -> Bool {
+    public func scanDropped(start: @escaping @MainActor () -> Bool) -> Bool {
         if pending != nil {
             return true
         }
@@ -93,7 +99,9 @@ public final class ReplacementScans {
             } while generation.value != seen && !Task.isCancelled
             guard !Task.isCancelled, let self else { return }
             self.pending = nil
-            start()
+            if !start() {
+                self.attempts -= 1
+            }
         }
         return true
     }

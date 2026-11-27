@@ -35,7 +35,9 @@ final class DeviceGroupingDetailTests {
     }
 
     func detail(_ row: LocalDevice) -> DeviceDetailViewModel {
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
+        let viewModel = DeviceDetailViewModel(
+            deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now }, joinClock: .forTests
+        )
         viewModel.loadDevice(id: row.id, context: context)
         return viewModel
     }
@@ -204,7 +206,13 @@ final class DeviceGroupingDetailTests {
         wifi.macAddress = "00:1B:A9:00:00:13"
         try context.save()
         try DeviceGroupWriter(container: container).group([wired.id, wifi.id], primary: wired.id, source: .user)
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
+        // Opened from the current scan's list at the Wi-Fi interface (#628: only then is it probed).
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [DiscoveredDevice(
+            ipAddress: "192.168.1.13", hostname: nil, vendor: nil, macAddress: "00:1B:A9:00:00:13", latency: 3, discoveredAt: Date(), source: .local,
+            networkProfileID: home
+        )]
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: discovery, references: [], clock: { [now] in now }, joinClock: .forTests)
         viewModel.loadDevice(ipAddress: "192.168.1.13", networkID: home, macAddress: "00:1B:A9:00:00:13", context: context)
         #expect(viewModel.probeAddress == "192.168.1.13", "opened from the list at the Wi-Fi interface")
 
@@ -234,7 +242,9 @@ final class DeviceGroupingDetailTests {
         let grouped = try #require(try storedDevices().first)
         #expect(grouped.isGroup)
 
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
+        let viewModel = DeviceDetailViewModel(
+            deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now }, joinClock: .forTests
+        )
         viewModel.loadDevice(id: grouped.id, context: context)
         let other = try #require(viewModel.interfaces.first { $0.id != viewModel.device?.id })
         viewModel.separateInterface(other)
@@ -251,7 +261,9 @@ final class DeviceGroupingDetailTests {
         let usb = try row("192.168.1.61", name: "studio-usb")
         let wifi = try row("192.168.1.13", name: "studio-wifi")
         let groupID = try DeviceGroupWriter(container: container).group([wired.id, usb.id], primary: wired.id, source: .bonjour)
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
+        let viewModel = DeviceDetailViewModel(
+            deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now }, joinClock: .forTests
+        )
         viewModel.loadDevice(id: usb.id, context: context)
         try viewModel.groupWith(#require(picker(viewModel).first { $0.id == wifi.id }))
         #expect(viewModel.projection?.id == groupID)
@@ -267,7 +279,9 @@ final class DeviceGroupingDetailTests {
         let usb = try row("192.168.1.61", name: "studio-usb")
         let wifi = try row("192.168.1.13", name: "studio-wifi", host: "studio-mac.local")
         try DeviceGroupWriter(container: container).group([wired.id, usb.id], primary: wired.id, source: .user)
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now })
+        let viewModel = DeviceDetailViewModel(
+            deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], clock: { [now] in now }, joinClock: .forTests
+        )
         viewModel.loadDevice(id: usb.id, context: context)
         try viewModel.dismissGroupSuggestion(#require(viewModel.grouping.suggestions.first { $0.id == wifi.id }))
         let stored = try ModelContext(container).fetch(FetchDescriptor<LocalDevice>())

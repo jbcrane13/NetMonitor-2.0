@@ -345,7 +345,7 @@ final class DashboardViewModel {
         let dropped = deviceDiscoveryService.droppedScanCount
         await deviceDiscoveryService.scanNetwork(profile: profile)
         // A scan dropped because its token went stale leaves no trace (#628).
-        guard deviceDiscoveryService.droppedScanCount == dropped else { return }
+        guard deviceDiscoveryService.droppedScanCount == dropped, deviceDiscoveryService.lastScanIsCurrent else { return }
         updateScanMetadata(for: profile)
 
         let scoped = scopedDevices(from: deviceDiscoveryService.discoveredDevices)

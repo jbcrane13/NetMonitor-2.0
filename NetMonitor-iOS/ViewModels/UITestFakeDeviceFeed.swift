@@ -79,7 +79,7 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
     private(set) var scanProgress: Double = 0
     private(set) var scanPhase: ScanDisplayPhase = .idle
     private(set) var lastScanDate: Date?
-    /// Stamped like the real discovery's (#628).
+    /// Stamped like the real discovery's (#628): the fixture's own observations from launch.
     private(set) var discoveredDevicesToken: JoinToken?
     private(set) var completedScanToken: JoinToken?
     private(set) var droppedScanCount = 0
@@ -87,9 +87,16 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
     private let hold: Duration
     private var scans = 0
 
-    init(devices: @escaping @MainActor () -> [DiscoveredDevice] = UITestFakeDiscoveryService.fixtureDevices, hold: Duration = .milliseconds(300)) {
+    private let joinClock: NetworkJoinClock
+
+    init(
+        devices: @escaping @MainActor () -> [DiscoveredDevice] = UITestFakeDiscoveryService.fixtureDevices, hold: Duration = .milliseconds(300),
+        joinClock: NetworkJoinClock = .shared
+    ) {
         self.devices = devices
         self.hold = hold
+        self.joinClock = joinClock
+        discoveredDevicesToken = joinClock.token(for: nil)
     }
 
     /// The UI-test feed's devices on the UI-test network.
@@ -129,7 +136,8 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
     private func scan() async {
         guard !isScanning else { return }
         let isReplacement = ScanRecovery.shared.takeReplacementFlag()
-        let token = NetworkJoinClock.shared.token(for: UITestBootstrap.networkProfileID)
+        // No network named: the fixture's network is fixed, so only path updates invalidate it.
+        let token = joinClock.token(for: nil)
         isScanning = true
         scanPhase = .arpScan
         scanProgress = 0
@@ -138,15 +146,15 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
         // UITEST_SCAN_PATH_CHANGE=1: the network path changes while every scan but a replacement
         // runs (#628), so a test sees scans dropped and only the replacement save.
         if UITestBootstrap.isUITesting, ProcessInfo.processInfo.environment["UITEST_SCAN_PATH_CHANGE"] == "1", !isReplacement {
-            NetworkJoinClock.shared.generation.advance()
+            joinClock.generation.advance()
         }
         #endif
         // Dropped as the real discovery drops it: nothing published, one replacement scheduled.
-        guard NetworkJoinClock.shared.isCurrent(token) else {
+        guard joinClock.isCurrent(token) else {
             droppedScanCount += 1
             scanPhase = .idle
             isScanning = false
-            ScanRecovery.shared.scanDropped()
+            ScanRecovery.shared.scanDropped(nil)
             return
         }
         scans += 1

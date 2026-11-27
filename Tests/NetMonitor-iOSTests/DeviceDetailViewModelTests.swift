@@ -7,12 +7,22 @@ import NetworkScanKit
 
 @MainActor
 struct DeviceDetailViewModelTests {
-    @Test func loadDeviceCreatesRecordWhenNoExistingDevice() throws {
+    /// Opens `ip` as the current scan lists it: since #628, only then does detail make, fill or probe
+    /// a row.
+    func openListed(_ viewModel: DeviceDetailViewModel, in discovery: MockDeviceDiscoveryService, ip: String, mac: String, context: ModelContext) {
+        discovery.discoveredDevices.append(DiscoveredDevice(
+            ipAddress: ip, hostname: nil, vendor: nil, macAddress: mac.isEmpty ? nil : mac, latency: 3, discoveredAt: Date(), source: .local
+        ))
+        viewModel.loadDevice(ipAddress: ip, context: context)
+    }
+
+    @Test func loadDeviceCreatesRecordForAListedDevice() throws {
         let (container, context) = try makeInMemoryStore()
         _ = container
 
-        let viewModel = makeViewModel()
-        viewModel.loadDevice(ipAddress: "192.168.1.50", context: context)
+        let discovery = MockDeviceDiscoveryService()
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+        openListed(viewModel, in: discovery, ip: "192.168.1.50", mac: "", context: context)
 
         #expect(viewModel.device != nil)
         #expect(viewModel.device?.ipAddress == "192.168.1.50")
@@ -106,18 +116,19 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.device?.id == existing.id)
     }
 
-    @Test func enrichDeviceSetsMACPrefixMakerAndResolvedHostname() async {
+    @Test func enrichDeviceSetsMACPrefixMakerAndResolvedHostname() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
         let macLookup = MockMACVendorLookupService(vendor: "Acme Networking")
         let nameResolver = MockDeviceNameResolver(hostname: "router.local")
+        let discovery = MockDeviceDiscoveryService()
         let viewModel = makeViewModel(
             macLookupService: macLookup,
-            nameResolver: nameResolver
+            nameResolver: nameResolver,
+            deviceDiscoveryService: discovery
         )
 
-        viewModel.device = LocalDevice(
-            ipAddress: "192.168.1.1",
-            macAddress: "00:11:22:33:44:55"
-        )
+        openListed(viewModel, in: discovery, ip: "192.168.1.1", mac: "00:11:22:33:44:55", context: context)
 
         await viewModel.enrichDevice(bonjourServices: [])
 
@@ -129,15 +140,19 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.isLoading == false)
     }
 
-    @Test func enrichDeviceSkipsManufacturerLookupForEmptyMAC() async {
+    @Test func enrichDeviceSkipsManufacturerLookupForEmptyMAC() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
         let macLookup = MockMACVendorLookupService(vendor: "ShouldNotBeUsed")
         let nameResolver = MockDeviceNameResolver(hostname: "host.local")
+        let discovery = MockDeviceDiscoveryService()
         let viewModel = makeViewModel(
             macLookupService: macLookup,
-            nameResolver: nameResolver
+            nameResolver: nameResolver,
+            deviceDiscoveryService: discovery
         )
 
-        viewModel.device = LocalDevice(ipAddress: "192.168.1.10", macAddress: "")
+        openListed(viewModel, in: discovery, ip: "192.168.1.10", mac: "", context: context)
 
         await viewModel.enrichDevice(bonjourServices: [])
 
@@ -147,7 +162,10 @@ struct DeviceDetailViewModelTests {
         #expect(nameResolver.resolveCallCount == 1)
     }
 
-    @Test func scanPortsStoresOnlyOpenPortsSorted() async {
+    @Test func scanPortsStoresOnlyOpenPortsSorted() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
         let portScanner = MockPortScannerService()
         portScanner.mockResults = [
             PortScanResult(port: 443, state: .closed),
@@ -157,8 +175,8 @@ struct DeviceDetailViewModelTests {
             PortScanResult(port: 80, state: .open)
         ]
 
-        let viewModel = makeViewModel(portScanner: portScanner)
-        viewModel.device = LocalDevice(ipAddress: "192.168.1.20", macAddress: "AA:BB")
+        let viewModel = makeViewModel(portScanner: portScanner, deviceDiscoveryService: discovery)
+        openListed(viewModel, in: discovery, ip: "192.168.1.20", mac: "AA:BB", context: context)
 
         await viewModel.scanPorts()
 
@@ -166,98 +184,16 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.isScanning == false)
     }
 
-    /// #628: ports measured while the path changed may be another network's device, so they
-    /// aren't saved; the next scan with no path update is.
-    @Test func portsFoundAcrossAPathUpdateAreNotSaved() async {
-        let (changes, _) = AsyncStream<String>.makeStream()
-        let join = NetworkJoinClock(changes: changes)
-        join.generation.notePathUpdate()
-        let portScanner = MockPortScannerService()
-        portScanner.mockResults = [PortScanResult(port: 22, state: .open)]
-        let generation = join.generation
-        portScanner.duringScan = { generation.notePathUpdate() }
-        let viewModel = makeViewModel(portScanner: portScanner, joinClock: join)
-        viewModel.device = LocalDevice(ipAddress: "192.168.1.20", macAddress: "AA:BB", openPorts: [80])
-
-        await viewModel.scanPorts()
-        #expect(viewModel.device?.openPorts == [80])
-
-        portScanner.duringScan = nil
-        await viewModel.scanPorts()
-        #expect(viewModel.device?.openPorts == [22])
-    }
-
-    /// #628 (lead review on #633): a scan started on network A, then a path change. Opening a device
-    /// from its list inserts nothing and changes no saved row; the user is told to scan again. A
-    /// saved device it names opens read-only, and a user edit to it still saves.
-    @Test func aScanInvalidatedByAPathChangeWritesNothingFromDetailButEditsSave() throws {
-        let schema = Schema([LocalDevice.self])
-        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        let container = try ModelContainer(for: schema, configurations: [config])
-        let context = container.mainContext
-        let network = UUID()
-        let saved = LocalDevice(ipAddress: "192.168.1.30", macAddress: "", hostname: "nas", networkProfileID: network)
-        context.insert(saved)
-        try context.save()
-        let join = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
-        let discovery = MockDeviceDiscoveryService()
-        discovery.discoveredDevices = [
-            Self.scanned("192.168.1.30", mac: "00:1B:A9:00:00:30", vendor: "Brother", network: network),
-            Self.scanned("192.168.1.31", mac: "00:1B:A9:00:00:31", vendor: "Brother", network: network)
-        ]
-        discovery.discoveredDevicesToken = join.token(for: network)
-        join.noteResume()
-        let viewModel = makeViewModel(deviceDiscoveryService: discovery, joinClock: join)
-
-        viewModel.loadDevice(ipAddress: "192.168.1.31", networkID: network, context: context)
-        #expect(viewModel.device == nil)
-        #expect(viewModel.error == DeviceDetailViewModel.interruptedScanMessage)
-        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
-
-        viewModel.loadDevice(ipAddress: "192.168.1.30", networkID: network, context: context)
-        #expect(viewModel.device?.id == saved.id)
-        #expect(saved.macAddress.isEmpty)
-        #expect(saved.vendor == nil)
-
-        // A user edit is never blocked.
-        viewModel.device?.customName = "Backup NAS"
-        viewModel.saveContext()
-        let fresh = ModelContext(container)
-        #expect(try fresh.fetch(FetchDescriptor<LocalDevice>()).first?.customName == "Backup NAS")
-    }
-
-    /// The same list while its token is current: detail makes and fills the row as before.
-    @Test func aCurrentScanStillMakesTheRow() throws {
-        let schema = Schema([LocalDevice.self])
-        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        let container = try ModelContainer(for: schema, configurations: [config])
-        let context = container.mainContext
-        let network = UUID()
-        let join = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
-        let discovery = MockDeviceDiscoveryService()
-        discovery.discoveredDevices = [Self.scanned("192.168.1.31", mac: "00:1B:A9:00:00:31", vendor: "Brother", network: network)]
-        discovery.discoveredDevicesToken = join.token(for: network)
-        let viewModel = makeViewModel(deviceDiscoveryService: discovery, joinClock: join)
-
-        viewModel.loadDevice(ipAddress: "192.168.1.31", networkID: network, context: context)
-        #expect(viewModel.device?.vendor == "Brother")
-        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
-    }
-
-    private static func scanned(_ ip: String, mac: String, vendor: String, network: UUID) -> DiscoveredDevice {
-        DiscoveredDevice(
-            ipAddress: ip, hostname: nil, vendor: vendor, macAddress: mac, latency: 3, discoveredAt: Date(), source: .local,
-            networkProfileID: network
-        )
-    }
-
     /// PR #578 review: the refusal for a target with no known open port sends the user here, so
     /// the scan must probe ports like a printer's 9100 or it can never find one.
-    @Test func scanPortsProbesEveryDeviceTypeRulePortAndSavesAPrinterPort() async {
+    @Test func scanPortsProbesEveryDeviceTypeRulePortAndSavesAPrinterPort() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
         let portScanner = MockPortScannerService()
         portScanner.mockResults = [PortScanResult(port: 9100, state: .open)]
-        let viewModel = makeViewModel(portScanner: portScanner)
-        viewModel.device = LocalDevice(ipAddress: "192.168.1.30", macAddress: "AA:BB")
+        let discovery = MockDeviceDiscoveryService()
+        let viewModel = makeViewModel(portScanner: portScanner, deviceDiscoveryService: discovery)
+        openListed(viewModel, in: discovery, ip: "192.168.1.30", mac: "AA:BB", context: context)
 
         await viewModel.scanPorts()
 
@@ -265,7 +201,10 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.device?.openPorts == [9100])
     }
 
-    @Test func discoverServicesStoresOnlyUniqueServicesForMatchingDeviceIP() async {
+    @Test func discoverServicesStoresOnlyUniqueServicesForMatchingDeviceIP() async throws {
+        let (container, context) = try makeInMemoryStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
         let bonjour = MockBonjourDiscoveryService()
         bonjour.mockStreamServices = [
             BonjourService(
@@ -290,8 +229,8 @@ struct DeviceDetailViewModelTests {
             )
         ]
 
-        let viewModel = makeViewModel(bonjourService: bonjour)
-        viewModel.device = LocalDevice(ipAddress: "192.168.1.88", macAddress: "AA:BB")
+        let viewModel = makeViewModel(bonjourService: bonjour, deviceDiscoveryService: discovery)
+        openListed(viewModel, in: discovery, ip: "192.168.1.88", mac: "AA:BB", context: context)
 
         await viewModel.discoverServices()
 
@@ -606,10 +545,13 @@ extension DeviceDetailViewModelTests {
         let (container, context) = try makeInMemoryStore()
         defer { withExtendedLifetime(container) {} }
         let insight = MockInsightService(suggestion: DeviceSuggestion(deviceType: .tv, maker: "Samsung", confidence: .high))
-        let viewModel = makeViewModel(nameResolver: MockDeviceNameResolver(hostname: "samsung-tv.lan"), insight: insight)
+        let discovery = MockDeviceDiscoveryService()
+        let viewModel = makeViewModel(
+            nameResolver: MockDeviceNameResolver(hostname: "samsung-tv.lan"), deviceDiscoveryService: discovery, insight: insight
+        )
 
         // A row with no name or service: nothing to ask about yet.
-        viewModel.loadDevice(ipAddress: "192.168.1.91", context: context)
+        openListed(viewModel, in: discovery, ip: "192.168.1.91", mac: "", context: context)
         await viewModel.suggestionTask?.value
         #expect(insight.suggestionRequests.isEmpty)
 

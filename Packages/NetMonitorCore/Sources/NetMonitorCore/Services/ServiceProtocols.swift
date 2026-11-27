@@ -171,6 +171,12 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     /// Scans dropped so far because their token went stale (#628): a caller compares it before and
     /// after a scan so a dropped scan leaves no trace (no "last scanned", no count).
     @MainActor var droppedScanCount: Int { get }
+    /// Whether the last completed scan's token is still current (#628); a caller stamps "last
+    /// scanned" or counts a scan only then.
+    @MainActor var lastScanIsCurrent: Bool { get }
+    /// Retracts a published scan whose token went stale before it was saved (#628); false when
+    /// nothing was retracted.
+    @MainActor func retractScan(_ token: JoinToken) -> Bool
     @MainActor func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice]
     func scanNetwork(subnet: String?) async
     func scanNetwork(profile: NetworkProfile?) async
@@ -189,6 +195,8 @@ public extension DeviceDiscoveryServiceProtocol {
     var discoveredDevicesToken: JoinToken? { nil }
     /// For a conformer that never drops a scan: none.
     var droppedScanCount: Int { 0 }
+    var lastScanIsCurrent: Bool { true }
+    func retractScan(_: JoinToken) -> Bool { false }
 }
 
 /// Protocol for default gateway detection.

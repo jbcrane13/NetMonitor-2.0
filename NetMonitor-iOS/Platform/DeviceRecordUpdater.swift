@@ -23,9 +23,6 @@ final class DeviceRecordUpdater {
     /// scan whose token is current also establishes the network for Ask's pings (#579), since every
     /// join invalidates tokens.
     private let joinClock: NetworkJoinClock
-    /// Called when a scan is dropped because its token went stale: the app schedules one
-    /// replacement scan (`ScanRecovery`).
-    private let onDropped: @MainActor () -> Void
     /// The last completed scan taken into `pending`.
     private var capturedScanDate: Date?
     /// Completed scans not saved yet, oldest first. Each is copied when it completes, so a retry
@@ -59,11 +56,9 @@ final class DeviceRecordUpdater {
         currentNetworkProfileID: @escaping @MainActor () -> UUID?,
         clock: @escaping @MainActor () -> Date = Date.init,
         joinClock: NetworkJoinClock = .shared,
-        onDropped: @escaping @MainActor () -> Void = {},
         onSaved: @escaping @MainActor (Set<UUID>, [DiscoveredDevice]) -> Void = { _, _ in }
     ) {
         self.joinClock = joinClock
-        self.onDropped = onDropped
         self.discoveryService = discoveryService
         self.reconciler = reconciler
         self.currentNetworkProfileID = currentNetworkProfileID
@@ -114,9 +109,13 @@ final class DeviceRecordUpdater {
             // read for those without one, may not be that network's now. Checked right before the
             // reconcile, in the same main-actor block, retries included.
             if let token = scan.token, !joinClock.isCurrent(token) {
-                Logger.data.notice("Dropping a scan: the network path changed since it started")
+                // One "dropped" signal (#628): the service retracts the published scan (its last scan
+                // date and cache go back) and raises it, which schedules the replacement. Its date
+                // is taken as seen, so the restored one isn't captured as a new scan.
                 pending.removeFirst()
-                onDropped()
+                if discoveryService.retractScan(token) {
+                    capturedScanDate = discoveryService.lastScanDate
+                }
                 continue
             }
             if Self.reconcile(

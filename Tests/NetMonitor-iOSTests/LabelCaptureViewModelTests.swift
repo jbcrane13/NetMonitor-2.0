@@ -46,7 +46,7 @@ struct LabelCaptureViewModelTests {
             ),
             isScanning: { scanning },
             liveScan: { scan },
-            liveScanToken: { scanToken },
+            liveScanToken: { scanToken ?? joinClock.token(for: nil) },
             joinClock: joinClock,
             testImage: { nil }
         )

@@ -195,11 +195,11 @@ public final class NetworkJoinClock {
 
     /// Path updates, resumes and joins since launch (#628).
     public let generation: JoinGeneration
-    /// Whether a token's network still describes where this device is (#628). The iPhone sets it at
-    /// launch (`NetworkProfileManager.observationNetworkIsCurrent`); the Mac passes its coordinator's
-    /// manager to `isCurrent(_:networkIsCurrent:)` instead. Until set, and for test clocks, every
-    /// network counts.
-    public var networkIsCurrent: @MainActor (UUID) -> Bool = { _ in true }
+    /// Whether a token's network still describes where this device is (#628). The iPhone sets it in
+    /// `App.init` (`NetworkProfileManager.observationNetworkIsCurrent`); the Mac passes its
+    /// coordinator's manager to `isCurrent(_:networkIsCurrent:)` instead. Until set it fails closed:
+    /// a token naming a network is not current, so nothing launched before it can write rows.
+    public var networkIsCurrent: @MainActor (UUID) -> Bool = { _ in false }
     public private(set) var joinedAt: Date
     /// When the last scan that ran wholly since the join was reconciled; nil until one has.
     public private(set) var establishedAt: Date?

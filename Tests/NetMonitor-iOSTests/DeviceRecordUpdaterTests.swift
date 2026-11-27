@@ -52,7 +52,8 @@ final class DeviceRecordUpdaterTests {
             discoveryService: discovery,
             reconciler: makeReconciler(context, save: save),
             currentNetworkProfileID: { nil },
-            clock: { clock.now }
+            clock: { clock.now },
+            joinClock: .forTests
         )
     }
 
@@ -117,11 +118,10 @@ final class DeviceRecordUpdaterTests {
         let (changes, _) = AsyncStream<String>.makeStream()
         let join = NetworkJoinClock(changes: changes)
         join.generation.notePathUpdate()
-        var drops = 0
         var saves = 0
         let updater = try DeviceRecordUpdater(
             discoveryService: discovery, reconciler: makeReconciler(context), currentNetworkProfileID: { self.home },
-            clock: { clock.now }, joinClock: join, onDropped: { drops += 1 }, onSaved: { _, _ in saves += 1 }
+            clock: { clock.now }, joinClock: join, onSaved: { _, _ in saves += 1 }
         )
         let unfiled = DiscoveredDevice(
             ipAddress: "192.168.9.10", hostname: "host-0", vendor: nil, macAddress: "AA:00:00:00:09:00",
@@ -132,7 +132,9 @@ final class DeviceRecordUpdaterTests {
         join.generation.notePathUpdate()
         finishScan([unfiled], on: discovery, updater: updater, clock: clock)
         #expect(try rows(context).isEmpty)
-        #expect(drops == 1)
+        // One "dropped" signal: the service retracts the published scan and raises it (lead
+        // verification on #633), so its last scan date and cache don't move.
+        #expect(discovery.retracted.count == 1)
 
         // Devin review on #633: the whole scan is dropped, devices that carry a network too.
         clock.now = start.addingTimeInterval(30)
@@ -140,7 +142,7 @@ final class DeviceRecordUpdaterTests {
         join.generation.notePathUpdate()
         finishScan([device(1)], on: discovery, updater: updater, clock: clock)
         #expect(try rows(context).isEmpty)
-        #expect(drops == 2)
+        #expect(discovery.retracted.count == 2)
         #expect(saves == 0)
 
         // The next scan, with no path update since it started, is filed under the live network.
@@ -649,7 +651,7 @@ extension DeviceRecordUpdaterTests {
         let discovery = MockDeviceDiscoveryService()
         discovery.discoveredDevices = [nameless]
         discovery.lastScanDate = scanTime
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: discovery)
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: discovery, joinClock: .forTests)
         viewModel.loadDevice(ipAddress: "192.168.9.95", networkID: home, context: context)
 
         #expect(viewModel.device?.id == saved.id)
@@ -701,7 +703,7 @@ extension DeviceRecordUpdaterTests {
         let discovery = MockDeviceDiscoveryService()
         discovery.discoveredDevices = latest
         let ports = MockPortScannerService()
-        let viewModel = DeviceDetailViewModel(portScanner: ports, deviceDiscoveryService: discovery)
+        let viewModel = DeviceDetailViewModel(portScanner: ports, deviceDiscoveryService: discovery, joinClock: .forTests)
         viewModel.loadDevice(id: tv.id, context: context)
         await viewModel.scanPorts()
         #expect(viewModel.probeAddress == nil)
