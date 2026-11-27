@@ -201,3 +201,8 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **Every word in a guided `anyOf` list changes the answers.** Adding "purple" and "magenta" to the colour list turned three unlit lights on a white case into "unknown" (56 → 52 of 64 right). Offer only the words the app needs and map stray ones in code.
 - **A router's WAN light is the link to the modem, not the provider line** (review): green WAN stays green during an outage, so it gets its own cautious meaning instead of the DSL/broadband one.
 - **`#if canImport(FoundationModels)` doesn't protect OS 27 API from Xcode 26,** which has the framework without `Attachment`, `.vision` or count guides. Guard such files with `&& compiler(>=6.4)` as well. CI's Xcode 16.4 has no FoundationModels, so CI can't catch this.
+
+## 2026-11-26 — Modem lights in the troubleshooter's findings (#625)
+- **Check the contradiction against every fact the app asserts, not only the top cause.** `TroubleshootReport.accepts` checked just the top finding, so "Your signal is weak, but your internet connection is fine" passed with a red Internet light ranked second. Red modem lights are now `guards` the answer must not deny wherever they rank.
+- **A reading that arrives after a run makes the run's explanation stale.** The modem button is enabled once a run finishes, so a new reading re-ranks the findings, drops the explanation and asks again.
+- **`swift test --filter` matches test identifiers (`Type/function`), not `@Suite` display names.** A filter on the display name runs nothing and only warns "No matching test cases were run", which looks like a pass in a grep for failures.
