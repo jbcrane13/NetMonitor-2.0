@@ -5,7 +5,8 @@ import UIKit
 
 /// Reads a modem's status lights from a photo (#558). The on-device model only reads each light's
 /// label and colour; every line shown is the app's own text (`ModemPanelReport`). The photo stays
-/// in memory on this iPhone and is dropped after the reading; nothing is saved.
+/// in memory on this iPhone and is dropped after the reading; nothing is saved. A reading goes to
+/// `onReading`, which hands it to the Troubleshoot session's findings (#625).
 @MainActor
 @Observable
 final class ModemLightsViewModel: PhotoReading {
@@ -27,17 +28,20 @@ final class ModemLightsViewModel: PhotoReading {
     private let extractor: any ModemLightExtractorProtocol
     private let isScanning: @MainActor () -> Bool
     private let testImage: @MainActor () -> CGImage?
+    private let onReading: @MainActor (ModemPanelReport) -> Void
     /// The photo being read; cancelled when the sheet closes or another photo is chosen.
     private var task: Task<Void, Never>?
 
     init(
         extractor: any ModemLightExtractorProtocol = ModemLightsViewModel.extractor,
         isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
-        testImage: @escaping @MainActor () -> CGImage? = { UITestBootstrap.usesTestModemImage ? UITestBootstrap.testModemImage() : nil }
+        testImage: @escaping @MainActor () -> CGImage? = { UITestBootstrap.usesTestModemImage ? UITestBootstrap.testModemImage() : nil },
+        onReading: @escaping @MainActor (ModemPanelReport) -> Void = { _ in }
     ) {
         self.extractor = extractor
         self.isScanning = isScanning
         self.testImage = testImage
+        self.onReading = onReading
     }
 
     /// The app's reader, or the UI-test stand-in.
@@ -117,6 +121,9 @@ final class ModemLightsViewModel: PhotoReading {
         }
         let report = ModemPanelReport(answer: answer)
         phase = report.isPanel ? .result(report) : .notAPanel
+        if report.isPanel {
+            onReading(report)
+        }
     }
 
     /// Back to choosing a photo, dropping the reading.

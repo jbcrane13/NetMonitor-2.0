@@ -127,6 +127,9 @@ public final class TroubleshootState {
     /// Who wrote `explanation`: this device or the connected Mac (#457).
     public private(set) var explanationSource: InsightSource = .device
     public private(set) var isExplaining = false
+    /// The modem's lights, read from a photo in this session (#625). In memory only; it lasts as
+    /// long as this state, the Troubleshoot screen's, and new runs and resets keep it.
+    public private(set) var modemReading: ModemLightsReading?
 
     private let probes: any TroubleshootProbing
     private let classifier: any SymptomClassifierProtocol
@@ -257,6 +260,25 @@ public final class TroubleshootState {
         clear()
     }
 
+    // MARK: - Modem lights (#625)
+
+    /// Uses a reading of the modem's lights in this session's findings. A photo that isn't a
+    /// panel changes nothing. A run in progress takes it when it ends; a finished run is ranked
+    /// again and its explanation, written without the lights, is replaced.
+    public func useModemReading(_ report: ModemPanelReport, at date: Date = Date()) async {
+        guard report.isPanel else { return }
+        modemReading = ModemLightsReading(report: report, readAt: date)
+        guard !isRunning, !steps.isEmpty else { return }
+        findings = rankFindings()
+        guard phase == .finished, let kind else { return }
+        runID += 1
+        explainTask?.cancel()
+        explainTask = nil
+        isExplaining = false
+        explanation = nil
+        await explain(kind)
+    }
+
     // MARK: - Running
 
     private func clear() {
@@ -325,30 +347,40 @@ public final class TroubleshootState {
         runTask = nil
 
         let completed = steps.allSatisfy(\.status.isDone)
-        findings = TroubleshootRules.findings(for: steps.compactMap { step in
+        findings = rankFindings()
+        if isCancelled {
+            stop(Self.cancelledMessage)
+        } else if !completed {
+            stop(Self.scanMessage)
+        } else if results.allSatisfy(\.isUnmeasured) {
+            stop(Self.nothingMeasuredMessage)
+        } else {
+            phase = .finished
+            await explain(kind)
+        }
+    }
+
+    /// What the finished steps measured.
+    private var results: [TroubleshootResult] {
+        steps.compactMap { step in
             if case let .done(result) = step.status {
                 result
             } else {
                 nil
             }
-        }, completed: completed, unprobedHosts: Set(steps.compactMap { step in
+        }
+    }
+
+    /// The ranked findings for the steps so far and the session's modem reading.
+    private func rankFindings() -> [TroubleshootFinding] {
+        TroubleshootRules.findings(for: results, completed: steps.allSatisfy(\.status.isDone), unprobedHosts: Set(steps.compactMap { step in
             // A port check that was cancelled or never started says nothing about the ports.
             if case let .ports(host, _) = step.check, !step.status.isDone {
                 host
             } else {
                 nil
             }
-        }))
-        if isCancelled {
-            stop(Self.cancelledMessage)
-        } else if !completed {
-            stop(Self.scanMessage)
-        } else if findings.isEmpty {
-            stop(Self.nothingMeasuredMessage)
-        } else {
-            phase = .finished
-            await explain(kind)
-        }
+        }), modem: modemReading?.report)
     }
 
     /// Runs each step in turn until one is cancelled or a scan starts.
@@ -416,7 +448,9 @@ public final class TroubleshootState {
     }
 
     private func explain(_ kind: SymptomKind) async {
-        guard insight.isAvailable, !isScanning(), let report = TroubleshootReportBuilder.report(for: kind, findings: findings) else { return }
+        guard insight.isAvailable, !isScanning(),
+              let report = TroubleshootReportBuilder.report(for: kind, findings: findings, modem: modemReading?.report)
+        else { return }
         let run = runID
         isExplaining = true
         let task = Task { [insight, timeout] in

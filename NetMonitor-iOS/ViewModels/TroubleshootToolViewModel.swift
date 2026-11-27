@@ -57,6 +57,12 @@ final class TroubleshootToolViewModel {
             .map(TroubleshootDevice.init)
     }
 
+    /// Adds a reading of the modem's lights to this session's findings (#625). The reading lives
+    /// in `state` only, so it goes when Troubleshoot closes and its state is released.
+    func useModemReading(_ report: ModemPanelReport) async {
+        await state.useModemReading(report)
+    }
+
     /// The devices a run would offer, for tests.
     var savedDevices: [TroubleshootDevice] { inputs.devices }
 }

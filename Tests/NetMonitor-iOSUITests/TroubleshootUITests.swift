@@ -192,3 +192,104 @@ final class ModemLightsUnavailableUITests: IOSUITestCase {
         XCTAssertFalse(ui("troubleshoot_button_modemLights").exists, "No reader without a model that sees images")
     }
 }
+
+// MARK: - Modem lights in the findings (#625)
+
+private extension IOSUITestCase {
+    /// Reads the drawn panel (INTERNET red, LAN 2 off) from Troubleshoot and closes the sheet.
+    func readTheModemLights(from entry: String = "troubleshoot_button_modemLights") {
+        let button = ui(entry)
+        scrollTo(button)
+        requireExists(button, timeout: 5, message: "Troubleshoot should offer to read the modem's lights").tap()
+        requireExists(ui("modemLights_label_headline"), timeout: 15, message: "The lights should be read from the photo")
+        ui("modemLights_button_done").tap()
+    }
+
+    /// Runs "Zoom keeps freezing" and waits for the modem finding (weak signal, router loss, the
+    /// red light, the failed lookup).
+    func runAndFindTheModemLight() -> XCUIElement {
+        describe("Zoom keeps freezing")
+        let modem = ui("troubleshoot_finding_3")
+        requireExists(modem, timeout: 20, message: "The likely causes should show")
+        XCTAssertTrue(ui("troubleshoot_finding_1").label.contains("Weak signal"), "First: \(ui("troubleshoot_finding_1").label)")
+        XCTAssertTrue(modem.label.contains("The modem's Internet light reads as red"), "Third: \(modem.label)")
+        XCTAssertTrue(modem.label.contains("this normally means the modem has no internet connection"), "Third: \(modem.label)")
+        XCTAssertTrue(modem.label.contains("contact your internet provider"), "Third: \(modem.label)")
+        XCTAssertTrue(ui("troubleshoot_finding_4").label.contains("DNS lookup failed"), "Fourth: \(ui("troubleshoot_finding_4").label)")
+        return modem
+    }
+
+    /// Waits until the model has answered or been dropped.
+    func waitForTheExplanationToSettle() {
+        let deadline = Date().addingTimeInterval(20)
+        while ui("troubleshoot_label_explaining").exists, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+    }
+}
+
+/// The reading from the modem sheet joins the troubleshooter's findings, and the explanation must
+/// agree with it. The fixture run is an outage: the lookup fails and the speed test doesn't finish.
+@MainActor
+final class ModemLightsFindingsUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_TROUBLESHOOT": "modem", "UITEST_MODEM_IMAGE": "1", "UITEST_MODEM_MODEL": "answer"]
+    }
+
+    func testARedInternetLightIsAFindingAndTheExplanationAgreesWithIt() {
+        openTroubleshooter()
+        readTheModemLights()
+
+        // The reading stays after the sheet closes, in the app's words, with when it was read.
+        let row = ui("troubleshoot_label_modemLights")
+        requireExists(row, timeout: 5, message: "The Modem lights row should show once the photo is read")
+        XCTAssertTrue(row.label.contains("1 light shows a problem. 1 light reads as off: check it."), "Row: \(row.label)")
+        XCTAssertTrue(row.label.contains("Ethernet 2 reads as off. If it is dark"), "Off stays a question: \(row.label)")
+        XCTAssertTrue(row.label.contains("Read from a photo at"), "Row: \(row.label)")
+
+        let modem = runAndFindTheModemLight()
+        let explanation = ui("troubleshoot_label_explanation")
+        requireExists(explanation, timeout: 20, message: "The agreeing explanation should show")
+        XCTAssertTrue(explanation.label.contains("Internet light reads as red"), "Explanation: \(explanation.label)")
+        XCTAssertFalse(explanation.label.contains("is fine"), "Explanation: \(explanation.label)")
+
+        scrollTo(modem)
+        keep([ui("troubleshoot_finding_1"), modem, ui("troubleshoot_finding_4")], named: "troubleshoot-modem-findings")
+        let again = ui("troubleshoot_button_modemLightsAgain")
+        scrollTo(again)
+        keep([ui("troubleshoot_label_modemLights"), again], named: "troubleshoot-modem-row")
+        scrollTo(explanation)
+        keep([explanation], named: "troubleshoot-modem-explanation")
+
+        // Read the lights again: the sheet opens and the row is kept.
+        readTheModemLights(from: "troubleshoot_button_modemLightsAgain")
+        requireExists(ui("troubleshoot_label_modemLights"), timeout: 5, message: "The row should stay after reading again")
+
+        // Leaving Troubleshoot ends the session: the reading is gone when it opens again.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let card = ui("tools_card_troubleshoot")
+        requireExists(card, timeout: 8, message: "Back on Tools").tap()
+        requireExists(ui("troubleshoot_field_symptom"), timeout: 8, message: "Troubleshoot should open again")
+        XCTAssertFalse(ui("troubleshoot_label_modemLights").exists, "The reading is for one session only")
+    }
+}
+
+@MainActor
+final class ModemLightsContradictionUITests: IOSUITestCase {
+    override var additionalLaunchEnvironment: [String: String] {
+        ["UITEST_TROUBLESHOOT": "modemDenies", "UITEST_MODEM_IMAGE": "1", "UITEST_MODEM_MODEL": "answer"]
+    }
+
+    func testAnExplanationSayingTheInternetIsFineIsDroppedAndTheFindingsStay() {
+        openTroubleshooter()
+        readTheModemLights()
+        let modem = runAndFindTheModemLight()
+        waitForTheExplanationToSettle()
+        XCTAssertFalse(ui("troubleshoot_label_explanation").exists, "A model answer that denies the red light is not shown")
+        XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'internet connection is fine'")).firstMatch.exists)
+
+        scrollTo(modem)
+        keep([ui("troubleshoot_finding_1"), modem, ui("troubleshoot_finding_4")], named: "troubleshoot-modem-denial-findings")
+        captureScreenshot(named: "troubleshoot-modem-denial-screen")
+    }
+}

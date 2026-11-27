@@ -67,4 +67,21 @@ struct TroubleshootToolViewModelTests {
         let answering = TroubleshootToolViewModel(env: env(), mode: "answer")
         #expect(answering.state.canDescribe)
     }
+
+    // MARK: - Modem lights (#625)
+
+    static let redInternet = ModemPanelReport(answer: ModemPanelAnswer(status: .panel, lights: [
+        .init(label: "POWER", color: .green), .init(label: "INTERNET", color: .red)
+    ]))
+
+    @Test func aModemReadingIsHeldForTheSessionOnly() async {
+        var viewModel: TroubleshootToolViewModel? = TroubleshootToolViewModel(env: env(), mode: nil)
+        await viewModel?.useModemReading(Self.redInternet)
+        #expect(viewModel?.state.modemReading?.report == Self.redInternet)
+        // Leaving Troubleshoot releases its state and the reading with it; nothing else holds it.
+        weak var state = viewModel?.state
+        viewModel = nil
+        #expect(state == nil)
+        #expect(TroubleshootToolViewModel(env: env(), mode: nil).state.modemReading == nil)
+    }
 }

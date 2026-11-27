@@ -41,7 +41,7 @@ struct TroubleshootToolView: View {
                 if !state.steps.isEmpty {
                     stepsSection
                 }
-                if !state.findings.isEmpty {
+                if !state.findings.isEmpty || state.modemReading != nil {
                     findingsSection
                 }
                 explanationSection
@@ -62,7 +62,9 @@ struct TroubleshootToolView: View {
         }
         .onDisappear { state.cancel() }
         .sheet(isPresented: $showsModemLights) {
-            ModemLightsView()
+            ModemLightsView { report in
+                Task { await viewModel.useModemReading(report) }
+            }
         }
     }
 
@@ -276,9 +278,19 @@ struct TroubleshootToolView: View {
 
     // MARK: - Findings
 
+    private var findingsTitle: String {
+        if state.phase == .finished {
+            "Likely causes"
+        } else if state.findings.isEmpty {
+            "Findings"
+        } else {
+            "Found so far"
+        }
+    }
+
     private var findingsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(state.phase == .finished ? "Likely causes" : "Found so far")
+            Text(findingsTitle)
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)
             ForEach(Array(state.findings.enumerated()), id: \.element.id) { index, finding in
@@ -298,10 +310,51 @@ struct TroubleshootToolView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("troubleshoot_finding_\(index + 1)")
             }
+            if let reading = state.modemReading {
+                modemLightsRow(reading)
+            }
         }
         .glassCard()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("troubleshoot_list_findings")
+    }
+
+    /// The session's modem-light reading (#625): the app's lines, worst first, and when the photo
+    /// was read. Off lights are worded as checks; a red light is also a ranked finding above.
+    private func modemLightsRow(_ reading: ModemLightsReading) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Modem lights", systemImage: "camera.viewfinder")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                Text(reading.report.headline)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(Array(reading.report.keyPoints.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("Read from a photo at \(reading.readAt.formatted(date: .omitted, time: .shortened)). "
+                    + "\(ModemPanelReport.blinkingNote). \(ModemPanelReport.whiteLightNote)")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("troubleshoot_label_modemLights")
+            if ModemLightsViewModel.isAvailable {
+                Button("Read the lights again") { showsModemLights = true }
+                    .font(.caption.weight(.medium))
+                    .disabled(state.isRunning)
+                    .accessibilityIdentifier("troubleshoot_button_modemLightsAgain")
+            }
+        }
+        .padding(.top, state.findings.isEmpty ? 0 : 6)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("troubleshoot_finding_modemLights")
     }
 
     // MARK: - Explanation
@@ -315,6 +368,7 @@ struct TroubleshootToolView: View {
                     .font(.subheadline)
                     .foregroundStyle(Theme.Colors.textSecondary)
             }
+            .accessibilityIdentifier("troubleshoot_label_explaining")
         } else if let text = state.explanation {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Explanation", systemImage: "sparkles")

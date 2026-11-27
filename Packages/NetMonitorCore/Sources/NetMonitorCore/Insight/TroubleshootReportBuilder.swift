@@ -5,6 +5,9 @@ public struct TroubleshootReport: Sendable, Equatable {
     public let request: InsightRequest
     /// The top-ranked finding, whose subject the answer must name.
     public let top: TroubleshootFinding
+    /// Findings the answer must not deny wherever they rank: a red modem light (#625). An answer
+    /// about a weak signal must not add that the internet is fine.
+    public var guards: [TroubleshootFinding] = []
 
     /// Whether `answer` names the top finding's subject, on top of `InsightSummarizer`'s checks.
     /// Lessons from #454/#455: an answer can pass number grounding while explaining the wrong cause.
@@ -13,7 +16,7 @@ public struct TroubleshootReport: Sendable, Equatable {
     public func accepts(_ answer: String) -> Bool {
         let text = answer.lowercased()
         guard TroubleshootReportBuilder.subjectWords(for: top).contains(where: text.contains) else { return false }
-        return !TroubleshootReportBuilder.denies(text, top: top)
+        return !TroubleshootReportBuilder.denies(text, top: top) && !guards.contains { TroubleshootReportBuilder.denies(text, top: $0) }
     }
 }
 
@@ -22,15 +25,17 @@ public struct TroubleshootReport: Sendable, Equatable {
 /// prompt, so the model can't pair a value with the wrong check.
 public enum TroubleshootReportBuilder {
     /// The report for `findings` (ranked, as `TroubleshootRules` returns them), or nil when there
-    /// is nothing to explain.
-    public static func report(for kind: SymptomKind, findings: [TroubleshootFinding]) -> TroubleshootReport? {
+    /// is nothing to explain. `modem` is the session's modem-light reading (#625): its lines are
+    /// facts, and an all-normal panel is a weak fact that proves nothing.
+    public static func report(for kind: SymptomKind, findings: [TroubleshootFinding], modem: ModemPanelReport? = nil) -> TroubleshootReport? {
         guard let top = findings.first else { return nil }
         let subject = "Troubleshooting check: \(kind.title)"
+        let modemFacts = modemFacts(findings, modem: modem)
         if top.kind == .noProblem {
             return TroubleshootReport(
                 request: InsightRequest(
                     subject: subject,
-                    facts: ["Result: \(top.title). \(top.detail)"],
+                    facts: ["Result: \(top.title). \(top.detail)"] + modemFacts,
                     observations: ["No problem was found on this network.", "Next step: \(top.nextStep)"],
                     kind: .summary
                 ),
@@ -51,12 +56,25 @@ public enum TroubleshootReportBuilder {
         return TroubleshootReport(
             request: InsightRequest(
                 subject: subject,
-                facts: facts,
+                facts: facts + modemFacts,
                 observations: ["Most likely cause: \(top.title).", "Next step: \(top.nextStep)"],
                 kind: .summary
             ),
-            top: top
+            top: top,
+            guards: findings.filter { $0.kind == .modemProblem }
         )
+    }
+
+    /// The modem lines that aren't already the top finding's detail, in the app's words. Off
+    /// readings, the read time and the labels the model read stay out.
+    static func modemFacts(_ findings: [TroubleshootFinding], modem: ModemPanelReport?) -> [String] {
+        guard let modem else { return [] }
+        let prefix = "Modem lights, read from a photo: "
+        if modem.looksNormal {
+            return [prefix + "they look normal. That alone doesn't show the internet is working."]
+        }
+        return findings.dropFirst().filter { [.modemProblem, .modemCheck].contains($0.kind) }
+            .map { prefix + $0.detail.replacingOccurrences(of: TroubleshootRules.photoNote, with: "") }
     }
 
     // MARK: - Denials (#451 review)
@@ -74,13 +92,15 @@ public enum TroubleshootReportBuilder {
         case .dnsFailed, .dnsSlow: ["fine", "fast", "quick", "normal", "healthy"]
         case .deviceOffline, .siteNotAnswering: ["connected", "online", "awake", "reachable", "responding", "answering", "up", "working"]
         case .ispSlow: ["fine", "normal", "fast", "usual"]
-        case .noProblem: []
+        // Stricter than the others (#577 found "good" slipping through): a false drop only hides text.
+        case .modemProblem: ["fine", "good", "ok", "okay", "working", "online", "connected", "normal", "healthy", "stable", "reachable", "green"]
+        case .modemCheck, .noProblem: []
         }
     }
 
     /// What a finding claims, negated in a denial ("not weak", "isn't offline").
     static let findingStates: Set<String> = [
-        "weak", "slow", "slower", "unstable", "offline", "asleep", "down", "fail", "failed", "failing", "broken", "lossy"
+        "weak", "slow", "slower", "unstable", "offline", "asleep", "down", "fail", "failed", "failing", "broken", "lossy", "red"
     ]
     /// Words that negate the word after them.
     static let negators: Set<String> = ["not", "no", "never", "isn't", "wasn't", "aren't", "doesn't", "didn't", "stopped", "longer"]
@@ -165,6 +185,10 @@ public enum TroubleshootReportBuilder {
         case .dnsFailed, .dnsSlow: ["dns"]
         case .deviceOffline, .siteNotAnswering: [finding.subject?.lowercased()].compactMap(\.self)
         case .ispSlow: ["slower", "speed", "slow"]
+        case .modemProblem:
+            ["modem"] + finding.lights.map { $0.name.lowercased() }
+                + (finding.lights.contains(where: TroubleshootRules.internetLights.contains) ? ["internet", "connection"] : [])
+        case .modemCheck: ["modem"]
         case .noProblem:
             ["no problem", "no issue", "any problem", "any issue", "nothing wrong", "didn't find", "did not find", "found nothing", "without finding"]
         }
