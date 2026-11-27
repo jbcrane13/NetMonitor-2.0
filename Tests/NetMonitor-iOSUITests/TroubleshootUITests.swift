@@ -228,15 +228,15 @@ private extension IOSUITestCase {
     }
 }
 
-/// The reading from the modem sheet joins the troubleshooter's findings, and the explanation must
-/// agree with it. The fixture run is an outage: the lookup fails and the speed test doesn't finish.
+/// The reading from the modem sheet joins the troubleshooter's findings, and the app words the run
+/// itself. The fixture run is an outage: the lookup fails and the speed test doesn't finish.
 @MainActor
 final class ModemLightsFindingsUITests: IOSUITestCase {
     override var additionalLaunchEnvironment: [String: String] {
         ["UITEST_TROUBLESHOOT": "modem", "UITEST_MODEM_IMAGE": "1", "UITEST_MODEM_MODEL": "answer"]
     }
 
-    func testARedInternetLightIsAFindingAndTheExplanationAgreesWithIt() {
+    func testARedInternetLightIsAFindingAndTheAppSummarisesTheRun() {
         openTroubleshooter()
         readTheModemLights()
 
@@ -248,25 +248,28 @@ final class ModemLightsFindingsUITests: IOSUITestCase {
         XCTAssertTrue(row.label.contains("Read from a photo at"), "Row: \(row.label)")
 
         let modem = runAndFindTheModemLight()
-        let explanation = ui("troubleshoot_label_explanation")
-        requireExists(explanation, timeout: 20, message: "The agreeing explanation should show")
-        XCTAssertTrue(explanation.label.contains("Internet light reads as red"), "Explanation: \(explanation.label)")
-        XCTAssertFalse(explanation.label.contains("is fine"), "Explanation: \(explanation.label)")
+        // With a modem light among the findings the app words the run; the model isn't asked (#629 review).
+        let summary = ui("troubleshoot_label_summary")
+        requireExists(summary, timeout: 20, message: "The app's summary should show")
+        XCTAssertTrue(summary.label.hasPrefix("Most likely cause: Weak signal."), "Summary: \(summary.label)")
+        XCTAssertTrue(summary.label.contains("Also: The modem's Internet light reads as red."), "Summary: \(summary.label)")
+        XCTAssertFalse(ui("troubleshoot_label_explanation").exists, "No model text when the modem is involved")
+        XCTAssertFalse(ui("troubleshoot_label_generated").exists, "Nothing is marked as model-written")
 
         scrollTo(modem)
         keep([ui("troubleshoot_finding_1"), modem, ui("troubleshoot_finding_4")], named: "troubleshoot-modem-findings")
         let again = ui("troubleshoot_button_modemLightsAgain")
         scrollTo(again)
         keep([ui("troubleshoot_label_modemLights"), again], named: "troubleshoot-modem-row")
-        scrollTo(explanation)
-        keep([explanation], named: "troubleshoot-modem-explanation")
+        scrollTo(summary)
+        keep([summary], named: "troubleshoot-modem-summary")
 
         // Read the lights again: the sheet opens and the row is kept.
         readTheModemLights(from: "troubleshoot_button_modemLightsAgain")
         requireExists(ui("troubleshoot_label_modemLights"), timeout: 5, message: "The row should stay after reading again")
 
         // Leaving Troubleshoot ends the session: the reading is gone when it opens again.
-        app.navigationBars.buttons.element(boundBy: 0).tap()
+        requireExists(app.navigationBars["Troubleshoot"].buttons["BackButton"], message: "Back to Tools").tap()
         let card = ui("tools_card_troubleshoot")
         requireExists(card, timeout: 8, message: "Back on Tools").tap()
         requireExists(ui("troubleshoot_field_symptom"), timeout: 8, message: "Troubleshoot should open again")
@@ -280,12 +283,13 @@ final class ModemLightsContradictionUITests: IOSUITestCase {
         ["UITEST_TROUBLESHOOT": "modemDenies", "UITEST_MODEM_IMAGE": "1", "UITEST_MODEM_MODEL": "answer"]
     }
 
-    func testAnExplanationSayingTheInternetIsFineIsDroppedAndTheFindingsStay() {
+    func testTheModelsDenialOfTheRedLightIsNeverShown() {
         openTroubleshooter()
         readTheModemLights()
         let modem = runAndFindTheModemLight()
         waitForTheExplanationToSettle()
-        XCTAssertFalse(ui("troubleshoot_label_explanation").exists, "A model answer that denies the red light is not shown")
+        requireExists(ui("troubleshoot_label_summary"), timeout: 20, message: "The app's summary stands in for the model")
+        XCTAssertFalse(ui("troubleshoot_label_explanation").exists, "The stand-in model's denial is never shown")
         XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'internet connection is fine'")).firstMatch.exists)
 
         scrollTo(modem)

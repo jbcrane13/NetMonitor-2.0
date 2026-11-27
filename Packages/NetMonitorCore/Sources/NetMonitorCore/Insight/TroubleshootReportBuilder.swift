@@ -5,9 +5,6 @@ public struct TroubleshootReport: Sendable, Equatable {
     public let request: InsightRequest
     /// The top-ranked finding, whose subject the answer must name.
     public let top: TroubleshootFinding
-    /// Findings the answer must not deny wherever they rank: the modem lights (#625). An answer
-    /// about a weak signal must not add that the internet is fine.
-    public var guards: [TroubleshootFinding] = []
 
     /// Whether `answer` names the top finding's subject, on top of `InsightSummarizer`'s checks.
     /// Lessons from #454/#455: an answer can pass number grounding while explaining the wrong cause.
@@ -17,7 +14,6 @@ public struct TroubleshootReport: Sendable, Equatable {
         let text = answer.lowercased()
         guard TroubleshootReportBuilder.subjectWords(for: top).contains(where: text.contains) else { return false }
         return !TroubleshootReportBuilder.denies(text, top: top)
-            && !guards.contains { TroubleshootReportBuilder.denies(text, top: $0) || TroubleshootReportBuilder.clearsTheModem(text, light: $0) }
     }
 }
 
@@ -26,17 +22,16 @@ public struct TroubleshootReport: Sendable, Equatable {
 /// prompt, so the model can't pair a value with the wrong check.
 public enum TroubleshootReportBuilder {
     /// The report for `findings` (ranked, as `TroubleshootRules` returns them), or nil when there
-    /// is nothing to explain. `modem` is the session's modem-light reading (#625): its lines are
-    /// facts, and an all-normal panel is a weak fact that proves nothing.
-    public static func report(for kind: SymptomKind, findings: [TroubleshootFinding], modem: ModemPanelReport? = nil) -> TroubleshootReport? {
-        guard let top = findings.first else { return nil }
+    /// is nothing to explain, or when a modem light is among them: no model wording then (#629
+    /// review), since a check on its text can't stop it contradicting the lights. See `appSummary`.
+    public static func report(for kind: SymptomKind, findings: [TroubleshootFinding]) -> TroubleshootReport? {
+        guard let top = findings.first, !findings.contains(where: \.kind.isModem) else { return nil }
         let subject = "Troubleshooting check: \(kind.title)"
-        let modemFacts = modemFacts(findings, modem: modem)
         if top.kind == .noProblem {
             return TroubleshootReport(
                 request: InsightRequest(
                     subject: subject,
-                    facts: ["Result: \(top.title). \(top.detail)"] + modemFacts,
+                    facts: ["Result: \(top.title). \(top.detail)"],
                     observations: ["No problem was found on this network.", "Next step: \(top.nextStep)"],
                     kind: .summary
                 ),
@@ -44,9 +39,8 @@ public enum TroubleshootReportBuilder {
             )
         }
         // Only the top cause carries figures; the others are named, so no figure can be paired with
-        // the wrong cause (#451 review). A modem light's lines are facts of their own (#625).
-        let topFact = isModem(top) ? "Most likely cause (\(top.title))." : "Most likely cause (\(top.title)): \(top.detail)"
-        var facts = [topFact] + findings.dropFirst().map { "Also found: \($0.title)" }
+        // the wrong cause (#451 review).
+        var facts = ["Most likely cause (\(top.title)): \(top.detail)"] + findings.dropFirst().map { "Also found: \($0.title)" }
         // A name inside a longer fact is refused by `InsightTextFilter`; stated whole, it may be repeated.
         var names: [String] = []
         for finding in findings where [.dnsFailed, .dnsSlow, .siteNotAnswering].contains(finding.kind) {
@@ -58,39 +52,29 @@ public enum TroubleshootReportBuilder {
         return TroubleshootReport(
             request: InsightRequest(
                 subject: subject,
-                facts: facts + modemFacts,
+                facts: facts,
                 observations: ["Most likely cause: \(top.title).", "Next step: \(top.nextStep)"],
                 kind: .summary
             ),
-            top: top,
-            guards: findings.filter { [.modemProblem, .modemCheck].contains($0.kind) }
+            top: top
         )
     }
 
-    static func isModem(_ finding: TroubleshootFinding) -> Bool {
-        [.modemProblem, .modemCheck].contains(finding.kind)
-    }
-
-    /// The modem lights as facts, one line each so none is cut at the prompt's line cap, in the
-    /// app's words. Off readings, the read time and the labels the model read stay out.
-    static func modemFacts(_ findings: [TroubleshootFinding], modem: ModemPanelReport?) -> [String] {
-        guard let modem else { return [] }
-        let prefix = "Modem lights, read from a photo: "
-        if modem.looksNormal {
-            return [prefix + "they look normal. That alone doesn't show the internet is working."]
+    /// The app's own summary of a run with a modem finding (#629 review): the most likely cause,
+    /// then each modem finding, each with its fixed next step. Nil without a modem finding.
+    public static func appSummary(for findings: [TroubleshootFinding]) -> String? {
+        guard findings.contains(where: \.kind.isModem) else { return nil }
+        // A light worth a look is never the lead (#629 review).
+        let lead = findings.first { $0.kind != .modemCheck }
+        var lines: [String] = []
+        if let lead {
+            lines.append(lead.kind == .noProblem ? "No problem found in the checks." : "Most likely cause: \(lead.title). Next step: \(lead.nextStep)")
         }
-        let lines = TroubleshootRules.modemLines(modem)
-        var facts: [String] = []
-        if let red = findings.first(where: { $0.kind == .modemProblem }) {
-            facts += lines.problem
-            if red.detail.hasSuffix(TroubleshootRules.misreadNote) {
-                facts.append(TroubleshootRules.misreadNote.trimmingCharacters(in: .whitespaces))
-            }
+        for finding in findings where finding.kind.isModem && finding.id != lead?.id {
+            let label = lines.isEmpty ? "" : finding.kind == .modemCheck ? "Also worth a look: " : "Also: "
+            lines.append("\(label)\(finding.title). Next step: \(finding.nextStep)")
         }
-        if findings.contains(where: { $0.kind == .modemCheck }) {
-            facts += lines.check
-        }
-        return facts.map { prefix + $0 }
+        return lines.joined(separator: " ")
     }
 
     // MARK: - Denials (#451 review)
@@ -108,15 +92,14 @@ public enum TroubleshootReportBuilder {
         case .dnsFailed, .dnsSlow: ["fine", "fast", "quick", "normal", "healthy"]
         case .deviceOffline, .siteNotAnswering: ["connected", "online", "awake", "reachable", "responding", "answering", "up", "working"]
         case .ispSlow: ["fine", "normal", "fast", "usual"]
-        // Stricter than the others (#577 found "good" slipping through): a false drop only hides text.
-        case .modemProblem: ["fine", "good", "ok", "okay", "working", "online", "connected", "normal", "healthy", "stable", "reachable", "green"]
-        case .modemCheck, .noProblem: []
+        // Never sent to the model (`report(for:findings:)`).
+        case .modemProblem, .modemCheck, .noProblem: []
         }
     }
 
     /// What a finding claims, negated in a denial ("not weak", "isn't offline").
     static let findingStates: Set<String> = [
-        "weak", "slow", "slower", "unstable", "offline", "asleep", "down", "fail", "failed", "failing", "broken", "lossy", "red"
+        "weak", "slow", "slower", "unstable", "offline", "asleep", "down", "fail", "failed", "failing", "broken", "lossy"
     ]
     /// Words that negate the word after them.
     static let negators: Set<String> = ["not", "no", "never", "isn't", "wasn't", "aren't", "doesn't", "didn't", "stopped", "longer"]
@@ -170,61 +153,6 @@ public enum TroubleshootReportBuilder {
         }
     }
 
-    // MARK: - Modem lights (#625)
-
-    /// Words that put the modem or the internet in a clause.
-    static let modemSubjects: Set<String> = ["modem", "modems", "internet", "connection", "online", "light", "lights"]
-    /// Words that call the modem or the internet healthy.
-    static let modemHealthy: Set<String> = [
-        "fine", "good", "ok", "okay", "working", "works", "online", "connected", "normal", "healthy", "stable", "reachable", "green", "up"
-    ]
-    /// Colours a lit red or amber light was not read as. "Turn it off" is advice, not a reading.
-    static let otherReadings: Set<String> = ["off", "dark", "unlit", "blue", "white"]
-    static let switchingWords: Set<String> = ["turn", "turning", "switch", "switching", "power", "powering", "unplug", "it", "modem", "router"]
-    /// "start up", "set up": not a claim that the internet is up.
-    static let phrasalBeforeUp: Set<String> = ["start", "starts", "starting", "set", "boot", "boots", "booting", "back"]
-    /// Words that keep a fault in view: the fault itself, a negation, or advice to act on it.
-    static let modemFaultOrAdvice: Set<String> = [
-        "red", "amber", "orange", "yellow", "no", "not", "never", "without", "down", "offline", "fault", "faulty", "problem", "issue",
-        "lost", "losing", "fail", "failed", "failing", "outage", "broken", "trouble", "can't", "cannot", "isn't", "aren't", "doesn't",
-        "don't", "unable", "wrong", "weak", "slow", "unstable", "drops", "dropping", "poor",
-        "restart", "reboot", "contact", "call", "unplug", "reset", "check", "try", "wait", "see", "consult", "move", "guide"
-    ]
-
-    /// Whether `text` (lowercased) clears the modem while `light` (a modem finding) stands. Stricter
-    /// than `denies`, since a reader takes "the internet is fine" at its word: every clause that
-    /// names the modem, the internet, the connection or a light must keep a fault in view (name it,
-    /// negate, or advise), and must not call it healthy or say nothing is wrong. A false drop only
-    /// hides the text; the findings stay.
-    static func clearsTheModem(_ text: String, light: TroubleshootFinding) -> Bool {
-        let subjects = modemSubjects.union(light.lights.flatMap { tokens($0.name) })
-        let clauses = text.components(separatedBy: CharacterSet(charactersIn: ".;!?\n"))
-            .flatMap { $0.components(separatedBy: " but ") }
-            .map { tokens($0).map { $0.hasSuffix("'s") ? String($0.dropLast(2)) : $0 } }
-        return clauses.contains { words in
-            guard words.contains(where: subjects.contains) else { return false }
-            let line = words.joined(separator: " ")
-            let allClear = ["no problem", "no issue", "nothing wrong", "nothing is wrong", "isn't the", "not the", "is not the"]
-            if allClear.contains(where: line.contains) {
-                return true
-            }
-            for (index, word) in words.enumerated() where otherReadings.contains(word) && (words.contains("light") || words.contains("lights")) {
-                let previous = index > 0 ? words[index - 1] : ""
-                if !negators.contains(previous), previous != "isn't", !switchingWords.contains(previous) {
-                    return true
-                }
-            }
-            for (index, word) in words.enumerated() where modemHealthy.contains(word) {
-                let previous = index > 0 ? words[index - 1] : ""
-                if negators.contains(previous) || previous == "isn't" || (word == "up" && phrasalBeforeUp.contains(previous)) {
-                    continue
-                }
-                return true
-            }
-            return !words.contains(where: modemFaultOrAdvice.contains)
-        }
-    }
-
     /// Words of `text`: lowercased, split at anything but letters, digits, "%" and apostrophes.
     static func tokens(_ text: String) -> [String] {
         text.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
@@ -256,10 +184,7 @@ public enum TroubleshootReportBuilder {
         case .dnsFailed, .dnsSlow: ["dns"]
         case .deviceOffline, .siteNotAnswering: [finding.subject?.lowercased()].compactMap(\.self)
         case .ispSlow: ["slower", "speed", "slow"]
-        case .modemProblem:
-            ["modem"] + finding.lights.map { $0.name.lowercased() }
-                + (finding.lights.contains(where: TroubleshootRules.internetLights.contains) ? ["internet", "connection"] : [])
-        case .modemCheck: ["modem"]
+        case .modemProblem, .modemCheck: ["modem"]
         case .noProblem:
             ["no problem", "no issue", "any problem", "any issue", "nothing wrong", "didn't find", "did not find", "found nothing", "without finding"]
         }

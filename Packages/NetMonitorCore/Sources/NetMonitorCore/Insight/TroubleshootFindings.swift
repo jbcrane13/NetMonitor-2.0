@@ -18,11 +18,17 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
         case dnsSlow
         case siteNotAnswering
         case ispSlow
-        /// A modem light is amber, a red phone light, or a light the app doesn't know is red or
-        /// amber: not a fault, but no all-clear either.
-        case modemCheck
         /// Every check finished and nothing passed a threshold.
         case noProblem
+        /// A modem light is amber, a red phone light, a light the app doesn't know is red or amber,
+        /// or a red light this run contradicts: worth a look, never the most likely cause, and
+        /// listed under "No problem found" when the checks were within limits (#629 review).
+        case modemCheck
+
+        /// A finding from the modem-light photo rather than a measurement (#625).
+        public var isModem: Bool {
+            self == .modemProblem || self == .modemCheck
+        }
 
         public static func < (lhs: Kind, rhs: Kind) -> Bool {
             (allCases.firstIndex(of: lhs) ?? 0) < (allCases.firstIndex(of: rhs) ?? 0)
@@ -36,8 +42,8 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
     public let nextStep: String
     /// The device name, website or looked-up name a finding is about.
     public var subject: String?
-    /// The modem lights a modem finding is about.
-    public var lights: [ModemLightKind] = []
+    /// For a modem finding: this run reached the internet, so a red Internet light was likely misread.
+    public var reachedInternet = false
 
     public var id: String { kind.rawValue + (subject.map { ":" + $0 } ?? "") }
 }
@@ -53,8 +59,8 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
 /// | device offline or asleep | the device answered no ping and no known port, while the router answered with under 5% loss. With the router unmeasured, the device "isn't answering" and the router is named as unverified. A device whose known-port check didn't finish is not a finding |
 /// | website not answering | port 443 didn't answer and the site's name resolved or its lookup measured nothing, while the router is healthy or unmeasured (then named as unverified) |
 /// | slower than usual | download under 25% of the last saved speed test |
-/// | a modem light reads as red | a known light other than Phone reads red in this session's photo (#625) |
-/// | a modem light needs a look | a known light is amber, Phone is red, or an unknown light is red or amber |
+/// | a modem light reads as red | a known light other than Phone reads red in this session's current photo (#625), and for an Internet-type light, the run didn't reach the internet |
+/// | a modem light needs a look | a known light is amber, Phone is red, an unknown light is red or amber, or a red Internet-type light while the run reached the internet; listed after the all-clear |
 /// | no problem found | the script finished, measured something, and nothing above fired |
 ///
 /// A step that couldn't measure (no signal reading, no router address, no saved speed test,
@@ -85,9 +91,9 @@ public enum TroubleshootRules {
                 + silentSites(in: results, routerUnverified: unverified)
         }
         findings += ispSlowness(in: results)
-        if let modem {
-            findings += modemFindings(modem, reachedInternet: reachedInternet(results))
-        }
+        let lights = modem.map { modemFindings($0, reachedInternet: reachedInternet(results)) } ?? []
+        // A light worth a look doesn't stop the all-clear for what was measured; a red one does.
+        findings += lights.filter { $0.kind == .modemProblem }
         // An all-clear needs something measured, and says when some steps couldn't measure.
         let unmeasured = results.filter(\.isUnmeasured).count
         if findings.isEmpty, completed, unmeasured < results.count {
@@ -100,6 +106,7 @@ public enum TroubleshootRules {
                 nextStep: "If the problem continues, it may be with the app, website or device you were using."
             ))
         }
+        findings += lights.filter { $0.kind == .modemCheck }
         return findings.sorted { $0.kind < $1.kind }
     }
 

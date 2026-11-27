@@ -1,14 +1,27 @@
 import Foundation
 
-/// A modem-light reading taken in a Troubleshoot session (#625). In memory only: the photo is never
-/// kept, and the reading goes when the session's `TroubleshootState` does.
-public struct ModemLightsReading: Sendable, Equatable {
+/// A photo of the modem's lights read in a Troubleshoot session (#625), stamped with when and on
+/// which network it was read. In memory only: the photo is never kept. Not to be confused with
+/// `ModemLightReading`, one light as the model read it.
+public struct TroubleshootModemReading: Sendable, Equatable {
     public let report: ModemPanelReport
     public let readAt: Date
+    /// The network the phone was on when the photo was read; nil when it isn't known.
+    public let networkKey: String?
 
-    public init(report: ModemPanelReport, readAt: Date) {
+    public init(report: ModemPanelReport, readAt: Date, networkKey: String?) {
         self.report = report
         self.readAt = readAt
+        self.networkKey = networkKey
+    }
+
+    /// How long a reading speaks for the modem: after a restart or a while, the lights may differ.
+    public static let freshness: TimeInterval = 30 * 60
+
+    /// Whether the reading may take part in a run's findings: read on `networkKey`, within `freshness`
+    /// of `now`. Otherwise it is history, shown but not used.
+    public func isCurrent(now: Date, networkKey: String?) -> Bool {
+        self.networkKey == networkKey && now.timeIntervalSince(readAt) <= Self.freshness && now >= readAt
     }
 }
 
@@ -18,59 +31,57 @@ public struct ModemLightsReading: Sendable, Equatable {
 extension TroubleshootRules {
     /// Ends each modem finding's detail.
     static let photoNote = " Read from a photo of the modem."
-    static let misreadNote = " This run still reached the internet, so check the light again: it may have been read wrongly."
 
     /// Lights whose red means the modem or router has no internet.
     static let internetLights: Set<ModemLightKind> = [.broadband, .internet, .wan, .upstream, .downstream]
 
-    /// The app's lines for the lights that are findings: red ones, and those that need a look.
-    /// Off lights and normal ones aren't among them. Unknown lights are named by colour only.
-    static func modemLines(_ report: ModemPanelReport) -> (problem: [String], check: [String]) {
-        let problem = report.verdicts.compactMap { $0.meaning?.severity == .problem ? $0.meaning?.text : nil }
-        let check = report.verdicts.compactMap { $0.meaning?.severity == .attention && $0.meaning?.readsAsOff == false ? $0.meaning?.text : nil }
-            + report.unknownColoured.map { "A light the app doesn't know reads as \($0.color.rawValue)." }
-        return (problem, check)
-    }
-
+    /// The modem findings for `report`. A red light is a problem, unless it says the internet is
+    /// down while this run reached it: then the light was likely misread, and the user is asked to
+    /// read it again rather than call the provider (#629 review).
     static func modemFindings(_ report: ModemPanelReport, reachedInternet: Bool) -> [TroubleshootFinding] {
-        var findings: [TroubleshootFinding] = []
-        let lines = modemLines(report)
         let red = report.verdicts.filter { $0.meaning?.severity == .problem }
-        if !red.isEmpty {
-            let names = red.compactMap(\.name)
-            let kinds = red.compactMap(\.kind)
-            let internet = kinds.contains(where: internetLights.contains)
+        let misread = reachedInternet ? red.filter { $0.kind.map(internetLights.contains) ?? false } : []
+        let problem = red.filter { !misread.contains($0) }
+        var findings: [TroubleshootFinding] = []
+        if !problem.isEmpty {
+            let names = problem.compactMap(\.name)
+            let kinds = problem.compactMap(\.kind)
             findings.append(TroubleshootFinding(
                 kind: .modemProblem,
                 title: names.count == 1
                     ? "The modem's \(names[0]) light reads as red"
                     : "\(names.count) modem lights read as red: \(names.joined(separator: ", "))",
-                detail: lines.problem.joined(separator: " ") + photoNote + (internet && reachedInternet ? misreadNote : ""),
-                nextStep: internet
+                detail: problem.compactMap(\.meaning?.text).joined(separator: " ") + photoNote,
+                nextStep: kinds.contains(where: internetLights.contains)
                     ? "Restart the modem, and if the light stays red, contact your internet provider."
                     : kinds.contains(.power)
                     ? "Check the modem's power cable, then restart it; if the light stays red, contact your internet provider or the modem's maker."
                     : "Restart the modem; if the light stays red, check the modem's guide or contact its maker.",
-                subject: names.joined(separator: ", "),
-                lights: kinds
+                subject: names.joined(separator: ", ")
             ))
         }
-        if !lines.check.isEmpty {
-            let count = lines.check.count
+        let look = report.verdicts.filter { $0.meaning?.needsALook == true }
+        let lines = misread.compactMap(\.name).map {
+            "The \($0) light read as red, but this run reached the internet, so the light may have been read wrongly. Read the lights again."
+        } + look.compactMap(\.meaning?.text) + report.unknownColoured.map { "A light the app doesn't know reads as \($0.color.rawValue)." }
+        if !lines.isEmpty {
+            let guide = !look.isEmpty || !report.unknownColoured.isEmpty
             findings.append(TroubleshootFinding(
                 kind: .modemCheck,
-                title: count == 1 ? "A modem light needs a look" : "\(count) modem lights need a look",
-                detail: lines.check.joined(separator: " ") + photoNote,
-                nextStep: "Check what the light means in the modem's guide.",
-                lights: report.verdicts.filter { $0.meaning?.severity == .attention && $0.meaning?.readsAsOff == false }.compactMap(\.kind)
+                title: lines.count == 1 ? "A modem light needs a look" : "\(lines.count) modem lights need a look",
+                detail: lines.joined(separator: " ") + photoNote,
+                nextStep: misread.isEmpty
+                    ? "Check what the light means in the modem's guide."
+                    : guide ? "Read the modem's lights again, and check the others in the modem's guide." : "Read the modem's lights again.",
+                reachedInternet: !misread.isEmpty
             ))
         }
         return findings
     }
 
     /// Whether the run got an answer from the internet: a download measured, or a public website
-    /// that answered a ping. A lookup alone doesn't count: the router may answer from its cache. A
-    /// typed address or local name doesn't either: the router's own page answers in an outage.
+    /// that answered a ping or a connection. A lookup alone doesn't count: the router may answer
+    /// from its cache. A typed address or local name doesn't either: the router answers in an outage.
     static func reachedInternet(_ results: [TroubleshootResult]) -> Bool {
         results.contains { result in
             switch result {
@@ -81,6 +92,7 @@ extension TroubleshootRules {
                 } else {
                     false
                 }
+            case let .ports(host, open, _): !open.isEmpty && isPublicName(host)
             default: false
             }
         }

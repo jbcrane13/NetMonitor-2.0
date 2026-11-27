@@ -183,6 +183,11 @@ public struct ModemLightMeaning: Sendable, Equatable {
     /// Derived from an off reading, which is only ever a check: the probe read lit white lights on a
     /// light case as off (lead decision on #558, option A).
     public var readsAsOff = false
+
+    /// Amber, or a red phone light: worth a look, not a fault. An off reading is a check of its own.
+    public var needsALook: Bool {
+        severity == .attention && !readsAsOff
+    }
 }
 
 /// One light as read, with the app's meaning when it knows the label and the colour (#558).
@@ -380,8 +385,11 @@ public struct ModemPanelReport: Sendable, Equatable {
         return !meanings.isEmpty && unknownColoured.isEmpty && meanings.allSatisfy { $0.severity == .normal }
     }
 
-    /// The all-clear, with every known light read clearly and every light kept: the troubleshooter's
-    /// weak "the lights look normal" fact (#625). Never proof the connection works.
+    /// Under an all-normal reading in Troubleshoot (#625): normal lights prove nothing.
+    public static let looksNormalNote = "They look normal; that alone doesn't show the internet is working."
+
+    /// The all-clear, with every known light read clearly and every light kept: the troubleshooter
+    /// adds `looksNormalNote` (#625). Never proof the connection works.
     public var looksNormal: Bool {
         isAllClear && notices.isEmpty && !verdicts.contains { $0.kind != nil && $0.meaning == nil }
     }
@@ -393,7 +401,7 @@ public struct ModemPanelReport: Sendable, Equatable {
         let meanings = verdicts.compactMap(\.meaning)
         let problems = meanings.count(where: { $0.severity == .problem })
         let off = meanings.count(where: \.readsAsOff)
-        let attention = meanings.count(where: { $0.severity == .attention && !$0.readsAsOff })
+        let attention = meanings.count(where: \.needsALook)
         let unknownColoured = unknownColoured
         let unclear = verdicts.count(where: { $0.kind != nil && $0.meaning == nil })
         var parts: [String] = []

@@ -16,6 +16,8 @@ final class TroubleshootToolViewModel {
     final class Inputs {
         var devices: [TroubleshootDevice] = []
         var latestDownload: Double?
+        /// Goes up on each network path change, so a modem reading from before it stops counting (#629 review).
+        var pathGeneration = 0
     }
 
     init(env: AppEnvironment, mode: String? = UITestBootstrap.troubleshootMode) {
@@ -28,6 +30,7 @@ final class TroubleshootToolViewModel {
         }
         #endif
         let discovery = env.deviceDiscovery
+        let networkID = env.currentNetworkProfileID
         state = TroubleshootState(
             probes: ServiceTroubleshootProbes(
                 wifiService: env.wifiInfo,
@@ -40,7 +43,8 @@ final class TroubleshootToolViewModel {
             insight: env.insight,
             devices: { inputs.devices },
             isScanning: { discovery.isScanning },
-            speedBaseline: { inputs.latestDownload }
+            speedBaseline: { inputs.latestDownload },
+            networkKey: { Self.networkKey(profileID: networkID(), pathGeneration: inputs.pathGeneration) }
         )
     }
 
@@ -55,6 +59,18 @@ final class TroubleshootToolViewModel {
     static func devices(_ rows: [LocalDevice], networkProfileID: UUID?) -> [TroubleshootDevice] {
         DeviceGroups.project(rows.filter { $0.networkProfileID == nil || $0.networkProfileID == networkProfileID })
             .map(TroubleshootDevice.init)
+    }
+
+    /// The network a modem reading belongs to: the saved network and how many times the path has
+    /// changed since Troubleshoot opened.
+    static func networkKey(profileID: UUID?, pathGeneration: Int) -> String {
+        "\(profileID?.uuidString ?? "unknown")#\(pathGeneration)"
+    }
+
+    /// The phone's network path changed (joined, dropped or switched networks): a modem reading
+    /// taken before it is history from now on.
+    func pathChanged() {
+        inputs.pathGeneration += 1
     }
 
     /// Adds a reading of the modem's lights to this session's findings (#625). The reading lives

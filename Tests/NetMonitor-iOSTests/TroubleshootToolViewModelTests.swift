@@ -84,4 +84,31 @@ struct TroubleshootToolViewModelTests {
         #expect(state == nil)
         #expect(TroubleshootToolViewModel(env: env(), mode: nil).state.modemReading == nil)
     }
+
+    @Test func aPathChangeMakesTheReadingHistory() async {
+        let viewModel = TroubleshootToolViewModel(env: env(), mode: nil)
+        await viewModel.useModemReading(Self.redInternet)
+        #expect(viewModel.state.isModemReadingCurrent)
+        viewModel.pathChanged()
+        #expect(!viewModel.state.isModemReadingCurrent)
+        #expect(viewModel.state.modemReading != nil, "Still shown, as history")
+    }
+
+    @Test func aReadingBelongsToTheSavedNetworkItWasReadOn() async {
+        final class Profile {
+            var id: UUID? = UUID()
+        }
+        let profile = Profile()
+        let environment = env()
+        let viewModel = TroubleshootToolViewModel(env: AppEnvironment(
+            networkMonitor: environment.networkMonitor, deviceDiscovery: environment.deviceDiscovery,
+            macConnection: environment.macConnection, publicIP: environment.publicIP, wifiInfo: environment.wifiInfo,
+            targetManager: .shared, activityLog: .shared, eventService: NetworkEventService(), scanScheduler: ScanSchedulerService.shared,
+            currentNetworkProfileID: { profile.id }
+        ), mode: nil)
+        await viewModel.useModemReading(Self.redInternet)
+        #expect(viewModel.state.isModemReadingCurrent)
+        profile.id = UUID()
+        #expect(!viewModel.state.isModemReadingCurrent)
+    }
 }

@@ -17,9 +17,10 @@ enum TroubleshootUITestFixture {
         /// No model: the symptom buttons only.
         case unavailable
         /// With the modem sheet's red Internet light (#625): the lookup fails and the speed test
-        /// doesn't finish, as in an outage, and the model's answer agrees with the light.
+        /// doesn't finish, as in an outage. With a modem finding the app summarises the run and the
+        /// stand-in model is never asked (#629 review).
         case modem
-        /// As `modem`, but the model's answer says the internet is fine, so it is dropped.
+        /// As `modem`, but the stand-in model would say the internet is fine: it must never be shown.
         case modemDenies
     }
 
@@ -30,7 +31,8 @@ enum TroubleshootUITestFixture {
     static let answer = "Your Wi-Fi signal is weak, which is the most likely reason Zoom keeps freezing. "
         + "Move closer to the router, or survey the signal with the Wi-Fi Heatmap tool."
 
-    /// The stand-in answers for the modem modes: one agrees with the red Internet light, one denies it.
+    /// The stand-in answers for the modem modes: one agrees with the red Internet light, one denies
+    /// it. Neither is asked for while a modem finding stands.
     static let modemAnswer = "Your Wi-Fi signal is weak, and the modem's Internet light reads as red, so the modem may have no internet connection. "
         + "Move closer to the router, and restart the modem."
     static let modemDenial = "Your Wi-Fi signal is weak, but your internet connection is fine. Move closer to the router."

@@ -127,9 +127,13 @@ public final class TroubleshootState {
     /// Who wrote `explanation`: this device or the connected Mac (#457).
     public private(set) var explanationSource: InsightSource = .device
     public private(set) var isExplaining = false
+    /// The app's own summary when a modem light is among the findings: the model isn't asked
+    /// then (#629 review). Nil otherwise.
+    public private(set) var appSummary: String?
     /// The modem's lights, read from a photo in this session (#625). In memory only; it lasts as
-    /// long as this state, the Troubleshoot screen's, and new runs and resets keep it.
-    public private(set) var modemReading: ModemLightsReading?
+    /// long as this state, the Troubleshoot screen's, and new runs and resets keep it. It takes part
+    /// in findings only while `isModemReadingCurrent`; otherwise it is shown as history.
+    public private(set) var modemReading: TroubleshootModemReading?
 
     private let probes: any TroubleshootProbing
     private let classifier: any SymptomClassifierProtocol
@@ -139,6 +143,8 @@ public final class TroubleshootState {
     private let speedBaseline: @MainActor () -> Double?
     private let readingInterval: Duration
     private let timeout: Duration
+    private let networkKey: @MainActor () -> String?
+    private let now: @MainActor () -> Date
     private var runTask: Task<Void, Never>?
     private var stepTask: Task<TroubleshootResult, Never>?
     private var classifyTask: Task<SymptomIntent?, Never>?
@@ -154,6 +160,9 @@ public final class TroubleshootState {
     ///   - isScanning: whether a device scan is running.
     ///   - speedBaseline: the last saved speed test's download, in Mbps.
     ///   - readingInterval: the wait between Wi-Fi readings; three readings span twice this.
+    ///   - networkKey: the network the phone is on now, changing when it joins another or its path
+    ///     changes; a modem reading counts only on the network it was read on.
+    ///   - now: the clock a modem reading's freshness is judged by.
     public init(
         probes: any TroubleshootProbing,
         classifier: any SymptomClassifierProtocol,
@@ -162,7 +171,9 @@ public final class TroubleshootState {
         isScanning: @escaping @MainActor () -> Bool,
         speedBaseline: @escaping @MainActor () -> Double?,
         readingInterval: Duration = .seconds(5),
-        timeout: Duration = ChangeBriefState.timeout
+        timeout: Duration = ChangeBriefState.timeout,
+        networkKey: @escaping @MainActor () -> String? = { nil },
+        now: @escaping @MainActor () -> Date = { Date() }
     ) {
         self.probes = probes
         self.classifier = classifier
@@ -172,6 +183,8 @@ public final class TroubleshootState {
         self.speedBaseline = speedBaseline
         self.readingInterval = readingInterval
         self.timeout = timeout
+        self.networkKey = networkKey
+        self.now = now
     }
 
     /// Whether the symptom field shows: the model can read a typed symptom.
@@ -262,12 +275,18 @@ public final class TroubleshootState {
 
     // MARK: - Modem lights (#625)
 
-    /// Uses a reading of the modem's lights in this session's findings. A photo that isn't a
-    /// panel changes nothing. A run in progress takes it when it ends; a finished run is ranked
-    /// again and its explanation, written without the lights, is replaced.
-    public func useModemReading(_ report: ModemPanelReport, at date: Date = Date()) async {
+    /// Whether the modem reading may take part in findings: read on this network, within
+    /// `TroubleshootModemReading.freshness`. An older one, or one from another network, is history.
+    public var isModemReadingCurrent: Bool {
+        modemReading?.isCurrent(now: now(), networkKey: networkKey()) ?? false
+    }
+
+    /// Uses a reading of the modem's lights in this session's findings, stamped now and with this
+    /// network. A photo that isn't a panel changes nothing. A run in progress takes it when it ends;
+    /// a finished run is ranked again and its explanation, written without the lights, is replaced.
+    public func useModemReading(_ report: ModemPanelReport) async {
         guard report.isPanel else { return }
-        modemReading = ModemLightsReading(report: report, readAt: date)
+        modemReading = TroubleshootModemReading(report: report, readAt: now(), networkKey: networkKey())
         guard !isRunning, !steps.isEmpty else { return }
         findings = rankFindings()
         guard phase == .finished, let kind else { return }
@@ -276,6 +295,7 @@ public final class TroubleshootState {
         explainTask = nil
         isExplaining = false
         explanation = nil
+        appSummary = nil
         await explain(kind)
     }
 
@@ -292,6 +312,7 @@ public final class TroubleshootState {
         steps = []
         findings = []
         explanation = nil
+        appSummary = nil
     }
 
     private func route(_ intent: SymptomIntent) async {
@@ -339,6 +360,7 @@ public final class TroubleshootState {
         steps = checks.enumerated().map { TroubleshootStep(id: $0.offset + 1, check: $0.element, status: .pending) }
         findings = []
         explanation = nil
+        appSummary = nil
         isCancelled = false
         phase = .running
         let task = Task { await self.runSteps() }
@@ -380,7 +402,7 @@ public final class TroubleshootState {
             } else {
                 nil
             }
-        }), modem: modemReading?.report)
+        }), modem: isModemReadingCurrent ? modemReading?.report : nil)
     }
 
     /// Runs each step in turn until one is cancelled or a scan starts.
@@ -448,9 +470,13 @@ public final class TroubleshootState {
     }
 
     private func explain(_ kind: SymptomKind) async {
-        guard insight.isAvailable, !isScanning(),
-              let report = TroubleshootReportBuilder.report(for: kind, findings: findings, modem: modemReading?.report)
-        else { return }
+        // With a modem light among the findings the model isn't asked: its wording can't be checked
+        // against the lights (#629 review). The app's summary stands in.
+        if let summary = TroubleshootReportBuilder.appSummary(for: findings) {
+            appSummary = summary
+            return
+        }
+        guard insight.isAvailable, !isScanning(), let report = TroubleshootReportBuilder.report(for: kind, findings: findings) else { return }
         let run = runID
         isExplaining = true
         let task = Task { [insight, timeout] in

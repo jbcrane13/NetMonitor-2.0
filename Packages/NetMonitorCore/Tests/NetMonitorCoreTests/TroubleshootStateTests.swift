@@ -449,3 +449,177 @@ private final class HeldSymptomClassifier: SymptomClassifierProtocol, @unchecked
         try? await Task.sleep(for: .milliseconds(5))
     }
 }
+
+// MARK: - Modem lights (#625, #629 review)
+
+/// Answers every request with one fixed text and counts the requests.
+private final class CountingInsight: InsightServiceProtocol, @unchecked Sendable {
+    let answer: String
+    private(set) var requests: [InsightRequest] = []
+    init(_ answer: String) {
+        self.answer = answer
+    }
+
+    var isAvailable: Bool { true }
+    func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
+        requests.append(request)
+        return AsyncStream { continuation in
+            continuation.yield(.finished(answer))
+            continuation.finish()
+        }
+    }
+
+    func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? { nil }
+}
+
+/// The reading in a Troubleshoot session: held in memory, used only while current, and with a
+/// modem finding the run is summarised by the app; the model is never asked.
+@Suite("TroubleshootState modem lights")
+@MainActor
+struct TroubleshootStateModemLightsTests {
+    @MainActor final class Clock {
+        var now = Date(timeIntervalSince1970: 1_000_000)
+        var network: String? = "home#1"
+    }
+
+    static let redInternet = TroubleshootModemLightsTests.redInternet
+    static let weakAnswer = "Your Wi-Fi signal is weak, which is the most likely reason calls freeze. Move closer to the router."
+
+    func make(_ insight: any InsightServiceProtocol = UnavailableInsightService(), clock: Clock = Clock())
+        -> (TroubleshootState, MockTroubleshootProbes) {
+        let probes = MockTroubleshootProbes()
+        probes.readings = [WiFiReading(rssi: -80, noise: -92)]
+        // An outage: no download, so the run never reached the internet and a red light stands.
+        probes.download = .failed
+        let state = TroubleshootState(
+            probes: probes, classifier: FixedSymptomClassifier(intents: [:]), insight: insight,
+            devices: { [] }, isScanning: { false }, speedBaseline: { 100 }, readingInterval: .zero,
+            networkKey: { clock.network }, now: { clock.now }
+        )
+        return (state, probes)
+    }
+
+    @Test func aReadingTakenBeforeTheRunIsRankedWithItsFindings() async {
+        let clock = Clock()
+        let (state, _) = make(clock: clock)
+        await state.useModemReading(Self.redInternet)
+        #expect(state.modemReading == TroubleshootModemReading(report: Self.redInternet, readAt: clock.now, networkKey: "home#1"))
+        #expect(state.findings.isEmpty, "No run yet: the reading shows in its own row")
+        await state.choose(.slowOrUnstableInternet)
+        #expect(state.findings.map(\.kind).contains(.modemProblem))
+    }
+
+    @Test(arguments: [
+        // Each passed the old text checks (#629 Codex review); none may ever be shown.
+        "Although the modem's Internet light reads as red, it does not indicate a fault. Restart the modem.",
+        "The modem's Internet light reads as red. It is harmless and can be ignored.",
+        "Your Wi-Fi signal is weak, and the modem's Internet light reads as green.",
+        "Your Wi-Fi signal is weak because a neighbour's network is interfering with the modem.",
+        "Your Wi-Fi signal is weak. Call your provider to cancel your service."
+    ])
+    func withAModemFindingTheModelIsNeverAskedAndItsTextNeverShown(answer: String) async {
+        let insight = CountingInsight(answer)
+        let (state, _) = make(insight)
+        await state.useModemReading(Self.redInternet)
+        await state.choose(.slowOrUnstableInternet)
+        #expect(insight.requests.isEmpty)
+        #expect(state.explanation == nil)
+        #expect(state.appSummary?.hasPrefix("Most likely cause: Weak signal.") == true)
+        #expect(state.appSummary?.contains("Also: The modem's Internet light reads as red.") == true)
+    }
+
+    @Test func anAllNormalReadingLetsTheModelWordTheRunWithoutModemFacts() async {
+        let insight = CountingInsight(Self.weakAnswer)
+        let (state, _) = make(insight)
+        await state.useModemReading(TroubleshootModemLightsTests.allGreen)
+        await state.choose(.slowOrUnstableInternet)
+        #expect(insight.requests.count == 1)
+        #expect(!(insight.requests.first?.facts.joined().lowercased().contains("modem") ?? true))
+        #expect(state.explanation == Self.weakAnswer)
+        #expect(state.appSummary == nil)
+    }
+
+    @Test func aReadingAfterTheRunReplacesTheModelTextWithTheAppSummary() async {
+        let insight = CountingInsight(Self.weakAnswer)
+        let (state, _) = make(insight)
+        await state.choose(.slowOrUnstableInternet)
+        #expect(state.explanation == Self.weakAnswer)
+        await state.useModemReading(Self.redInternet)
+        #expect(state.findings.map(\.kind).contains(.modemProblem))
+        #expect(state.explanation == nil)
+        #expect(state.appSummary != nil)
+        #expect(insight.requests.count == 1)
+    }
+
+    @Test func aReadingWhileTheFirstExplanationIsWrittenDiscardsIt() async {
+        let insight = MockInsightService()
+        let (state, _) = make(insight)
+        let run = Task { await state.choose(.slowOrUnstableInternet) }
+        await waitUntil { state.isExplaining }
+        await state.useModemReading(Self.redInternet)
+        #expect(state.appSummary != nil)
+        // The first answer, written without the lights, comes back late and is discarded.
+        insight.send(.finished(Self.weakAnswer), to: 0)
+        await run.value
+        #expect(state.explanation == nil)
+        #expect(!state.isExplaining)
+    }
+
+    // MARK: Freshness
+
+    @Test func anOvernightReadingIsHistoryAndTakesNoPart() async {
+        let clock = Clock()
+        let (state, _) = make(clock: clock)
+        await state.useModemReading(Self.redInternet)
+        clock.now += 8 * 60 * 60
+        await state.choose(.slowOrUnstableInternet)
+        #expect(!state.isModemReadingCurrent)
+        #expect(state.modemReading != nil, "Still shown, as history")
+        #expect(!state.findings.contains { $0.kind.isModem })
+    }
+
+    @Test func aReadingFromBeforeANetworkChangeTakesNoPart() async {
+        let clock = Clock()
+        let (state, _) = make(clock: clock)
+        await state.useModemReading(Self.redInternet)
+        clock.network = "home#2"
+        await state.choose(.slowOrUnstableInternet)
+        #expect(!state.isModemReadingCurrent)
+        #expect(!state.findings.contains { $0.kind.isModem })
+    }
+
+    @Test func aRerunPastTheFreshnessLimitIsNotBlamedOnTheOldPhoto() async {
+        let clock = Clock()
+        let (state, _) = make(clock: clock)
+        await state.useModemReading(Self.redInternet)
+        clock.now += 10 * 60
+        await state.choose(.slowOrUnstableInternet)
+        #expect(state.findings.contains { $0.kind == .modemProblem })
+        // The modem was restarted meanwhile; the photo is now 31 minutes old.
+        clock.now += 21 * 60
+        state.reset()
+        await state.choose(.slowOrUnstableInternet)
+        #expect(!state.findings.contains { $0.kind.isModem })
+        #expect(state.modemReading != nil)
+    }
+
+    @Test func aPhotoThatIsNotAPanelKeepsTheLastReading() async {
+        let (state, _) = make()
+        await state.useModemReading(Self.redInternet)
+        await state.useModemReading(ModemPanelReport(answer: ModemPanelAnswer(status: .unsupported, lights: [])))
+        #expect(state.modemReading?.report == Self.redInternet)
+    }
+
+    @Test func aCancelledRunStillNamesTheLightButIsNotSummarised() async {
+        let (state, probes) = make(CountingInsight(Self.weakAnswer))
+        probes.holds = "dns apple.com"
+        await state.useModemReading(Self.redInternet)
+        let run = Task { await state.choose(.slowOrUnstableInternet) }
+        await waitUntil { probes.calls.contains("dns apple.com") }
+        state.cancel()
+        await run.value
+        #expect(state.phase == .stopped(TroubleshootState.cancelledMessage))
+        #expect(state.findings.map(\.kind) == [.modemProblem])
+        #expect(state.explanation == nil && state.appSummary == nil)
+    }
+}

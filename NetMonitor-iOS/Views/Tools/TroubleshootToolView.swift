@@ -15,10 +15,12 @@ struct TroubleshootToolView: View {
     /// Only the latest saved test: its download is the baseline.
     @Query private var speedTests: [SpeedTestResult]
     private let networkProfileID: UUID?
+    private let networkMonitor: any NetworkMonitorServiceProtocol
 
     init(env: AppEnvironment) {
         _viewModel = State(initialValue: TroubleshootToolViewModel(env: env))
         networkProfileID = env.currentNetworkProfileID()
+        networkMonitor = env.networkMonitor
         var latest = FetchDescriptor<SpeedTestResult>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
         latest.fetchLimit = 1
         _speedTests = Query(latest)
@@ -31,6 +33,12 @@ struct TroubleshootToolView: View {
     private struct InputsKey: Equatable {
         let devices: [TroubleshootDevice]
         let latestSpeedTest: UUID?
+    }
+
+    /// The network path, watched so a modem reading from before a change stops counting (#629 review).
+    private struct PathKey: Equatable {
+        let isConnected: Bool
+        let connectionType: ConnectionType
     }
 
     var body: some View {
@@ -59,6 +67,9 @@ struct TroubleshootToolView: View {
             devices: TroubleshootToolViewModel.devices(devices, networkProfileID: networkProfileID), latestSpeedTest: speedTests.first?.id
         )) {
             viewModel.update(devices: devices, networkProfileID: networkProfileID, latestDownload: speedTests.first?.downloadSpeed)
+        }
+        .onChange(of: PathKey(isConnected: networkMonitor.isConnected, connectionType: networkMonitor.connectionType)) {
+            viewModel.pathChanged()
         }
         .onDisappear { state.cancel() }
         .sheet(isPresented: $showsModemLights) {
@@ -288,27 +299,34 @@ struct TroubleshootToolView: View {
         }
     }
 
+    /// Measured causes and red modem lights, numbered in rank order.
+    private var causes: [TroubleshootFinding] {
+        state.findings.filter { $0.kind != .modemCheck }
+    }
+
+    /// Modem lights worth a look: listed after the causes, never one of them (#629 review).
+    private var worthALook: [TroubleshootFinding] {
+        state.findings.filter { $0.kind == .modemCheck }
+    }
+
     private var findingsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(findingsTitle)
                 .font(.headline)
                 .foregroundStyle(Theme.Colors.textPrimary)
-            ForEach(Array(state.findings.enumerated()), id: \.element.id) { index, finding in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(index + 1). \(finding.title)")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(finding.kind == .noProblem ? Theme.Colors.success : Theme.Colors.warning)
-                    Text(finding.detail)
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Label(finding.nextStep, systemImage: "arrow.right.circle")
-                        .font(.caption)
-                        .foregroundStyle(Theme.Colors.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+            ForEach(Array(causes.enumerated()), id: \.element.id) { index, finding in
+                findingRow(finding, title: "\(index + 1). \(finding.title)")
+                    .accessibilityIdentifier("troubleshoot_finding_\(index + 1)")
+            }
+            if !worthALook.isEmpty {
+                Text("Also worth a look")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                    .padding(.top, 4)
+                ForEach(Array(worthALook.enumerated()), id: \.element.id) { index, finding in
+                    findingRow(finding, title: finding.title)
+                        .accessibilityIdentifier("troubleshoot_finding_check_\(index + 1)")
                 }
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("troubleshoot_finding_\(index + 1)")
             }
             if let reading = state.modemReading {
                 modemLightsRow(reading)
@@ -319,18 +337,57 @@ struct TroubleshootToolView: View {
         .accessibilityIdentifier("troubleshoot_list_findings")
     }
 
+    private func findingRow(_ finding: TroubleshootFinding, title: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(finding.kind == .noProblem ? Theme.Colors.success : Theme.Colors.warning)
+            Text(finding.detail)
+                .font(.caption)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Label(finding.nextStep, systemImage: "arrow.right.circle")
+                .font(.caption)
+                .foregroundStyle(Theme.Colors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Modem lights and summary
+
+extension TroubleshootToolView {
     /// The session's modem-light reading (#625): the app's lines, worst first, and when the photo
-    /// was read. Off lights are worded as checks; a red light is also a ranked finding above.
-    private func modemLightsRow(_ reading: ModemLightsReading) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    /// was read. Off lights are worded as checks; a red light is also a finding above. A reading
+    /// from before a network change, or older than `TroubleshootModemReading.freshness`, is shown as
+    /// history and takes no part in findings (#629 review).
+    private func modemLightsRow(_ reading: TroubleshootModemReading) -> some View {
+        let isCurrent = state.isModemReadingCurrent
+        // The reading lasts as long as this screen, so an older one says its day.
+        let day: Date.FormatStyle.DateStyle = Calendar.current.isDateInToday(reading.readAt) ? .omitted : .abbreviated
+        let readAt = reading.readAt.formatted(date: day, time: .shortened)
+        return VStack(alignment: .leading, spacing: 6) {
             VStack(alignment: .leading, spacing: 4) {
                 Label("Modem lights", systemImage: "camera.viewfinder")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.Colors.textPrimary)
+                if !isCurrent {
+                    Text("Read at \(readAt); read the lights again to use it.")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Theme.Colors.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(reading.report.headline)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Theme.Colors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                if reading.report.looksNormal {
+                    Text(ModemPanelReport.looksNormalNote)
+                        .font(.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 // Doubts about the reading itself (partial, more than one device) stay in view.
                 ForEach(Array(reading.report.notices.enumerated()), id: \.offset) { _, notice in
                     Label(notice, systemImage: "exclamationmark.triangle")
@@ -344,14 +401,13 @@ struct TroubleshootToolView: View {
                         .foregroundStyle(Theme.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                // The reading lasts as long as this screen, so an older one says its day.
-                let day: Date.FormatStyle.DateStyle = Calendar.current.isDateInToday(reading.readAt) ? .omitted : .abbreviated
-                Text("Read from a photo at \(reading.readAt.formatted(date: day, time: .shortened)). "
+                Text((isCurrent ? "Read from a photo at \(readAt). " : "")
                     + "\(ModemPanelReport.blinkingNote). \(ModemPanelReport.whiteLightNote)")
                     .font(.caption2)
                     .foregroundStyle(Theme.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .opacity(isCurrent ? 1 : 0.7)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("troubleshoot_label_modemLights")
             if ModemLightsViewModel.isAvailable {
@@ -378,6 +434,20 @@ struct TroubleshootToolView: View {
                     .foregroundStyle(Theme.Colors.textSecondary)
             }
             .accessibilityIdentifier("troubleshoot_label_explaining")
+        } else if let summary = state.appSummary {
+            // With a modem light among the findings the app words the run itself (#629 review).
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Summary", systemImage: "list.bullet.clipboard")
+                    .font(.headline)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("troubleshoot_label_summary")
+            }
+            .glassCard()
         } else if let text = state.explanation {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Explanation", systemImage: "sparkles")
