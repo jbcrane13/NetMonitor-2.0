@@ -74,8 +74,15 @@ public final class DeviceSuggester {
     public func suggest(for devices: [LocalDevice]) async {
         // Cancelled first: a cancelled task (its device's screen, or the store, gone) must not read
         // the rows, not even to group them.
-        guard service.isAvailable, !Task.isCancelled else { return }
-        for device in DeviceGroups.project(devices).map(\.primary) {
+        guard !Task.isCancelled else { return }
+        let primaries = DeviceGroups.project(devices).map(\.primary)
+        guard service.isAvailable else {
+            // Nothing can answer (the Mac left): a suggestion for older evidence goes rather than
+            // staying on show (#642 review).
+            primaries.forEach(dropStaleSuggestion)
+            return
+        }
+        for device in primaries {
             if Task.isCancelled {
                 return
             }
@@ -88,32 +95,10 @@ public final class DeviceSuggester {
             if Task.isCancelled {
                 return
             }
-            // The evidence changed while the model answered (a rename, a scan): the answer is about
-            // evidence that no longer stands, so it isn't used or recorded, and the next pass asks
-            // about the new evidence (#586).
-            guard DeviceEvidence(device: device).fingerprint == evidence.fingerprint else { continue }
-            // No answer because the service went away (the Mac left, or is busy and backing off) isn't
-            // "nothing to suggest": nothing is recorded, so the device is asked again later, and the
-            // pass stops rather than asking about every device in turn (#586). A failure while the
-            // service stays available (this device's model) is recorded as before.
-            if answer == nil, !service.isAvailable {
-                // The record from before was about older evidence (that's why the device was asked):
-                // drop it, so its suggested type can't be shown or accepted, unless the user decided
-                // meanwhile.
-                if store.record(for: device.id) == asked, asked != nil {
-                    store.setRecord(nil, for: device.id)
-                }
-                return
-            }
-            // The user accepted or dismissed while the model was answering: keep their
-            // decision, and a dismissal covers the evidence the model was just shown.
-            let decided = store.record(for: device.id)
-            if decided != asked {
-                if var decided, decided.dismissed {
-                    decided.fingerprint = evidence.fingerprint
-                    store.setRecord(decided, for: device.id)
-                }
-                continue
+            switch outcome(of: answer, for: device, evidence: evidence, asked: asked) {
+            case .stop: return
+            case .skip: continue
+            case .record: break
             }
             let suggestion = answer.map { $0.checked(against: evidence) }
                 .flatMap { $0.confidence == .low || $0.isEmpty ? nil : $0 }
@@ -127,12 +112,69 @@ public final class DeviceSuggester {
         }
     }
 
-    /// The suggested type, shown only while the device's type is unknown.
+    private enum Outcome {
+        /// Use and record the answer.
+        case record
+        /// Leave this device; go on with the next.
+        case skip
+        /// End the pass.
+        case stop
+    }
+
+    /// What to do with `answer` for `device`, asked about `evidence` while its record was `asked`.
+    private func outcome(
+        of answer: DeviceSuggestion?, for device: LocalDevice, evidence: DeviceEvidence, asked: DeviceSuggestionStore.Record?
+    ) -> Outcome {
+        // The evidence changed while the model answered (a rename, a scan): the answer is about
+        // evidence that no longer stands, so it isn't used or recorded, the older suggestion goes,
+        // and the next pass asks about the new evidence (#586).
+        guard DeviceEvidence(device: device).fingerprint == evidence.fingerprint else {
+            if store.record(for: device.id) == asked {
+                dropStaleSuggestion(device)
+            }
+            return .skip
+        }
+        // No answer because the service went away (the Mac left, or is busy and backing off) isn't
+        // "nothing to suggest": nothing is recorded, so the device is asked again later, and the
+        // pass stops rather than asking about every device in turn (#586). A failure while the
+        // service stays available (this device's model, a Mac refusal) is recorded as before.
+        if answer == nil, !service.isAvailable {
+            if store.record(for: device.id) == asked {
+                dropStaleSuggestion(device)
+            }
+            return .stop
+        }
+        // The user accepted or dismissed while the model was answering: keep their
+        // decision, and a dismissal covers the evidence the model was just shown.
+        let decided = store.record(for: device.id)
+        if decided != asked {
+            if var decided, decided.dismissed {
+                decided.fingerprint = evidence.fingerprint
+                store.setRecord(decided, for: device.id)
+            }
+            return .skip
+        }
+        return .record
+    }
+
+    /// The suggested type, shown only while the device's type is unknown and only for the evidence
+    /// it was suggested for: a type suggested for older evidence is never shown or accepted.
     public func suggestedType(for device: LocalDevice) -> DeviceType? {
         guard device.deviceType == .unknown, let record = store.record(for: device.id), !record.dismissed,
-              let type = record.suggestion?.deviceType, type != .unknown
+              let type = record.suggestion?.deviceType, type != .unknown,
+              record.fingerprint == DeviceEvidence(device: device).fingerprint
         else { return nil }
         return type
+    }
+
+    /// Drops a suggestion made for evidence the device no longer has: its suggested values and its
+    /// record, so the device is asked about its new evidence. A dismissal stays.
+    private func dropStaleSuggestion(_ device: LocalDevice) {
+        guard let record = store.record(for: device.id), !record.dismissed,
+              record.fingerprint != DeviceEvidence(device: device).fingerprint
+        else { return }
+        removeSuggestedValues(from: device)
+        store.setRecord(nil, for: device.id)
     }
 
     /// Whether the model answered about the device's current evidence (whatever it suggested).

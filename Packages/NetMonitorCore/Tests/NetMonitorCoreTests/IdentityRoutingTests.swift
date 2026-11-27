@@ -302,7 +302,8 @@ struct IdentityFailureTests {
     }
 
     private func store() -> DeviceSuggestionStore {
-        DeviceSuggestionStore(defaults: UserDefaults(suiteName: "IdentityFailureTests.\(UUID())")!)
+        // A fresh suite per test; `.standard` only if the system refuses the name.
+        DeviceSuggestionStore(defaults: UserDefaults(suiteName: "IdentityFailureTests.\(UUID())") ?? .standard)
     }
 
     private func device(_ last: Int) -> LocalDevice {
@@ -313,7 +314,8 @@ struct IdentityFailureTests {
     func refusedIsPerDevice() async {
         for reason in [InsightFailureReason.refused, .timeout, .tooLarge] {
             let (mac, sent) = Self.mac { ModelResponsePayload(requestID: $0.requestID, schema: $0.schema, failure: reason) }
-            let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
+            let consent = MacInsightConsent(defaults: nil, decision: true)
+            let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: consent)
             let store = store()
             let first = device(1), second = device(2)
             await DeviceSuggester(service: service, store: store).suggest(for: [first, second])
@@ -370,14 +372,14 @@ struct IdentityFailureTests {
         // The Mac holds the first (abandoned) request's slot for 3 more replies, then answers.
         let replies = Mutex(0)
         let (mac, sent) = Self.mac { request in
-            let n = replies.withLock { value -> Int in
+            let reply = replies.withLock { value -> Int in
                 value += 1
                 return value
             }
-            if n == 1 {
+            if reply == 1 {
                 return nil
             }
-            return n <= 4
+            return reply <= 4
                 ? ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .busy)
                 : ModelResponsePayload(requestID: request.requestID, output: .identity(IdentityRaw(deviceType: "printer", confidence: "high")))
         }

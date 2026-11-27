@@ -304,7 +304,11 @@ struct DeviceSuggesterTests {
         #expect(device.identity.model == IdentityValue("L-BDG2", source: .hostnameGuess))
         device.mergeIdentity(DeviceIdentity(maker: IdentityValue("Lutron Electronics", source: .upnp)))
         #expect(device.identity.maker == IdentityValue("Lutron Electronics", source: .upnp))
-        #expect(suggester.isShowingSuggestion(device)) // the type is still suggested
+        // The evidence changed, so the type suggested for the old evidence isn't shown (#642 review)
+        // until the next pass asks about the new evidence; then it is suggested again.
+        #expect(!suggester.isShowingSuggestion(device))
+        await suggester.suggest(for: [device])
+        #expect(suggester.isShowingSuggestion(device)) // the type is suggested for the new evidence
 
         device.deviceType = .iot
         #expect(!suggester.isShowingSuggestion(device))
@@ -467,6 +471,43 @@ extension DeviceSuggesterTests {
         await suggester.suggest(for: [device])
         #expect(suggester.suggestedType(for: device) == nil, "the camera was suggested for evidence that no longer stands")
         #expect(store.record(for: device.id) == nil, "and the new evidence stays unrecorded, to be asked about again")
+    }
+}
+
+extension DeviceSuggesterTests {
+    private func staleRecord(for device: LocalDevice) {
+        store.setRecord(
+            DeviceSuggestionStore.Record(fingerprint: "old-evidence", suggestion: DeviceSuggestion(deviceType: .camera, confidence: .high)),
+            for: device.id
+        )
+    }
+
+    @Test("a type suggested for older evidence is never shown or accepted")
+    func staleTypeIsNotShown() {
+        let device = bridge()
+        staleRecord(for: device)
+        let suggester = DeviceSuggester(service: UnavailableInsightService(), store: store)
+        #expect(suggester.suggestedType(for: device) == nil)
+        suggester.accept(device)
+        #expect(device.deviceType == .unknown)
+    }
+
+    @Test("evidence changed during the answer: the older suggestion goes too")
+    func staleDroppedWhenEvidenceChanges() async {
+        let device = bridge()
+        staleRecord(for: device)
+        let service = ActingInsightService(answer: lutron)
+        service.during = { device.hostname = "renamed-bridge.lan" }
+        await DeviceSuggester(service: service, store: store).suggest(for: [device])
+        #expect(store.record(for: device.id) == nil)
+    }
+
+    @Test("no service (the Mac gone): an older suggestion is dropped, not left showing")
+    func staleDroppedWhenTheMacIsGone() async {
+        let device = bridge()
+        staleRecord(for: device)
+        await DeviceSuggester(service: UnavailableInsightService(), store: store).suggest(for: [device])
+        #expect(store.record(for: device.id) == nil)
     }
 }
 
