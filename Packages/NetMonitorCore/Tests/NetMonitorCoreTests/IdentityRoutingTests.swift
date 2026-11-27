@@ -56,6 +56,28 @@ struct DeviceEvidenceProjectionTests {
         #expect(DeviceEvidenceProjection(lines: ["IP address: 192.168.1.4"]) == nil, "never addresses")
     }
 
+    @Test("the Mac bounds the lines by bytes as well as characters, and checks the list counts (#642 review)")
+    func bytesAndCounts() {
+        // Each line within the character bound, but over the byte bound in total.
+        let wide = String(repeating: "\u{1F5A8}", count: 170)
+        let labels = ["Hostname", "Name given by the user", "Model", "Type", "Reverse DNS name", "Name the device announces"]
+        #expect(labels.map { "\($0): " + wide }.allSatisfy { $0.count <= DeviceEvidenceProjection.lineLimit })
+        #expect(DeviceEvidenceProjection(lines: labels.map { "\($0): " + wide }) == nil)
+        #expect(DeviceEvidenceProjection(lines: ["Hostname: " + wide]) != nil, "one wide line is fine")
+        #expect(DeviceEvidenceProjection(lines: ["Network services (3): _a._tcp, _b._tcp"]) == nil, "the count says 3, two are listed")
+        #expect(DeviceEvidenceProjection(lines: ["Network services (2): _a._tcp, _b._tcp"]) != nil)
+        let twelve = (0 ..< 12).map { "_s\($0)._tcp" }.joined(separator: ", ")
+        #expect(DeviceEvidenceProjection(lines: ["Network services (40): \(twelve), and 28 more"]) != nil)
+        #expect(DeviceEvidenceProjection(lines: ["Network services (41): \(twelve), and 28 more"]) == nil)
+        let thirteen = (0 ..< 13).map { "_s\($0)._tcp" }.joined(separator: ", ")
+        #expect(DeviceEvidenceProjection(lines: ["Network services (13): \(thirteen)"]) == nil, "more than 12 listed")
+        #expect(DeviceEvidenceProjection(lines: ["Open ports (2): 80, http"]) == nil, "ports are numbers")
+        #expect(DeviceEvidenceProjection(lines: ["Open ports (2): 80, 443"]) != nil)
+        // What the phone builds always passes.
+        let evidence = DeviceEvidence(hostname: "h", services: (0 ..< 40).map { "_svc\($0)._tcp" }, openPorts: Array(1 ... 30))
+        #expect(DeviceEvidenceProjection(lines: evidence.projection.lines) != nil)
+    }
+
     @Test("a reply's identity fields are bounded and read into a suggestion marked as the Mac's")
     func identityOutput() {
         let raw = IdentityRaw(deviceType: "printer", maker: "Brother", model: "HL-L2350DW", confidence: "high")
