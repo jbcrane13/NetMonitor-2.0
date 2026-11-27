@@ -30,7 +30,9 @@ struct PlainRuleIOSViewModelTests {
 
     private func viewModel(_ text: String) -> PlainRuleIOSViewModel {
         // No port answers a check: these tests name devices whose open ports are known.
-        let model = PlainRuleIOSViewModel(parser: FixedRuleIntentParser.uiTest, probe: MonitoringTargetProbe { _, _, _ in false })
+        let model = PlainRuleIOSViewModel(
+            parser: FixedRuleIntentParser.uiTest, probe: MonitoringTargetProbe { _, _, _ in false }, joinClock: .forTests
+        )
         model.text = text
         return model
     }

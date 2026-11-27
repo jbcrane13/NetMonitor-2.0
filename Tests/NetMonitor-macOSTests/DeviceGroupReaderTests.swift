@@ -76,7 +76,8 @@ struct DeviceGroupReaderTests {
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: fixture.context, bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(), scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         // Only the Wi-Fi interface answers this scan.
         let answer = LocalDiscoveredDevice(ipAddress: Self.memberIP, macAddress: Self.memberMAC, hostname: "studio-wifi")
@@ -126,7 +127,8 @@ struct DeviceGroupReaderTests {
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: fixture.context, bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(), scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         let answer = LocalDiscoveredDevice(ipAddress: Self.memberIP, macAddress: Self.memberMAC, hostname: "studio-wifi")
         coordinator.reconcileScan([answer], profileID: nil)

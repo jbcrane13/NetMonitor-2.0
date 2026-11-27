@@ -163,6 +163,20 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     /// The connected Mac's answers for that scan's network while its inventory was live (#585):
     /// never part of the scan's devices; they refresh existing rows only (`ScanReconciler`).
     @MainActor var completedScanMacSightings: [DiscoveredDevice] { get }
+    /// The token that scan started with (#628); nil for a conformer that doesn't stamp scans.
+    @MainActor var completedScanToken: JoinToken? { get }
+    /// The token `discoveredDevices` was observed under (#628); nil for a conformer that doesn't
+    /// stamp scans. A device-row write from the list checks it right before it writes.
+    @MainActor var discoveredDevicesToken: JoinToken? { get }
+    /// Scans dropped so far because their token went stale (#628): a caller compares it before and
+    /// after a scan so a dropped scan leaves no trace (no "last scanned", no count).
+    @MainActor var droppedScanCount: Int { get }
+    /// Whether the last completed scan's token is still current (#628); a caller stamps "last
+    /// scanned" or counts a scan only then.
+    @MainActor var lastScanIsCurrent: Bool { get }
+    /// Retracts a published scan whose token went stale before it was saved (#628); false when
+    /// nothing was retracted.
+    @MainActor func retractScan(_ token: JoinToken) -> Bool
     @MainActor func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice]
     func scanNetwork(subnet: String?) async
     func scanNetwork(profile: NetworkProfile?) async
@@ -175,6 +189,14 @@ public extension DeviceDiscoveryServiceProtocol {
     var completedScanDevices: [DiscoveredDevice] { discoveredDevices }
     /// For a conformer without a Mac: none.
     var completedScanMacSightings: [DiscoveredDevice] { [] }
+    /// For a conformer that doesn't stamp scans: none.
+    var completedScanToken: JoinToken? { nil }
+    /// For a conformer that doesn't stamp scans: none.
+    var discoveredDevicesToken: JoinToken? { nil }
+    /// For a conformer that never drops a scan: none.
+    var droppedScanCount: Int { 0 }
+    var lastScanIsCurrent: Bool { true }
+    func retractScan(_: JoinToken) -> Bool { false }
 }
 
 /// Protocol for default gateway detection.

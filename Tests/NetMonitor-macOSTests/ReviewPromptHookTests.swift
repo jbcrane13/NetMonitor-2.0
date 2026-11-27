@@ -65,7 +65,8 @@ struct ReviewPromptHookTests {
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             reviewPrompt: harness.policy,
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
     }
 

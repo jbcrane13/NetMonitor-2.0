@@ -2,6 +2,7 @@ import SwiftUI
 import NetMonitorCore
 import SwiftData
 import BackgroundTasks
+import UIKit
 
 @main
 struct NetmonitorApp: App {
@@ -66,6 +67,12 @@ struct NetmonitorApp: App {
     private var sharedModelContainer: ModelContainer { Self.persistenceOutcome.store }
 
     init() {
+        // Before any scene, background task or intent can commit device rows (#628).
+        Self.configureJoinClock(.shared) { id in
+            NetworkProfileManager.observationNetworkIsCurrent(id)
+                // The UI-test discovery stamps its fixed network, the current one under the fixture.
+                || (UITestFakeDeviceFeed.isEnabled && id == UITestBootstrap.networkProfileID)
+        }
         // Before `.live()` first loads `NetworkEventService.shared`, so a UI test's legacy
         // events are in place to migrate (#491).
         UITestBootstrap.prepareEventHistoryIfNeeded()
@@ -119,6 +126,23 @@ struct NetmonitorApp: App {
         macInventory = model
     }
 
+    /// A token's network must still be where the phone is (#628). Called from `init`, so a
+    /// background task or intent launched without the scene never runs with the closed default.
+    static func configureJoinClock(_ clock: NetworkJoinClock, networkIsCurrent: @escaping @MainActor (UUID) -> Bool) {
+        clock.networkIsCurrent = networkIsCurrent
+    }
+
+    /// #628: a dropped scan gets one replacement through `ScanRecovery`, of the manual network it
+    /// scanned or the network the phone is on now. Not under unit tests.
+    private func startScanRecovery() {
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        let discovery = environment.deviceDiscovery
+        ScanRecovery.shared.rescan = { profile in
+            Task { await discovery.scanNetwork(profile: profile ?? CurrentNetwork.detected()) }
+        }
+        DeviceDiscoveryService.shared.onScanDropped = { ScanRecovery.shared.scanDropped($0) }
+    }
+
     /// Starts keeping the saved device rows current after each scan, once (#582).
     private func startDeviceRecordUpdater() {
         guard deviceRecordUpdater == nil else { return }
@@ -133,6 +157,8 @@ struct NetmonitorApp: App {
             currentNetworkProfileID: { CurrentNetwork.detected()?.id },
             clock: UITestBootstrap.scanClock ?? Date.init,
             onSaved: { [presence, sharedModelContainer] networks, devices in
+                // Rows were reconciled: a new replacement chain (#628).
+                ScanRecovery.shared.scanSaved()
                 presence.refresh()
                 // The dashboard count and the widget, from the saved devices this scan updated (#594).
                 SavedDeviceSummaryModel.shared.publish(
@@ -189,6 +215,8 @@ struct NetmonitorApp: App {
                     }
                     // Saved device rows follow every scan, in UI tests too (#582).
                     startDeviceRecordUpdater()
+                    // A dropped scan gets one replacement, in UI tests too (#628).
+                    startScanRecovery()
                     // After any UI-test reset of the scan history; then every minute (#583).
                     presence.refresh()
                     presence.startTicking()

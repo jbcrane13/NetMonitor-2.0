@@ -33,7 +33,8 @@ struct DeviceDiscoveryCoordinatorSaveErrorTests {
                 activeProfilesProvider: { [] }
             ),
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
     }
 

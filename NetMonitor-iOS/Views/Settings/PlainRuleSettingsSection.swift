@@ -86,11 +86,15 @@ struct PlainRuleSettingsSection: View {
         let scope = DeviceScope.network(networkID, else: .allNetworks)
         let devices = ((try? DeviceGroups.recentDevices(in: scope, limit: RuleDevice.candidateLimit, in: modelContext)) ?? [])
             .flatMap(\.members)
+        // Devices scanned but never opened can be named too (#571), read now with the token they were
+        // observed under: a row is saved from them only while it is current (#628).
+        let scan = env?.deviceDiscovery.discoveredDevices ?? []
+        let scanToken = env?.deviceDiscovery.discoveredDevicesToken
         Task {
             await viewModel.submit(
                 devices: devices,
-                // Devices scanned but never opened can be named too (#571).
-                scan: env?.deviceDiscovery.discoveredDevices ?? [],
+                scan: scan,
+                scanToken: scanToken,
                 targets: targets,
                 networkID: networkID,
                 isScanning: env?.deviceDiscovery.isScanning ?? false,

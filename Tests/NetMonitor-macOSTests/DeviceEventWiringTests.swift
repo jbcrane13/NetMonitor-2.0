@@ -48,7 +48,8 @@ struct DeviceEventWiringTests {
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
             clock: { clock.now },
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         let events = NetworkEventService()
         let recorder = MacEventRecorder(eventService: events, now: { clock.now }, schedule: { _, _ in })

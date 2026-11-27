@@ -580,7 +580,8 @@ private extension ProDeviceDetailView {
         let currentMember = projection.current
         // Seed immediately from persisted model so UI is never blank on open
         bonjourServices = currentMember.discoveredServices ?? []
-        latencyHistory = currentMember.lastLatency.map { [$0] } ?? []
+        // A running scan's latency is shown before it saves (#628).
+        latencyHistory = (coordinator?.progressiveLatency[currentMember.id] ?? currentMember.lastLatency).map { [$0] } ?? []
 
         // Run all enrichment in parallel
         async let _ = enrichLatency()
@@ -592,53 +593,73 @@ private extension ProDeviceDetailView {
 
     // MARK: - Live Enrichment
 
+    /// The current member a probe measures, its ID and the token the probe starts with (#628);
+    /// nil without the coordinator, whose join clock the tokens come from.
+    private func startProbe() -> (member: LocalDevice, id: UUID, token: JoinToken)? {
+        guard let clock = coordinator?.joinClock else { return nil }
+        let member = projection.current
+        return (member, member.id, clock.token(for: member.networkProfileID))
+    }
+
+    /// The row a probe started on, to save its result: only if it still exists and its token is
+    /// still current (#628), checked in the block that writes it.
+    private func rowToUpdate(_ id: UUID, startedWith token: JoinToken) -> LocalDevice? {
+        guard coordinator?.isCurrent(token) == true else { return nil }
+        var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first
+    }
+
     private func enrichLatency() async {
-        let currentMember = projection.current
+        guard let probe = startProbe() else { return }
+        let (currentMember, memberID, token) = probe
         isLoadingLatency = true
         defer { isLoadingLatency = false }
 
         let pingService = ShellPingService()
         guard let result = try? await pingService.ping(host: currentMember.ipAddress, count: 5, timeout: 3),
-              result.isReachable else { return }
+              result.isReachable, let row = rowToUpdate(memberID, startedWith: token) else { return }
 
         let samples = [result.minLatency, result.avgLatency, result.maxLatency]
             .filter { $0 > 0 }
         latencyHistory = samples
 
-        currentMember.updateLatency(result.avgLatency)
+        row.updateLatency(result.avgLatency)
         try? modelContext.save()
     }
 
     private func enrichVendor() async {
-        let currentMember = projection.current
-        guard !currentMember.macAddress.isEmpty,
-              currentMember.vendor == nil || currentMember.vendor?.isEmpty == true else { return }
+        guard let probe = startProbe(), !probe.member.macAddress.isEmpty,
+              probe.member.vendor == nil || probe.member.vendor?.isEmpty == true else { return }
+        let (currentMember, memberID, token) = probe
         isLoadingVendor = true
         defer { isLoadingVendor = false }
 
         let service = MACVendorLookupService()
-        if let vendor = await service.lookupVendorEnhanced(macAddress: currentMember.macAddress) {
-            currentMember.vendor = vendor
+        if let vendor = await service.lookupVendorEnhanced(macAddress: currentMember.macAddress),
+           let row = rowToUpdate(memberID, startedWith: token) {
+            row.vendor = vendor
             try? modelContext.save()
         }
     }
 
     private func enrichHostname() async {
-        let currentMember = projection.current
-        guard currentMember.hostname == nil || currentMember.hostname?.isEmpty == true else { return }
+        guard let probe = startProbe(), probe.member.hostname == nil || probe.member.hostname?.isEmpty == true else { return }
+        let (currentMember, memberID, token) = probe
         isLoadingHostname = true
         defer { isLoadingHostname = false }
 
         let resolver = ShellDeviceNameResolver()
-        if let name = await resolver.resolveName(for: currentMember.ipAddress) {
-            currentMember.hostname = name
+        if let name = await resolver.resolveName(for: currentMember.ipAddress),
+           let row = rowToUpdate(memberID, startedWith: token) {
+            row.hostname = name
             try? modelContext.save()
         }
     }
 
     private func enrichPorts() async {
-        let currentMember = projection.current
-        guard currentMember.openPorts == nil || currentMember.openPorts?.isEmpty == true else { return }
+        guard let probe = startProbe(), probe.member.openPorts == nil || probe.member.openPorts?.isEmpty == true else { return }
+        let (currentMember, memberID, token) = probe
         isLoadingPorts = true
         defer { isLoadingPorts = false }
 
@@ -654,15 +675,15 @@ private extension ProDeviceDetailView {
             return open.sorted()
         }.value
 
-        if !found.isEmpty {
-            currentMember.openPorts = found
+        if !found.isEmpty, let row = rowToUpdate(memberID, startedWith: token) {
+            row.openPorts = found
             try? modelContext.save()
         }
     }
 
     private func enrichBonjourServices() async {
-        let currentMember = projection.current
-        guard let bonjourScanner = coordinator?.bonjourScanner else { return }
+        guard let bonjourScanner = coordinator?.bonjourScanner, let probe = startProbe() else { return }
+        let (currentMember, memberID, token) = probe
 
         let targetIP = currentMember.ipAddress
         let targetHostname = currentMember.hostname ?? currentMember.resolvedHostname ?? ""
@@ -687,9 +708,9 @@ private extension ProDeviceDetailView {
         await bonjourScanner.stopDiscovery()
 
         let services = found.sorted()
-        if !services.isEmpty {
+        if !services.isEmpty, let row = rowToUpdate(memberID, startedWith: token) {
             bonjourServices = services
-            currentMember.discoveredServices = services
+            row.discoveredServices = services
             try? modelContext.save()
         }
     }

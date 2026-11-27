@@ -4,6 +4,45 @@ import NetMonitorCore
 // MARK: - Suggestion scheduling (#642 review)
 
 extension DeviceDetailViewModel {
+    /// Asks the on-device model about the loaded row without blocking the load. Called again
+    /// when enrichment, a port scan or service discovery changes the evidence; a pass already
+    /// started on the same evidence keeps running.
+    func startSuggestion() {
+        refreshSuggestionState()
+        guard let device else {
+            return
+        }
+        let fingerprint = DeviceEvidence(device: device).fingerprint
+        guard fingerprint != suggestionFingerprint else {
+            return
+        }
+        suggestionFingerprint = fingerprint
+        suggestionTask?.cancel()
+        suggestionRetryTask?.cancel()
+        let discovery = deviceDiscoveryService
+        suggestionTask = Task { [weak self, suggester] in
+            // Ask once the evidence has settled: enrichment, service discovery and a port scan
+            // change it in quick succession, and a later change cancels this before anything is
+            // sent (#642 review).
+            try? await Task.sleep(for: Self.suggestionSettle)
+            guard !Task.isCancelled else {
+                return
+            }
+            await Self.suggestOutsideScans(device, suggester: suggester, discovery: discovery)
+            guard !Task.isCancelled, let self else {
+                return
+            }
+            // Not answered (a busy or gone Mac): the next call asks again, once the Mac's back-off
+            // is over, instead of skipping this evidence as already asked about (#586).
+            if !suggester.wasAsked(about: device) {
+                self.suggestionFingerprint = nil
+                self.retrySuggestionWhenAskable()
+            }
+            self.saveContext()
+            self.refreshSuggestionState()
+        }
+    }
+
     /// How long the evidence must stay unchanged before the model is asked.
     static let suggestionSettle: Duration = .milliseconds(800)
     /// How often a waiting suggestion checks whether the phone's scan is over.

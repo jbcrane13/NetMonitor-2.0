@@ -179,21 +179,40 @@ public extension AskLiveTools {
 /// the background, when a same-subnet IPv4-only LAN can give the same path. It starts at launch,
 /// so a scan from before launch never establishes the network.
 ///
-/// A scan establishes the network only if no join happened while it ran: the apps take
-/// `scanStarted()` when a scan starts and pass it to `scanReconciled(joinedAtStart:at:)`.
+/// A scan establishes the network only if no join happened while it ran: the apps take a token when
+/// a scan starts and pass it to `scanReconciled(_:at:)`.
+///
+/// Device observations (#628) take a `JoinToken` when they start and are saved to device rows only
+/// while `isCurrent` holds: no path update (counted on the monitor's queue, whatever its key), resume
+/// or join since, and the network the token names is still current (`networkIsCurrent`).
 @MainActor
 public final class NetworkJoinClock {
     /// Started once at app launch (both apps touch it at startup).
-    public static let shared = NetworkJoinClock(changes: NetworkJoinClock.systemPathChanges())
+    public static let shared: NetworkJoinClock = {
+        let generation = JoinGeneration()
+        return NetworkJoinClock(changes: NetworkJoinClock.systemPathChanges(counting: generation), generation: generation)
+    }()
 
+    /// Path updates, resumes and joins since launch (#628).
+    public let generation: JoinGeneration
+    /// Whether a token's network still describes where this device is (#628). The iPhone sets it in
+    /// `App.init` (`NetworkProfileManager.observationNetworkIsCurrent`); the Mac passes its
+    /// coordinator's manager to `isCurrent(_:networkIsCurrent:)` instead. Until set it fails closed:
+    /// a token naming a network is not current, so nothing launched before it can write rows.
+    public var networkIsCurrent: @MainActor (UUID) -> Bool = { _ in false }
     public private(set) var joinedAt: Date
     /// When the last scan that ran wholly since the join was reconciled; nil until one has.
     public private(set) var establishedAt: Date?
     private let now: @Sendable () -> Date
     private var task: Task<Void, Never>?
 
-    /// - Parameter changes: a key per path update; a new key is a new join.
-    public init(changes: AsyncStream<String>, now: @escaping @Sendable () -> Date = Date.init) {
+    /// - Parameters:
+    ///   - changes: a key per path update; a new key is a new join.
+    ///   - generation: the path-update count the same monitor advances (`systemPathChanges(counting:)`).
+    public init(
+        changes: AsyncStream<String>, generation: JoinGeneration = JoinGeneration(), now: @escaping @Sendable () -> Date = Date.init
+    ) {
+        self.generation = generation
         joinedAt = now()
         self.now = now
         task = Task { [weak self] in
@@ -215,28 +234,44 @@ public final class NetworkJoinClock {
         join()
     }
 
-    /// A scan is starting: the join it runs under, for `scanReconciled`.
-    public func scanStarted() -> Date {
-        joinedAt
+    /// The token a device observation of `networkID` (nil: no network named) starts with (#628).
+    public func token(for networkID: UUID?) -> JoinToken {
+        JoinToken(generation: generation.value, networkID: networkID)
     }
 
-    /// A scan was reconciled at `reconciled`: it establishes the network if no join happened since
-    /// it started.
-    public func scanReconciled(joinedAtStart: Date, at reconciled: Date) {
-        guard joinedAtStart == joinedAt else { return }
+    /// Whether `token` is still current: no path update, resume or join since it was taken, and its
+    /// network still `networkIsCurrent`. False without a token. Check it in the same main-actor block,
+    /// with no `await`, as the device-row write it guards.
+    public func isCurrent(_ token: JoinToken?) -> Bool {
+        isCurrent(token, networkIsCurrent: networkIsCurrent)
+    }
+
+    /// `isCurrent(_:)` with the caller's own answer to whether the token's network is current.
+    public func isCurrent(_ token: JoinToken?, networkIsCurrent: (UUID) -> Bool) -> Bool {
+        guard let token, token.generation == generation.value else { return false }
+        return token.networkID.map(networkIsCurrent) ?? true
+    }
+
+    /// A scan was reconciled at `reconciled`: it establishes the network if its token is still current
+    /// (by `networkIsCurrent` when given, as `isCurrent(_:networkIsCurrent:)`).
+    public func scanReconciled(_ token: JoinToken, at reconciled: Date, networkIsCurrent: ((UUID) -> Bool)? = nil) {
+        guard isCurrent(token, networkIsCurrent: networkIsCurrent ?? self.networkIsCurrent) else { return }
         establishedAt = max(establishedAt ?? reconciled, reconciled)
     }
 
     private func join() {
+        generation.advance()
         joinedAt = now()
         establishedAt = nil
     }
 
-    /// The system path's status, interfaces and gateways, one key per update.
-    nonisolated public static func systemPathChanges() -> AsyncStream<String> {
+    /// The system path's status, interfaces and gateways, one key per update. `counting` is
+    /// advanced on the monitor's queue before each update is yielded (#628).
+    nonisolated public static func systemPathChanges(counting generation: JoinGeneration? = nil) -> AsyncStream<String> {
         AsyncStream { continuation in
             let monitor = NWPathMonitor()
             monitor.pathUpdateHandler = { path in
+                generation?.notePathUpdate()
                 let interfaces = path.availableInterfaces.map { "\($0.type)-\($0.name)" }
                 let gateways = path.gateways.map { "\($0)" }
                 continuation.yield((["\(path.status)"] + interfaces + gateways).joined(separator: "|"))

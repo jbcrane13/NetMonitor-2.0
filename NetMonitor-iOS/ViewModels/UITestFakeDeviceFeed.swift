@@ -80,13 +80,29 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
     private(set) var scanProgress: Double = 0
     private(set) var scanPhase: ScanDisplayPhase = .idle
     private(set) var lastScanDate: Date?
+    /// The fixture's list always describes the fixture's fixed network, so it is always current: the
+    /// host's real path updates (the simulator shares its network) say nothing about it (#628). The
+    /// completed scan's token is stamped as the real discovery's, so the path-change seam still drops
+    /// a scan before it is saved.
+    var discoveredDevicesToken: JoinToken? {
+        joinClock.token(for: nil)
+    }
+
+    private(set) var completedScanToken: JoinToken?
+    private(set) var droppedScanCount = 0
     private let devices: @MainActor () -> [DiscoveredDevice]
     private let hold: Duration
     private var scans = 0
 
-    init(devices: @escaping @MainActor () -> [DiscoveredDevice] = UITestFakeDiscoveryService.fixtureDevices, hold: Duration = .milliseconds(300)) {
+    private let joinClock: NetworkJoinClock
+
+    init(
+        devices: @escaping @MainActor () -> [DiscoveredDevice] = UITestFakeDiscoveryService.fixtureDevices, hold: Duration = .milliseconds(300),
+        joinClock: NetworkJoinClock = .shared
+    ) {
         self.devices = devices
         self.hold = hold
+        self.joinClock = joinClock
     }
 
     /// The UI-test feed's devices on the UI-test network.
@@ -105,6 +121,10 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
             )
         } + UITestBootstrap.ruleScanDevices + UITestBootstrap.bonjourGroupScanDevices()
     }
+
+    /// The one fake discovery the app uses under `UITEST_FAKE_DEVICES`: the dashboard and device
+    /// detail see the same list and token (#628).
+    static let shared = UITestFakeDiscoveryService()
 
     func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice] {
         discoveredDevices
@@ -125,13 +145,32 @@ final class UITestFakeDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     private func scan() async {
         guard !isScanning else { return }
+        let isReplacement = ScanRecovery.shared.takeReplacementFlag()
+        // No network named: the fixture's network is fixed, so only path updates invalidate it.
+        let token = joinClock.token(for: nil)
         isScanning = true
         scanPhase = .arpScan
         scanProgress = 0
         try? await Task.sleep(for: hold)
+        #if DEBUG
+        // UITEST_SCAN_PATH_CHANGE=1: the network path changes while every scan but a replacement
+        // runs (#628), so a test sees scans dropped and only the replacement save.
+        if UITestBootstrap.isUITesting, ProcessInfo.processInfo.environment["UITEST_SCAN_PATH_CHANGE"] == "1", !isReplacement {
+            joinClock.generation.advance()
+        }
+        #endif
+        // Dropped as the real discovery drops it: nothing published, one replacement scheduled.
+        guard joinClock.isCurrent(token) else {
+            droppedScanCount += 1
+            scanPhase = .idle
+            isScanning = false
+            ScanRecovery.shared.scanDropped(nil)
+            return
+        }
         scans += 1
         // #582: later scans can miss a device, so it goes offline after the grace policy.
         discoveredDevices = devices().filter { scans == 1 || !UITestBootstrap.dropsLastDeviceAfterFirstScan || $0.hostname != "uitest-device-4" }
+        completedScanToken = token
         lastScanDate = Date()
         scanProgress = 1
         scanPhase = .idle

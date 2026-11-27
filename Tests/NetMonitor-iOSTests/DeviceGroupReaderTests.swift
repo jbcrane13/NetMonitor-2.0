@@ -226,7 +226,7 @@ struct DeviceGroupReaderTests {
             ipAddress: "192.168.1.13", hostname: nil, vendor: nil, macAddress: "AA:BB:CC:DD:EE:13",
             latency: 4, discoveredAt: scan, source: .local, networkProfileID: home
         )]
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: discovery)
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: discovery, joinClock: .forTests)
 
         viewModel.loadDevice(id: group.groupID, context: group.context)
 
@@ -253,7 +253,7 @@ struct DeviceGroupReaderTests {
         )]
         let scanner = MockPortScannerService()
         scanner.mockResults = [PortScanResult(port: 22, state: .open)]
-        let viewModel = DeviceDetailViewModel(portScanner: scanner, deviceDiscoveryService: discovery)
+        let viewModel = DeviceDetailViewModel(portScanner: scanner, deviceDiscoveryService: discovery, joinClock: .forTests)
         viewModel.loadDevice(id: group.groupID, context: group.context)
 
         await viewModel.scanPorts()
@@ -265,7 +265,13 @@ struct DeviceGroupReaderTests {
 
     @Test func detailOpenedFromTheListAtTheMembersAddressShowsTheDevice() throws {
         let group = try seedGroup()
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService())
+        // Listed by the current scan (#628: only then is it probed).
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [DiscoveredDevice(
+            ipAddress: "192.168.1.13", hostname: nil, vendor: nil, macAddress: "AA:BB:CC:DD:EE:13", latency: 3, discoveredAt: Date(), source: .local,
+            networkProfileID: home
+        )]
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: discovery, joinClock: .forTests)
 
         viewModel.loadDevice(ipAddress: "192.168.1.13", networkID: home, macAddress: "AA:BB:CC:DD:EE:13", context: group.context)
 
@@ -277,7 +283,7 @@ struct DeviceGroupReaderTests {
 
     @Test func removingAnInterfaceLeavesOneDeviceAndRemovingThePrimaryKeepsTheOther() throws {
         let group = try seedGroup()
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [])
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), references: [], joinClock: .forTests)
         viewModel.loadDevice(id: group.groupID, context: group.context)
         let memberID = group.member.id
         #expect(viewModel.userContent(of: group.primary) == DeviceGroups.userContent(of: group.primary))
@@ -296,7 +302,7 @@ struct DeviceGroupReaderTests {
     @Test func wakeOnLANGoesToEveryInterfacesMAC() async throws {
         let group = try seedGroup()
         let wake = MockWakeOnLANService()
-        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), wakeService: wake)
+        let viewModel = DeviceDetailViewModel(deviceDiscoveryService: MockDeviceDiscoveryService(), wakeService: wake, joinClock: .forTests)
         group.primary.supportsWakeOnLan = true
         viewModel.loadDevice(id: group.groupID, context: group.context)
 
@@ -352,7 +358,7 @@ struct DeviceGroupReaderTests {
             reader: LabelReader(
                 recognizer: Lines(lines: lines), extractor: FixedLabelFieldExtractor(answer: nil), insight: UnavailableInsightService()
             ),
-            isScanning: { false }, liveScan: { [] }, testImage: { nil }
+            isScanning: { false }, liveScan: { [] }, joinClock: .forTests, testImage: { nil }
         )
     }
 
@@ -419,7 +425,7 @@ struct DeviceGroupReaderTests {
         let parser = FixedRuleIntentParser(answers: [
             "scan web ports on Studio Mac": RuleIntent(kind: .portScan, device: "Studio Mac", portPreset: .web)
         ])
-        let model = PlainRuleIOSViewModel(parser: parser, probe: MonitoringTargetProbe { _, _, _ in false })
+        let model = PlainRuleIOSViewModel(parser: parser, probe: MonitoringTargetProbe { _, _, _ in false }, joinClock: .forTests)
         model.text = "scan web ports on Studio Mac"
         let rows = try DeviceGroups.recentDevices(in: .network(home), limit: RuleDevice.candidateLimit, in: group.context).flatMap(\.members)
 

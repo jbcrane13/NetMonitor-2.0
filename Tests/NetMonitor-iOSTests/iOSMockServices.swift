@@ -128,8 +128,11 @@ final class MockPortScannerService: PortScannerServiceProtocol, @unchecked Senda
     private(set) var scannedPorts: [Int] = []
     /// Every host a scan was asked to probe, in order.
     private(set) var scannedHosts: [String] = []
+    /// Runs while a scan is under way, such as a path update (#628).
+    var duringScan: (() -> Void)?
 
     func scan(host: String, ports: [Int], timeout: TimeInterval) async -> AsyncStream<PortScanResult> {
+        duringScan?()
         scannedPorts = ports
         scannedHosts.append(host)
         let results = mockResults
@@ -273,6 +276,24 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
     /// running or stopped scan's progress); otherwise the two are the same.
     var completedDevices: [DiscoveredDevice]?
     var completedScanDevices: [DiscoveredDevice] { completedDevices ?? discoveredDevices }
+    /// The token the finished scan started with (#628); launch-time by default, as above.
+    var completedScanToken: JoinToken? = JoinToken(generation: 0, networkID: nil)
+    /// The token `discoveredDevices` was observed under (#628): by default a launch-time one, current
+    /// on a test's own clock (`NetworkJoinClock.forTests`); nil tests the closed default.
+    var discoveredDevicesToken: JoinToken? = JoinToken(generation: 0, networkID: nil)
+    /// Scans dropped so far (#628); `dropsNextScan` makes the next `scanNetwork` one of them.
+    var droppedScanCount = 0
+    var dropsNextScan = false
+    /// What `lastScanIsCurrent` answers (#628).
+    var lastScanIsCurrent = true
+    /// The tokens `retractScan` was asked to retract (#628).
+    private(set) var retracted: [JoinToken] = []
+
+    func retractScan(_ token: JoinToken) -> Bool {
+        retracted.append(token)
+        return true
+    }
+
     var scanCallCount = 0
     var lastScannedSubnet: String? = nil
     var lastScannedProfile: NetMonitorCore.NetworkProfile? = nil
@@ -280,11 +301,19 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
     func scanNetwork(subnet: String?) async {
         scanCallCount += 1
         lastScannedSubnet = subnet
+        dropIfAsked()
     }
 
     func scanNetwork(profile: NetMonitorCore.NetworkProfile?) async {
         scanCallCount += 1
         lastScannedProfile = profile
+        dropIfAsked()
+    }
+
+    private func dropIfAsked() {
+        guard dropsNextScan else { return }
+        dropsNextScan = false
+        droppedScanCount += 1
     }
 
     func cachedDevices(for profile: NetMonitorCore.NetworkProfile?) -> [DiscoveredDevice] {
@@ -359,4 +388,16 @@ final class MockHeatmapService: HeatmapServiceProtocol, @unchecked Sendable {
     }
 
     func stopContinuousMeasurement() async {}
+}
+
+@MainActor
+extension NetworkJoinClock {
+    /// A clock of the test's own (#628): the shared one counts the host's real path updates, which
+    /// would refuse a test's writes at random.
+    static var forTests: NetworkJoinClock {
+        let clock = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
+        // The network check fails closed until set; a test's networks all count.
+        clock.networkIsCurrent = { _ in true }
+        return clock
+    }
 }

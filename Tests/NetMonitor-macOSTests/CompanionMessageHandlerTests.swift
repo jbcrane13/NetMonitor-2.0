@@ -404,7 +404,8 @@ struct CompanionMessageHandlerTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: networkProfileManager,
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
 
         let handler = CompanionMessageHandler(
