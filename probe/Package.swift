@@ -5,6 +5,5 @@ let package = Package(
   name: "Probe579",
   platforms: [.macOS("15.0")],
   dependencies: [.package(path: "/Users/blake/Projects/NetMonitor-2.0-579/Packages/NetMonitorCore")],
-  targets: [.executableTarget(name: "Probe", dependencies: [.product(name: "NetMonitorCore", package: "NetMonitorCore")], path: "Sources/Probe"),
-    .executableTarget(name: "LiveCheck", dependencies: [.product(name: "NetMonitorCore", package: "NetMonitorCore")], path: "Sources/LiveCheck")]
+  targets: [.executableTarget(name: "Probe", dependencies: [.product(name: "NetMonitorCore", package: "NetMonitorCore")], path: "Sources/Probe")]
 )
