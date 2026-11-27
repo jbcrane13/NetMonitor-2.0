@@ -18,11 +18,26 @@ public struct AskDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiabl
     public let addresses: [String]
     /// Every member row's ID: events and citations may name any of them (#594).
     public let memberIDs: [UUID]
+    /// Each member row's address and own last seen (#579): who held an address when is judged per
+    /// row, not by the group's latest.
+    public let interfaces: [Interface]
+
+    public struct Interface: Sendable, Equatable {
+        public let id: UUID
+        public let address: String
+        public let lastSeen: Date
+
+        public init(id: UUID, address: String, lastSeen: Date) {
+            self.id = id
+            self.address = address
+            self.lastSeen = lastSeen
+        }
+    }
 
     public init(
         id: UUID, displayName: String, deviceType: DeviceType, maker: String?, ipAddress: String,
         status: DeviceStatus, lastSeen: Date, lastLatency: Double?, latencyHistory: [Double],
-        addresses: [String]? = nil, memberIDs: [UUID]? = nil
+        addresses: [String]? = nil, memberIDs: [UUID]? = nil, interfaces: [Interface]? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -35,6 +50,9 @@ public struct AskDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiabl
         self.latencyHistory = latencyHistory
         self.addresses = addresses ?? [ipAddress]
         self.memberIDs = memberIDs ?? [id]
+        // Without per-row times, every interface carries the device's last seen.
+        self.interfaces = interfaces ?? zip(self.memberIDs + Array(repeating: id, count: max(0, self.addresses.count - self.memberIDs.count)),
+                                            self.addresses).map { Interface(id: $0, address: $1, lastSeen: lastSeen) }
     }
 
     /// A saved device as Ask sees it (#594: a device, not a row): the primary's identity, the
@@ -48,7 +66,8 @@ public struct AskDevice: DevicePhraseMatchable, Sendable, Equatable, Identifiabl
             id: primary.id, displayName: device.displayName, deviceType: primary.deviceType,
             maker: primary.makerExcludingSuggestions, ipAddress: current.ipAddress, status: status,
             lastSeen: device.lastSeen, lastLatency: current.lastLatency, latencyHistory: current.latencyHistory,
-            addresses: device.members.map(\.ipAddress), memberIDs: device.members.map(\.id)
+            addresses: device.members.map(\.ipAddress), memberIDs: device.members.map(\.id),
+            interfaces: device.members.map { Interface(id: $0.id, address: $0.ipAddress, lastSeen: $0.lastSeen) }
         )
     }
 
@@ -74,6 +93,8 @@ public struct AskSnapshot: Sendable {
     }
 
     public let devices: [AskDevice]
+    /// The network asked about; the live tools ping only while this device is on it (#579).
+    public let networkProfileID: UUID?
     /// Newest first.
     public let events: [NetworkEvent]
     /// When the network's last scan finished, on the clock that stamps `lastSeen`; nil when it
@@ -127,6 +148,7 @@ public struct AskSnapshot: Sendable {
         calendar: Calendar = .current
     ) {
         self.devices = devices
+        self.networkProfileID = networkProfileID
         self.events = events
             .filter { networkProfileID == nil || $0.networkProfileID == nil || $0.networkProfileID == networkProfileID }
             .sorted { $0.timestamp > $1.timestamp }

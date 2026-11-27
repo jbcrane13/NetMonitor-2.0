@@ -20,6 +20,10 @@ final class DeviceRecordUpdater {
     /// presence is read again (#583) and the saved-device count and widget are published (#594).
     private let onSaved: @MainActor (Set<UUID>, [DiscoveredDevice]) -> Void
     private var wasScanning = false
+    /// When the phone joined its network, as the running scan started (#579): a scan establishes
+    /// the network for Ask's pings only if no join happened while it ran.
+    private let joinClock: NetworkJoinClock
+    private var scanJoin: Date?
     /// The last completed scan taken into `pending`.
     private var capturedScanDate: Date?
     /// Completed scans not saved yet, oldest first. Each is copied when it completes, so a retry
@@ -36,6 +40,8 @@ final class DeviceRecordUpdater {
         let macSightings: [DiscoveredDevice]
         let network: UUID?
         let reconciledAt: Date
+        /// The join the scan started under; nil when its start wasn't seen.
+        let joinedAtStart: Date?
         var attempts = 0
     }
 
@@ -50,8 +56,10 @@ final class DeviceRecordUpdater {
         reconciler: ScanReconciler,
         currentNetworkProfileID: @escaping @MainActor () -> UUID?,
         clock: @escaping @MainActor () -> Date = Date.init,
+        joinClock: NetworkJoinClock = .shared,
         onSaved: @escaping @MainActor (Set<UUID>, [DiscoveredDevice]) -> Void = { _, _ in }
     ) {
+        self.joinClock = joinClock
         self.discoveryService = discoveryService
         self.reconciler = reconciler
         self.currentNetworkProfileID = currentNetworkProfileID
@@ -62,6 +70,8 @@ final class DeviceRecordUpdater {
     func start() {
         task?.cancel()
         wasScanning = discoveryService.isScanning
+        // A scan already running started under a join not seen: it can't establish the network.
+        scanJoin = nil
         // A scan that finished before the app started watching was never reconciled.
         capturedScanDate = nil
         task = Task { [weak self] in
@@ -88,12 +98,16 @@ final class DeviceRecordUpdater {
     func handleScanChange() {
         let isScanning = discoveryService.isScanning
         defer { wasScanning = isScanning }
+        if isScanning, !wasScanning {
+            scanJoin = joinClock.scanStarted()
+        }
         if !isScanning, let scanDate = discoveryService.lastScanDate, scanDate != capturedScanDate {
             capturedScanDate = scanDate
             pending.append(CompletedScan(
                 date: scanDate, devices: discoveryService.completedScanDevices, macSightings: discoveryService.completedScanMacSightings,
-                network: currentNetworkProfileID(), reconciledAt: clock()
+                network: currentNetworkProfileID(), reconciledAt: clock(), joinedAtStart: scanJoin
             ))
+            scanJoin = nil
             if pending.count > Self.maxPending {
                 Logger.data.error("Too many scans waiting to be saved; dropping the oldest")
                 pending.removeFirst()
@@ -105,6 +119,9 @@ final class DeviceRecordUpdater {
                 scan.devices, macSightings: scan.macSightings, scanDate: scan.date, network: scan.network, with: reconciler, now: scan.reconciledAt
             ) {
                 pending.removeFirst()
+                if let joined = scan.joinedAtStart {
+                    joinClock.scanReconciled(joinedAtStart: joined, at: scan.reconciledAt)
+                }
                 onSaved(Set(scan.devices.compactMap { $0.networkProfileID ?? scan.network }), scan.devices)
                 continue
             }

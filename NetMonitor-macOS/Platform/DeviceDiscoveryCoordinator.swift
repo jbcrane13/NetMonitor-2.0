@@ -179,6 +179,9 @@ final class DeviceDiscoveryCoordinator {
         let profileID = effectiveProfileID()
         // The scan's one time: the sparse merge and the reconcile share it.
         let scanTime = readClock()
+        // The join it runs under: it establishes the network for Ask's pings only if none happens
+        // while it runs (#579).
+        let joinedAtStart = NetworkJoinClock.shared.scanStarted()
         loadPersistedDevices(for: profileID)
 
         let context = makeScanContext()
@@ -234,6 +237,9 @@ final class DeviceDiscoveryCoordinator {
                 // Rows and the Timeline move together: the reconcile that applies the scan delivers
                 // its events (#603); a scan it skipped (nothing answered) or couldn't save writes none.
                 let applied = reconcileScan(engineDevices, profileID: profileID, now: scanTime)
+                if applied {
+                    NetworkJoinClock.shared.scanReconciled(joinedAtStart: joinedAtStart, at: scanTime)
+                }
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
                 lastScanTime = Date()
