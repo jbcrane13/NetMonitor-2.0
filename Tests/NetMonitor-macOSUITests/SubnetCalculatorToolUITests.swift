@@ -1,37 +1,28 @@
 import XCTest
 
 @MainActor
-final class SubnetCalculatorToolUITests: XCTestCase {
-    let app = XCUIApplication()
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app.launch()
-    }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
+final class SubnetCalculatorToolUITests: MacOSUITestCase {
 
     // MARK: - Helpers
 
     private func openSubnetCalculator() {
-        // Navigate to Tools and open Subnet Calculator card
-        let card = app.buttons["tools_card_subnet_calculator"]
-        if card.waitForExistence(timeout: 5) {
-            card.click()
-        }
+        navigateToSidebar("tools")
+        let card = ui("tools_card_subnet_calculator").firstMatch
+        requireExists(card, timeout: 5, message: "Subnet Calculator tool card should exist in the Tools grid").click()
     }
 
     // MARK: - Tests
 
     func testSubnetCalculatorCardExistsInToolsGrid() {
-        let card = app.buttons["tools_card_subnet_calculator"]
+        navigateToSidebar("tools")
+        let card = ui("tools_card_subnet_calculator").firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5), "Subnet Calculator tool card should exist in the Tools grid")
     }
 
     func testValidCIDRShowsResults() {
         openSubnetCalculator()
 
-        let input = app.textFields["subnetCalc_input_cidr"]
+        let input = app.textFields["subnetCalc_textfield_cidr"]
         guard input.waitForExistence(timeout: 5) else {
             XCTFail("CIDR input field not found")
             return
@@ -42,7 +33,7 @@ final class SubnetCalculatorToolUITests: XCTestCase {
         app.buttons["subnetCalc_button_calculate"].click()
 
         XCTAssertTrue(
-            app.staticTexts["subnetCalc_section_results"].waitForExistence(timeout: 5),
+            ui("subnetCalc_section_results").firstMatch.waitForExistence(timeout: 5),
             "Results section should appear after valid CIDR calculation"
         )
     }
@@ -50,7 +41,7 @@ final class SubnetCalculatorToolUITests: XCTestCase {
     func testInvalidCIDRShowsError() {
         openSubnetCalculator()
 
-        let input = app.textFields["subnetCalc_input_cidr"]
+        let input = app.textFields["subnetCalc_textfield_cidr"]
         guard input.waitForExistence(timeout: 5) else {
             XCTFail("CIDR input field not found")
             return
@@ -61,7 +52,7 @@ final class SubnetCalculatorToolUITests: XCTestCase {
         app.buttons["subnetCalc_button_calculate"].click()
 
         XCTAssertTrue(
-            app.staticTexts["subnetCalc_card_error"].waitForExistence(timeout: 5),
+            ui("subnetCalc_card_error").firstMatch.waitForExistence(timeout: 5),
             "Error card should appear for invalid CIDR"
         )
     }
@@ -78,7 +69,7 @@ final class SubnetCalculatorToolUITests: XCTestCase {
         example.click()
 
         XCTAssertTrue(
-            app.staticTexts["subnetCalc_section_results"].waitForExistence(timeout: 5),
+            ui("subnetCalc_section_results").firstMatch.waitForExistence(timeout: 5),
             "Clicking an example should produce results"
         )
     }
@@ -93,15 +84,13 @@ final class SubnetCalculatorToolUITests: XCTestCase {
         }
         example.click()
 
-        _ = app.staticTexts["subnetCalc_section_results"].waitForExistence(timeout: 5)
+        let results = ui("subnetCalc_section_results").firstMatch
+        XCTAssertTrue(results.waitForExistence(timeout: 5), "Clicking an example should produce results")
 
         let clearButton = app.buttons["subnetCalc_button_clear"]
         XCTAssertTrue(clearButton.waitForExistence(timeout: 5), "Clear button should appear after results")
         clearButton.click()
 
-        XCTAssertFalse(
-            app.staticTexts["subnetCalc_section_results"].exists,
-            "Results section should disappear after clearing"
-        )
+        XCTAssertTrue(waitForDisappearance(results), "Results section should disappear after clearing")
     }
 }

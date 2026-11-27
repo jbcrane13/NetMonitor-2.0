@@ -11,7 +11,7 @@ final class GeoTraceUITests: MacOSUITestCase {
         openGeoTrace()
 
         requireExists(
-            app.textFields["geoTrace_input_host"],
+            app.textFields["geoTrace_textfield_host"],
             message: "Host input field should be visible"
         )
 
@@ -25,7 +25,7 @@ final class GeoTraceUITests: MacOSUITestCase {
         openGeoTrace()
 
         requireExists(
-            app.descendants(matching: .any)["geoTrace_map"],
+            ui("geoTrace_label_map").firstMatch,
             timeout: 8,
             message: "Map should be visible in Geo Trace sheet"
         )
@@ -42,23 +42,14 @@ final class GeoTraceUITests: MacOSUITestCase {
     // MARK: - Helpers
 
     private func openGeoTrace() {
-        let toolsCard = app.descendants(matching: .any)["tools_card_geo_trace"]
-        scrollToElement(toolsCard)
-        requireExists(toolsCard, timeout: 8, message: "Geo Trace tool card should exist in grid").tap()
+        navigateToSidebar("tools")
+        let toolsCard = ui("tools_card_geo_trace").firstMatch
+        requireExists(toolsCard, timeout: 8, message: "Geo Trace tool card should exist in grid").click()
 
         requireExists(
-            app.descendants(matching: .any)["geoTrace_map"],
+            ui("geoTrace_label_map").firstMatch,
             timeout: 8,
             message: "Geo Trace sheet should open with map visible"
         )
-    }
-
-    private func scrollToElement(_ element: XCUIElement, maxScrolls: Int = 5) {
-        guard !element.exists else { return }
-        let scroll = app.scrollViews.firstMatch
-        for _ in 0..<maxScrolls {
-            if element.exists { return }
-            scroll.swipeUp()
-        }
     }
 }

@@ -5,16 +5,16 @@ final class WorldPingToolUITests: MacOSUITestCase {
 
     private func openWorldPing() {
         navigateToSidebar("tools")
-        let card = ui("tools_card_world_ping")
+        let card = ui("tools_card_world_ping").firstMatch
         requireExists(card, timeout: 5, message: "World Ping card should exist in tools grid")
-        card.tap()
+        card.click()
     }
 
     // MARK: - Screen & Navigation
 
     func testWorldPingCardExistsInToolsGrid() {
         navigateToSidebar("tools")
-        let card = ui("tools_card_world_ping")
+        let card = ui("tools_card_world_ping").firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5), "World Ping tool card should exist in tools grid")
         captureScreenshot(named: "WorldPing_CardInGrid")
     }
@@ -23,22 +23,14 @@ final class WorldPingToolUITests: MacOSUITestCase {
 
     func testRunButtonExistsAndInitiallyDisabled() {
         openWorldPing()
-        let runButton = app.buttons["worldPing_button_run"]
-        guard runButton.waitForExistence(timeout: 5) else {
-            XCTFail("Run button not found")
-            return
-        }
+        let runButton = requireExists(app.buttons["worldPing_button_run"], message: "Run button not found")
         XCTAssertFalse(runButton.isEnabled, "Run button should be disabled without host input")
         captureScreenshot(named: "WorldPing_Screen")
     }
 
     func testRunButtonEnabledAfterInput() {
         openWorldPing()
-        let input = app.textFields["worldPing_input_host"]
-        guard input.waitForExistence(timeout: 5) else {
-            XCTFail("Host input field not found")
-            return
-        }
+        let input = requireExists(app.textFields["worldPing_textfield_host"], message: "Host input field not found")
         clearAndTypeText("google.com", into: input)
         let runButton = app.buttons["worldPing_button_run"]
         XCTAssertTrue(runButton.isEnabled, "Run button should be enabled after entering host")
@@ -48,12 +40,9 @@ final class WorldPingToolUITests: MacOSUITestCase {
 
     func testClearButtonAppearsAfterResults() throws {
         openWorldPing()
-        let input = app.textFields["worldPing_input_host"]
-        guard input.waitForExistence(timeout: 5) else {
-            throw XCTSkip("Host input not found")
-        }
+        let input = requireExists(app.textFields["worldPing_textfield_host"], message: "Host input field not found")
         clearAndTypeText("google.com", into: input)
-        app.buttons["worldPing_button_run"].tap()
+        app.buttons["worldPing_button_run"].click()
 
         let results = ui("worldPing_section_results")
         if results.waitForExistence(timeout: 30) {

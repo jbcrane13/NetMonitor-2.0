@@ -12,7 +12,7 @@ final class SpeedTestToolUITests: MacOSUITestCase {
     func testDurationPickerExists() {
         openSpeedTest()
         requireExists(
-            app.segmentedControls["speedTest_picker_duration"],
+            app.radioGroups["speedTest_picker_duration"],
             message: "Duration picker should exist"
         )
         captureScreenshot(named: "SpeedTest_Screen")
@@ -38,16 +38,12 @@ final class SpeedTestToolUITests: MacOSUITestCase {
 
     func testCloseButtonDismissesSheet() {
         openSpeedTest()
-        app.buttons["speedTest_button_close"].tap()
-        requireExists(
-            app.otherElements["tools_card_speed_test"],
-            message: "Tool card should reappear after closing sheet"
-        )
+        closeTool(closeButtonID: "speedTest_button_close", cardID: "tools_card_speed_test")
     }
 
     func testStartShowsStopButton() {
         openSpeedTest()
-        app.buttons["speedTest_button_start"].tap()
+        app.buttons["speedTest_button_start"].click()
 
         let stopButton = app.buttons["speedTest_button_stop"]
         XCTAssertTrue(stopButton.waitForExistence(timeout: 5), "Stop button should appear during test")
@@ -56,11 +52,11 @@ final class SpeedTestToolUITests: MacOSUITestCase {
 
     func testStopButtonReturnsToStart() {
         openSpeedTest()
-        app.buttons["speedTest_button_start"].tap()
+        app.buttons["speedTest_button_start"].click()
 
         let stopButton = app.buttons["speedTest_button_stop"]
-        guard stopButton.waitForExistence(timeout: 5) else { return }
-        stopButton.tap()
+        requireExists(stopButton, timeout: 5, message: "Stop button should appear during test")
+        stopButton.click()
 
         requireExists(
             app.buttons["speedTest_button_start"],
@@ -72,15 +68,15 @@ final class SpeedTestToolUITests: MacOSUITestCase {
     func testDurationPickerHasThreeSegments() {
         openSpeedTest()
         let picker = requireExists(
-            app.segmentedControls["speedTest_picker_duration"],
+            app.radioGroups["speedTest_picker_duration"],
             message: "Duration picker should exist"
         )
-        XCTAssertEqual(picker.buttons.count, 3, "Duration picker should have 3 segments (5s, 10s, 30s)")
+        XCTAssertEqual(picker.radioButtons.count, 3, "Duration picker should have 3 segments (5s, 10s, 30s)")
     }
 
     func testSpeedTestCompletesWithResults() {
         openSpeedTest()
-        app.buttons["speedTest_button_start"].tap()
+        app.buttons["speedTest_button_start"].click()
 
         // Wait for running state first
         let stopButton = app.buttons["speedTest_button_stop"]
@@ -91,24 +87,24 @@ final class SpeedTestToolUITests: MacOSUITestCase {
 
         // Verify result DATA slots render during / after the test
         requireExists(
-            ui("speedTest_section_results"),
+            ui("speedTest_section_results").firstMatch,
             timeout: 5,
             message: "Speed test results section should render"
         )
         requireExists(
-            ui("speedTest_label_latency"),
+            ui("speedTest_label_latency").firstMatch,
             message: "Latency label should appear in speed test results"
         )
         requireExists(
-            ui("speedTest_label_download"),
+            ui("speedTest_label_download").firstMatch,
             message: "Download label should appear in speed test results"
         )
         requireExists(
-            ui("speedTest_label_upload"),
+            ui("speedTest_label_upload").firstMatch,
             message: "Upload label should appear in speed test results"
         )
         requireExists(
-            ui("speedTest_label_server"),
+            ui("speedTest_label_server").firstMatch,
             message: "Server label should appear in speed test results"
         )
 
