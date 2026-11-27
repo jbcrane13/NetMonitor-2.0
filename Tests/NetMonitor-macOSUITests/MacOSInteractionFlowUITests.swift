@@ -12,19 +12,21 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
     // MARK: - Sidebar Navigation Flows
 
     func testSidebarSwitchUpdatesDetailPane() {
-        // Start at Tools (default).
-        requireExists(app.otherElements["contentView_nav_tools"], timeout: 5,
-                      message: "Tools should be the default detail pane")
+        // Start at the network dashboard (the launch selection since b8e467ae).
+        requireExists(ui("contentView_nav_network").firstMatch, timeout: 5,
+                      message: "The network dashboard should be the default detail pane")
 
         // Switch to Settings.
         navigateToSidebar("settings")
-        XCTAssertTrue(app.otherElements["contentView_nav_settings"].exists,
+        XCTAssertTrue(ui("contentView_nav_settings").firstMatch.exists,
                       "Settings detail pane should be visible after selecting Settings")
+        XCTAssertTrue(waitForDisappearance(ui("contentView_nav_network").firstMatch),
+                      "The dashboard should leave the detail pane after selecting Settings")
 
-        // Return to Tools.
+        // Go to Tools.
         navigateToSidebar("tools")
-        XCTAssertTrue(app.otherElements["contentView_nav_tools"].exists,
-                      "Tools detail pane should be visible after returning to Tools")
+        XCTAssertTrue(ui("contentView_nav_tools").firstMatch.exists,
+                      "Tools detail pane should be visible after selecting Tools")
     }
 
     func testFullSidebarNavigationCycle() {
@@ -33,19 +35,20 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         for section in sections {
             navigateToSidebar(section)
             XCTAssertTrue(
-                app.otherElements["detail_\(section)"].exists,
-                "detail_\(section) should be visible after selecting sidebar_\(section)"
+                ui("contentView_nav_\(section)").firstMatch.exists,
+                "contentView_nav_\(section) should be visible after selecting sidebar_nav_\(section)"
             )
         }
 
         // Return to Tools to confirm round-trip.
         navigateToSidebar("tools")
-        XCTAssertTrue(app.otherElements["contentView_nav_tools"].exists,
+        XCTAssertTrue(ui("contentView_nav_tools").firstMatch.exists,
                       "Tools should be reachable after cycling through all sections")
     }
 
     // MARK: - Target Management Flows
 
+    // Blocked on #546: the Targets section was removed in c82f8b17.
     func testAddTargetSheetOpensFillsAndCancels() {
         navigateToSidebar("targets")
 
@@ -86,6 +89,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         )
     }
 
+    // Blocked on #546: the Targets section was removed in c82f8b17.
     func testAddTargetSheetFieldsAndAddButton() {
         navigateToSidebar("targets")
         app.buttons["targets_button_add"].tap()
@@ -107,6 +111,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         app.buttons["addTarget_button_cancel"].tap()
     }
 
+    // Blocked on #546: the Targets section was removed in c82f8b17.
     func testDeleteButtonDisabledWithNoSelection() {
         navigateToSidebar("targets")
 
@@ -129,7 +134,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         )
         XCTAssertTrue(scanButton.isEnabled, "Scan button should be enabled")
 
-        scanButton.tap()
+        scanButton.click()
 
         // After tapping scan, the stop button or updated scan button should appear.
         XCTAssertTrue(
@@ -146,7 +151,7 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         // If still scanning, stop it.
         let stopButton = app.buttons["devices_button_stopScan"]
         if stopButton.exists && stopButton.isEnabled {
-            stopButton.tap()
+            stopButton.click()
         }
     }
 
@@ -159,17 +164,11 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         )
         XCTAssertTrue(sortMenu.isEnabled, "Sort menu should be enabled")
 
-        let onlineOnly = app.toggles["devices_toggle_onlineOnly"]
-        if onlineOnly.waitForExistence(timeout: 3) {
-            XCTAssertTrue(onlineOnly.isEnabled, "Online-only toggle should be enabled")
-        }
-
-        let clearButton = requireExists(
-            app.buttons["devices_button_clear"],
-            message: "Clear button should exist"
+        let onlineOnly = requireExists(
+            app.checkBoxes["devices_toggle_onlineOnly"], timeout: 3,
+            message: "Online-only toggle should exist"
         )
-        // Clear may be disabled if no devices, but should exist.
-        XCTAssertTrue(clearButton.exists, "Clear button should be present")
+        XCTAssertTrue(onlineOnly.isEnabled, "Online-only toggle should be enabled")
     }
 
     // MARK: - Settings Interaction Flows
@@ -178,82 +177,82 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         navigateToSidebar("settings")
 
         // General tab — checkboxes
-        app.staticTexts["settings_tab_general"].tap()
-        requireExists(app.checkBoxes["settings_toggle_launchAtLogin"], timeout: 3,
+        app.staticTexts["settings_tab_General"].click()
+        requireExists(app.switches["settings_toggle_launchAtLogin"], timeout: 3,
                       message: "Launch at login checkbox should appear on General tab")
 
         // Monitoring tab — pickers
-        app.staticTexts["settings_tab_monitoring"].tap()
+        app.staticTexts["settings_tab_Monitoring"].click()
         requireExists(app.popUpButtons["settings_picker_defaultInterval"], timeout: 3,
                       message: "Default interval picker should appear on Monitoring tab")
 
         // Notifications tab — checkboxes + slider
-        app.staticTexts["settings_tab_notifications"].tap()
-        requireExists(app.checkBoxes["settings_toggle_notificationsEnabled"], timeout: 3,
+        app.staticTexts["settings_tab_Notifications"].click()
+        requireExists(app.switches["settings_toggle_notificationsEnabled"], timeout: 3,
                       message: "Notifications enabled checkbox should appear on Notifications tab")
 
         // Network tab — pickers
-        app.staticTexts["settings_tab_network"].tap()
+        app.staticTexts["settings_tab_Network"].click()
         requireExists(app.popUpButtons["settings_picker_preferredInterface"], timeout: 3,
                       message: "Preferred interface picker should appear on Network tab")
 
         // Data tab — buttons
-        app.staticTexts["settings_tab_data"].tap()
+        app.staticTexts["settings_tab_Data"].click()
         requireExists(app.buttons["settings_button_export"], timeout: 3,
                       message: "Export button should appear on Data tab")
 
         // Appearance tab — color buttons
-        app.staticTexts["settings_tab_appearance"].tap()
+        app.staticTexts["settings_tab_Appearance"].click()
         requireExists(app.buttons["appearance_button_colorcyan"], timeout: 3,
                       message: "Cyan color button should appear on Appearance tab")
 
         // Companion tab — checkbox
-        app.staticTexts["settings_tab_companion"].tap()
-        requireExists(app.checkBoxes["settings_toggle_companionEnabled"], timeout: 3,
+        app.staticTexts["settings_tab_Companion"].click()
+        requireExists(app.switches["settings_toggle_companionEnabled"], timeout: 3,
                       message: "Companion enabled checkbox should appear on Companion tab")
     }
 
     func testSettingsGeneralCheckboxToggleInteraction() {
         navigateToSidebar("settings")
-        app.staticTexts["settings_tab_general"].tap()
+        app.staticTexts["settings_tab_General"].click()
 
         let showInDock = requireExists(
-            app.checkBoxes["settings_toggle_showInDock"], timeout: 3,
+            app.switches["settings_toggle_showInDock"], timeout: 3,
             message: "Show in Dock checkbox should exist"
         )
-        let initialValue = showInDock.value as? String
+        let initialValue = stringValue(showInDock)
 
-        showInDock.tap()
+        showInDock.click()
 
-        let newValue = showInDock.value as? String
-        // The value should change after toggling. We accept both "0"/"1" and
-        // "false"/"true" representations.
-        if let initial = initialValue, let updated = newValue {
-            XCTAssertNotEqual(initial, updated,
-                              "Show in Dock checkbox value should change after toggling")
-        }
+        // The value should change after toggling.
+        XCTAssertNotEqual(initialValue, stringValue(showInDock),
+                          "Show in Dock checkbox value should change after toggling")
 
         // Toggle back to restore original state.
-        showInDock.tap()
+        showInDock.click()
     }
 
     func testSettingsNotificationSliderIsInteractive() {
         navigateToSidebar("settings")
-        app.staticTexts["settings_tab_notifications"].tap()
+        app.staticTexts["settings_tab_Notifications"].click()
 
-        let slider = app.sliders["settings_slider_latencyThreshold"]
-        if slider.waitForExistence(timeout: 3) {
-            XCTAssertTrue(slider.isEnabled, "Latency threshold slider should be enabled")
-
-            // Adjust the slider slightly.
-            slider.adjust(toNormalizedSliderPosition: 0.7)
-            requireExists(slider, message: "Slider should remain visible after adjustment")
+        // The slider is disabled until notifications are on.
+        let notifications = app.switches["settings_toggle_notificationsEnabled"]
+        if notifications.waitForExistence(timeout: 3), stringValue(notifications) == "0" {
+            notifications.click()
         }
+        let slider = requireExists(app.sliders["settings_slider_latencyThreshold"], timeout: 3,
+                                   message: "Latency threshold slider should exist")
+        XCTAssertTrue(slider.isEnabled, "Latency threshold slider should be enabled")
+
+        // Adjust the slider slightly.
+        slider.adjust(toNormalizedSliderPosition: 0.7)
+        requireExists(slider, message: "Slider should remain visible after adjustment")
     }
 
     func testSettingsAppearanceColorSelectionIsInteractive() {
         navigateToSidebar("settings")
-        app.staticTexts["settings_tab_appearance"].tap()
+        app.staticTexts["settings_tab_Appearance"].click()
 
         let colors = [
             "appearance_button_colorcyan",
@@ -274,14 +273,14 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         // Select a different color and verify it's tappable.
         let purpleButton = app.buttons["appearance_button_colorpurple"]
         if purpleButton.exists {
-            purpleButton.tap()
+            purpleButton.click()
             requireExists(purpleButton, message: "Purple color button should remain after selection")
         }
     }
 
     func testSettingsDataExportAndClearButtonsExist() {
         navigateToSidebar("settings")
-        app.staticTexts["settings_tab_data"].tap()
+        app.staticTexts["settings_tab_Data"].click()
 
         let exportButton = requireExists(
             app.buttons["settings_button_export"], timeout: 3,
@@ -298,15 +297,15 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
 
     func testSettingsCompanionToggleConditionalPort() {
         navigateToSidebar("settings")
-        app.staticTexts["settings_tab_companion"].tap()
+        app.staticTexts["settings_tab_Companion"].click()
 
         let enabledToggle = requireExists(
-            app.checkBoxes["settings_toggle_companionEnabled"], timeout: 3,
+            app.switches["settings_toggle_companionEnabled"], timeout: 3,
             message: "Companion enabled checkbox should exist"
         )
 
         // If companion is enabled, the port field should be visible.
-        if enabledToggle.value as? String == "1" {
+        if stringValue(enabledToggle) == "1" {
             requireExists(
                 app.textFields["settings_textfield_servicePort"], timeout: 3,
                 message: "Service port field should be visible when companion is enabled"
@@ -331,9 +330,9 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
         navigateToSidebar("tools")
 
         for tool in tools {
-            let card = app.otherElements[tool.card]
+            let card = ui(tool.card).firstMatch
             requireExists(card, timeout: 5, message: "\(tool.card) should exist")
-            card.tap()
+            card.click()
 
             requireExists(ui(tool.sheetElement), timeout: 5,
                           message: "\(tool.sheetElement) should appear for \(tool.card)")
@@ -341,7 +340,8 @@ final class MacOSInteractionFlowUITests: MacOSUITestCase {
             let closeButton = app.buttons[tool.close]
             requireExists(closeButton, timeout: 3,
                           message: "\(tool.close) should exist for \(tool.card)")
-            closeButton.tap()
+            closeButton.click()
+            XCTAssertTrue(waitForDisappearance(closeButton), "\(tool.close) should go away for \(tool.card)")
 
             requireExists(card, timeout: 5,
                           message: "\(tool.card) should reappear after closing sheet")
