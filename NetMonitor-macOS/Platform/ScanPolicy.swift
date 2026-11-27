@@ -30,6 +30,15 @@ enum ScanReason {
         }
     }
 
+    /// The manual network the scan is for, if it names one.
+    var manualNetwork: NetworkProfile? {
+        switch self {
+        case .user(let profile?) where profile.discoveryMethod != .auto: profile
+        case .replacement(let manual?): manual
+        default: nil
+        }
+    }
+
     /// Only scans the user started count toward the review prompt (#337).
     var countsTowardReviewPrompt: Bool {
         if case .user = self {

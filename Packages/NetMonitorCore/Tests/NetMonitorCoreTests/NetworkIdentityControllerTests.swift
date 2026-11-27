@@ -119,7 +119,9 @@ struct NetworkIdentityControllerTests {
         #expect(identity.authorizes(approval.recordID))
     }
 
-    @Test func aStaleAnswerFromAnotherSiteStoresTheApprovalButDoesNotActivate() throws {
+    /// #645 verification item 4: the router changed with the card open (no path event): the answer
+    /// approves nothing, and detection runs, which asks about the router the Mac is on now.
+    @Test func anAnswerAfterTheRouterChangedApprovesNothing() throws {
         let (store, _, _) = try makeStore()
         let harness = Harness()
         harness.hint = .present(keyA)
@@ -133,7 +135,8 @@ struct NetworkIdentityControllerTests {
         let keyC = RouterKey(["cccc"])
         harness.hint = .present(keyC)
         identity.answer(.same(siteA), to: question)
-        #expect(store.contents.approvals.contains(IdentityApproval(group: home, key: keyB, recordID: siteA)))
+        #expect(!store.contents.approvals.contains { $0.key == keyB })
+        #expect(harness.detections == 1)
         #expect(identity.resolveID(group: home, defaultID: siteA) == siteA)
         #expect(identity.question == .whichNetwork(group: home, key: keyC, options: [siteA]))
         #expect(!identity.authorizes(siteA))

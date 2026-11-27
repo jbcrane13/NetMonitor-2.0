@@ -287,6 +287,23 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         #expect(!setup.coordinator.isIdentifyingNetwork)
     }
 
+    /// #645 verification item 6: a user's scan of a manual network asked for during identification
+    /// runs for that network afterwards, not as a scan of the local one.
+    @Test func aManualNetworkScanAskedForDuringIdentificationRunsForThatNetwork() async throws {
+        let box = Box()
+        let legacy = UUID()
+        box.hint = .present(keyA)
+        box.holds = true
+        let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
+        let lab = try #require(setup.manager.addProfile(gateway: "10.0.0.1", subnet: "10.0.0.0/24", name: "Lab"))
+        await waitUntil { box.gates.count == 1 }
+        #expect(!setup.coordinator.rescan(.user(lab)))
+        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("10.0.0.20", "lab-printer")]
+        box.release()
+        await waitUntil { setup.coordinator.lastScanTime(for: lab.id) != nil }
+        #expect(setup.coordinator.lastScanTime(for: lab.id) != nil, "the lab was scanned")
+    }
+
     /// An option is named by what it holds, never by the generated name alone (#645).
     @Test func optionsAreNamedByTheirDevicesAndLastScan() {
         let now = Date(timeIntervalSince1970: 1_000_000)

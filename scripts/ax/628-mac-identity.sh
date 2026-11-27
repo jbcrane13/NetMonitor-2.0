@@ -45,9 +45,9 @@ PRINTER=devices_card_192.168.77.20
 expect "$("$AX" wait networkDetail_section_devices 40)" found "the dashboard never appeared"
 open_sidebar
 # 0. The dashboard's device panel points at the question (#645): its Answer opens the Devices view.
-expect "$("$AX" wait identityBanner_button_answer 15)" found "the dashboard doesn't point at the question"
-"$AX" capture-union "$OUT/628b-0-dashboard-banner.png" identityBanner_text identityBanner_button_answer
-"$AX" press identityBanner_button_answer > /dev/null
+expect "$("$AX" wait dashboard_identity_button_answer 15)" found "the dashboard doesn't point at the question"
+"$AX" capture-union "$OUT/628b-0-dashboard-banner.png" dashboard_identity_text dashboard_identity_button_answer
+"$AX" press dashboard_identity_button_answer > /dev/null
 expect "$("$AX" wait devices_identity_title 10)" found "the banner's Answer didn't open the question"
 # The Devices sheet sits over the dashboard: close it, and take the card through the sidebar, so no
 # capture can include the dashboard behind it.

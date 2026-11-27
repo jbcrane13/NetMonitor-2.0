@@ -48,8 +48,11 @@ public final class NetworkIdentityController {
     public private(set) var question: IdentityQuestion?
     /// Networks whose rows are shown as history and saved to by nothing.
     public private(set) var heldNetworkIDs: Set<UUID> = []
-    /// The store is damaged: identification is paused until the user starts over.
-    public var isDamaged: Bool { store.state == .damaged }
+    /// The store is damaged: identification is paused until the user starts over. Observable, so the
+    /// paused card goes away after a start over.
+    public private(set) var isDamaged = false
+    /// The store was written by a newer build: identification is paused for this launch.
+    public private(set) var needsNewerBuild = false
     /// Called once a network held by a question, the probe or a router change is identified, so its
     /// owner can scan it: what was scanned while held wasn't saved.
     @ObservationIgnored public var onSettled: (@MainActor (UUID) -> Void)?
@@ -105,6 +108,14 @@ public final class NetworkIdentityController {
                 // Ask doesn't ping as if on a network this one may not be (#627).
                 clock.withdrawEstablished()
             }
+            if case .identified = state {
+                identifiedGeneration = clock.generation.value
+                // Identified with nothing held: an earlier failed save no longer matters.
+                if saveFailed {
+                    saveFailed = false
+                }
+                pendingRetry = nil
+            }
             if case .identified(let id, _, _) = state, oldValue.isHolding {
                 onSettled?(id)
             }
@@ -112,6 +123,10 @@ public final class NetworkIdentityController {
     }
 
     @ObservationIgnored private var detectionPending = false
+    /// The generation the network was identified under: a failed read keeps it only within that one.
+    @ObservationIgnored private var identifiedGeneration: UInt64?
+    /// The last write conflicted with another copy of the app, for one automatic re-resolve.
+    @ObservationIgnored private var lastWriteConflicted = false
     /// The running probe's identity and the token it started under: only it may end identifying.
     @ObservationIgnored private var probeID: UUID?
     @ObservationIgnored private var probeToken: JoinToken?
@@ -161,6 +176,19 @@ public final class NetworkIdentityController {
         self.readHint = readHint
         self.probe = probe
         self.requestDetection = requestDetection
+        syncStoreState()
+    }
+
+    /// Publishes the store's state (damaged, newer) where the card can observe it.
+    private func syncStoreState() {
+        let damaged = store.state == .damaged
+        if isDamaged != damaged {
+            isDamaged = damaged
+        }
+        let newer = store.state == .newer
+        if needsNewerBuild != newer {
+            needsNewerBuild = newer
+        }
     }
 
     // MARK: - Detection
@@ -168,15 +196,34 @@ public final class NetworkIdentityController {
     /// The ID the local network in `group` goes by now; `defaultID` is the one it had before
     /// identification (the v1 map's). Called on every local-network detection.
     public func resolveID(group: NetworkGroup, defaultID: UUID) -> UUID {
+        let id = resolve(group: group, defaultID: defaultID)
+        // Another copy of the app saved first: resolve once more against what it saved (#645).
+        if lastWriteConflicted {
+            lastWriteConflicted = false
+            let again = resolve(group: group, defaultID: defaultID)
+            lastWriteConflicted = false
+            return again
+        }
+        return id
+    }
+
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    private func resolve(group: NetworkGroup, defaultID: UUID) -> UUID {
         detectionPending = false
+        syncStoreState()
         guard store.state == .ready else {
             state = .paused(defaultID)
             return defaultID
         }
         var hint = readHint(group.interface)
         if hint == .failed {
-            // Transient (#645): keep the network identified on this connection, or hold and read again.
-            if case .identified(let id, let identified, _) = state, identified == group {
+            // Transient (#645): keep the network identified on this connection (this generation), and
+            // read again; otherwise hold and read again.
+            if case .identified(let id, let identified, _) = state, identified == group, identifiedGeneration == clock.generation.value {
+                if failedHintReads < Self.failedHintRetries {
+                    failedHintReads += 1
+                    scheduleDetection()
+                }
                 return id
             }
             if failedHintReads < Self.failedHintRetries {
@@ -201,8 +248,11 @@ public final class NetworkIdentityController {
         let answer = store.contents.connectionAnswers.first {
             $0.launchID == launchID && $0.generation == clock.generation.value && $0.group == group
         }?.recordID
+        let occupied = Set(store.contents.records.filter { $0.group == group && $0.recordClass == .bucket }.map(\.id)
+            .filter { (describeOption?($0).savedDevices ?? 0) > 0 })
         let resolution = NetworkIdentityResolver.resolve(
-            group: group, hint: hint, records: store.contents.records, approvals: store.contents.approvals, connectionAnswer: answer
+            group: group, hint: hint, records: store.contents.records, approvals: store.contents.approvals, connectionAnswer: answer,
+            occupiedBuckets: occupied
         )
         switch resolution {
         case .use(let id):
@@ -236,11 +286,21 @@ public final class NetworkIdentityController {
             state = .identified(id, group, hint)
             return id
         case .ask(let question):
+            // The same question already open: keep the card, asked again for this connection.
+            if case .held(let tentative, question?) = state {
+                questionGeneration = clock.generation.value
+                return tentative
+            }
             let tentative = Self.options(of: question).first ?? defaultID
             questionGeneration = clock.generation.value
             state = .held(tentative, question)
             return tentative
         case .probeLegacy(let legacy, let key):
+            // The probe already asked about this network and router: keep the question, probe nothing.
+            if case .held(let tentative, .isLegacy(group, key, legacy)?) = state {
+                questionGeneration = clock.generation.value
+                return tentative
+            }
             state = .identifying(legacy, group, hint)
             startProbe(legacy: legacy, group: group, key: key, hint: hint)
             return legacy
@@ -301,29 +361,6 @@ public final class NetworkIdentityController {
         }
     }
 
-    /// Detects again after `retryDelay`, unless a detection is already pending.
-    private func scheduleDetection() {
-        guard !detectionPending else { return }
-        detectionPending = true
-        let delay = retryDelay
-        Task { [weak self] in
-            try? await Task.sleep(for: delay)
-            self?.requestDetection()
-        }
-    }
-
-    /// Stamps the approval that identified the network, at most hourly, for eviction.
-    private func noteMatched(_ key: RouterKey, group: NetworkGroup) {
-        let time = now()
-        guard let approval = store.contents.approvals.first(where: { $0.group == group && $0.key == key }),
-              (approval.lastMatched ?? .distantPast) < time.addingTimeInterval(-3600) else { return }
-        try? store.update { contents in
-            if let index = contents.approvals.firstIndex(of: approval) {
-                contents.approvals[index].lastMatched = time
-            }
-        }
-    }
-
     /// Asks for one detection, unless one is already pending.
     private func detectAgain() {
         guard !detectionPending else { return }
@@ -339,8 +376,8 @@ public final class NetworkIdentityController {
     public func authorizes(_ networkID: UUID) -> Bool {
         guard case .identified(let id, let group, let hint) = state, id == networkID else { return false }
         let now = readHint(group.interface)
-        // An unreadable routing table is transient: the identification stands (#645).
-        guard now == hint || now == .failed else {
+        // An unreadable routing table is transient within the generation it was identified under (#645).
+        guard now == hint || (now == .failed && identifiedGeneration == clock.generation.value) else {
             Self.logger.notice("Router changed since the network was identified: holding its rows")
             state = .held(id, nil)
             detectAgain()
@@ -353,8 +390,10 @@ public final class NetworkIdentityController {
     public func startOver() {
         do {
             try store.startOver()
+            syncStoreState()
         } catch {
             Self.logger.error("Couldn't start network recognition over")
+            syncStoreState()
             return
         }
         detectionPending = false
@@ -366,12 +405,14 @@ public final class NetworkIdentityController {
     private func write(_ change: (inout NetworkIdentityStore.Contents) -> Void, retry: @escaping @MainActor () -> Void) -> Bool {
         do {
             try store.update { change(&$0) }
+            syncStoreState()
             if saveFailed {
                 saveFailed = false
             }
             pendingRetry = nil
             return true
         } catch is NetworkIdentityStore.Conflict {
+            lastWriteConflicted = true
             // Another copy of the app saved first and the store reloaded what it saved: try again by
             // resolving against that, never by replaying this answer over it.
             Self.logger.notice("Network recognition changed in another copy: identifying again")
@@ -379,6 +420,7 @@ public final class NetworkIdentityController {
             saveFailed = true
             return false
         } catch {
+            syncStoreState()
             Self.logger.error("Couldn't save network recognition: \(String(describing: type(of: error)), privacy: .public)")
             pendingRetry = retry
             saveFailed = true
@@ -412,6 +454,18 @@ extension NetworkIdentityController {
     /// key, which this asks for.
     public func answer(_ answer: Answer, to question: IdentityQuestion) {
         guard question == self.question else { return }
+        // The router must still be the one the question is about, as for a quiet bind (#645): an
+        // answer about a router the Mac has left approves nothing, and identification runs again.
+        let now = readHint(question.group.interface)
+        let stillHere = switch question {
+        case .whichNetwork(_, let key, _), .isLegacy(_, let key, _): now == .present(key)
+        case .forgottenThisConnection: now == .absent || now == .failed
+        }
+        guard stillHere else {
+            Self.logger.notice("The router changed with the question open: identifying again")
+            detectAgain()
+            return
+        }
         let retry: @MainActor () -> Void = { [weak self] in self?.answer(answer, to: question) }
         let recorded: Bool
         switch (question, answer) {
@@ -491,6 +545,33 @@ extension NetworkIdentityController {
             if !contents.approvals.contains(where: { $0.recordID == evicted.recordID }),
                let index = contents.records.firstIndex(where: { $0.id == evicted.recordID }) {
                 contents.records[index].recordClass = .forgotten
+            }
+        }
+    }
+}
+
+// MARK: - Detection helpers
+
+extension NetworkIdentityController {
+    /// Detects again after `retryDelay`, unless a detection is already pending.
+    func scheduleDetection() {
+        guard !detectionPending else { return }
+        detectionPending = true
+        let delay = retryDelay
+        Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            self?.requestDetection()
+        }
+    }
+
+    /// Stamps the approval that identified the network, at most hourly, for eviction.
+    func noteMatched(_ key: RouterKey, group: NetworkGroup) {
+        let time = now()
+        guard let approval = store.contents.approvals.first(where: { $0.group == group && $0.key == key }),
+              (approval.lastMatched ?? .distantPast) < time.addingTimeInterval(-3600) else { return }
+        try? store.update { contents in
+            if let index = contents.approvals.firstIndex(of: approval) {
+                contents.approvals[index].lastMatched = time
             }
         }
     }

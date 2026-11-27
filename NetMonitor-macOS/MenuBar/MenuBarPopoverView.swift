@@ -30,7 +30,7 @@ struct MenuBarPopoverView: View {
 
             // Which network is this? (#645): answered in the Devices list.
             if let identity = deviceDiscovery.identity {
-                NetworkIdentityBanner(identity: identity) {
+                NetworkIdentityBanner(identity: identity, screen: "menubar", usesSystemColors: true) {
                     onClose()
                     NotificationRouter.shared.open(.devices)
                 }

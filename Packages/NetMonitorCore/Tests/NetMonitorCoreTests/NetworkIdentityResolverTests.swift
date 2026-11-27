@@ -46,9 +46,13 @@ struct NetworkIdentityResolverTests {
     }
 
     private func resolve(
-        _ hint: RouterHintStatus, _ records: [IdentityRecord], approvals: [IdentityApproval] = [], connectionAnswer: UUID? = nil
+        _ hint: RouterHintStatus, _ records: [IdentityRecord], approvals: [IdentityApproval] = [], connectionAnswer: UUID? = nil,
+        occupiedBuckets: Set<UUID> = []
     ) -> IdentityResolution {
-        NetworkIdentityResolver.resolve(group: home, hint: hint, records: records, approvals: approvals, connectionAnswer: connectionAnswer)
+        NetworkIdentityResolver.resolve(
+            group: home, hint: hint, records: records, approvals: approvals, connectionAnswer: connectionAnswer,
+            occupiedBuckets: occupiedBuckets
+        )
     }
 
     // MARK: Step 2: no hint
@@ -70,15 +74,27 @@ struct NetworkIdentityResolverTests {
         #expect(resolve(.absent, [legacy]) == .use(legacy.id))
     }
 
-    /// #645 (lead decision): an IPv6 drop never empties a bound network. One bound network without a
-    /// hint is that network; several ask, for this connection only; the bucket is for a group with
-    /// nothing bound.
-    @Test func withoutAHintTheOneBoundNetworkIsUsed() {
+    /// #645 (lead decision): an IPv6 drop never empties a bound network. Without a hint, a group's one
+    /// bound network is used only when nothing else could be this network; otherwise every candidate
+    /// is offered, for this connection only.
+    @Test func withoutAHintTheOneBoundNetworkIsUsedOnlyWhenNothingElseCouldBeThis() {
         let bound = record(.bound)
-        let legacy = record(.legacyUnverified)
-        let bucket = record(.bucket)
-        #expect(resolve(.absent, [bound, legacy, bucket]) == .use(bound.id))
         #expect(resolve(.absent, [bound]) == .use(bound.id))
+        #expect(resolve(.absent, [bound, record(.bucket)]) == .use(bound.id), "an empty bucket isn't a candidate")
+    }
+
+    /// #645 verification: home has no hint and uses legacy L; at an IPv6 site on the same subnet the
+    /// user made a new network N. Back home, N must not win: both are offered.
+    @Test func withoutAHintABoundNetworkDoesNotBeatALegacyOne() {
+        let siteN = record(.bound)
+        let homeL = record(.legacyUnverified)
+        #expect(resolve(.absent, [siteN, homeL]) == .ask(.forgottenThisConnection(group: home, options: [siteN.id, homeL.id])))
+        let bucket = record(.bucket)
+        #expect(
+            resolve(.absent, [siteN, bucket], occupiedBuckets: [bucket.id])
+                == .ask(.forgottenThisConnection(group: home, options: [siteN.id, bucket.id])),
+            "a bucket with saved rows is a candidate"
+        )
     }
 
     @Test func withoutAHintSeveralBoundNetworksAskForThisConnection() {

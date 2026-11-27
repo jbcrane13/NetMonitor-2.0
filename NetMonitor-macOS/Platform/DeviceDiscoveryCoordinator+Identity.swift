@@ -1,6 +1,7 @@
 import Foundation
 import NetMonitorCore
 import NetworkScanKit
+import os
 
 /// Network identification on the coordinator (#628 PR B).
 extension DeviceDiscoveryCoordinator {
@@ -31,6 +32,31 @@ extension DeviceDiscoveryCoordinator {
         )
     }
 
+    /// Connects a new `identity`: one scan once a held network settles (the scan refused meanwhile,
+    /// as asked, else the local network's), and option summaries for its questions.
+    func wireIdentity() {
+        identity?.onSettled = { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                let queued = self.queuedScan
+                self.queuedScan = nil
+                self.rescan(queued ?? .identified)
+            }
+        }
+        identity?.describeOption = { [weak self] id in self?.identityOptionSummary(for: id) ?? IdentityOptionSummary() }
+    }
+
+    /// While identifying, refuses a scan and remembers it, a user's scan of a manual network winning
+    /// over a local one. True when refused.
+    func queueWhileIdentifying(_ reason: ScanReason) -> Bool {
+        guard isIdentifyingNetwork else { return false }
+        Logger.discovery.notice("Scan queued (\(reason.logLabel, privacy: .public)): identifying which network this is")
+        if queuedScan?.manualNetwork == nil || reason.manualNetwork != nil {
+            queuedScan = reason
+        }
+        return true
+    }
+
     /// Ends probe `run` if it's still the latest: an obsolete probe ends nothing. Then runs a scan
     /// refused meanwhile, unless identification continues or holds the network: both scan when it
     /// settles (`onSettled`).
@@ -38,10 +64,14 @@ extension DeviceDiscoveryCoordinator {
         guard run == probeRun else { return }
         isProbing = false
         bonjourScanner.stopDiscovery()
-        guard scanQueuedAfterIdentification, identity?.isIdentifying != true else { return }
+        guard queuedScan != nil, identity?.isIdentifying != true else { return }
         Task { @MainActor [weak self] in
-            guard let self, scanQueuedAfterIdentification, !isIdentifyingNetwork, identity?.heldNetworkIDs.isEmpty != false else { return }
-            rescan(.identified)
+            // A manual network's scan runs now; a local one waits while the network is held (it scans
+            // when it settles).
+            guard let self, let queued = queuedScan, !isIdentifyingNetwork,
+                  queued.manualNetwork != nil || identity?.heldNetworkIDs.isEmpty != false else { return }
+            queuedScan = nil
+            rescan(queued)
         }
     }
 
@@ -65,7 +95,8 @@ extension DeviceDiscoveryCoordinator {
         // Names come from Bonjour as in a scan: on macOS 27 there are no MACs, so the gateway's name is
         // the only anchor.
         bonjourScanner.startDiscovery()
-        let pipeline = makePipeline()
+        // Only the latest probe's engine may stop the shared browser.
+        let pipeline = makePipeline { [weak self] in self?.probeRun == run }
         let context = makeScanContext()
         let devices = await ScanEngine().scan(pipeline: pipeline, context: context) { _, _ in }
         guard !Task.isCancelled, let gateway = gatewayIP() else { return nil }

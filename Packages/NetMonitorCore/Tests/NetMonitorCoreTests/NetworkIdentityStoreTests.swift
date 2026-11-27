@@ -71,7 +71,7 @@ struct NetworkIdentityStoreTests {
         var json = try JSONSerialization.jsonObject(with: Data(contentsOf: file(env.dir))) as? [String: Any] ?? [:]
         json["schemaVersion"] = NetworkIdentityStore.schemaVersion + 1
         try JSONSerialization.data(withJSONObject: json).write(to: file(env.dir))
-        #expect(store(env).state == .damaged)
+        #expect(store(env).state == .newer)
     }
 
     @Test func aMissingFileWithTheMarkerPausesInsteadOfReseeding() throws {

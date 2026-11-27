@@ -8,7 +8,14 @@ struct NetworkIdentityCard: View {
     let identity: NetworkIdentityController
 
     var body: some View {
-        if identity.isDamaged {
+        if identity.needsNewerBuild {
+            card(
+                title: "Network recognition needs a newer NetMonitor",
+                detail: "Its saved file is from a newer version, so devices aren't saved here. Update NetMonitor to use it."
+            ) {
+                EmptyView()
+            }
+        } else if identity.isDamaged {
             card(
                 title: "Network recognition is paused",
                 detail: "Its saved file couldn't be read, so devices aren't saved. "
@@ -120,11 +127,22 @@ struct NetworkIdentityCard: View {
 /// dashboard's device panel for that network and the menu bar popover.
 struct NetworkIdentityBanner: View {
     let identity: NetworkIdentityController
+    /// The screen it's on, for its accessibility IDs: "dashboard" or "menubar".
+    let screen: String
     /// The panel's network; nil (the menu bar) for whichever network is held.
     var networkID: UUID?
+    /// The menu bar popover draws on a system background: system colors there (project theme note).
+    var usesSystemColors = false
     let open: () -> Void
 
+    private var textColor: Color {
+        usesSystemColors ? .secondary : MacTheme.Colors.labelSecondary
+    }
+
     private var applies: Bool {
+        if identity.needsNewerBuild {
+            return networkID == nil
+        }
         if identity.isDamaged || identity.saveFailed {
             return networkID == nil || identity.heldNetworkIDs.contains(networkID ?? UUID())
         }
@@ -132,6 +150,9 @@ struct NetworkIdentityBanner: View {
     }
 
     private var text: String {
+        if identity.needsNewerBuild {
+            return "Network recognition needs a newer NetMonitor"
+        }
         if identity.isDamaged {
             return "Network recognition is paused"
         }
@@ -145,23 +166,23 @@ struct NetworkIdentityBanner: View {
         if applies {
             HStack(spacing: 6) {
                 Image(systemName: "questionmark.circle")
-                    .foregroundStyle(MacTheme.Colors.labelSecondary)
+                    .foregroundStyle(textColor)
                     .accessibilityHidden(true)
                 Text(text)
                     .font(.caption)
-                    .foregroundStyle(MacTheme.Colors.labelSecondary)
-                    .accessibilityIdentifier("identityBanner_text")
+                    .foregroundStyle(textColor)
+                    .accessibilityIdentifier("\(screen)_identity_text")
                 if identity.question != nil || identity.saveFailed || identity.isDamaged {
                     Button("Answer", action: open)
                         .controlSize(.small)
-                        .accessibilityIdentifier("identityBanner_button_answer")
+                        .accessibilityIdentifier("\(screen)_identity_button_answer")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("identityBanner")
+            .accessibilityIdentifier("\(screen)_identity_banner")
         }
     }
 }

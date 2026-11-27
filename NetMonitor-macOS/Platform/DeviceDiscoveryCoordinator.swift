@@ -110,20 +110,16 @@ final class DeviceDiscoveryCoordinator {
     /// Which same-subnet network the Mac is on (#628 PR B); nil leaves identification off. A network
     /// identified after a hold is scanned once, after the detection that settled it returns.
     var identity: NetworkIdentityController? {
-        didSet {
-            identity?.onSettled = { [weak self] _ in
-                Task { @MainActor in self?.rescan(.identified) }
-            }
-            identity?.describeOption = { [weak self] id in self?.identityOptionSummary(for: id) ?? IdentityOptionSummary() }
-        }
+        didSet { wireIdentity() }
     }
 
     /// The identification probe is running: it shares the Bonjour browser, so no scan starts meanwhile.
     var isProbing = false
     /// The latest identification probe's run: only it ends the run (the Bonjour browser, `isProbing`).
     var probeRun = 0
-    /// A scan was refused while identifying: one runs when identification ends.
-    var scanQueuedAfterIdentification = false
+    /// The scan refused while identifying, replayed as asked when identification ends: a user's scan
+    /// of a manual network stays that network's (#645).
+    var queuedScan: ScanReason?
     /// The routed IPv4 gateway, for the identification probe's site anchor.
     let gatewayIP: @MainActor () -> String?
 
@@ -344,9 +340,7 @@ final class DeviceDiscoveryCoordinator {
             replacementScans.reset()
         }
         // Identification first (#645): a scan now would save nothing, and one runs once it's done.
-        if isIdentifyingNetwork {
-            Logger.discovery.notice("Scan queued (\(reason.logLabel, privacy: .public)): identifying which network this is")
-            scanQueuedAfterIdentification = true
+        if queueWhileIdentifying(reason) {
             return false
         }
         let decision = ScanPolicy.decide(
@@ -363,7 +357,6 @@ final class DeviceDiscoveryCoordinator {
             Logger.discovery.notice("Scan skipped (\(name, privacy: .public)): \(why, privacy: .public)")
             return false
         case .start(let profile):
-            scanQueuedAfterIdentification = false
             Logger.discovery.notice("Scan started (\(name, privacy: .public))")
             if let profile {
                 scanNetwork(profile, countsTowardReviewPrompt: counts)
@@ -372,7 +365,6 @@ final class DeviceDiscoveryCoordinator {
             }
         case .replace(let profile):
             // A scan of the old network would only probe addresses that aren't there any more (#359).
-            scanQueuedAfterIdentification = false
             Logger.discovery.notice("Scan replaced (\(name, privacy: .public))")
             stopScan()
             scanNetwork(profile, countsTowardReviewPrompt: counts)
@@ -727,8 +719,9 @@ final class DeviceDiscoveryCoordinator {
     /// do — both platforms share `NetworkProfile` and `NetworkUtilities` in NetMonitorCore.
     /// `requiredInterfaceType` is `nil` (any interface): unlike iOS, a wired Mac must still
     /// be able to discover devices (D15).
-    /// The scan's pipeline, fed by this coordinator's Bonjour browser and services.
-    func makePipeline() -> ScanPipeline {
+    /// The scan's pipeline, fed by this coordinator's Bonjour browser and services. `stopsBonjour`
+    /// says whether its Bonjour phase may still stop the shared browser: an obsolete probe's may not.
+    func makePipeline(stopsBonjour: @escaping @MainActor @Sendable () -> Bool = { true }) -> ScanPipeline {
         let bonjourScannerRef = bonjourScanner
         let bonjourProvider: @Sendable () async -> [BonjourServiceInfo] = {
             await MainActor.run {
@@ -738,7 +731,11 @@ final class DeviceDiscoveryCoordinator {
             }
         }
         let bonjourStop: @Sendable () async -> Void = {
-            await MainActor.run { bonjourScannerRef.stopDiscovery() }
+            await MainActor.run {
+                if stopsBonjour() {
+                    bonjourScannerRef.stopDiscovery()
+                }
+            }
         }
         let nameResolverRef = nameResolver
         return pipelineFactory(ScanPipelineInputs(

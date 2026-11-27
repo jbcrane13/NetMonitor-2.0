@@ -43,6 +43,9 @@ public final class NetworkIdentityStore {
         case ready
         /// Identification is paused until the user starts over.
         case damaged
+        /// The file was written by a newer build: paused for this launch only, with no tombstone, so
+        /// the newer build isn't paused, and never offered for a start over that would erase it.
+        case newer
     }
 
     /// The contents break an invariant; nothing was written.
@@ -110,8 +113,10 @@ public final class NetworkIdentityStore {
             return
         }
         if let data = try? Data(contentsOf: fileURL) {
-            if let decoded = try? JSONDecoder().decode(Contents.self, from: data), decoded.schemaVersion <= Self.schemaVersion,
-               (try? validate(decoded)) != nil {
+            if let decoded = try? JSONDecoder().decode(Contents.self, from: data), decoded.schemaVersion > Self.schemaVersion {
+                Self.logger.notice("Network identity file is from a newer build: paused for this launch")
+                state = .newer
+            } else if let decoded = try? JSONDecoder().decode(Contents.self, from: data), (try? validate(decoded)) != nil {
                 contents = decoded
                 state = .ready
                 defaults.set(true, forKey: Self.markerKey)
@@ -142,23 +147,9 @@ public final class NetworkIdentityStore {
         state = .damaged
     }
 
-    /// First migration: each v1 entry becomes a `legacyUnverified` record with the same ID. A start
-    /// over also brings back every network the store has known (`knownNetworksKey`).
-    private func migrate(includingKnown: Bool = false) {
-        var records: [IdentityRecord] = []
-        var sources = legacyNetworks().map { (key: $0.key, id: $0.value) }.sorted { $0.key < $1.key }
-        if includingKnown {
-            let known = (defaults.dictionary(forKey: Self.knownNetworksKey) as? [String: String] ?? [:])
-                .compactMap { id, key in UUID(uuidString: id).map { (key: key, id: $0) } }
-            sources += known.sorted { $0.id.uuidString < $1.id.uuidString }
-        }
-        for (key, id) in sources {
-            let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
-            guard parts.count == 2, !records.contains(where: { $0.id == id }) else { continue }
-            records.append(IdentityRecord(id: id, group: NetworkGroup(interface: parts[0], subnet: parts[1]), recordClass: .legacyUnverified))
-        }
-        let revision = max(1, defaults.integer(forKey: Self.revisionKey) + 1)
-        let migrated = Contents(revision: revision, records: records, legacyIDs: records.map(\.id))
+    /// First migration: each v1 entry becomes a `legacyUnverified` record with the same ID.
+    private func migrate() {
+        let migrated = migration(includingKnown: false)
         do {
             try persist(migrated)
             contents = migrated
@@ -168,6 +159,31 @@ public final class NetworkIdentityStore {
             Self.logger.error("Couldn't write the network identity file: paused")
             state = .damaged
         }
+    }
+
+    /// The v1 map's networks as `legacyUnverified` records; for a start over, also every network the
+    /// store has known (`knownNetworksKey`, buckets included), a forgotten one staying forgotten. The
+    /// revision continues the last one written.
+    private func migration(includingKnown: Bool) -> Contents {
+        var records: [IdentityRecord] = []
+        var sources = legacyNetworks().map { (key: $0.key, id: $0.value) }.sorted { $0.key < $1.key }
+        if includingKnown {
+            let known = (defaults.dictionary(forKey: Self.knownNetworksKey) as? [String: String] ?? [:])
+                .compactMap { id, key in UUID(uuidString: id).map { (key: key, id: $0) } }
+            sources += known.sorted { $0.id.uuidString < $1.id.uuidString }
+        }
+        for (key, id) in sources {
+            // "interface|subnet", or "interface|subnet|class" from the known index.
+            let parts = key.split(separator: "|").map(String.init)
+            guard parts.count >= 2, !records.contains(where: { $0.id == id }) else { continue }
+            let recordClass: IdentityRecordClass = parts.count > 2 && parts[2] == IdentityRecordClass.forgotten.rawValue
+                ? .forgotten : .legacyUnverified
+            records.append(IdentityRecord(id: id, group: NetworkGroup(interface: parts[0], subnet: parts[1]), recordClass: recordClass))
+        }
+        let revision = max(1, defaults.integer(forKey: Self.revisionKey) + 1)
+        return Contents(
+            revision: revision, records: records, legacyIDs: records.filter { $0.recordClass == .legacyUnverified }.map(\.id)
+        )
     }
 
     /// Applies `change`, validates it, writes it atomically and only then publishes it. Throws, and
@@ -199,7 +215,13 @@ public final class NetworkIdentityStore {
         let descriptor = open(lockURL.path, O_CREAT | O_RDWR, 0o600)
         guard descriptor >= 0 else { throw CocoaError(.fileWriteUnknown) }
         defer { close(descriptor) }
-        guard flock(descriptor, LOCK_EX) == 0 else { throw CocoaError(.fileWriteUnknown) }
+        // Never blocks the main thread without bound: another copy holding it past ~0.5 s is a conflict.
+        var attempts = 0
+        while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+            attempts += 1
+            guard errno == EWOULDBLOCK, attempts < 20 else { throw Conflict() }
+            usleep(25000)
+        }
         return try body()
     }
 
@@ -207,8 +229,11 @@ public final class NetworkIdentityStore {
     /// or wrote; pauses if what's there now can't be used.
     private func reloadIfChangedElsewhere() throws {
         guard let data = try? Data(contentsOf: fileURL) else { return }
-        guard let disk = try? JSONDecoder().decode(Contents.self, from: data), disk.schemaVersion <= Self.schemaVersion,
-              (try? validate(disk)) != nil else {
+        if let disk = try? JSONDecoder().decode(Contents.self, from: data), disk.schemaVersion > Self.schemaVersion {
+            state = .newer
+            throw Paused()
+        }
+        guard let disk = try? JSONDecoder().decode(Contents.self, from: data), (try? validate(disk)) != nil else {
             quarantine(data)
             throw Paused()
         }
@@ -218,16 +243,18 @@ public final class NetworkIdentityStore {
         throw Conflict()
     }
 
-    /// "Start over": the user chose to re-migrate from the v1 map. The damaged copy stays.
+    /// "Start over": the user chose to rebuild from the v1 map and every network the store has known.
+    /// The new state is written first; only then are the tombstone and marker updated, so a failed
+    /// write leaves the damaged state as it was. The damaged copy stays. Never for a newer build's file.
     public func startOver() throws {
+        guard state == .damaged else { throw Paused() }
         try withFileLock {
+            let rebuilt = migration(includingKnown: true)
+            try persist(rebuilt)
+            contents = rebuilt
             defaults.removeObject(forKey: Self.damagedKey)
-            defaults.removeObject(forKey: Self.markerKey)
-            try? FileManager.default.removeItem(at: fileURL)
-            migrate(includingKnown: true)
-        }
-        if state == .damaged {
-            throw Paused()
+            defaults.set(true, forKey: Self.markerKey)
+            state = .ready
         }
     }
 
@@ -248,8 +275,8 @@ public final class NetworkIdentityStore {
         try write(encoder.encode(contents), fileURL)
         defaults.set(contents.revision, forKey: Self.revisionKey)
         var known = defaults.dictionary(forKey: Self.knownNetworksKey) as? [String: String] ?? [:]
-        for record in contents.records where record.recordClass != .bucket {
-            known[record.id.uuidString] = "\(record.group.interface)|\(record.group.subnet)"
+        for record in contents.records {
+            known[record.id.uuidString] = "\(record.group.interface)|\(record.group.subnet)|\(record.recordClass.rawValue)"
         }
         defaults.set(known, forKey: Self.knownNetworksKey)
     }

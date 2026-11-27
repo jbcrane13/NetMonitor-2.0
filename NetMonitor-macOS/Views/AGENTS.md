@@ -59,7 +59,7 @@ xcodebuild test -scheme NetMonitor-macOS
 | Same as / Yes / a connection-only option | `devices_identity_same_<network UUID>` |
 | New network; Somewhere else | `devices_identity_new`; `devices_identity_elsewhere` |
 | Try again (a failed save); Start over (a damaged store) | `devices_identity_retry`; `devices_identity_startOver` |
-| Banner; its Answer button | `identityBanner`; `identityBanner_button_answer` |
+| Banner on the dashboard panel / in the menu bar popover; its text; its Answer button | `dashboard_identity_banner` / `menubar_identity_banner`; `…_identity_text`; `…_identity_button_answer` |
 
 ### Device groups (#594)
 One device can be several saved rows (its interfaces). Both detail views (`DeviceDetailView`, `Devices/ProDeviceDetailView`) show:

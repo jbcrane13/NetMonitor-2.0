@@ -42,6 +42,10 @@ extension NetworkIdentityControllerTests {
         _ = identity.resolveID(group: home, defaultID: legacy)
         try #require(await eventually { harness.probeGate != nil })
         #expect(harness.probes == 2)
+        // Identifying, with a probe running and no detection pending: not stuck (not vacuous).
+        #expect(identity.isIdentifying)
+        #expect(harness.detections == 0)
+        #expect(!identity.isStuckIdentifying)
         let second = identity.probeTask
         harness.holdsProbe = false
         first?.resume()
