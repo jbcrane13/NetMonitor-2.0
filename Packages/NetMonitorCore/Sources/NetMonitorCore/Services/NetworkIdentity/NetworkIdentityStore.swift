@@ -1,14 +1,15 @@
 import Foundation
 import os
 
-/// The known networks, their approved router keys and connection-only answers (#628 PR B), in one
-/// file with one main-actor writer. Each update is validated, encoded and written atomically, and
+/// The known networks and their approved router keys, a group's no-hint approval among them (#628 PR B,
+/// #645), in one file. Updates are locked and revision-checked across copies of the app. Each update is validated, encoded and written atomically, and
 /// only then published; a write failure changes nothing.
 ///
 /// | File | Marker | Outcome |
 /// |---|---|---|
 /// | valid | any | authoritative; the marker is set if missing |
-/// | undecodable, newer schema, or invalid | any | damaged: the file is kept, copied to `.damaged-<date>`, and a tombstone keeps every launch damaged until `startOver()` |
+/// | newer schema (by its header) | any | `.newer`: paused for this launch only, no tombstone, no Start over |
+/// | undecodable or invalid | any | damaged: the file is kept, copied to `.damaged-<date>`, and a tombstone keeps every launch damaged until `startOver()` |
 /// | missing | set | damaged, as above |
 /// | missing | missing | first migration from the v1 map (`legacyUnverified`, same IDs) |
 ///

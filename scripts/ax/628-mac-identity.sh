@@ -105,4 +105,21 @@ expect "$("$AX" wait $TITLE 20)" found "the legacy question never showed"
 expect "$("$AX" value $TITLE)" "Is this Home office?" "the card doesn't ask whether this is Home office"
 expect "$("$AX" textin $SEED "Not checked: which network is this?" 5)" "found text" "the legacy network's device isn't history"
 "$AX" capture-union "$OUT/628b-3-legacy-question.png" $TITLE devices_identity_detail $NEW $SEED
+
+# 5. Recognized by an earlier no-hint answer (no IPv6 router): after the 5 s settle window,
+# "Not this network?" clears that answer and asks again (#645 round 5).
+kill $PID 2>/dev/null || true
+wait $PID 2>/dev/null || true
+UITEST_IDENTITY=nohint \
+  "$APP/Contents/MacOS/NetMonitor-macOS" --uitesting --in-memory-store --reset-history-files --seed-test-device \
+  > "$OUT/app-nohint.log" 2>&1 &
+PID=$!
+export AX_PID=$PID
+expect "$("$AX" wait networkDetail_section_devices 40)" found "the dashboard never appeared (no hint)"
+open_sidebar
+"$AX" click sidebar_nav_devices > /dev/null
+expect "$("$AX" wait devices_identity_button_reidentify 20)" found "no way to correct the no-hint answer"
+expect "$("$AX" press devices_identity_button_reidentify)" pressed "couldn't press Not this network?"
+expect "$("$AX" wait $TITLE 15)" found "the question didn't come back"
+expect "$("$AX" value $TITLE)" "Which network is this?" "the card doesn't ask which network this is"
 echo PASS

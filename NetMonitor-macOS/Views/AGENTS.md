@@ -56,7 +56,8 @@ xcodebuild test -scheme NetMonitor-macOS
 | Control | Accessibility ID |
 |---|---|
 | Card (its own container keeps the children's IDs on macOS 27); title; detail | `devices_identity_card`; `devices_identity_title`; `devices_identity_detail` |
-| Same as / Yes / a connection-only option | `devices_identity_same_<network UUID>` |
+| Same as / Yes / a no-hint option | `devices_identity_same_<network UUID>` |
+| "Not this network?" (identified with no IPv6 router; clears the no-hint answer and asks again) | `devices_identity_button_reidentify` |
 | New network | `devices_identity_new` |
 | "Checking the network…" (an answer clicked during a failed routing read) | `devices_identity_checking` |
 | Try again (a failed save); Start over (a damaged store) | `devices_identity_retry`; `devices_identity_startOver` |

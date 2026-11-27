@@ -4,8 +4,8 @@ import Testing
 
 /// #645 review threads that were still live on 91fb40df.
 extension NetworkIdentityControllerTests {
-    /// A no-hint approval holds across a wake while the hint stays absent; a router appearing goes
-    /// by its own key (round 4 replaced the connection-only answer).
+    /// A no-hint approval holds across a wake once absent has settled again (round 5: a wake starts a
+    /// new settle window); a router appearing goes by its own key.
     @Test func aNoHintApprovalSurvivesAWakeButNotARouter() throws {
         let (store, _, _) = try makeStore()
         let harness = Harness()
@@ -21,9 +21,13 @@ extension NetworkIdentityControllerTests {
         }
         harness.hint = .absent
         _ = identity.resolveID(group: home, defaultID: siteA)
+        harness.settle()
         try identity.answer(.thisConnection(siteA), to: #require(identity.question))
         #expect(identity.resolveID(group: home, defaultID: siteA) == siteA)
         clock.noteResume()
+        #expect(!identity.authorizes(siteA), "inside the new generation's window")
+        harness.settle()
+        #expect(identity.resolveID(group: home, defaultID: siteA) == siteA)
         #expect(identity.authorizes(siteA))
         harness.hint = .present(keyB)
         #expect(!identity.authorizes(siteA))

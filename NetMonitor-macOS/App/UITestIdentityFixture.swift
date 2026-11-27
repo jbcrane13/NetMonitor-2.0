@@ -7,6 +7,8 @@ import NetMonitorCore
 ///   another, so the Devices screen asks "Which network is this?" and its saved rows read as history;
 /// - `legacy`: the fixture network is known only from before identification, and the identification
 ///   probe can't clearly match it (the fixture scan has no gateway row), so it asks "Is this …?";
+/// - `nohint`: no IPv6 router; the fixture network was recognized by an earlier no-hint answer, and
+///   another network on the subnet has a router, so "Not this network?" asks again;
 /// - `live`: the real network and the real router hint, to check the reader in the signed app; its
 ///   status is logged as a kind only (`networkIdentity` category);
 /// - unset: no router hint is read, so identification changes nothing.
@@ -15,7 +17,7 @@ import NetMonitorCore
 @MainActor
 enum UITestIdentityFixture {
     enum Mode: String {
-        case ask, legacy, live
+        case ask, legacy, nohint, live
     }
 
     static var mode: Mode? {
@@ -33,7 +35,7 @@ enum UITestIdentityFixture {
 
     /// The profile manager's live networks: the fixture's for `ask` and `legacy`.
     static var activeProfilesProvider: @Sendable () -> [NetworkProfile] {
-        guard mode == .ask || mode == .legacy else { return NetworkProfileManager.detectActiveProfiles }
+        guard mode == .ask || mode == .legacy || mode == .nohint else { return NetworkProfileManager.detectActiveProfiles }
         let fixture = network
         return { [fixture] }
     }
@@ -44,6 +46,7 @@ enum UITestIdentityFixture {
     static func readHint(_ interface: String) -> RouterHintStatus {
         switch mode {
         case .ask, .legacy: .present(awayKey)
+        case .nohint: .absent
         case .live: RouterHint.read(interface: interface)
         case nil: .absent
         }
@@ -67,6 +70,12 @@ enum UITestIdentityFixture {
             if mode == .ask {
                 contents.records.append(IdentityRecord(id: local.id, group: group, recordClass: .bound))
                 contents.approvals.append(IdentityApproval(group: group, key: homeKey, recordID: local.id))
+            } else if mode == .nohint {
+                let other = UUID()
+                contents.records.append(IdentityRecord(id: local.id, group: group, recordClass: .bound))
+                contents.approvals.append(IdentityApproval(group: group, key: .noHint, recordID: local.id))
+                contents.records.append(IdentityRecord(id: other, group: group, recordClass: .bound))
+                contents.approvals.append(IdentityApproval(group: group, key: awayKey, recordID: other))
             } else {
                 contents.records.append(IdentityRecord(id: local.id, group: group, recordClass: .legacyUnverified))
                 if !contents.legacyIDs.contains(local.id) {

@@ -114,6 +114,14 @@ public final class NetworkIdentityController {
             case .held(let id, _), .identifying(let id, _, _): tentative[id] = clock.generation.value
             default: break
             }
+            let reidentifiable = if case .identified = state {
+                identifiedByNoHint
+            } else {
+                false
+            }
+            if canReidentify != reidentifiable {
+                canReidentify = reidentifiable
+            }
             if case .identified = state {
                 identifiedGeneration = clock.generation.value
                 // Identified with nothing held: an earlier failed save no longer matters.
@@ -140,15 +148,25 @@ public final class NetworkIdentityController {
     @ObservationIgnored private var legacyReprobeAllowed = false
     /// Networks held or identifying, by the generation they were last tentative in.
     @ObservationIgnored private var tentative: [UUID: UInt64] = [:]
+    /// Since when, in which generation, "no IPv6 router" has been read without a break.
+    @ObservationIgnored private var absentSince: (generation: UInt64, at: Date)?
+    /// The current identification came from the group's no-hint approval.
+    @ObservationIgnored private var identifiedByNoHint = false
+    @ObservationIgnored private let settleDelay: @Sendable (TimeInterval) -> Duration
     @ObservationIgnored private var pendingRetry: (@MainActor () -> Void)?
     @ObservationIgnored private var lastLoggedHintKind: String?
     @ObservationIgnored private let store: NetworkIdentityStore
     @ObservationIgnored private let clock: NetworkJoinClock
-    @ObservationIgnored private let launchID: UUID
     @ObservationIgnored private let readHint: @MainActor (String) -> RouterHintStatus
     @ObservationIgnored private let probe: @MainActor (UUID, NetworkGroup) async -> Bool?
     @ObservationIgnored private let requestDetection: @MainActor () -> Void
     private static let logger = Logger(subsystem: "com.netmonitor", category: "networkIdentity")
+
+    /// How long "no IPv6 router" must be read consistently, from the generation's start, before the
+    /// no-hint approval is used or a no-hint answer accepted: a router advertisement can be late.
+    nonisolated public static let noHintSettleWindow: TimeInterval = 5
+    /// The network was identified by the group's no-hint approval: "Not this network?" can clear it.
+    public private(set) var canReidentify = false
 
     /// Unreadable routing-table reads in a row before the read counts as no hint; each detects again
     /// after `retryDelay`.
@@ -162,25 +180,25 @@ public final class NetworkIdentityController {
     public static let approvalsInAll = 64
 
     /// - Parameters:
-    ///   - launchID: this launch, which binds connection-only answers with the clock's generation.
     ///   - readHint: the router hint on an interface (`RouterHint.read`).
     ///   - probe: the identification probe for a legacy record: whether its saved devices clearly
     ///     match what answers now (`LegacyOverlap`); nil when it couldn't run. It never saves anything.
     ///   - requestDetection: runs local-network detection again (the existing owner), which calls
     ///     `resolveID`.
     public init(
-        store: NetworkIdentityStore, clock: NetworkJoinClock, launchID: UUID,
+        store: NetworkIdentityStore, clock: NetworkJoinClock,
         readHint: @escaping @MainActor (String) -> RouterHintStatus,
         probe: @escaping @MainActor (UUID, NetworkGroup) async -> Bool?,
         requestDetection: @escaping @MainActor () -> Void,
         retryDelay: Duration = .seconds(2),
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        settleDelay: @escaping @Sendable (TimeInterval) -> Duration = { .seconds($0) }
     ) {
+        self.settleDelay = settleDelay
         self.retryDelay = retryDelay
         self.now = now
         self.store = store
         self.clock = clock
-        self.launchID = launchID
         self.readHint = readHint
         self.probe = probe
         self.requestDetection = requestDetection
@@ -224,8 +242,10 @@ public final class NetworkIdentityController {
             return defaultID
         }
         var hint = readHint(group.interface)
-        // Only a settled "no IPv6 router" uses the no-hint approval, never a failed read (#645).
-        let settledAbsent = hint == .absent
+        // Only "no IPv6 router" read without a break across the settle window uses the no-hint
+        // approval, never a failed read or a first read: a router advertisement can be late (#645).
+        let absence = noteAbsence(hint)
+        let settledAbsent = absence.settled
         if hint != .failed, isCheckingNetwork {
             isCheckingNetwork = false
         }
@@ -241,8 +261,13 @@ public final class NetworkIdentityController {
             }
             if failedHintReads < Self.failedHintRetries {
                 failedHintReads += 1
-                state = .held(defaultID, nil)
                 scheduleDetection()
+                // An open question stays, "Checking the network…", rather than being dropped.
+                if case .held(let tentative, _?) = state {
+                    isCheckingNetwork = true
+                    return tentative
+                }
+                state = .held(defaultID, nil)
                 return defaultID
             }
             hint = .absent
@@ -258,8 +283,15 @@ public final class NetworkIdentityController {
            clock.isCurrent(probeToken) {
             return id
         }
-        let noHintApproval = settledAbsent
-            ? store.contents.approvals.first { $0.group == group && $0.key == .noHint }?.recordID : nil
+        let groupNoHint = store.contents.approvals.first { $0.group == group && $0.key == .noHint }?.recordID
+        // Inside the window, a group with a no-hint network holds it (history) and reads again at the end.
+        if absence.isAbsent, !settledAbsent, let held = groupNoHint {
+            identifiedByNoHint = false
+            state = .held(held, nil)
+            scheduleDetection(after: absence.remaining)
+            return held
+        }
+        let noHintApproval = settledAbsent ? groupNoHint : nil
         // A bucket is a candidate when it holds saved devices, or when they couldn't be counted.
         let occupied = Set(store.contents.records.filter { $0.group == group && $0.recordClass == .bucket }.map(\.id)
             .filter { id in describeOption.map { $0(id).savedDevices > 0 || $0(id).countUnknown } ?? false })
@@ -267,8 +299,10 @@ public final class NetworkIdentityController {
             group: group, hint: hint, records: store.contents.records, approvals: store.contents.approvals,
             noHintApproval: noHintApproval, occupiedBuckets: occupied
         )
+        identifiedByNoHint = false
         switch resolution {
         case .use(let id):
+            identifiedByNoHint = id == noHintApproval
             if case .present(let key) = hint {
                 noteMatched(key, group: group)
             } else if id == noHintApproval {
@@ -293,7 +327,7 @@ public final class NetworkIdentityController {
             let id = ownID(defaultID)
             guard write({ contents in
                 contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
-                Self.approve(key, group: group, on: id, now: self.now(), in: &contents)
+                Self.approve(hasSavedRows: hasSavedRows, key, group: group, on: id, now: self.now(), in: &contents)
             }, retry: detectAgain) else {
                 state = .held(defaultID, nil)
                 return defaultID
@@ -301,8 +335,9 @@ public final class NetworkIdentityController {
             state = .identified(id, group, hint)
             return id
         case .ask(let question):
-            // The same question already open: keep the card, asked again for this connection.
+            // The same question already open: keep the card (still tentative in this generation).
             if case .held(let tentative, question?) = state {
+                self.tentative[tentative] = clock.generation.value
                 return tentative
             }
             let tentative = Self.options(of: question).first ?? defaultID
@@ -312,6 +347,7 @@ public final class NetworkIdentityController {
             // The probe already asked about this network and router: keep the question, probe nothing.
             // A probe that couldn't run gets one more try.
             if case .held(let tentative, .isLegacy(group, key, legacy)?) = state, !legacyReprobeAllowed {
+                self.tentative[tentative] = clock.generation.value
                 return tentative
             }
             let isReprobe = legacyReprobeAllowed
@@ -366,7 +402,7 @@ public final class NetworkIdentityController {
                     if let index = contents.records.firstIndex(where: { $0.id == legacy }) {
                         contents.records[index].recordClass = .bound
                     }
-                    Self.approve(key, group: group, on: legacy, now: self.now(), in: &contents)
+                    Self.approve(hasSavedRows: hasSavedRows, key, group: group, on: legacy, now: self.now(), in: &contents)
                 }, retry: detectAgain)
                 state = bound ? .identified(legacy, group, hint) : .held(legacy, nil)
             } else {
@@ -381,39 +417,6 @@ public final class NetworkIdentityController {
         guard !detectionPending else { return }
         detectionPending = true
         requestDetection()
-    }
-
-    // MARK: - Commit
-
-    /// Whether device observations may be saved under `networkID` now. Re-reads the router hint: a
-    /// mismatch with the one the network was identified by withdraws authorization and presentation
-    /// at once and asks for one detection (coalesced), even with no path update.
-    public func authorizes(_ networkID: UUID) -> Bool {
-        guard case .identified(let id, let group, let hint) = state, id == networkID else { return false }
-        // A connection-only answer holds for its connection: a wake or path update since asks again.
-        let now = readHint(group.interface)
-        // An unreadable routing table is transient within the generation it was identified under (#645).
-        guard now == hint || (now == .failed && identifiedGeneration == clock.generation.value) else {
-            Self.logger.notice("Router changed since the network was identified: holding its rows")
-            state = .held(id, nil)
-            detectAgain()
-            return false
-        }
-        return true
-    }
-
-    /// Starts over after damage: a fresh migration from the v1 map, then detection again.
-    public func startOver() {
-        do {
-            try store.startOver()
-            syncStoreState()
-        } catch {
-            Self.logger.error("Couldn't start network recognition over")
-            syncStoreState()
-            return
-        }
-        detectionPending = false
-        detectAgain()
     }
 
     /// Writes `change` durably before anything is published. On failure, nothing changes and
@@ -479,6 +482,15 @@ extension NetworkIdentityController {
             scheduleDetection()
             return
         }
+        if case .forgottenThisConnection = question, now == .absent {
+            // A no-hint answer only once absent has settled: it may still be a late advertisement.
+            let absence = noteAbsence(now)
+            if !absence.settled {
+                isCheckingNetwork = true
+                scheduleDetection(after: absence.remaining)
+                return
+            }
+        }
         let stillHere = switch question {
         case .whichNetwork(_, let key, _), .isLegacy(_, let key, _): now == .present(key)
         case .forgottenThisConnection: now == .absent
@@ -495,7 +507,7 @@ extension NetworkIdentityController {
             let id = store.newID()
             recorded = write({ contents in
                 contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
-                Self.approve(key, group: group, on: id, now: self.now(), in: &contents)
+                Self.approve(hasSavedRows: hasSavedRows, key, group: group, on: id, now: self.now(), in: &contents)
             }, retry: retry)
         case (.whichNetwork(let group, let key, _), .same(let id)) where Self.options(of: question).contains(id),
              (.isLegacy(let group, let key, _), .same(let id)) where Self.options(of: question).contains(id):
@@ -503,7 +515,7 @@ extension NetworkIdentityController {
                 if let index = contents.records.firstIndex(where: { $0.id == id }) {
                     contents.records[index].recordClass = .bound
                 }
-                Self.approve(key, group: group, on: id, now: self.now(), in: &contents)
+                Self.approve(hasSavedRows: hasSavedRows, key, group: group, on: id, now: self.now(), in: &contents)
             }, retry: retry)
         case (.forgottenThisConnection(let group, let options), .thisConnection(let id)) where options.contains(id):
             // Remembered as the group's no-hint approval (#645 round 4), so it isn't asked again. A
@@ -512,13 +524,13 @@ extension NetworkIdentityController {
                 if let index = contents.records.firstIndex(where: { $0.id == id }), contents.records[index].recordClass != .bucket {
                     contents.records[index].recordClass = .bound
                 }
-                Self.approve(.noHint, group: group, on: id, now: self.now(), in: &contents)
+                Self.approve(hasSavedRows: hasSavedRows, .noHint, group: group, on: id, now: self.now(), in: &contents)
             }, retry: retry)
         case (.forgottenThisConnection(let group, _), .newNetwork):
             let id = store.newID()
             recorded = write({ contents in
                 contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
-                Self.approve(.noHint, group: group, on: id, now: self.now(), in: &contents)
+                Self.approve(hasSavedRows: hasSavedRows, .noHint, group: group, on: id, now: self.now(), in: &contents)
             }, retry: retry)
         default:
             return
@@ -539,9 +551,18 @@ extension NetworkIdentityController {
 
     /// Approves `key` on `id`, evicting the least recently matched approvals past the limits; a
     /// network left with none becomes `forgotten`.
-    static func approve(_ key: RouterKey, group: NetworkGroup, on id: UUID, now: Date, in contents: inout NetworkIdentityStore.Contents) {
+    /// A network this takes the key from, left with no approval, becomes legacy if it has saved rows
+    /// (`hasSavedRows`) and is removed otherwise, in the same update, so the store stays valid (#645).
+    static func approve(
+        hasSavedRows: (UUID) -> Bool = { _ in true }, _ key: RouterKey, group: NetworkGroup, on id: UUID, now: Date,
+        in contents: inout NetworkIdentityStore.Contents
+    ) {
+        let previous = contents.approvals.first { $0.group == group && $0.key == key }?.recordID
         contents.approvals.removeAll { $0.group == group && $0.key == key }
         contents.approvals.append(IdentityApproval(group: group, key: key, recordID: id, lastMatched: now))
+        if let previous, previous != id {
+            releaseIfUnapproved(previous, hasSavedRows: hasSavedRows, in: &contents)
+        }
         func leastRecentlyMatched(_ include: (IdentityApproval) -> Bool) -> Int? {
             contents.approvals.indices.filter { include(contents.approvals[$0]) }
                 .min { (contents.approvals[$0].lastMatched ?? .distantPast) < (contents.approvals[$1].lastMatched ?? .distantPast) }
@@ -563,11 +584,61 @@ extension NetworkIdentityController {
 // MARK: - Detection helpers
 
 extension NetworkIdentityController {
-    /// Detects again after `retryDelay`, unless a detection is already pending.
-    func scheduleDetection() {
+    /// A bound network left with no approval: legacy if it has saved rows, otherwise removed.
+    static func releaseIfUnapproved(_ id: UUID, hasSavedRows: (UUID) -> Bool, in contents: inout NetworkIdentityStore.Contents) {
+        guard !contents.approvals.contains(where: { $0.recordID == id }),
+              let index = contents.records.firstIndex(where: { $0.id == id }), contents.records[index].recordClass == .bound else { return }
+        if hasSavedRows(id) {
+            contents.records[index].recordClass = .legacyUnverified
+            if !contents.legacyIDs.contains(id) {
+                contents.legacyIDs.append(id)
+            }
+        } else {
+            contents.records.remove(at: index)
+        }
+    }
+
+    /// Whether a network has saved rows, as far as `describeOption` can tell; unknown counts as yes.
+    func hasSavedRows(_ id: UUID) -> Bool {
+        guard let describeOption else { return true }
+        let summary = describeOption(id)
+        return summary.savedDevices > 0 || summary.countUnknown
+    }
+
+    /// Notes a read: "no IPv6 router" read without a break since the generation's first such read.
+    /// Settled once that's lasted `noHintSettleWindow`; `remaining` until then.
+    func noteAbsence(_ hint: RouterHintStatus) -> (isAbsent: Bool, settled: Bool, remaining: TimeInterval) {
+        guard hint == .absent else {
+            absentSince = nil
+            return (false, false, 0)
+        }
+        let generation = clock.generation.value
+        if absentSince?.generation != generation {
+            absentSince = (generation, now())
+        }
+        let elapsed = now().timeIntervalSince(absentSince?.at ?? now())
+        return (true, elapsed >= Self.noHintSettleWindow, max(0, Self.noHintSettleWindow - elapsed))
+    }
+
+    /// "Not this network?" (#645 round 5): clears the group's no-hint approval and asks again.
+    public func reidentifyWithoutHint() {
+        guard case .identified(let id, let group, _) = state, identifiedByNoHint else { return }
+        let hasRows = hasSavedRows
+        guard write({ contents in
+            contents.approvals.removeAll { $0.group == group && $0.key == .noHint }
+            Self.releaseIfUnapproved(id, hasSavedRows: hasRows, in: &contents)
+        }, retry: { [weak self] in self?.reidentifyWithoutHint() }) else { return }
+        identifiedByNoHint = false
+        state = .held(id, nil)
+        detectionPending = false
+        detectAgain()
+    }
+
+    /// Detects again after `retryDelay` (or `after` seconds), unless a detection is already pending.
+    func scheduleDetection(after seconds: TimeInterval? = nil) {
         guard !detectionPending else { return }
         detectionPending = true
-        let delay = retryDelay
+        let delay = seconds.map(settleDelay) ?? retryDelay
         Task { [weak self] in
             try? await Task.sleep(for: delay)
             self?.requestDetection()
@@ -598,5 +669,49 @@ extension NetworkIdentityController {
             return false
         }
         return true
+    }
+}
+
+// MARK: - Commit
+
+extension NetworkIdentityController {
+    /// Whether device observations may be saved under `networkID` now. Re-reads the router hint: a
+    /// mismatch with the one the network was identified by withdraws authorization and presentation
+    /// at once and asks for one detection (coalesced), even with no path update.
+    public func authorizes(_ networkID: UUID) -> Bool {
+        guard case .identified(let id, let group, let hint) = state, id == networkID else { return false }
+        let now = readHint(group.interface)
+        // An unreadable routing table is transient within the generation it was identified under (#645).
+        guard now == hint || (now == .failed && identifiedGeneration == clock.generation.value) else {
+            Self.logger.notice("Router changed since the network was identified: holding its rows")
+            state = .held(id, nil)
+            detectAgain()
+            return false
+        }
+        // Nothing commits under the no-hint approval inside a generation's settle window (a wake
+        // starts a new one): hold, and read again at its end.
+        if identifiedByNoHint, now == .absent {
+            let absence = noteAbsence(now)
+            if !absence.settled {
+                state = .held(id, nil)
+                scheduleDetection(after: absence.remaining)
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Starts over after damage: a fresh migration from the v1 map, then detection again.
+    public func startOver() {
+        do {
+            try store.startOver()
+            syncStoreState()
+        } catch {
+            Self.logger.error("Couldn't start network recognition over")
+            syncStoreState()
+            return
+        }
+        detectionPending = false
+        detectAgain()
     }
 }

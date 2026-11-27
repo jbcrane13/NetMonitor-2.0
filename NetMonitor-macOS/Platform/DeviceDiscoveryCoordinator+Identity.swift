@@ -2,6 +2,7 @@ import Foundation
 import NetMonitorCore
 import NetworkScanKit
 import os
+import SwiftData
 
 /// Network identification on the coordinator (#628 PR B).
 extension DeviceDiscoveryCoordinator {
@@ -25,10 +26,13 @@ extension DeviceDiscoveryCoordinator {
     /// What a question shows for one network (#645): its saved devices, its last scan and a name the
     /// user gave it. Never the generated name, the same at every site on one subnet.
     func identityOptionSummary(for id: UUID) -> IdentityOptionSummary {
-        IdentityOptionSummary(
-            savedDevices: DeviceGroups.project(fetchDevices(for: id)).count,
+        // A fetch error isn't "no devices": it marks the count unknown, so a bucket is still a candidate.
+        let rows = try? modelContext.fetch(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.networkProfileID == id }))
+        return IdentityOptionSummary(
+            savedDevices: rows.map { DeviceGroups.project($0).count } ?? 0,
             lastScanned: lastScanTime(for: id),
-            name: networkProfileManager.profiles.first { $0.id == id }?.customName
+            name: networkProfileManager.profiles.first { $0.id == id }?.customName,
+            countUnknown: rows == nil
         )
     }
 
@@ -38,6 +42,9 @@ extension DeviceDiscoveryCoordinator {
         identity?.onSettled = { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
+                // A local scan already running (started as the probe ended) is the one for this settle.
+                let local = self.networkProfileManager.localProfile?.id
+                guard !(self.isScanning && self.networkProfile?.id == local) else { return }
                 self.localScanQueued = true
                 self.runQueuedScanIfFree()
             }
@@ -98,12 +105,13 @@ extension DeviceDiscoveryCoordinator {
     }
 
     /// Ends probe `run` if it's still the latest: an obsolete probe ends nothing. Then runs what was
-    /// queued, as far as identification allows.
+    /// queued, as far as identification allows: the local scan too if the network settled while the
+    /// probe ran (round 5), never twice (settling skips a local scan already running).
     private func endProbeRun(_ run: Int) {
         guard run == probeRun else { return }
         isProbing = false
         bonjourScanner.stopDiscovery()
-        Task { @MainActor [weak self] in self?.runQueuedScanIfFree(includingLocal: false) }
+        Task { @MainActor [weak self] in self?.runQueuedScanIfFree() }
     }
 
     /// Whether identification is under way, so a scan asked for now is refused and one follows it.

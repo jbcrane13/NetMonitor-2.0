@@ -24,7 +24,7 @@ public enum NetworkIdentityResolver {
             }
             // An IPv6 drop never empties a bound network (#645), but a bound network wins only when
             // nothing else could be this one: a legacy or forgotten network, or a bucket with saved
-            // rows. Otherwise every candidate is offered, for this connection only.
+            // rows. Otherwise every candidate is offered, and the answer is remembered (no-hint approval).
             let bound = ids(.bound)
             let forgotten = ids(.forgotten)
             let legacy = ids(.legacyUnverified)

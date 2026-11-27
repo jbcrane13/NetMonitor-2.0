@@ -52,7 +52,7 @@ final class DeviceDiscoveryCoordinator {
     /// which SwiftUI doesn't observe, so views read this to redraw.
     private(set) var suggestionRevision = 0
 
-    private let modelContext: ModelContext
+    let modelContext: ModelContext
     let bonjourScanner: BonjourDiscoveryService
     private let nameResolver: ShellDeviceNameResolver
     private let macVendorService: MACVendorLookupService
@@ -256,7 +256,8 @@ final class DeviceDiscoveryCoordinator {
                 // Rows and the Timeline move together: the reconcile that applies the scan delivers
                 // its events (#603); a scan it skipped (nothing answered) or couldn't save writes none.
                 let commit = commitScan(engineDevices, profileID: profileID, now: scanTime, token: token)
-                if commit == .applied {
+                // While identification holds the local network, no scan establishes it for Ask (#645).
+                if commit == .applied, identity?.heldNetworkIDs.isEmpty != false {
                     joinClock.scanReconciled(token, at: scanTime, networkIsCurrent: networkProfileManager.observationNetworkIsCurrent)
                 }
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")

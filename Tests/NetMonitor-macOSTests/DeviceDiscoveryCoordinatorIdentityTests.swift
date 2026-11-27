@@ -118,7 +118,7 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
             gatewayIP: { "192.168.1.1" }
         )
         let identity = NetworkIdentityController(
-            store: store, clock: join, launchID: UUID(), readHint: { _ in box.hint },
+            store: store, clock: join, readHint: { _ in box.hint },
             probe: { [weak coordinator] legacy, _ in await coordinator?.identificationProbe(legacy: legacy) },
             requestDetection: { box.detections += 1 }
         )

@@ -34,6 +34,22 @@ struct NetworkIdentityCard: View {
                         .accessibilityIdentifier("devices_identity_retry")
                 }
             }
+            if identity.canReidentify, identity.question == nil {
+                // Recognized with no IPv6 router, by an earlier answer: a wrong one can be corrected.
+                HStack(spacing: 6) {
+                    Text("Recognized by your earlier answer (no IPv6 router).")
+                        .font(.caption)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
+                    Button("Not this network?") { identity.reidentifyWithoutHint() }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("devices_identity_button_reidentify")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("devices_identity_reidentify")
+            }
             if let question = identity.question {
                 questionCard(question)
                 if identity.isCheckingNetwork {

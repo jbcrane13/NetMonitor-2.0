@@ -22,14 +22,14 @@ public struct RouterKey: Hashable, Codable, Sendable {
     }
 }
 
-/// The router hint as read when a network is identified (#628). Unauthenticated: a cloned router
-/// address is indistinguishable.
 public extension RouterKey {
     /// A group's "no IPv6 router" evidence (#645 round 4): the approval an answer given with the hint
     /// settled absent stores, so the question isn't repeated. Never a real digest (those are hex).
     static let noHint = RouterKey(["no-ipv6-router"])
 }
 
+/// The router hint as read when a network is identified (#628). Unauthenticated: a cloned router
+/// address is indistinguishable.
 public enum RouterHintStatus: Equatable, Sendable {
     /// No identifying IPv6 default router on the interface (an IPv4-only network, or `fe80::1`).
     case absent
@@ -120,8 +120,8 @@ public struct IdentityOptionSummary: Equatable, Sendable {
     }
 }
 
-/// A "use it for this connection only" answer, for a network with no hint (#628): bound to the
-/// launch and the connection generation it was given in, never to later ones.
+/// A connection-only answer from before #645 round 4, kept only so files that hold one decode. No
+/// longer written or read: a no-hint answer is the group's `(group, noHint)` approval.
 public struct ConnectionAnswer: Codable, Equatable, Sendable {
     public let launchID: UUID
     public let generation: UInt64
@@ -142,8 +142,8 @@ public enum IdentityQuestion: Equatable, Sendable {
     case whichNetwork(group: NetworkGroup, key: RouterKey, options: [UUID])
     /// The legacy network's saved devices didn't clearly match: "Is this ⟨name⟩?"
     case isLegacy(group: NetworkGroup, key: RouterKey, record: UUID)
-    /// No hint, and several networks (or a forgotten one) could be this: "Is this ⟨name⟩?" for this
-    /// connection only.
+    /// No IPv6 router, and several networks (or a forgotten or legacy one) could be this: "Which
+    /// network is this?". The answer becomes the group's no-hint approval (#645).
     case forgottenThisConnection(group: NetworkGroup, options: [UUID])
 
     public var group: NetworkGroup {

@@ -98,6 +98,49 @@ extension DeviceDiscoveryCoordinatorIdentityTests {
         #expect(box.scans == 3, "the lab once, the local network once")
     }
 
+    /// Round 5 item 2: the network settles (a path update resolves it with no new probe) while the
+    /// probe still runs; when the probe ends, the queued local scan runs, once.
+    @Test func aNetworkSettledDuringTheProbeIsScannedOnceTheProbeEnds() async throws {
+        let box = Box()
+        let legacy = UUID()
+        box.hint = .present(keyA)
+        box.holds = true
+        let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
+        await waitUntil { box.gates.count == 1 }
+        setup.join.generation.advance()
+        box.hint = .absent
+        setup.manager.detectLocalNetwork()
+        #expect(setup.identity.authorizes(legacy), "identified without a new probe")
+        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.20", "office-printer")]
+        box.release()
+        await waitUntil { setup.coordinator.lastScanTime(for: legacy) != nil }
+        await waitUntil(timeout: .seconds(2)) { box.scans > 2 }
+        await waitUntil { !setup.coordinator.isScanning }
+        #expect(setup.coordinator.lastScanTime(for: legacy) != nil)
+        #expect(box.scans == 2, "the probe and one local scan")
+    }
+
+    /// Round 5 item 5: a manual network's scan while the local question is open doesn't establish the
+    /// local network for Ask's pings (#627).
+    @Test func aManualScanDuringTheQuestionDoesNotEstablishTheLocalNetwork() async throws {
+        let box = Box()
+        box.hint = .present(keyA)
+        let setup = try setUp(box)
+        let home = setup.local
+        box.hint = .present(keyB)
+        setup.manager.detectLocalNetwork()
+        #expect(setup.identity.question != nil)
+        #expect(setup.join.establishedAt == nil)
+        let lab = try #require(setup.manager.addProfile(gateway: "10.0.0.1", subnet: "10.0.0.0/24", name: "Lab"))
+        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("10.0.0.20", "lab-printer")]
+        #expect(setup.coordinator.rescan(.user(lab)))
+        await waitUntil { setup.coordinator.lastScanTime(for: lab.id) != nil }
+        await waitUntil { !setup.coordinator.isScanning }
+        #expect(setup.coordinator.lastScanTime(for: lab.id) != nil)
+        #expect(setup.join.establishedAt == nil)
+        _ = home
+    }
+
     /// The Bonjour guard: a pipeline whose run is obsolete doesn't stop the shared browser.
     @Test func anObsoletePipelineDoesNotStopTheSharedBonjourBrowser() async throws {
         let box = Box()

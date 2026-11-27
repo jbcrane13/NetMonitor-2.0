@@ -17,6 +17,13 @@ struct NetworkIdentityControllerTests {
         var probes = 0
         var probeGate: CheckedContinuation<Void, Never>?
         var holdsProbe = false
+        /// The controller's clock, advanced by hand (the no-hint settle window).
+        var now = Date(timeIntervalSince1970: 1_000_000)
+
+        /// Waits out the no-hint settle window.
+        func settle() {
+            now += NetworkIdentityController.noHintSettleWindow + 1
+        }
     }
 
     func makeStore(
@@ -28,10 +35,10 @@ struct NetworkIdentityControllerTests {
     }
 
     func makeController(
-        _ store: NetworkIdentityStore, _ harness: Harness, clock: NetworkJoinClock = .forIdentityTests, launchID: UUID = UUID()
+        _ store: NetworkIdentityStore, _ harness: Harness, clock: NetworkJoinClock = .forIdentityTests
     ) -> NetworkIdentityController {
         NetworkIdentityController(
-            store: store, clock: clock, launchID: launchID,
+            store: store, clock: clock,
             readHint: { _ in harness.hint },
             probe: { _, _ in
                 harness.probes += 1
@@ -41,7 +48,9 @@ struct NetworkIdentityControllerTests {
                 return harness.probeAnswer
             },
             requestDetection: { harness.detections += 1 },
-            retryDelay: .zero
+            retryDelay: .zero,
+            now: { harness.now },
+            settleDelay: { _ in .zero }
         )
     }
 
@@ -225,6 +234,7 @@ struct NetworkIdentityControllerTests {
         let question = try #require(identity.question)
         #expect(question == .forgottenThisConnection(group: home, options: [siteA]))
 
+        harness.settle()
         identity.answer(.thisConnection(siteA), to: question)
         #expect(store.contents.approvals.contains(IdentityApproval(group: home, key: .noHint, recordID: siteA)))
         #expect(identity.resolveID(group: home, defaultID: siteA) == siteA)
@@ -232,9 +242,13 @@ struct NetworkIdentityControllerTests {
 
         let reopened = NetworkIdentityStore(directory: dir, defaults: defaults, legacyNetworks: { [:] }, reservedIDs: { [] })
         let relaunched = makeController(reopened, harness, clock: clock)
+        _ = relaunched.resolveID(group: home, defaultID: siteA)
+        harness.settle()
         #expect(relaunched.resolveID(group: home, defaultID: siteA) == siteA)
         #expect(relaunched.question == nil)
         clock.generation.advance()
+        _ = identity.resolveID(group: home, defaultID: siteA)
+        harness.settle()
         #expect(identity.resolveID(group: home, defaultID: siteA) == siteA)
         #expect(identity.question == nil)
     }

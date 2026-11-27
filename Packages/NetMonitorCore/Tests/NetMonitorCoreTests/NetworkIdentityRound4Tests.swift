@@ -22,10 +22,13 @@ extension NetworkIdentityControllerTests {
         harness.hint = .absent
         _ = identity.resolveID(group: home, defaultID: siteN)
         let question = try #require(identity.question)
+        harness.settle()
         identity.answer(.thisConnection(legacy), to: question)
         #expect(identity.resolveID(group: home, defaultID: siteN) == legacy)
         #expect(identity.authorizes(legacy))
         clock.generation.advance()
+        _ = identity.resolveID(group: home, defaultID: legacy)
+        harness.settle()
         #expect(identity.resolveID(group: home, defaultID: legacy) == legacy)
         #expect(identity.question == nil)
 
@@ -46,6 +49,7 @@ extension NetworkIdentityControllerTests {
         _ = identity.resolveID(group: home, defaultID: siteA)
         harness.hint = .absent
         _ = identity.resolveID(group: home, defaultID: siteA)
+        harness.settle()
         try identity.answer(.newNetwork, to: #require(identity.question))
         let approval = try #require(store.contents.approvals.first { $0.key == .noHint })
         #expect(approval.recordID != siteA)
@@ -90,6 +94,8 @@ extension NetworkIdentityControllerTests {
         #expect(identity.isCheckingNetwork)
 
         harness.hint = .absent
+        identity.answer(.thisConnection(legacy), to: question)
+        harness.settle()
         identity.answer(.thisConnection(legacy), to: question)
         #expect(store.contents.approvals.contains(IdentityApproval(group: home, key: .noHint, recordID: legacy)))
         // Failed reads past the retries count as no hint, but never as the approval's settled absence.

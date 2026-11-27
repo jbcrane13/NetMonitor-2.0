@@ -89,7 +89,7 @@ enum MacNetworkIdentity {
         requestDetection: @escaping @MainActor () -> Void
     ) -> NetworkIdentityController {
         let identity = NetworkIdentityController(
-            store: store, clock: discovery.joinClock, launchID: UUID(), readHint: readHint,
+            store: store, clock: discovery.joinClock, readHint: readHint,
             probe: { [weak discovery] legacy, _ in await discovery?.identificationProbe(legacy: legacy) },
             requestDetection: { Task { @MainActor in requestDetection() } }
         )
