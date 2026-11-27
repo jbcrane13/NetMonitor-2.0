@@ -10,8 +10,9 @@ import NetworkScanKit
 public struct DeviceEvidenceProjection: Sendable, Equatable, Codable {
     /// The longest line: `DeviceEvidence.lineLimit` plus the "…" that marks a cut.
     public static let lineLimit = DeviceEvidence.lineLimit + 1
-    /// The most bytes all lines may take together (#642 review): ten ASCII lines are about 2 KB.
-    public static let byteLimit = 4096
+    /// The most bytes all lines may take together (#642 review): every line at its character bound
+    /// in four-byte characters, so nothing the phone builds goes over, and nothing larger comes in.
+    public static let byteLimit = labels.count * lineLimit * 4
 
     /// The labels a line may start with, each at most once. The service and port lines carry a
     /// count after their label: "Network services (3): …".
@@ -47,9 +48,9 @@ public struct DeviceEvidenceProjection: Sendable, Equatable, Codable {
         self.lines = lines
     }
 
-    /// For "Network services (N): …" and "Open ports (N): …": at most `DeviceEvidence.listLimit`
-    /// items, then "and K more" only after a full list, N equal to what's listed plus K, and ports
-    /// as numbers. Any other line is consistent.
+    /// For "Network services (N): …" and "Open ports (N): …": one to `DeviceEvidence.listLimit`
+    /// items, then "and K more" for what didn't fit, N equal to what's listed plus K, and ports as
+    /// numbers. Any other line is consistent.
     private static func isConsistentList(_ line: String, label: String) -> Bool {
         guard label == "Network services" || label == "Open ports" else { return true }
         guard let open = line.firstIndex(of: "("), let close = line.firstIndex(of: ")"), open < close,
@@ -61,9 +62,8 @@ public struct DeviceEvidenceProjection: Sendable, Equatable, Codable {
            let number = Int(last.dropFirst(4).dropLast(5)) {
             more = number
             items.removeLast()
-            guard items.count == DeviceEvidence.listLimit else { return false }
         }
-        guard items.count <= DeviceEvidence.listLimit, count == items.count + more, more >= 0 else { return false }
+        guard (1 ... DeviceEvidence.listLimit).contains(items.count), count == items.count + more, more >= 0 else { return false }
         return label == "Network services" || items.allSatisfy { Int($0) != nil }
     }
 

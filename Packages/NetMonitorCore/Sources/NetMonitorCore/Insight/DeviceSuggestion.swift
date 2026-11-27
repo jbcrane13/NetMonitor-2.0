@@ -162,20 +162,46 @@ public struct DeviceEvidence: Sendable, Equatable {
         add("Maker the device announces", maker)
         add("Model", model)
         add("Type", deviceType == .unknown ? nil : deviceType.rawValue)
-        add("Network services (\(services.count))", services.isEmpty ? nil : Self.list(services.sorted()))
-        add("Open ports (\(openPorts.count))", openPorts.isEmpty ? nil : Self.list(openPorts.sorted().map(String.init)))
+        Self.list("Network services", services.sorted()).map { lines.append($0) }
+        Self.list("Open ports", openPorts.sorted().map(String.init)).map { lines.append($0) }
         return lines
+    }
+
+    /// The longest list item: a longer name is shortened as one item.
+    static let listItemLimit = 60
+
+    /// A list line, "Label (N): a, b, and K more", that fits `lineLimit` with whole items only:
+    /// as many as fit, at most `listLimit`, then the true remainder (#642 final check). A ", " inside
+    /// a name would read as a separator, so commas in names become semicolons.
+    private static func list(_ label: String, _ items: [String]) -> String? {
+        guard !items.isEmpty else { return nil }
+        let head = "\(label) (\(items.count)): "
+        let clean = items.map(listItem)
+        func line(showing count: Int) -> String {
+            let rest = clean.count - count
+            return head + clean.prefix(count).joined(separator: ", ") + (rest > 0 ? ", and \(rest) more" : "")
+        }
+        var shown = 1
+        while shown < min(clean.count, listLimit), line(showing: shown + 1).count <= lineLimit {
+            shown += 1
+        }
+        return line(showing: shown)
+    }
+
+    /// One list item on one line, without commas, at most `listItemLimit` characters.
+    private static func listItem(_ item: String) -> String {
+        var text = InsightRequest.line(item, limit: listItemLimit).replacingOccurrences(of: ",", with: ";")
+        // A name that reads like the list's own tail ("and 3 more") is marked as a name.
+        if text.hasPrefix("and "), text.hasSuffix(" more") {
+            text = "\u{2018}" + text + "\u{2019}"
+        }
+        return text.isEmpty ? "?" : text
     }
 
     /// The prompt text sent to the model: the projection's, so this device's model and the Mac's
     /// read the same bytes (#586).
     public var prompt: String {
         projection.prompt
-    }
-
-    private static func list(_ items: [String]) -> String {
-        let shown = items.prefix(listLimit).joined(separator: ", ")
-        return items.count > listLimit ? shown + ", and \(items.count - listLimit) more" : shown
     }
 
     // MARK: - Fingerprint

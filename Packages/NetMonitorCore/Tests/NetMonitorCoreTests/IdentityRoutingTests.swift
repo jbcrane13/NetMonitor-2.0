@@ -58,17 +58,20 @@ struct DeviceEvidenceProjectionTests {
 
     @Test("the Mac bounds the lines by bytes as well as characters, and checks the list counts (#642 review)")
     func bytesAndCounts() {
-        // Each line within the character bound, but over the byte bound in total.
+        // Wide characters at the character bound on every label: what the phone can build, so the
+        // byte bound (the worst case of four bytes a character) lets it through (#642 final check).
         let wide = String(repeating: "\u{1F5A8}", count: 170)
         let labels = ["Hostname", "Name given by the user", "Model", "Type", "Reverse DNS name", "Name the device announces"]
         #expect(labels.map { "\($0): " + wide }.allSatisfy { $0.count <= DeviceEvidenceProjection.lineLimit })
-        #expect(DeviceEvidenceProjection(lines: labels.map { "\($0): " + wide }) == nil)
-        #expect(DeviceEvidenceProjection(lines: ["Hostname: " + wide]) != nil, "one wide line is fine")
+        #expect(DeviceEvidenceProjection(lines: labels.map { "\($0): " + wide }) != nil)
+        #expect(DeviceEvidenceProjection.byteLimit == DeviceEvidenceProjection.labels.count * DeviceEvidenceProjection.lineLimit * 4)
         #expect(DeviceEvidenceProjection(lines: ["Network services (3): _a._tcp, _b._tcp"]) == nil, "the count says 3, two are listed")
         #expect(DeviceEvidenceProjection(lines: ["Network services (2): _a._tcp, _b._tcp"]) != nil)
         let twelve = (0 ..< 12).map { "_s\($0)._tcp" }.joined(separator: ", ")
         #expect(DeviceEvidenceProjection(lines: ["Network services (40): \(twelve), and 28 more"]) != nil)
         #expect(DeviceEvidenceProjection(lines: ["Network services (41): \(twelve), and 28 more"]) == nil)
+        #expect(DeviceEvidenceProjection(lines: ["Network services (9): _a._tcp, and 8 more"]) != nil, "whatever fit, then the rest")
+        #expect(DeviceEvidenceProjection(lines: ["Network services (8): and 8 more"]) == nil, "nothing listed")
         let thirteen = (0 ..< 13).map { "_s\($0)._tcp" }.joined(separator: ", ")
         #expect(DeviceEvidenceProjection(lines: ["Network services (13): \(thirteen)"]) == nil, "more than 12 listed")
         #expect(DeviceEvidenceProjection(lines: ["Open ports (2): 80, http"]) == nil, "ports are numbers")
@@ -416,5 +419,78 @@ struct IdentityFailureTests {
         #expect(suggestion?.deviceType == .printer)
         #expect(sent.count == 5)
         #expect(service.isAvailable)
+    }
+}
+
+/// What the phone builds, the Mac accepts (#642 final check).
+struct ProjectionRoundTripTests {
+    /// iOS lists services as "name (type)", about 30 characters each.
+    private static func services(_ count: Int) -> [String] {
+        (0 ..< count).map { "Living Room Speaker \($0) (_airplay._tcp)" }
+    }
+
+    private static func accepted(_ evidence: DeviceEvidence) -> Bool {
+        DeviceEvidenceProjection(lines: evidence.projection.lines) != nil
+    }
+
+    @Test("7, 12 and 13 realistic services: whole items only, the true remainder, and the Mac accepts it", arguments: [7, 12, 13])
+    func realisticServices(count: Int) throws {
+        let evidence = DeviceEvidence(hostname: "speaker.lan", services: Self.services(count))
+        #expect(Self.accepted(evidence))
+        let line = try #require(evidence.projection.lines.first { $0.hasPrefix("Network services") })
+        #expect(line.hasPrefix("Network services (\(count)): "))
+        #expect(line.count <= DeviceEvidence.lineLimit, "never cut: \(line)")
+        #expect(!line.hasSuffix("…"))
+    }
+
+    @Test("a name with ', ' inside stays one item")
+    func separatorInsideAName() {
+        let evidence = DeviceEvidence(hostname: "tv.lan", services: ["Kitchen, Upstairs (_raop._tcp)", "Den (_airplay._tcp)"])
+        #expect(Self.accepted(evidence))
+        let line = evidence.projection.lines.first { $0.hasPrefix("Network services") } ?? ""
+        #expect(line.hasPrefix("Network services (2): "))
+    }
+
+    @Test("one very long name is shortened as one item")
+    func veryLongName() {
+        let evidence = DeviceEvidence(hostname: "nas.lan", services: [String(repeating: "Media Server ", count: 40) + "(_http._tcp)"])
+        #expect(Self.accepted(evidence))
+    }
+
+    @Test("whatever the builder makes from varied evidence, the Mac accepts")
+    func propertyRoundTrip() {
+        var generator = SeededGenerator(seed: 586)
+        let pieces = ["Living Room", "Küche", "Büro, OG", "📺 TV", "nas", "Ring Doorbell Pro 2", "a\nb", "x", "_ipp._tcp", "(_hap._tcp)"]
+        for _ in 0 ..< 500 {
+            func text(_ maxParts: Int) -> String {
+                (0 ..< Int.random(in: 1 ... maxParts, using: &generator)).map { _ in pieces.randomElement(using: &generator) ?? "x" }
+                    .joined(separator: Bool.random(using: &generator) ? " " : ", ")
+            }
+            let evidence = DeviceEvidence(
+                customName: Bool.random(using: &generator) ? text(40) : nil,
+                friendlyName: Bool.random(using: &generator) ? text(60) : nil,
+                resolvedHostname: Bool.random(using: &generator) ? text(3) + ".lan" : nil,
+                hostname: text(5),
+                services: (0 ..< Int.random(in: 0 ... 40, using: &generator)).map { _ in text(6) },
+                openPorts: (0 ..< Int.random(in: 0 ... 40, using: &generator)).map { _ in Int.random(in: 1 ... 65535, using: &generator) },
+                macPrefixMaker: Bool.random(using: &generator) ? text(4) : nil,
+                maker: Bool.random(using: &generator) ? text(4) : nil,
+                model: Bool.random(using: &generator) ? text(4) : nil
+            )
+            #expect(Self.accepted(evidence), "refused: \(evidence.projection.lines)")
+        }
+    }
+}
+
+/// A small deterministic generator for the property test.
+struct SeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var value = state
+        value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
+        return value ^ (value >> 31)
     }
 }
