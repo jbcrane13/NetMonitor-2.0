@@ -17,10 +17,6 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         didSet { Self.scanningNow.withLock { $0 = isScanning } }
     }
 
-    /// Whether the phone's scan runs now, readable from any thread: the identity route checks it at
-    /// the send itself (#642). The app runs one discovery service, so this is its `isScanning`.
-    nonisolated private static let scanningNow = Mutex(false)
-    nonisolated public static var isScanningNow: Bool { scanningNow.withLock { $0 } }
     public private(set) var scanProgress: Double = 0
     public private(set) var scanPhase: ScanDisplayPhase = .idle
     public private(set) var lastScanDate: Date?
@@ -624,4 +620,13 @@ extension DeviceDiscoveryService {
             await accumulator.upsert(device)
         }
     }
+}
+
+// MARK: - Scan state for any thread (#642)
+
+extension DeviceDiscoveryService {
+    /// Whether the phone's scan runs now, readable from any thread: the identity route checks it at
+    /// the send itself (#642). The app runs one discovery service, so this is its `isScanning`.
+    nonisolated static let scanningNow = Mutex(false)
+    nonisolated public static var isScanningNow: Bool { scanningNow.withLock { $0 } }
 }
