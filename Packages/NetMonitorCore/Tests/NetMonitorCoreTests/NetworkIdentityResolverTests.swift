@@ -70,12 +70,29 @@ struct NetworkIdentityResolverTests {
         #expect(resolve(.absent, [legacy]) == .use(legacy.id))
     }
 
-    @Test func withoutAHintABoundGroupUsesItsBucketNeverTheBoundNetwork() {
+    /// #645 (lead decision): an IPv6 drop never empties a bound network. One bound network without a
+    /// hint is that network; several ask, for this connection only; the bucket is for a group with
+    /// nothing bound.
+    @Test func withoutAHintTheOneBoundNetworkIsUsed() {
         let bound = record(.bound)
         let legacy = record(.legacyUnverified)
         let bucket = record(.bucket)
-        #expect(resolve(.absent, [bound, legacy, bucket]) == .bucket(bucket.id))
-        #expect(resolve(.absent, [bound]) == .bucket(nil))
+        #expect(resolve(.absent, [bound, legacy, bucket]) == .use(bound.id))
+        #expect(resolve(.absent, [bound]) == .use(bound.id))
+    }
+
+    @Test func withoutAHintSeveralBoundNetworksAskForThisConnection() {
+        let siteA = record(.bound)
+        let siteB = record(.bound)
+        let forgotten = record(.forgotten)
+        #expect(resolve(.absent, [siteA, siteB]) == .ask(.forgottenThisConnection(group: home, options: [siteA.id, siteB.id])))
+        #expect(resolve(.absent, [siteA, forgotten]) == .ask(.forgottenThisConnection(group: home, options: [siteA.id, forgotten.id])))
+    }
+
+    @Test func withoutAHintTheBucketIsOnlyForAGroupWithNothingBound() {
+        let bucket = record(.bucket)
+        #expect(resolve(.absent, [bucket]) == .bucket(bucket.id))
+        #expect(resolve(.absent, [record(.bound, group: other)]) == .bucket(nil))
         #expect(resolve(.absent, []) == .bucket(nil))
     }
 

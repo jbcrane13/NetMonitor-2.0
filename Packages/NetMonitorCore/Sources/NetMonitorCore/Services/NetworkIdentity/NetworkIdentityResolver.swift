@@ -19,11 +19,17 @@ public enum NetworkIdentityResolver {
             if let connectionAnswer, mine.contains(where: { $0.id == connectionAnswer }) {
                 return .use(connectionAnswer)
             }
+            // An IPv6 drop never empties a bound network (#645): the one bound network is used; several,
+            // or a forgotten one, ask for this connection. The bucket is for a group with nothing bound.
+            let bound = ids(.bound)
             let forgotten = ids(.forgotten)
-            if !forgotten.isEmpty {
-                return .ask(.forgottenThisConnection(group: group, options: forgotten))
+            if bound.count == 1, forgotten.isEmpty {
+                return .use(bound[0])
             }
-            if ids(.bound).isEmpty, let legacy = ids(.legacyUnverified).first {
+            if !bound.isEmpty || !forgotten.isEmpty {
+                return .ask(.forgottenThisConnection(group: group, options: bound + forgotten))
+            }
+            if let legacy = ids(.legacyUnverified).first {
                 return .use(legacy)
             }
             return .bucket(ids(.bucket).first)

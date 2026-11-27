@@ -1,5 +1,4 @@
 import NetMonitorCore
-import SwiftData
 import SwiftUI
 
 /// "Which network is this?" (#628 PR B): asked when the Mac's router differs from the one a
@@ -7,9 +6,6 @@ import SwiftUI
 /// "Not checked: which network is this?" and scans save nothing to them.
 struct NetworkIdentityCard: View {
     let identity: NetworkIdentityController
-    let networks: [NetworkProfile]
-
-    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         if identity.isDamaged {
@@ -46,7 +42,7 @@ struct NetworkIdentityCard: View {
                 detail: "This Mac's router changed. Until you choose, saved devices are shown as history and scans don't save to them."
             ) {
                 ForEach(options, id: \.self) { option in
-                    Button("Same as \(name(of: option))") { identity.answer(.same(option), to: question) }
+                    Button("Same as \(label(option))") { identity.answer(.same(option), to: question) }
                         .accessibilityIdentifier("devices_identity_same_\(option.uuidString)")
                 }
                 Button("New network") { identity.answer(.newNetwork, to: question) }
@@ -54,8 +50,8 @@ struct NetworkIdentityCard: View {
             }
         case .isLegacy(_, _, let record):
             card(
-                title: "Is this \(name(of: record))?",
-                detail: "The network with \(savedDevices(record)). Until you choose, they're shown as history."
+                title: "Is this \(summary(record).name ?? "the network you used before")?",
+                detail: "\(Self.describe(summary(record), now: .now)). Until you choose, its devices are shown as history."
             ) {
                 Button("Yes") { identity.answer(.same(record), to: question) }
                     .accessibilityIdentifier("devices_identity_same_\(record.uuidString)")
@@ -64,17 +60,33 @@ struct NetworkIdentityCard: View {
             }
         case .forgottenThisConnection(_, let options):
             card(
-                title: "Is this \(options.first.map(name(of:)) ?? "a network you know")?",
+                title: "Which network is this?",
                 detail: "This network can't be recognized automatically. Your answer holds for this connection only."
             ) {
                 ForEach(options, id: \.self) { option in
-                    Button("Yes, \(name(of: option))") { identity.answer(.thisConnection(option), to: question) }
+                    Button(label(option)) { identity.answer(.thisConnection(option), to: question) }
                         .accessibilityIdentifier("devices_identity_same_\(option.uuidString)")
                 }
                 Button("Somewhere else") { identity.answer(.somewhereElse, to: question) }
-                    .accessibilityIdentifier("devices_identity_new")
+                    .accessibilityIdentifier("devices_identity_elsewhere")
             }
         }
+    }
+
+    private func summary(_ id: UUID) -> IdentityOptionSummary {
+        identity.optionSummaries[id] ?? IdentityOptionSummary()
+    }
+
+    private func label(_ id: UUID) -> String {
+        Self.describe(summary(id), now: .now)
+    }
+
+    /// "Home office · 12 saved devices · last scanned 3 days ago" (#645): what tells two sites on one
+    /// subnet apart. The name only when the user gave one.
+    static func describe(_ summary: IdentityOptionSummary, now: Date) -> String {
+        let devices = summary.savedDevices == 1 ? "1 saved device" : "\(summary.savedDevices) saved devices"
+        let scanned = summary.lastScanned.map { "last scanned \(PresenceFreshness.relativeText(since: $0, now: now))" } ?? "never scanned"
+        return ([summary.name, devices, scanned] as [String?]).compactMap { $0 }.joined(separator: " · ")
     }
 
     private func card(title: String, detail: String, @ViewBuilder actions: () -> some View) -> some View {
@@ -100,18 +112,35 @@ struct NetworkIdentityCard: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("devices_identity_card")
     }
+}
 
-    private func name(of id: UUID) -> String {
-        // A network the Mac isn't on has no profile: name it by what it holds, so options differ.
-        networks.first { $0.id == id }?.displayName ?? "the network with \(savedDevices(id))"
-    }
+/// A one-line pointer to the card (#645), wherever a held network's rows read as history: the
+/// dashboard's device panel and the menu bar popover.
+struct NetworkIdentityBanner: View {
+    let identity: NetworkIdentityController
+    let open: () -> Void
 
-    private func savedDevices(_ id: UUID) -> String {
-        let count = savedCount(id)
-        return count == 1 ? "1 saved device" : "\(count) saved devices"
-    }
-
-    private func savedCount(_ id: UUID) -> Int {
-        (try? modelContext.fetchCount(FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.networkProfileID == id }))) ?? 0
+    var body: some View {
+        if !identity.heldNetworkIDs.isEmpty || identity.saveFailed {
+            HStack(spacing: 6) {
+                Image(systemName: "questionmark.circle")
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
+                    .accessibilityHidden(true)
+                Text(identity.question == nil && !identity.saveFailed ? "Identifying which network this is…" : "Which network is this?")
+                    .font(.caption)
+                    .foregroundStyle(MacTheme.Colors.labelSecondary)
+                    .accessibilityIdentifier("identityBanner_text")
+                Spacer(minLength: 4)
+                if identity.question != nil || identity.saveFailed || identity.isDamaged {
+                    Button("Answer", action: open)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("identityBanner_button_answer")
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("identityBanner")
+        }
     }
 }

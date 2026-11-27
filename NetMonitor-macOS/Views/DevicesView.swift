@@ -99,7 +99,7 @@ struct DevicesView: View {
             topBar
             Divider()
             if let identity = coordinator?.identity {
-                NetworkIdentityCard(identity: identity, networks: coordinator?.networkProfileManager.profiles ?? [])
+                NetworkIdentityCard(identity: identity)
             }
 
             if viewMode == .pro {

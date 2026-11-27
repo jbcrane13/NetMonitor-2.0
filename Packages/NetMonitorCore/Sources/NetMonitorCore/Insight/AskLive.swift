@@ -259,6 +259,12 @@ public final class NetworkJoinClock {
         establishedAt = max(establishedAt ?? reconciled, reconciled)
     }
 
+    /// The network the Mac is on is in question (#628 PR B: a router change, or identification under
+    /// way): no scan establishes it for Ask's pings until one is reconciled again.
+    public func withdrawEstablished() {
+        establishedAt = nil
+    }
+
     private func join() {
         generation.advance()
         joinedAt = now()

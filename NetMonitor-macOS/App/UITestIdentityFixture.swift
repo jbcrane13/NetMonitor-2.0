@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import NetMonitorCore
 
@@ -10,7 +11,7 @@ import NetMonitorCore
 ///   status is logged as a kind only (`networkIdentity` category);
 /// - unset: no router hint is read, so identification changes nothing.
 ///
-/// The store and its defaults are throwaways (`MacNetworkIdentity.Location`).
+/// The store and its defaults are throwaways (`MacNetworkIdentity.Location`). Debug builds only.
 @MainActor
 enum UITestIdentityFixture {
     enum Mode: String {
@@ -18,11 +19,7 @@ enum UITestIdentityFixture {
     }
 
     static var mode: Mode? {
-        #if DEBUG
         ProcessInfo.processInfo.environment["UITEST_IDENTITY"].flatMap(Mode.init(rawValue:))
-        #else
-        nil
-        #endif
     }
 
     /// The fixture's local network, so the question names it and never the Mac's real network.
@@ -79,3 +76,4 @@ enum UITestIdentityFixture {
         }
     }
 }
+#endif

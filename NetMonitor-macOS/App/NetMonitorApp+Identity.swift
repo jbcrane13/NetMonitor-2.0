@@ -18,12 +18,32 @@ extension NetMonitorApp {
         let store = MacNetworkIdentity.openStore(
             at: .make(), profileDefaults: defaults, context: context, profileIDs: { manager?.profiles.map(\.id) ?? [] }
         )
-        let profileManager = uiTesting
+        let profileManager: NetworkProfileManager
+        #if DEBUG
+        profileManager = uiTesting
             ? NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: UITestIdentityFixture.activeProfilesProvider)
-            : NetworkProfileManager()
+            : NetworkProfileManager(userDefaults: defaults)
+        #else
+        profileManager = NetworkProfileManager(userDefaults: defaults)
+        #endif
         manager = profileManager
         launchProfiles = (profileManager, store)
         return (profileManager, store)
+    }
+
+    /// Identification for a UI-test launch: the Debug fixture (`UITestIdentityFixture`), else no hint.
+    static func attachUITestIdentity(
+        _ store: NetworkIdentityStore, discovery: DeviceDiscoveryCoordinator, profileManager: NetworkProfileManager
+    ) {
+        #if DEBUG
+        UITestIdentityFixture.attach(store, discovery: discovery, profileManager: profileManager)
+        #else
+        MacNetworkIdentity.attach(
+            store: store, discovery: discovery, profileManager: profileManager, readHint: { _ in .absent }
+        ) { [weak profileManager] in
+            profileManager?.detectLocalNetwork()
+        }
+        #endif
     }
 
     private static var launchProfiles: (NetworkProfileManager, NetworkIdentityStore)?

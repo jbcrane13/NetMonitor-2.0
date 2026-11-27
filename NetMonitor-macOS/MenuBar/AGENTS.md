@@ -22,6 +22,7 @@ Menu bar integration: status bar icon, quick-access popover, and app menu comman
 - Icon tint reflects connection status: green (connected), yellow (degraded), red (offline)
 - `MenuBarPopoverView` receives environment objects from the main app container
 - Menu commands in `MenuBarCommands.swift` use `@FocusedBinding` and `@Environment` for context
+- While identification holds the local network (#645), `NetworkIdentityBanner` shows under the connection status. Its Answer button closes the popover and opens the Devices list (`NotificationRouter.open(.devices)`)
 
 ### Dependencies
 - `Platform/MacNetworkMonitor.swift` — status data for icon tinting

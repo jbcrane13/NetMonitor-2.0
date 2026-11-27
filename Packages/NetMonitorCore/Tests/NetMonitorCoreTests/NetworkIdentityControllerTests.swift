@@ -40,7 +40,8 @@ struct NetworkIdentityControllerTests {
                 }
                 return harness.probeAnswer
             },
-            requestDetection: { harness.detections += 1 }
+            requestDetection: { harness.detections += 1 },
+            retryDelay: .zero
         )
     }
 

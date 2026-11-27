@@ -114,6 +114,7 @@ final class DeviceDiscoveryCoordinator {
             identity?.onSettled = { [weak self] _ in
                 Task { @MainActor in self?.rescan(.identified) }
             }
+            identity?.describeOption = { [weak self] id in self?.identityOptionSummary(for: id) ?? IdentityOptionSummary() }
         }
     }
 
@@ -337,6 +338,11 @@ final class DeviceDiscoveryCoordinator {
         // A scan the user asked for starts a new replacement chain (#628).
         if case .user = reason {
             replacementScans.reset()
+        }
+        // Identification first (#645): a scan now would save nothing, and one runs once it's done.
+        if isIdentifyingNetwork {
+            Logger.discovery.notice("Scan skipped (\(reason.logLabel, privacy: .public)): identifying which network this is")
+            return false
         }
         let decision = ScanPolicy.decide(
             reason,

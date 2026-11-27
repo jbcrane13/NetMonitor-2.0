@@ -53,6 +53,19 @@ public final class NetworkIdentityController {
     /// Called once a network held by a question, the probe or a router change is identified, so its
     /// owner can scan it: what was scanned while held wasn't saved.
     @ObservationIgnored public var onSettled: (@MainActor (UUID) -> Void)?
+    /// What each option of the open question holds, from `describeOption` when it was asked.
+    public private(set) var optionSummaries: [UUID: IdentityOptionSummary] = [:]
+    /// Describes an option for the question: saved devices, last scan, the user's name for it.
+    @ObservationIgnored public var describeOption: (@MainActor (UUID) -> IdentityOptionSummary)?
+    /// The identification probe is running or about to: a scan now would save nothing and share the
+    /// probe's Bonjour browser, and one follows identification (`onSettled`).
+    public var isIdentifying: Bool {
+        if case .identifying = state {
+            return true
+        }
+        return false
+    }
+
     /// The last identity write failed: nothing was lost, and `retrySave()` tries it again.
     public private(set) var saveFailed = false
     /// For tests: identifying with no probe and no detection asked for, which nothing would end.
@@ -77,6 +90,10 @@ public final class NetworkIdentityController {
     @ObservationIgnored private var state = State.idle {
         didSet {
             publish()
+            if state.isHolding {
+                // Ask doesn't ping as if on a network this one may not be (#627).
+                clock.withdrawEstablished()
+            }
             if case .identified(let id, _, _) = state, oldValue.isHolding {
                 onSettled?(id)
             }
@@ -99,7 +116,14 @@ public final class NetworkIdentityController {
     @ObservationIgnored private let requestDetection: @MainActor () -> Void
     private static let logger = Logger(subsystem: "com.netmonitor", category: "networkIdentity")
 
-    /// Approvals kept per network, and in all; the least recently added goes first.
+    /// Unreadable routing-table reads in a row before the read counts as no hint; each detects again
+    /// after `retryDelay`.
+    public static let failedHintRetries = 3
+    @ObservationIgnored private var failedHintReads = 0
+    @ObservationIgnored private let retryDelay: Duration
+    @ObservationIgnored private let now: () -> Date
+
+    /// Approvals kept per network, and in all; the least recently matched goes first.
     public static let approvalsPerNetwork = 8
     public static let approvalsInAll = 64
 
@@ -114,8 +138,12 @@ public final class NetworkIdentityController {
         store: NetworkIdentityStore, clock: NetworkJoinClock, launchID: UUID,
         readHint: @escaping @MainActor (String) -> RouterHintStatus,
         probe: @escaping @MainActor (UUID, NetworkGroup) async -> Bool?,
-        requestDetection: @escaping @MainActor () -> Void
+        requestDetection: @escaping @MainActor () -> Void,
+        retryDelay: Duration = .seconds(2),
+        now: @escaping () -> Date = Date.init
     ) {
+        self.retryDelay = retryDelay
+        self.now = now
         self.store = store
         self.clock = clock
         self.launchID = launchID
@@ -134,7 +162,22 @@ public final class NetworkIdentityController {
             state = .paused(defaultID)
             return defaultID
         }
-        let hint = readHint(group.interface)
+        var hint = readHint(group.interface)
+        if hint == .failed {
+            // Transient (#645): keep the network identified on this connection, or hold and read again.
+            if case .identified(let id, let identified, _) = state, identified == group {
+                return id
+            }
+            if failedHintReads < Self.failedHintRetries {
+                failedHintReads += 1
+                state = .held(defaultID, nil)
+                scheduleDetection()
+                return defaultID
+            }
+            hint = .absent
+        } else {
+            failedHintReads = 0
+        }
         if hint.kind != lastLoggedHintKind {
             lastLoggedHintKind = hint.kind
             Self.logger.notice("Router hint: \(hint.kind, privacy: .public)")
@@ -152,6 +195,9 @@ public final class NetworkIdentityController {
         )
         switch resolution {
         case .use(let id):
+            if case .present(let key) = hint {
+                noteMatched(key, group: group)
+            }
             state = .identified(id, group, hint)
             return id
         case .bucket(let existing):
@@ -198,7 +244,7 @@ public final class NetworkIdentityController {
     /// another identity record already uses it; otherwise a fresh one that nothing uses.
     private func ownID(_ defaultID: UUID) -> UUID {
         let taken = store.contents.records.contains { $0.id == defaultID } || store.contents.legacyIDs.contains(defaultID)
-        return taken ? store.newID(preferring: nil) : defaultID
+        return taken ? store.newID() : defaultID
     }
 
     private func startProbe(legacy: UUID, group: NetworkGroup, key: RouterKey, hint: RouterHintStatus) {
@@ -244,6 +290,29 @@ public final class NetworkIdentityController {
         }
     }
 
+    /// Detects again after `retryDelay`, unless a detection is already pending.
+    private func scheduleDetection() {
+        guard !detectionPending else { return }
+        detectionPending = true
+        let delay = retryDelay
+        Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            self?.requestDetection()
+        }
+    }
+
+    /// Stamps the approval that identified the network, at most hourly, for eviction.
+    private func noteMatched(_ key: RouterKey, group: NetworkGroup) {
+        let time = now()
+        guard let approval = store.contents.approvals.first(where: { $0.group == group && $0.key == key }),
+              (approval.lastMatched ?? .distantPast) < time.addingTimeInterval(-3600) else { return }
+        try? store.update { contents in
+            if let index = contents.approvals.firstIndex(of: approval) {
+                contents.approvals[index].lastMatched = time
+            }
+        }
+    }
+
     /// Asks for one detection, unless one is already pending.
     private func detectAgain() {
         guard !detectionPending else { return }
@@ -258,7 +327,9 @@ public final class NetworkIdentityController {
     /// at once and asks for one detection (coalesced), even with no path update.
     public func authorizes(_ networkID: UUID) -> Bool {
         guard case .identified(let id, let group, let hint) = state, id == networkID else { return false }
-        guard readHint(group.interface) == hint else {
+        let now = readHint(group.interface)
+        // An unreadable routing table is transient: the identification stands (#645).
+        guard now == hint || now == .failed else {
             Self.logger.notice("Router changed since the network was identified: holding its rows")
             state = .held(id, nil)
             detectAgain()
@@ -277,92 +348,6 @@ public final class NetworkIdentityController {
         }
         detectionPending = false
         detectAgain()
-    }
-
-    // MARK: - Answers
-
-    /// Records an answer to `question` (the current one; another is ignored). The answer persists, but
-    /// it authorizes the current connection only through the next detection with the same group and
-    /// key, which this asks for.
-    public func answer(_ answer: Answer, to question: IdentityQuestion) {
-        guard question == self.question else { return }
-        let retry: @MainActor () -> Void = { [weak self] in self?.answer(answer, to: question) }
-        let recorded: Bool
-        switch (question, answer) {
-        case (.whichNetwork(let group, let key, _), .newNetwork), (.isLegacy(let group, let key, _), .newNetwork):
-            let id = store.newID(preferring: nil)
-            recorded = write({ contents in
-                contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
-                Self.approve(key, group: group, on: id, in: &contents)
-            }, retry: retry)
-        case (.whichNetwork(let group, let key, _), .same(let id)) where Self.options(of: question).contains(id),
-             (.isLegacy(let group, let key, _), .same(let id)) where Self.options(of: question).contains(id):
-            recorded = write({ contents in
-                if let index = contents.records.firstIndex(where: { $0.id == id }) {
-                    contents.records[index].recordClass = .bound
-                }
-                Self.approve(key, group: group, on: id, in: &contents)
-            }, retry: retry)
-        case (.forgottenThisConnection(let group, let options), .thisConnection(let id)) where options.contains(id):
-            // A connection-only answer belongs to the connection the question was asked on.
-            guard let generation = questionGeneration, generation == clock.generation.value else {
-                detectAgain()
-                return
-            }
-            recorded = write({ contents in self.answerForThisConnection(id, group: group, generation: generation, in: &contents) }, retry: retry)
-        case (.forgottenThisConnection(let group, _), .somewhereElse):
-            guard let generation = questionGeneration, generation == clock.generation.value else {
-                detectAgain()
-                return
-            }
-            let existing = store.contents.records.first { $0.group == group && $0.recordClass == .bucket }?.id
-            let bucket = existing ?? store.newID(preferring: nil)
-            recorded = write({ contents in
-                if existing == nil {
-                    contents.records.append(IdentityRecord(id: bucket, group: group, recordClass: .bucket))
-                }
-                self.answerForThisConnection(bucket, group: group, generation: generation, in: &contents)
-            }, retry: retry)
-        default:
-            return
-        }
-        if recorded {
-            detectionPending = false
-            detectAgain()
-        }
-    }
-
-    /// The networks a question offers, in order.
-    public static func options(of question: IdentityQuestion) -> [UUID] {
-        switch question {
-        case .whichNetwork(_, _, let options), .forgottenThisConnection(_, let options): options
-        case .isLegacy(_, _, let record): [record]
-        }
-    }
-
-    private func answerForThisConnection(
-        _ id: UUID, group: NetworkGroup, generation: UInt64, in contents: inout NetworkIdentityStore.Contents
-    ) {
-        contents.connectionAnswers.removeAll { $0.launchID != launchID || $0.group == group }
-        contents.connectionAnswers.append(ConnectionAnswer(launchID: launchID, generation: generation, group: group, recordID: id))
-    }
-
-    /// Approves `key` on `id`, evicting the least recently added approvals past the limits; a network
-    /// left with none becomes `forgotten`.
-    private static func approve(_ key: RouterKey, group: NetworkGroup, on id: UUID, in contents: inout NetworkIdentityStore.Contents) {
-        contents.approvals.removeAll { $0.group == group && $0.key == key }
-        contents.approvals.append(IdentityApproval(group: group, key: key, recordID: id))
-        while contents.approvals.filter({ $0.recordID == id }).count > approvalsPerNetwork,
-              let oldest = contents.approvals.firstIndex(where: { $0.recordID == id }) {
-            contents.approvals.remove(at: oldest)
-        }
-        while contents.approvals.count > approvalsInAll, let oldest = contents.approvals.indices.first {
-            let evicted = contents.approvals.remove(at: oldest)
-            if !contents.approvals.contains(where: { $0.recordID == evicted.recordID }),
-               let index = contents.records.firstIndex(where: { $0.id == evicted.recordID }) {
-                contents.records[index].recordClass = .forgotten
-            }
-        }
     }
 
     /// Writes `change` durably before anything is published. On failure, nothing changes and
@@ -393,9 +378,107 @@ public final class NetworkIdentityController {
         }
         if question != next.0 {
             question = next.0
+            let summaries = Dictionary(
+                (next.0.map(Self.options(of:)) ?? []).map { ($0, describeOption?($0) ?? IdentityOptionSummary()) }
+            ) { first, _ in first }
+            if optionSummaries != summaries {
+                optionSummaries = summaries
+            }
         }
         if heldNetworkIDs != next.1 {
             heldNetworkIDs = next.1
+        }
+    }
+}
+
+// MARK: - Answers
+
+extension NetworkIdentityController {
+    /// Records an answer to `question` (the current one; another is ignored). The answer persists, but
+    /// it authorizes the current connection only through the next detection with the same group and
+    /// key, which this asks for.
+    public func answer(_ answer: Answer, to question: IdentityQuestion) {
+        guard question == self.question else { return }
+        let retry: @MainActor () -> Void = { [weak self] in self?.answer(answer, to: question) }
+        let recorded: Bool
+        switch (question, answer) {
+        case (.whichNetwork(let group, let key, _), .newNetwork), (.isLegacy(let group, let key, _), .newNetwork):
+            let id = store.newID()
+            recorded = write({ contents in
+                contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
+                Self.approve(key, group: group, on: id, now: self.now(), in: &contents)
+            }, retry: retry)
+        case (.whichNetwork(let group, let key, _), .same(let id)) where Self.options(of: question).contains(id),
+             (.isLegacy(let group, let key, _), .same(let id)) where Self.options(of: question).contains(id):
+            recorded = write({ contents in
+                if let index = contents.records.firstIndex(where: { $0.id == id }) {
+                    contents.records[index].recordClass = .bound
+                }
+                Self.approve(key, group: group, on: id, now: self.now(), in: &contents)
+            }, retry: retry)
+        case (.forgottenThisConnection(let group, let options), .thisConnection(let id)) where options.contains(id):
+            // A connection-only answer belongs to the connection the question was asked on.
+            guard let generation = questionGeneration, generation == clock.generation.value else {
+                detectAgain()
+                return
+            }
+            recorded = write({ contents in self.answerForThisConnection(id, group: group, generation: generation, in: &contents) }, retry: retry)
+        case (.forgottenThisConnection(let group, _), .somewhereElse):
+            guard let generation = questionGeneration, generation == clock.generation.value else {
+                detectAgain()
+                return
+            }
+            let existing = store.contents.records.first { $0.group == group && $0.recordClass == .bucket }?.id
+            let bucket = existing ?? store.newID()
+            recorded = write({ contents in
+                if existing == nil {
+                    contents.records.append(IdentityRecord(id: bucket, group: group, recordClass: .bucket))
+                }
+                self.answerForThisConnection(bucket, group: group, generation: generation, in: &contents)
+            }, retry: retry)
+        default:
+            return
+        }
+        if recorded {
+            detectionPending = false
+            detectAgain()
+        }
+    }
+
+    /// The networks a question offers, in order.
+    public static func options(of question: IdentityQuestion) -> [UUID] {
+        switch question {
+        case .whichNetwork(_, _, let options), .forgottenThisConnection(_, let options): options
+        case .isLegacy(_, _, let record): [record]
+        }
+    }
+
+    private func answerForThisConnection(
+        _ id: UUID, group: NetworkGroup, generation: UInt64, in contents: inout NetworkIdentityStore.Contents
+    ) {
+        contents.connectionAnswers.removeAll { $0.launchID != launchID || $0.group == group }
+        contents.connectionAnswers.append(ConnectionAnswer(launchID: launchID, generation: generation, group: group, recordID: id))
+    }
+
+    /// Approves `key` on `id`, evicting the least recently matched approvals past the limits; a
+    /// network left with none becomes `forgotten`.
+    static func approve(_ key: RouterKey, group: NetworkGroup, on id: UUID, now: Date, in contents: inout NetworkIdentityStore.Contents) {
+        contents.approvals.removeAll { $0.group == group && $0.key == key }
+        contents.approvals.append(IdentityApproval(group: group, key: key, recordID: id, lastMatched: now))
+        func leastRecentlyMatched(_ include: (IdentityApproval) -> Bool) -> Int? {
+            contents.approvals.indices.filter { include(contents.approvals[$0]) }
+                .min { (contents.approvals[$0].lastMatched ?? .distantPast) < (contents.approvals[$1].lastMatched ?? .distantPast) }
+        }
+        while contents.approvals.filter({ $0.recordID == id }).count > approvalsPerNetwork,
+              let oldest = leastRecentlyMatched({ $0.recordID == id }) {
+            contents.approvals.remove(at: oldest)
+        }
+        while contents.approvals.count > approvalsInAll, let oldest = leastRecentlyMatched({ _ in true }) {
+            let evicted = contents.approvals.remove(at: oldest)
+            if !contents.approvals.contains(where: { $0.recordID == evicted.recordID }),
+               let index = contents.records.firstIndex(where: { $0.id == evicted.recordID }) {
+                contents.records[index].recordClass = .forgotten
+            }
         }
     }
 }

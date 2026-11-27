@@ -58,17 +58,11 @@ public struct IdentityRecord: Codable, Equatable, Sendable {
     public let id: UUID
     public let group: NetworkGroup
     public var recordClass: IdentityRecordClass
-    /// A name the user gave it, by ID; nil uses the detected profile's name.
-    public var displayName: String?
-    /// When the record last matched, to evict the least recently matched approvals.
-    public var lastMatched: Date?
 
-    public init(id: UUID, group: NetworkGroup, recordClass: IdentityRecordClass, displayName: String? = nil, lastMatched: Date? = nil) {
+    public init(id: UUID, group: NetworkGroup, recordClass: IdentityRecordClass) {
         self.id = id
         self.group = group
         self.recordClass = recordClass
-        self.displayName = displayName
-        self.lastMatched = lastMatched
     }
 }
 
@@ -79,11 +73,40 @@ public struct IdentityApproval: Codable, Equatable, Hashable, Sendable {
     public let group: NetworkGroup
     public let key: RouterKey
     public let recordID: UUID
+    /// When this key last identified the network, to evict the least recently matched approval.
+    /// Bookkeeping, not part of the decision: two approvals are equal by group, key and network.
+    public var lastMatched: Date?
 
-    public init(group: NetworkGroup, key: RouterKey, recordID: UUID) {
+    public init(group: NetworkGroup, key: RouterKey, recordID: UUID, lastMatched: Date? = nil) {
         self.group = group
         self.key = key
         self.recordID = recordID
+        self.lastMatched = lastMatched
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.group == rhs.group && lhs.key == rhs.key && lhs.recordID == rhs.recordID
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(group)
+        hasher.combine(key)
+        hasher.combine(recordID)
+    }
+}
+
+/// What a question shows for one of its networks (#645): never a generated name alone, which is the
+/// same at every site on one subnet.
+public struct IdentityOptionSummary: Equatable, Sendable {
+    public var savedDevices: Int
+    public var lastScanned: Date?
+    /// A name the user gave the network; nil when it has only the generated one.
+    public var name: String?
+
+    public init(savedDevices: Int = 0, lastScanned: Date? = nil, name: String? = nil) {
+        self.savedDevices = savedDevices
+        self.lastScanned = lastScanned
+        self.name = name
     }
 }
 
@@ -109,7 +132,8 @@ public enum IdentityQuestion: Equatable, Sendable {
     case whichNetwork(group: NetworkGroup, key: RouterKey, options: [UUID])
     /// The legacy network's saved devices didn't clearly match: "Is this ⟨name⟩?"
     case isLegacy(group: NetworkGroup, key: RouterKey, record: UUID)
-    /// No hint, and a network's evidence was forgotten: "Is this ⟨name⟩?" for this connection only.
+    /// No hint, and several networks (or a forgotten one) could be this: "Is this ⟨name⟩?" for this
+    /// connection only.
     case forgottenThisConnection(group: NetworkGroup, options: [UUID])
 
     public var group: NetworkGroup {

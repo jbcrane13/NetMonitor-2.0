@@ -63,6 +63,9 @@ public final class NetworkIdentityStore {
     nonisolated public static let fileName = "network-identity.json"
     nonisolated public static let markerKey = "netmonitor.networkIdentity.initialized"
     nonisolated public static let damagedKey = "netmonitor.networkIdentity.damaged"
+    /// Every network the store has known, ID → "interface|subnet", kept apart from the file so a
+    /// start over offers them all again, split-off networks included (#645). It only grows.
+    nonisolated public static let knownNetworksKey = "netmonitor.networkIdentity.knownNetworks"
 
     public private(set) var contents: Contents
     public private(set) var state: State
@@ -78,8 +81,8 @@ public final class NetworkIdentityStore {
 
     /// - Parameters:
     ///   - legacyNetworks: the v1 map, "interface|subnet" → network ID.
-    ///   - reservedIDs: IDs already in use outside the store: saved profiles, and the network IDs of
-    ///     device rows, events, health samples and connectivity records.
+    ///   - reservedIDs: IDs already in use outside the store: saved profiles and the network IDs of
+    ///     device rows.
     public init(
         directory: URL, defaults: UserDefaults, legacyNetworks: @escaping () -> [String: UUID],
         reservedIDs: @escaping @MainActor () -> Set<UUID>, write: Writer? = nil
@@ -137,10 +140,17 @@ public final class NetworkIdentityStore {
         state = .damaged
     }
 
-    /// First migration: each v1 entry becomes a `legacyUnverified` record with the same ID.
-    private func migrate() {
+    /// First migration: each v1 entry becomes a `legacyUnverified` record with the same ID. A start
+    /// over also brings back every network the store has known (`knownNetworksKey`).
+    private func migrate(includingKnown: Bool = false) {
         var records: [IdentityRecord] = []
-        for (key, id) in legacyNetworks().sorted(by: { $0.key < $1.key }) {
+        var sources = legacyNetworks().map { (key: $0.key, id: $0.value) }.sorted { $0.key < $1.key }
+        if includingKnown {
+            let known = (defaults.dictionary(forKey: Self.knownNetworksKey) as? [String: String] ?? [:])
+                .compactMap { id, key in UUID(uuidString: id).map { (key: key, id: $0) } }
+            sources += known.sorted { $0.id.uuidString < $1.id.uuidString }
+        }
+        for (key, id) in sources {
             let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
             guard parts.count == 2, !records.contains(where: { $0.id == id }) else { continue }
             records.append(IdentityRecord(id: id, group: NetworkGroup(interface: parts[0], subnet: parts[1]), recordClass: .legacyUnverified))
@@ -211,20 +221,16 @@ public final class NetworkIdentityStore {
             defaults.removeObject(forKey: Self.damagedKey)
             defaults.removeObject(forKey: Self.markerKey)
             try? FileManager.default.removeItem(at: fileURL)
-            migrate()
+            migrate(includingKnown: true)
         }
         if state == .damaged {
             throw Paused()
         }
     }
 
-    /// An ID for a new network: `preferred` (today's derived ID) when nothing uses it, else a fresh one
-    /// that nothing uses.
-    public func newID(preferring preferred: UUID?) -> UUID {
+    /// An ID for a new network that nothing uses: no record, legacy network, saved row or profile.
+    public func newID() -> UUID {
         let taken = Set(contents.records.map(\.id)).union(contents.legacyIDs).union(reservedIDs())
-        if let preferred, !taken.contains(preferred) {
-            return preferred
-        }
         var id = UUID()
         while taken.contains(id) {
             id = UUID()
@@ -237,6 +243,11 @@ public final class NetworkIdentityStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         try write(encoder.encode(contents), fileURL)
+        var known = defaults.dictionary(forKey: Self.knownNetworksKey) as? [String: String] ?? [:]
+        for record in contents.records where record.recordClass != .bucket {
+            known[record.id.uuidString] = "\(record.group.interface)|\(record.group.subnet)"
+        }
+        defaults.set(known, forKey: Self.knownNetworksKey)
     }
 
     private func validate(_ contents: Contents) throws {

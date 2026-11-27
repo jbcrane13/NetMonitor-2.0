@@ -7,6 +7,7 @@
 # Home office" settles it: one scan runs and saves the fixture's printer, shown Online.
 # Everything is fixture data in a throwaway store and defaults suite: no real network, no saved
 # preferences. Never touches an installed /Applications copy: it drives only the process it started.
+# The question is reached from the dashboard's device panel banner, as a user finds it.
 # Usage: scripts/ax/628-mac-identity.sh <Debug NetMonitor-macOS.app> <out-dir>
 set -euo pipefail
 APP=$1
@@ -38,7 +39,10 @@ if [[ "$("$AX" wait sidebar_nav_devices 3)" != found* ]]; then
   "$AX" clickat main-AppWindow-1 113 26 > /dev/null
   expect "$("$AX" wait sidebar_nav_devices 5)" found "the sidebar never opened"
 fi
-"$AX" click sidebar_nav_devices > /dev/null
+# 0. The dashboard's device panel points at the question (#645): its Answer opens the Devices view.
+expect "$("$AX" wait identityBanner_button_answer 15)" found "the dashboard doesn't point at the question"
+"$AX" capture-union "$OUT/628b-0-dashboard-banner.png" identityBanner_text identityBanner_button_answer
+"$AX" press identityBanner_button_answer > /dev/null
 
 # 1. The question, and the saved device as history.
 # macOS 27 doesn't expose the card's own identifier: its title and buttons carry theirs.
@@ -54,7 +58,8 @@ expect "$("$AX" wait $PRINTER 3)" TIMEOUT "a scan saved the printer while the qu
 expect "$("$AX" textin $SEED "Not checked: which network is this?" 2)" "found text" "the saved device stopped reading as history"
 
 # 3. The answer: same network. One scan runs and saves the printer.
-expect "$("$AX" pressin main-AppWindow-1 "Same as Home office")" pressed "couldn't answer the question"
+SAME=$("$AX" ids | grep -m1 '^devices_identity_same_') || fail "no Same as option"
+expect "$("$AX" press "$SAME")" pressed "couldn't answer the question"
 expect "$("$AX" gone $TITLE 10)" gone "the question stayed after the answer"
 expect "$("$AX" wait $PRINTER 15)" found "no scan saved the printer after the answer"
 expect "$("$AX" textin $PRINTER Online 5)" "found text" "the printer's card doesn't say Online"

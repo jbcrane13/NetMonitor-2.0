@@ -28,6 +28,14 @@ struct MenuBarPopoverView: View {
 
             Divider()
 
+            // Which network is this? (#645): answered in the Devices list.
+            if let identity = deviceDiscovery.identity {
+                NetworkIdentityBanner(identity: identity) {
+                    onClose()
+                    NotificationRouter.shared.open(.devices)
+                }
+            }
+
             // Device count + gateway latency
             networkStats
 

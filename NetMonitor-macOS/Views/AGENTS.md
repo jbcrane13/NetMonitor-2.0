@@ -50,6 +50,17 @@ xcodebuild test -scheme NetMonitor-macOS
 
 <!-- MANUAL: -->
 
+### Which network is this? (#628 PR B, #645)
+`Devices/NetworkIdentityCard.swift` holds the question card, shown at the top of `DevicesView`, and `NetworkIdentityBanner`, a one-line pointer to it in the dashboard's device panel (`NetworkDevicesPanel`) and the menu bar popover. While a network is held, its rows read "Not checked: which network is this?" (Core `PresenceSnapshot.heldLabel`). Options are named by the controller's `optionSummaries` (saved devices, last scan, a name the user gave), never by the generated network name alone.
+
+| Control | Accessibility ID |
+|---|---|
+| Card (its own container keeps the children's IDs on macOS 27); title; detail | `devices_identity_card`; `devices_identity_title`; `devices_identity_detail` |
+| Same as / Yes / a connection-only option | `devices_identity_same_<network UUID>` |
+| New network; Somewhere else | `devices_identity_new`; `devices_identity_elsewhere` |
+| Try again (a failed save); Start over (a damaged store) | `devices_identity_retry`; `devices_identity_startOver` |
+| Banner; its Answer button | `identityBanner`; `identityBanner_button_answer` |
+
 ### Device groups (#594)
 One device can be several saved rows (its interfaces). Both detail views (`DeviceDetailView`, `Devices/ProDeviceDetailView`) show:
 - `Devices/DeviceInterfacesCard.swift`: the Interfaces section;

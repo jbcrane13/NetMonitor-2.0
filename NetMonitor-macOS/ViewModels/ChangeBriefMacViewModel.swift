@@ -60,6 +60,8 @@ final class ChangeBriefMacViewModel {
         // Devices, not rows (#594): a device is found when any interface is.
         let counted = DeviceGroups.project(network).filter { !presence.isPast($0) }
         let found = counted.count { device in device.members.contains { $0.status == .online } }
+        // While identification holds the network, its rows are history: claim nothing found (#645).
+        let held = networkProfileID.map(presence.isHeld) ?? false
         let end = now()
         let start = end.addingTimeInterval(-Self.window)
         // Events with no network predate network IDs; like iOS, they still count.
@@ -73,7 +75,7 @@ final class ChangeBriefMacViewModel {
             deviceNamesByID: ChangeDigestBuilder.deviceNamesByID(network),
             deviceKeysByID: ChangeDigestBuilder.deviceKeysByID(network),
             speedTests: Self.latestTwo(speedTests()),
-            counts: ChangeDigestCounts(found: found, notFound: counted.count - found)
+            counts: held ? nil : ChangeDigestCounts(found: found, notFound: counted.count - found)
         )
         await state.ask(request, network: networkProfileID)
     }

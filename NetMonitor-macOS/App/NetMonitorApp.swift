@@ -351,7 +351,7 @@ struct NetMonitorApp: App {
             dispatcher: DeviceEventDispatcher.shared
         )
         deviceDiscovery = discovery
-        UITestIdentityFixture.attach(identityStore, discovery: discovery, profileManager: profileManager)
+        Self.attachUITestIdentity(identityStore, discovery: discovery, profileManager: profileManager)
         // Settings > Companion over in-memory credentials; the listener stays off, so a UI-test
         // launch never opens the companion port (#590).
         if companionService == nil {

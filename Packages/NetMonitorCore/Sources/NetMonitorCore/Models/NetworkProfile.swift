@@ -168,10 +168,20 @@ public struct NetworkProfile: Identifiable, Codable, Sendable, Hashable {
         return Int(UInt64(last) - UInt64(first) + 1)
     }
 
+    /// A name the user gave the network; nil when it has only the generated one, which is the same at
+    /// every site on one interface and subnet (#645).
+    public var customName: String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let generated = Self.makeDisplayName(interface: interfaceName, connectionType: connectionType, network: network)
+        return trimmed.isEmpty || trimmed == generated ? nil : trimmed
+    }
+
     /// User-facing label used by existing UI call sites.
     public var displayName: String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty { return trimmed }
+        if !trimmed.isEmpty {
+            return trimmed
+        }
         return Self.makeDisplayName(
             interface: interfaceName,
             connectionType: connectionType,

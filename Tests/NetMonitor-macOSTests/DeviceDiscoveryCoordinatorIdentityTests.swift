@@ -18,6 +18,17 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         var hint: RouterHintStatus = .absent
         var detections = 0
         var devices: [DiscoveredDevice] = []
+        /// Holds the fixture scan until released, to act while the probe runs.
+        var holds = false
+        var gate: CheckedContinuation<Void, Never>?
+
+        @MainActor
+        func scan() async -> [DiscoveredDevice] {
+            if holds {
+                await withCheckedContinuation { gate = $0 }
+            }
+            return devices
+        }
     }
 
     struct FixturePhase: ScanPhase, Sendable {
@@ -64,7 +75,7 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: manager,
             pipelineFactory: { _ in
-                let phase = FixturePhase(devices: { await MainActor.run { devices.devices } })
+                let phase = FixturePhase(devices: { await devices.scan() })
                 return ScanPipeline(steps: [ScanPipeline.Step(phases: [phase], concurrent: false)])
             },
             portChecker: { _, _, _ in false },
@@ -120,6 +131,24 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         #expect(presence.freshness(of: saved) == .notCheckedRecently)
     }
 
+    /// Ask reads the network's last scan through the held snapshot: a held network has none (#645).
+    @Test func askSeesNoCurrentScanForAHeldNetwork() throws {
+        let box = Box()
+        box.hint = .present(keyA)
+        let setup = try setUp(box)
+        let home = setup.local
+        _ = try row(setup, "192.168.1.20", "office-printer")
+        _ = setup.coordinator.commitScan(
+            [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.20", "office-printer")], profileID: home, now: Date(),
+            token: setup.join.token(for: nil)
+        )
+        #expect(setup.coordinator.presentedLastScan(for: home) != nil)
+        box.hint = .present(keyB)
+        setup.manager.detectLocalNetwork()
+        #expect(setup.coordinator.presentedLastScan(for: home) == nil)
+        #expect(setup.coordinator.lastScanTime(for: home) != nil, "the record itself stays")
+    }
+
     /// The Mac moves to a same-subnet site with no path update: the commit's router re-read catches
     /// it, holds the rows at once, and asks for one detection.
     @Test func aRouterMismatchAtCommitWithNoPathEventHoldsTheRowsAndAsksForOneDetection() throws {
@@ -170,10 +199,7 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         setup.identity.answer(.same(home), to: question)
         #expect(!setup.coordinator.isScanning)
         setup.manager.detectLocalNetwork()
-        let deadline = ContinuousClock.now + .seconds(10)
-        while setup.coordinator.lastScanTime(for: home) == nil, ContinuousClock.now < deadline {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        await waitUntil { setup.coordinator.lastScanTime(for: home) != nil }
         #expect(setup.coordinator.lastScanTime(for: home) != nil)
     }
 
@@ -184,6 +210,29 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
         box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.1", "rt-ax86u-7c10")]
         #expect(await setup.coordinator.identificationProbe(legacy: legacy) == true)
+    }
+
+    /// A scan asked for while the probe runs is refused (it would save nothing), and one runs once the
+    /// network is identified (#645).
+    @Test func aScanAskedForDuringIdentificationIsRefusedAndOneFollows() async throws {
+        let box = Box()
+        let legacy = UUID()
+        box.hint = .present(keyA)
+        box.holds = true
+        let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
+        #expect(setup.coordinator.isIdentifyingNetwork)
+        await waitUntil { box.gate != nil }
+        #expect(!setup.coordinator.rescan(.user(nil)))
+        #expect(!setup.coordinator.rescan(.launch))
+        #expect(!setup.coordinator.isScanning)
+
+        box.holds = false
+        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.20", "office-printer")]
+        box.gate?.resume()
+        await setup.identity.probeTask?.value
+        #expect(setup.identity.authorizes(legacy))
+        await waitUntil { setup.coordinator.lastScanTime(for: legacy) != nil }
+        #expect(setup.coordinator.lastScanTime(for: legacy) != nil)
     }
 
     /// The identification probe scans and compares, and never reconciles, records or publishes.
@@ -210,5 +259,13 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
 
         box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.1", "another-router")]
         #expect(await setup.coordinator.identificationProbe(legacy: legacy) == false)
+    }
+}
+
+@MainActor
+private func waitUntil(timeout: Duration = .seconds(10), _ condition: () -> Bool) async {
+    let deadline = ContinuousClock.now + timeout
+    while !condition(), ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(10))
     }
 }

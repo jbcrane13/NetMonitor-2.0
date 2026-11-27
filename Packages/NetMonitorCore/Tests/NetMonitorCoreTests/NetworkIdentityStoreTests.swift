@@ -10,14 +10,14 @@ struct NetworkIdentityStoreTests {
     let home = NetworkGroup(interface: "en0", subnet: "192.168.1.0/24")
     let legacyID = UUID()
 
-    private func makeEnvironment() throws -> (dir: URL, defaults: UserDefaults) {
+    func makeEnvironment() throws -> (dir: URL, defaults: UserDefaults) {
         let dir = FileManager.default.temporaryDirectory.appending(path: "identity-store-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let defaults = try #require(UserDefaults(suiteName: "identity-store-\(UUID().uuidString)"))
         return (dir, defaults)
     }
 
-    private func store(
+    func store(
         _ env: (dir: URL, defaults: UserDefaults), reserved: Set<UUID> = [], write: NetworkIdentityStore.Writer? = nil
     ) -> NetworkIdentityStore {
         NetworkIdentityStore(
@@ -185,10 +185,11 @@ struct NetworkIdentityStoreTests {
         let env = try makeEnvironment()
         let taken = UUID()
         let store = store(env, reserved: [taken])
-        #expect(store.newID(preferring: taken) != taken)
-        #expect(store.newID(preferring: legacyID) != legacyID)
-        let free = UUID()
-        #expect(store.newID(preferring: free) == free)
+        for _ in 0 ..< 50 {
+            let id = store.newID()
+            #expect(id != taken)
+            #expect(id != legacyID)
+        }
     }
 }
 
