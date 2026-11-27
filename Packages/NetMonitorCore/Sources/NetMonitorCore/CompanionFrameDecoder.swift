@@ -25,9 +25,13 @@ public struct OversizedModelFrame: Equatable, Sendable {
     /// A `modelRequest`; otherwise a response or a cancel.
     public let isRequest: Bool
 
+    /// The longest schema echoed back: an oversized frame can carry any schema string, and the
+    /// reply must stay small. A longer one is echoed empty, never cut.
+    public static let schemaLimit = 64
+
     public init(requestID: UUID, schema: String, isRequest: Bool) {
         self.requestID = requestID
-        self.schema = schema
+        self.schema = schema.count <= Self.schemaLimit ? schema : ""
         self.isRequest = isRequest
     }
 

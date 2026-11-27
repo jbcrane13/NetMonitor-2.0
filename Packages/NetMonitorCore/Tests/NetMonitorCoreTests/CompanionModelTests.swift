@@ -98,6 +98,25 @@ struct CompanionModelPayloadTests {
         #expect(batch.messages.map(\.logName) == ["heartbeat"])
     }
 
+    @Test("the tooLarge reply never echoes an unbounded schema (#586 review)")
+    func tooLargeDoesNotEchoAHugeSchema() async throws {
+        let id = UUID()
+        let schema = String(repeating: "s", count: 20000)
+        let json = #"{"protocolVersion":2,"type":"modelRequest","payload":{"requestID":"\#(id)","schema":"\#(schema)","input":{"text":"x"}}}"#
+        var frame = Data()
+        var length = UInt32(json.utf8.count).bigEndian
+        frame.append(Data(bytes: &length, count: 4))
+        frame.append(Data(json.utf8))
+        let batch = await CompanionFrameDecoder().append(frame)
+        guard case .oversizedModelFrame(let oversized)? = batch.errors.first else {
+            Issue.record("expected an oversized model frame")
+            return
+        }
+        #expect(oversized.requestID == id)
+        #expect(oversized.tooLargeReply.schema.count <= OversizedModelFrame.schemaLimit)
+        #expect(oversized.tooLargeReply.failure == "tooLarge")
+    }
+
     @Test("a heartbeat lists the schemas it offers, and the paired link dispatches the model frames")
     func capabilitiesAndAuthorizer() {
         let heartbeat = HeartbeatPayload(capabilities: ["insight.v1", "rules.v1", "symptoms.v1", "labels.v9"])
@@ -158,6 +177,23 @@ struct ModelAdmissionTests {
         #expect(await scanning.respond(to: request, authorization: .always)?.failure == "busy")
         try admission.release(#require(admission.admitCompanion(), "the one admission is still there"))
         #expect(ModelAdmission.defaultCompanionBudget == 10)
+    }
+
+    @Test("a model task started under a ticket holds it from the start, before it first runs (#586 review)")
+    func modelTaskHoldsFromItsStart() async throws {
+        let admission = ModelAdmission()
+        let ticket = try #require(admission.admitCompanion())
+        let gate = TestLatch()
+        let work = admission.withTicket(ticket) {
+            admission.task(.interactive) { await gate.wait() }
+        }
+        // The request's own hold goes at once, as when a cancel lands right after the model was
+        // asked: the model task, not yet run, still holds the slot.
+        admission.release(ticket)
+        #expect(admission.isCompanionSlotHeld)
+        gate.open()
+        await work.value
+        #expect(!admission.isCompanionSlotHeld)
     }
 
     @Test("companion work has a rolling budget, so a phone can't keep refilling its allowance")

@@ -95,11 +95,11 @@ struct SystemInsightService: InsightServiceProtocol {
 
     func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
         AsyncStream { continuation in
-            let task = Task {
-                // Interactive: while it runs, companion requests are answered busy (#586).
-                await ModelAdmission.shared.runLocal(.interactive) {
-                    await Self.stream(request, into: continuation)
-                }
+            // Counted from here, before the task runs: interactive for this Mac's own request
+            // (companion requests are busy meanwhile), or holding the companion ticket when it
+            // answers a phone, so the slot can't be freed before the model starts (#586).
+            let task = ModelAdmission.shared.task(.interactive) {
+                await Self.stream(request, into: continuation)
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }

@@ -78,6 +78,24 @@ public final class ModelAdmission: Sendable {
         return try await body()
     }
 
+    /// Starts `body` (a model call) as a task of its own that counts from this call, before the
+    /// task first runs: under a companion ticket it holds the ticket at once, so the request
+    /// letting go right after can't free the slot first; otherwise it registers at `priority`.
+    public func task(_ priority: Priority, _ body: @escaping @Sendable () async -> Void) -> Task<Void, Never> {
+        if let hold = Self.hold, hold.admission.retain(hold.ticket) {
+            return Task {
+                defer { hold.admission.release(hold.ticket) }
+                await body()
+            }
+        }
+        guard priority == .interactive else { return Task { await body() } }
+        state.withLock { $0.interactive += 1 }
+        return Task {
+            defer { self.state.withLock { $0.interactive -= 1 } }
+            await body()
+        }
+    }
+
     /// Runs `body` as companion work under `ticket`: tasks it starts inherit the ticket, and
     /// their model calls hold it.
     public func withTicket<T>(_ ticket: Ticket, _ body: () throws -> T) rethrows -> T {

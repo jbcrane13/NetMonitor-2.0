@@ -86,7 +86,7 @@ final class MacConnectionService: MacConnectionServiceProtocol {
     /// Tests make their own; the app uses `shared`.
     init(
         insightClient: CompanionInsightClient,
-        modelClient: CompanionModelClient = CompanionModelClient(send: { _, _ in false }),
+        modelClient: CompanionModelClient = CompanionModelClient(send: { _, _, _ in false }),
         networkProfileManager: NetworkProfileManager = NetworkProfileManager(),
         macStore: PairedMacStore,
         defaults: UserDefaults = .standard,
@@ -683,8 +683,10 @@ extension MacConnectionService {
 
     /// Sends a model request or cancel for the injected model client, only on the link it was
     /// made for (#586): false once that link was replaced, so a request never reaches a new link.
-    func sendModel(_ message: CompanionMessage, on link: UUID) async -> Bool {
-        guard connectionGeneration == link else { return false }
+    /// `isWanted` (the user's consent) and the request's cancellation are checked here, on the
+    /// main actor where the consent switch changes, with no suspension before the send.
+    func sendModel(_ message: CompanionMessage, on link: UUID, if isWanted: @Sendable () -> Bool = { true }) async -> Bool {
+        guard connectionGeneration == link, !Task.isCancelled, isWanted() else { return false }
         return await sendMessage(message)
     }
 

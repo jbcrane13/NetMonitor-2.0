@@ -4,9 +4,16 @@ import Synchronization
 import Testing
 @testable import NetMonitorCore
 
-/// A stand-in phone link: records what was sent on which link, and can hold sends.
+/// A stand-in phone link: records what was sent on which link, and can hold sends. Like
+/// `MacConnectionService.sendModel`, it sends only while the request's condition still holds when
+/// the send itself runs; `beforeSend` runs right before that check.
 private final class RecordingLink: Sendable {
     private let state = Mutex<(sent: [(String, UUID, UUID?)], refuses: Bool)>(([], false))
+    private let beforeSend: (@Sendable () -> Void)?
+
+    init(beforeSend: (@Sendable () -> Void)? = nil) {
+        self.beforeSend = beforeSend
+    }
 
     var sent: [(type: String, link: UUID, requestID: UUID?)] {
         state.withLock { $0.sent.map { ($0.0, $0.1, $0.2) } }
@@ -16,12 +23,14 @@ private final class RecordingLink: Sendable {
         state.withLock { $0.refuses = true }
     }
 
-    func send(_ message: CompanionMessage, _ link: UUID) -> Bool {
+    func send(_ message: CompanionMessage, _ link: UUID, _ isWanted: @Sendable () -> Bool = { true }) -> Bool {
         let id: UUID? = switch message {
         case .modelRequest(let payload): payload.requestID
         case .modelCancel(let payload): payload.requestID
         default: nil
         }
+        beforeSend?()
+        guard isWanted() else { return false }
         return state.withLock { state in
             state.sent.append((message.logName, link, id))
             return !state.refuses
@@ -35,7 +44,7 @@ struct CompanionModelClientTests {
 
     private static func makeClient(timeout: Duration = .seconds(5)) -> (CompanionModelClient, RecordingLink) {
         let link = RecordingLink()
-        let client = CompanionModelClient(send: { message, id in link.send(message, id) }, timeout: timeout)
+        let client = CompanionModelClient(send: { message, id, isWanted in link.send(message, id, isWanted) }, timeout: timeout)
         return (client, link)
     }
 
@@ -186,8 +195,8 @@ struct RoutedModelFeatureTests {
         let link = RecordingLink()
         let linkID = UUID()
         let box = Mutex<CompanionModelClient?>(nil)
-        let client = CompanionModelClient(send: { message, id in
-            let sent = link.send(message, id)
+        let client = CompanionModelClient(send: { message, id, isWanted in
+            let sent = link.send(message, id, isWanted)
             if case .modelRequest(let payload) = message, let answer, let client = box.withLock({ $0 }) {
                 client.received(ModelResponsePayload(requestID: payload.requestID, output: answer), onLink: id)
             }
@@ -242,7 +251,7 @@ struct RoutedModelFeatureTests {
     func consentWithdrawn() async throws {
         let link = RecordingLink()
         let linkID = UUID()
-        let mac = CompanionModelClient(send: { message, id in link.send(message, id) }, timeout: .seconds(2))
+        let mac = CompanionModelClient(send: { message, id, isWanted in link.send(message, id, isWanted) }, timeout: .seconds(2))
         mac.received(heartbeat: HeartbeatPayload(capabilities: ["rules.v1"]), onLink: linkID)
         let consent = MacInsightConsent(defaults: nil, decision: true)
         let parser = RoutedRuleIntentParser(local: UnavailableRuleIntentParser(), mac: mac, consent: consent)
@@ -258,7 +267,7 @@ struct RoutedModelFeatureTests {
     func withdrawnThenReenabled() async throws {
         let link = RecordingLink()
         let linkID = UUID()
-        let mac = CompanionModelClient(send: { message, id in link.send(message, id) }, timeout: .seconds(5))
+        let mac = CompanionModelClient(send: { message, id, isWanted in link.send(message, id, isWanted) }, timeout: .seconds(5))
         mac.received(heartbeat: HeartbeatPayload(capabilities: ["rules.v1"]), onLink: linkID)
         let consent = MacInsightConsent(defaults: nil, decision: true)
         let parser = RoutedRuleIntentParser(local: UnavailableRuleIntentParser(), mac: mac, consent: consent)
@@ -274,7 +283,7 @@ struct RoutedModelFeatureTests {
     @Test("withdrawing consent ends the request at once and tells the Mac (#586 review)")
     func withdrawalCancels() async throws {
         let link = RecordingLink()
-        let mac = CompanionModelClient(send: { message, id in link.send(message, id) }, timeout: .seconds(30))
+        let mac = CompanionModelClient(send: { message, id, isWanted in link.send(message, id, isWanted) }, timeout: .seconds(30))
         mac.received(heartbeat: HeartbeatPayload(capabilities: ["symptoms.v1"]), onLink: UUID())
         let consent = MacInsightConsent(defaults: nil, decision: true)
         let classifier = RoutedSymptomClassifier(local: UnavailableSymptomClassifier(), mac: mac, consent: consent)
@@ -288,10 +297,21 @@ struct RoutedModelFeatureTests {
         #expect(link.sent.map(\.type) == ["modelRequest", "modelCancel"])
     }
 
+    @Test("consent withdrawn between the client's check and the send itself: nothing is sent (#586 review)")
+    func withdrawnAtTheSend() async {
+        let wanted = Mutex(true)
+        // The user's switch lands after the client checked, right before the connection sends.
+        let link = RecordingLink(beforeSend: { wanted.withLock { $0 = false } })
+        let mac = CompanionModelClient(send: { message, id, isWanted in link.send(message, id, isWanted) }, timeout: .seconds(5))
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["rules.v1"]), onLink: UUID())
+        #expect(await mac.request(.rules(text: "x"), while: { wanted.withLock { $0 } }) == .unavailable)
+        #expect(!link.sent.contains { $0.type == "modelRequest" })
+    }
+
     @Test("a request whose consent is gone by the time it would be sent sends nothing (#586 review)")
     func noTransmissionWithoutConsent() async {
         let link = RecordingLink()
-        let mac = CompanionModelClient(send: { message, id in link.send(message, id) }, timeout: .seconds(5))
+        let mac = CompanionModelClient(send: { message, id, isWanted in link.send(message, id, isWanted) }, timeout: .seconds(5))
         mac.received(heartbeat: HeartbeatPayload(capabilities: ["rules.v1"]), onLink: UUID())
         #expect(await mac.request(.rules(text: "x"), while: { false }) == .unavailable)
         #expect(link.sent.isEmpty)
@@ -324,7 +344,7 @@ struct PlainRuleComposerMacTests {
     @Test("no answer from the Mac says so instead of 'unsupported', and an answer is marked as the Mac's")
     func macMessages() async {
         let link = RecordingLink()
-        let mac = CompanionModelClient(send: { message, id in link.send(message, id) }, timeout: .milliseconds(100))
+        let mac = CompanionModelClient(send: { message, id, isWanted in link.send(message, id, isWanted) }, timeout: .milliseconds(100))
         mac.received(heartbeat: HeartbeatPayload(capabilities: ["rules.v1"]), onLink: UUID())
         let parser = RoutedRuleIntentParser(local: UnavailableRuleIntentParser(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
         let composer = PlainRuleComposer(parser: parser, platform: .iOS)

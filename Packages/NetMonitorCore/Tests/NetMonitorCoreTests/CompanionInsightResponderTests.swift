@@ -251,8 +251,8 @@ final class UncooperativeInsightService: InsightServiceProtocol, Sendable {
     func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
         AsyncStream { continuation in
             let admission = admission, gate = gate
-            Task {
-                await admission.runLocal(.interactive) { await gate.wait() }
+            _ = admission.task(.interactive) {
+                await gate.wait()
                 continuation.yield(.failed)
                 continuation.finish()
             }

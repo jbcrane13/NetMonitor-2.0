@@ -10,7 +10,9 @@ import NetMonitorCore
 /// Only the Mac end is fake: the link, the client, the routing and the phone's checks are real.
 enum PhoneModel {
     /// The client the real companion link feeds.
-    static let linkClient = CompanionModelClient(send: { message, link in await MacConnectionService.shared.sendModel(message, on: link) })
+    static let linkClient = CompanionModelClient(send: { message, link, isWanted in
+        await MacConnectionService.shared.sendModel(message, on: link, if: isWanted)
+    })
 
     /// The user's answer to "Let your Mac read what you type?".
     static let consent: MacInsightConsent = UITestFakeMacModel.consent

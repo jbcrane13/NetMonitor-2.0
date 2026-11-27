@@ -28,8 +28,10 @@ public enum ModelClientResult: Sendable, Equatable {
 /// typed, so nothing is logged. `offers(_:)` is observable, so a field that reads it redraws when
 /// a capable Mac connects or stops offering the schema.
 public final class CompanionModelClient: Sendable, Observable {
-    /// Sends one message on one link; false when that link is gone or the send failed.
-    public typealias Send = @Sendable (CompanionMessage, _ link: UUID) async -> Bool
+    /// Sends one message on one link, only if `isWanted` still holds where the send itself runs
+    /// (the connection's actor, where the user's consent changes too); false when that link is
+    /// gone, `isWanted` no longer holds, or the send failed.
+    public typealias Send = @Sendable (CompanionMessage, _ link: UUID, _ isWanted: @escaping @Sendable () -> Bool) async -> Bool
 
     /// Longer than the Mac's own limit, `CompanionModelResponder.defaultTimeout`, so the Mac's
     /// `timeout` reply normally arrives first.
@@ -159,7 +161,8 @@ public final class CompanionModelClient: Sendable, Observable {
                         self?.finish(id, with: .unavailable)
                         return
                     }
-                    if await !send(message, link) {
+                    // Checked again by the connection, in the same step as the send.
+                    if await !send(message, link, isWanted) {
                         self?.finish(id, with: .unavailable)
                     }
                 }
@@ -188,13 +191,15 @@ public final class CompanionModelClient: Sendable, Observable {
     private func giveUp(_ id: UUID) {
         guard let pending = remove(id) else { return }
         pending.timer?.cancel()
+        // A request not yet out stays out: the connection checks the task's cancellation.
+        pending.sending?.cancel()
         pending.continuation.resume(returning: .unavailable)
         let send = send
         let sending = pending.sending
         let link = pending.link
         Task {
             await sending?.value
-            _ = await send(.modelCancel(ModelCancelPayload(requestID: id)), link)
+            _ = await send(.modelCancel(ModelCancelPayload(requestID: id)), link) { true }
         }
     }
 

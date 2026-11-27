@@ -20,17 +20,23 @@ enum TypedText {
         return String(word.dropLast())
     }
 
-    /// The whole host names in `text`, as sites: runs of letters, digits, dots and hyphens,
-    /// lowercased, without a trailing dot or a leading "www.".
-    static func sites(in text: String) -> Set<String> {
+    /// The whole host names in `text` as the user typed them (lowercased, without a trailing
+    /// dot), keyed by site, so a leading "www." doesn't count when an answer is grounded but the
+    /// host checked stays the one typed. The first typed form of a site wins.
+    static func typedHosts(in text: String) -> [String: String] {
         let names = text.lowercased().split { !($0.isLetter || $0.isNumber || $0 == "." || $0 == "-") }
-        return Set(names.map { name in
-            var name = Substring(name)
-            while name.last == "." {
-                name = name.dropLast()
+        var hosts: [String: String] = [:]
+        for name in names {
+            var host = Substring(name)
+            while host.last == "." {
+                host = host.dropLast()
             }
-            return site(String(name))
-        })
+            let typed = String(host)
+            if hosts[site(typed)] == nil {
+                hosts[site(typed)] = typed
+            }
+        }
+        return hosts
     }
 
     /// A host as a site: "www.nytimes.com" and "nytimes.com" are the same.

@@ -8,7 +8,7 @@ import Testing
 @MainActor
 struct MacModelConsentViewModelTests {
     private func mac(offering capabilities: [String]) -> CompanionModelClient {
-        let client = CompanionModelClient(send: { _, _ in false })
+        let client = CompanionModelClient(send: { _, _, _ in false })
         client.received(heartbeat: HeartbeatPayload(capabilities: capabilities), onLink: UUID())
         return client
     }

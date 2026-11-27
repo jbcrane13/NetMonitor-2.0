@@ -60,7 +60,7 @@ public struct SymptomIntent: Sendable, Equatable {
     ///   address originates from the model ("Netflix won't load" never becomes "netflix.com");
     /// - the host is kept only when it is a whole name in `input`: `ample.com` is not in
     ///   "example.com won't load" (#586). A copied URL counts by its host, and "www." doesn't
-    ///   count;
+    ///   count there; the host kept is the one the user typed;
     /// - a copied phrase may differ from the user's words by a plural, case or spacing;
     /// - an empty phrase means none.
     ///
@@ -79,9 +79,9 @@ public struct SymptomIntent: Sendable, Equatable {
         }
         // A copied URL counts by its host: "https://example.com/login" → "example.com".
         if kind == .websiteNotLoading, let copied = host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !copied.isEmpty {
-            let host = TypedText.site(TroubleshootState.hostName(copied) ?? copied)
-            if TypedText.sites(in: input).contains(host) {
-                intent.host = host
+            let site = TypedText.site(TroubleshootState.hostName(copied) ?? copied)
+            if let typed = TypedText.typedHosts(in: input)[site] {
+                intent.host = typed
             }
         }
         return intent

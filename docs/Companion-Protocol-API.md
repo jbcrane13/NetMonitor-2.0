@@ -628,7 +628,7 @@ A second reply for the same request finds nothing pending and is ignored.
 - A device phrase must be the user's own words, up to a plural, case and spacing. "NAS offline" never becomes a printer; "printer" stands for "the printers".
 - A threshold must be a whole number the user typed that isn't a duration, from 1 to 10,000 ms.
 - A duration must be stated, and at most a day.
-- A website must be a whole name the user typed: `ample.com` is not in `example.com`. A copied URL counts by its host, and a leading `www.` doesn't count.
+- A website must be a whole name the user typed: `ample.com` is not in `example.com`. A copied URL counts by its host, and a leading `www.` doesn't count when grounding; the host checked is the one the user typed.
 - `unsupported` is the escape.
 
 Drafts are built and reviewed on the phone before anything is saved. Text over 300 characters asks the user to "Shorten the description and try again", whichever model would read it.
@@ -652,11 +652,11 @@ The Mac cancels the request's task, so nothing is sent for it, and cancels the m
 - **Holding the slot:** the slot is held until the request and every model call made for it have really returned (a task-local ticket, so a call in a task of its own, such as an explanation's, holds it too). A timed-out or cancelled request whose model ignores cancellation keeps it.
 - **At the model call:** the work starts inside the link's submission lock and is registered with it (`CompanionAuthorization.start`), so closing the link, which the Mac's Remove does before revoking, cancels it. The token and "Answer model requests from iPhone" are checked once more right before the model is asked (`ModelSubmission`). With the setting turned off while the model worked, no answer is sent.
 - **Timeouts:** the Mac gives the model 10 s, and the phone waits 13 s.
-- **Frame size:** model frames are capped at 16 KiB in the frame decoder on both sides. A larger one is consumed and dropped (`oversizedModelFrame`), and the link stays up. An oversized request is answered `tooLarge` at once, and an oversized answer ends its request on the phone.
+- **Frame size:** model frames are capped at 16 KiB in the frame decoder on both sides. A larger one is consumed and dropped (`oversizedModelFrame`), and the link stays up. An oversized request is answered `tooLarge` at once (echoing its schema only up to 64 characters, else empty), and an oversized answer ends its request on the phone.
 
 **Advertising:** the Mac lists `rules.v1` and `symptoms.v1` while its model is available and "Answer model requests from iPhone" is on. It keeps listing them while it scans and answers `busy` then, so the phone's field doesn't come and go. An older Mac lists neither, so the phone hides the field.
 
-**Consent:** the phone asks once more, separately from explanations: "Let your Mac read what you type?" The answer is stored under `netmonitor.macInsight.consent.v2` and has its own Settings switch, and a "yes" to explanations doesn't cover it. Each request runs under the consent generation it began with. Withdrawing consent cancels the request (`modelCancel`). Nothing is sent once consent is withdrawn, and an answer is dropped if the user withdrew consent meanwhile, even if they agreed again. The output is marked "Drafted by the on-device model on your Mac" or "Read by the on-device model on your Mac".
+**Consent:** the phone asks once more, separately from explanations: "Let your Mac read what you type?" The answer is stored under `netmonitor.macInsight.consent.v2` and has its own Settings switch, and a "yes" to explanations doesn't cover it. Each request runs under the consent generation it began with. Withdrawing consent cancels the request (`modelCancel`). Nothing is sent once consent is withdrawn (the connection checks it on the main actor, in the same step as the send), and an answer is dropped if the user withdrew consent meanwhile, even if they agreed again. The output is marked "Drafted by the on-device model on your Mac" or "Read by the on-device model on your Mac".
 
 ---
 
