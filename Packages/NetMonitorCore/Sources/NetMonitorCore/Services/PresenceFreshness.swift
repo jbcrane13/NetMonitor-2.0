@@ -99,6 +99,8 @@ public struct PresenceSnapshot: Sendable, Equatable {
     private let lastScans: [UUID?: Date]
     /// Latencies the running scan measured, by row ID, shown before the scan saves (#628).
     private var progressiveLatency: [UUID: Double] = [:]
+    /// Networks the Mac can't yet tell it is on (#628 PR B): their saved rows read as history.
+    private var held: Set<UUID> = []
 
     public init(lastScans: [UUID?: Date], now: Date, policy: DeviceGracePolicy = DeviceGracePolicy()) {
         self.lastScans = lastScans
@@ -114,9 +116,22 @@ public struct PresenceSnapshot: Sendable, Equatable {
         return copy
     }
 
-    /// When the network's last scan was reconciled; nil when it has none.
+    /// The same snapshot with `networks` held (#628 PR B): while the Mac can't tell whether it is on
+    /// one of them, its recent scan isn't read as current, so its saved rows read as history.
+    public func withHeld(_ networks: Set<UUID>) -> PresenceSnapshot {
+        var copy = self
+        copy.held = networks
+        return copy
+    }
+
+    /// Whether `network` is held: its rows are shown as history ("Not checked: which network is this?").
+    public func isHeld(_ network: UUID?) -> Bool {
+        network.map(held.contains) ?? false
+    }
+
+    /// When the network's last scan was reconciled; nil when it has none, or while it is held.
     public func lastScan(for network: UUID?) -> Date? {
-        lastScans[network]
+        isHeld(network) ? nil : lastScans[network]
     }
 
     /// Whether the network was checked recently: its last scan is within the grace interval.
