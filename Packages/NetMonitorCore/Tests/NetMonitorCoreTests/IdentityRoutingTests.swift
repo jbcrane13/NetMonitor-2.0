@@ -177,3 +177,220 @@ struct RoutedIdentityServiceTests {
         #expect(service.isAvailable, "the user left the screen; the Mac wasn't busy")
     }
 }
+
+/// Background identity never blocks interactive companion work (#642 review).
+struct BackgroundSlotTests {
+    /// Holds identity inferences until released; answers typed requests at once.
+    final class HoldingIdentityModel: CompanionModelAnswering, Sendable {
+        private let gate = TestLatch()
+        private let calls = Mutex(0)
+        var isAvailable: Bool { true }
+        var identityCalls: Int { calls.withLock { $0 } }
+        func release() { gate.open() }
+        func answer(_ input: ModelInput, submission: ModelSubmission) async -> ModelOutput? {
+            try? await submission.run {
+                switch input {
+                case .identity:
+                    calls.withLock { $0 += 1 }
+                    await gate.wait()
+                    return .identity(IdentityRaw(deviceType: "printer", confidence: "high"))
+                case .rules:
+                    return .rules(RuleIntentRaw(kind: "newDevice"))
+                case .symptoms:
+                    return .symptoms(SymptomIntentRaw(kind: "weakWiFi"))
+                }
+            }
+        }
+    }
+
+    @Test("a typed request arriving during an identity inference is admitted, not busy")
+    func interactiveDuringBackground() async {
+        let model = HoldingIdentityModel()
+        let admission = ModelAdmission()
+        let responder = CompanionModelResponder(model: model, admission: admission)
+        let identity = Task {
+            await responder.respond(
+                to: ModelRequestPayload(requestID: UUID(), input: .identity(DeviceEvidenceProjectionTests.evidence.projection)),
+                authorization: .always
+            )
+        }
+        await waitForModel { model.identityCalls == 1 }
+        let typed = await responder.respond(to: ModelRequestPayload(requestID: UUID(), input: .rules(text: "x")), authorization: .always)
+        #expect(typed?.result(expecting: .rules) == .output(.rules(RuleIntentRaw(kind: "newDevice"))))
+        // One background inference at a time.
+        let second = await responder.respond(
+            to: ModelRequestPayload(requestID: UUID(), input: .identity(DeviceEvidenceProjectionTests.evidence.projection)),
+            authorization: .always
+        )
+        #expect(second?.failure == "busy")
+        model.release()
+        _ = await identity.value
+        await waitForModel { !admission.isBackgroundSlotHeld }
+        #expect(!admission.isBackgroundSlotHeld)
+    }
+
+    @Test("the Mac's own interactive work still comes first: background companion work waits for it too")
+    func macInteractiveFirst() async {
+        let admission = ModelAdmission()
+        await admission.runLocal(.interactive) {
+            #expect(admission.admitCompanion(.background) == nil)
+            #expect(admission.admitCompanion(.interactive) == nil)
+        }
+    }
+}
+
+/// A request cancelled before its model call doesn't spend the budget (#642 review).
+struct CancelledBudgetTests {
+    @Test("cancelled before the model was asked: the budget is given back")
+    func refundedWhenCancelledBeforeTheModel() async throws {
+        let admission = ModelAdmission(companionBudget: 1, backgroundBudget: 1)
+        let model = ScriptedCompanionModel(output: .identity(IdentityRaw(deviceType: "printer", confidence: "high")))
+        let latch = TestLatch()
+        let responder = CompanionModelResponder(model: model, admission: admission, beforeSubmission: { await latch.wait() })
+        let request = ModelRequestPayload(requestID: UUID(), input: .identity(DeviceEvidenceProjectionTests.evidence.projection))
+        let asking = Task { await responder.respond(to: request, authorization: .always) }
+        await waitForModel { latch.isReached }
+        asking.cancel()
+        _ = await asking.value
+        latch.open()
+        await waitForModel { !admission.isBackgroundSlotHeld }
+        #expect(model.submissions == 0)
+        let ticket = try #require(admission.admitCompanion(.background), "the cancelled request's budget came back")
+        admission.release(ticket)
+    }
+
+    @Test("cancelled after the model was asked: the budget stays spent")
+    func spentOnceTheModelRan() async {
+        let admission = ModelAdmission(companionBudget: 1, backgroundBudget: 1)
+        let model = ScriptedCompanionModel(output: .identity(IdentityRaw(deviceType: "printer", confidence: "high")), holds: true)
+        let responder = CompanionModelResponder(model: model, admission: admission)
+        let request = ModelRequestPayload(requestID: UUID(), input: .identity(DeviceEvidenceProjectionTests.evidence.projection))
+        let asking = Task { await responder.respond(to: request, authorization: .always) }
+        await waitForModel { model.submissions == 1 }
+        asking.cancel()
+        _ = await asking.value
+        model.release()
+        await waitForModel { !admission.isBackgroundSlotHeld }
+        #expect(admission.admitCompanion(.background) == nil)
+    }
+}
+
+/// Failures per device, back-off per cause (#642 review).
+@MainActor
+struct IdentityFailureTests {
+    /// A Mac offering identity.v1 that answers every request with `reply`.
+    private static func mac(replying reply: @escaping @Sendable (ModelRequestPayload) -> ModelResponsePayload?) -> (CompanionModelClient, Counter) {
+        let count = Counter()
+        let box = Mutex<CompanionModelClient?>(nil)
+        let client = CompanionModelClient(send: { message, link, _ in
+            guard case .modelRequest(let request) = message else { return true }
+            count.add()
+            if let response = reply(request) {
+                box.withLock { $0 }?.received(response, onLink: link)
+            }
+            return true
+        }, timeout: .seconds(2))
+        box.withLock { $0 = client }
+        client.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
+        return (client, count)
+    }
+
+    final class Counter: Sendable {
+        private let value = Mutex(0)
+        func add() { value.withLock { $0 += 1 } }
+        var count: Int { value.withLock { $0 } }
+    }
+
+    private func store() -> DeviceSuggestionStore {
+        DeviceSuggestionStore(defaults: UserDefaults(suiteName: "IdentityFailureTests.\(UUID())")!)
+    }
+
+    private func device(_ last: Int) -> LocalDevice {
+        LocalDevice(ipAddress: "192.168.2.\(last)", macAddress: "00:17:88:00:00:\(last)", hostname: "device-\(last).lan")
+    }
+
+    @Test("a refusal, a timeout or too large is recorded for that device, without silencing the others")
+    func refusedIsPerDevice() async {
+        for reason in [InsightFailureReason.refused, .timeout, .tooLarge] {
+            let (mac, sent) = Self.mac { ModelResponsePayload(requestID: $0.requestID, schema: $0.schema, failure: reason) }
+            let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true))
+            let store = store()
+            let first = device(1), second = device(2)
+            await DeviceSuggester(service: service, store: store).suggest(for: [first, second])
+            #expect(store.record(for: first.id)?.fingerprint == DeviceEvidence(device: first).fingerprint, "\(reason): not re-sent on every trigger")
+            #expect(sent.count == 2, "\(reason): the other device is still asked")
+            #expect(service.isAvailable, "\(reason): no back-off")
+        }
+    }
+
+    @Test("busy backs off, and after the back-off the Mac is really asked again")
+    func busyBacksOffThenAsksAgain() async {
+        let clock = Mutex(ContinuousClock.now)
+        let busy = Mutex(true)
+        let (mac, sent) = Self.mac { request in
+            busy.withLock { $0 }
+                ? ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .busy)
+                : ModelResponsePayload(requestID: request.requestID, output: .identity(IdentityRaw(deviceType: "printer", confidence: "high")))
+        }
+        let service = RoutedIdentityService(
+            local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true),
+            now: { clock.withLock { $0 } }
+        )
+        let evidence = DeviceEvidence(device: device(3))
+        #expect(await service.suggestIdentity(evidence) == nil)
+        #expect(!service.isAvailable)
+        busy.withLock { $0 = false }
+        clock.withLock { $0 += RoutedIdentityService.busyRetryAfter + .seconds(1) }
+        #expect(service.isAvailable)
+        #expect(await service.suggestIdentity(evidence)?.deviceType == .printer)
+        #expect(sent.count == 2)
+    }
+
+    @Test("withdrawing consent or a disconnect doesn't back off: agreeing again or reconnecting works at once")
+    func noBackOffForConsentOrDisconnect() async {
+        let (mac, _) = Self.mac { _ in nil }
+        let consent = MacInsightConsent(defaults: nil, decision: true)
+        let service = RoutedIdentityService(local: UnavailableInsightService(), mac: mac, consent: consent)
+        let asking = Task { await service.suggestIdentity(DeviceEvidence(device: device(4))) }
+        await waitForModel { true }
+        mac.disconnected()
+        _ = await asking.value
+        mac.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
+        #expect(service.isAvailable, "reconnected: no back-off")
+        let again = Task { await service.suggestIdentity(DeviceEvidence(device: device(5))) }
+        try? await Task.sleep(for: .milliseconds(50))
+        consent.setAllowed(false)
+        _ = await again.value
+        consent.setAllowed(true)
+        #expect(service.isAvailable, "agreed again: no back-off")
+    }
+
+    @Test("busy right after this phone gave up on a request: retried, not backed off, and the re-ask gets its answer")
+    func busyAfterOwnCancelIsRetried() async {
+        // The Mac holds the first (abandoned) request's slot for 3 more replies, then answers.
+        let replies = Mutex(0)
+        let (mac, sent) = Self.mac { request in
+            let n = replies.withLock { value -> Int in
+                value += 1
+                return value
+            }
+            if n == 1 {
+                return nil
+            }
+            return n <= 4
+                ? ModelResponsePayload(requestID: request.requestID, schema: request.schema, failure: .busy)
+                : ModelResponsePayload(requestID: request.requestID, output: .identity(IdentityRaw(deviceType: "printer", confidence: "high")))
+        }
+        let service = RoutedIdentityService(
+            local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true), retryInterval: .milliseconds(20)
+        )
+        let first = Task { await service.suggestIdentity(DeviceEvidence(device: device(6))) }
+        await waitForModel { sent.count == 1 }
+        first.cancel()
+        _ = await first.value
+        let suggestion = await service.suggestIdentity(DeviceEvidence(device: device(7)))
+        #expect(suggestion?.deviceType == .printer)
+        #expect(sent.count == 5)
+        #expect(service.isAvailable)
+    }
+}

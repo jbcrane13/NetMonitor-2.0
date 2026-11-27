@@ -8,8 +8,11 @@ public enum ModelClientResult: Sendable, Equatable {
     case output(ModelOutput)
     /// The Mac is scanning or already answering: try again in a moment.
     case busy
-    /// Nothing usable: no capable Mac, a failed send, a drop, a timeout, a refusal or a reply
-    /// that broke the rules. The feature falls back to its path without the model.
+    /// The Mac's model refused it, timed out, or it was too large (on either side), or the reply
+    /// broke the rules: lasting for this input, not worth sending again unchanged (#642 review).
+    case refused
+    /// No answer for now: no capable Mac, consent gone, a failed send, a drop, no reply in time, or
+    /// the Mac's model unavailable. The feature falls back to its path without the model.
     case unavailable
 }
 
@@ -99,7 +102,8 @@ public final class CompanionModelClient: Sendable, Observable {
             switch response.result(expecting: pending.schema) {
             case .output(let output)?: return .output(output)
             case .failure(.busy)?: return .busy
-            case .failure?, nil: return .unavailable
+            case .failure(.unavailable)?: return .unavailable
+            case .failure?, nil: return .refused
             }
         }
         if let result {
@@ -129,11 +133,11 @@ public final class CompanionModelClient: Sendable, Observable {
     /// request goes out and before an answer is used. Returns at once with `.unavailable` when the
     /// Mac doesn't offer the schema or the input is over its limit.
     public func request(_ input: ModelInput, while isWanted: @escaping @Sendable () -> Bool = { true }) async -> ModelClientResult {
-        guard input.isWithinLimits else { return .unavailable }
+        guard input.isWithinLimits else { return .refused }
         let id = UUID()
         let message = CompanionMessage.modelRequest(ModelRequestPayload(requestID: id, input: input))
         guard let frame = try? message.encodeLengthPrefixed(), frame.count - 4 <= ModelSchema.maximumFrameSize else {
-            return .unavailable
+            return .refused
         }
         let schema = input.schema
         return await withTaskCancellationHandler {

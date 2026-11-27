@@ -439,7 +439,7 @@ extension DeviceSuggesterTests {
         box.withLock { $0 = mac }
         mac.received(heartbeat: HeartbeatPayload(capabilities: ["identity.v1"]), onLink: UUID())
         let service = RoutedIdentityService(
-            local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true), retryAfter: .seconds(60)
+            local: UnavailableInsightService(), mac: mac, consent: MacInsightConsent(defaults: nil, decision: true)
         )
         await DeviceSuggester(service: service, store: store).suggest(for: [first, second])
         #expect(store.record(for: first.id) == nil, "asked again later")

@@ -124,59 +124,110 @@ public struct RoutedSymptomClassifier: SymptomClassifierProtocol {
 /// already agreed to "Let your Mac read what you type?", whose wording covers device evidence.
 /// Explanations stay on the local model; `RoutedInsightService` routes those.
 public struct RoutedIdentityService: InsightServiceProtocol {
-    /// How long the Mac isn't asked after it answered busy or not at all.
-    public static let defaultRetryAfter: Duration = .seconds(60)
+    /// How long the Mac isn't asked after it answered `busy` (#642 review): about one inference.
+    public static let busyRetryAfter: Duration = .seconds(15)
+    /// How long the Mac isn't asked after a link-level failure: no reply, a failed send, its model
+    /// unavailable.
+    public static let linkRetryAfter: Duration = .seconds(30)
+    /// How long a `busy` can be the Mac still finishing a request this phone gave up on: its own
+    /// timeout and a margin. Such a `busy` is retried, every `retryInterval`, not backed off.
+    public static let abandonedWindow: Duration = CompanionModelResponder.defaultTimeout + .seconds(3)
 
     public let local: any InsightServiceProtocol
     public let route: MacModelRoute
-    private let backoff: Backoff
+    private let state: RetryState
+    private let retryInterval: Duration
 
     public init(
-        local: any InsightServiceProtocol, mac: CompanionModelClient, consent: MacInsightConsent, retryAfter: Duration = defaultRetryAfter
+        local: any InsightServiceProtocol,
+        mac: CompanionModelClient,
+        consent: MacInsightConsent,
+        retryInterval: Duration = .seconds(2),
+        now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock.now }
     ) {
         self.local = local
         route = MacModelRoute(mac: mac, consent: consent, schema: .identity)
-        backoff = Backoff(retryAfter: retryAfter)
+        state = RetryState(now: now)
+        self.retryInterval = retryInterval
     }
 
     /// The local model, or a Mac offering identity once the user has said yes and not backing off
-    /// after a busy or failed answer; never "ask first". `DeviceSuggester` stops its pass, without
+    /// after a busy or link failure; never "ask first". `DeviceSuggester` stops its pass, without
     /// recording, when this turns false under it.
-    public var isAvailable: Bool { local.isAvailable || (route.availability == .available && !backoff.isActive) }
+    public var isAvailable: Bool { local.isAvailable || (route.availability == .available && !state.isBackingOff) }
 
+    /// Explanations aren't this service's job: `RoutedInsightService` routes them. It forwards to
+    /// the local model only because `DeviceSuggester` takes an `InsightServiceProtocol`, which
+    /// mustn't change (#447).
     public func explain(_ request: InsightRequest) -> AsyncStream<InsightUpdate> {
         local.explain(request)
     }
 
+    /// The Mac's suggestion, or nil:
+    /// - refused, timed out or too large: nil with the service still available, so `DeviceSuggester`
+    ///   records it against that device's evidence, like a local failure;
+    /// - busy: back off `busyRetryAfter`, unless it follows this phone's own cancel, when the Mac is
+    ///   still finishing the abandoned request: then it is retried until `abandonedWindow` passes;
+    /// - a link failure while the Mac still offers identity: back off `linkRetryAfter`;
+    /// - consent withdrawn, a disconnect, or the caller's cancel: no back-off.
     public func suggestIdentity(_ evidence: DeviceEvidence) async -> DeviceSuggestion? {
         if local.isAvailable {
             return await local.suggestIdentity(evidence)
         }
-        guard route.availability == .available, !backoff.isActive else { return nil }
-        guard case .output(.identity(let raw)) = await route.result(.identity(evidence.projection)) else {
-            // Busy, gone, too slow or refused: leave the Mac alone for a while. Not when the caller
-            // gave up (the user left the screen): the Mac said nothing about being busy.
-            if !Task.isCancelled {
-                backoff.start()
+        while route.availability == .available, !state.isBackingOff {
+            let result = await route.result(.identity(evidence.projection))
+            if Task.isCancelled {
+                state.cancelled()
+                return nil
             }
-            return nil
+            switch result {
+            case .output(.identity(let raw)):
+                return raw.suggestion(from: .mac)
+            case .output, .refused:
+                return nil
+            case .busy:
+                guard state.followsOwnCancel else {
+                    state.backOff(for: Self.busyRetryAfter)
+                    return nil
+                }
+                try? await Task.sleep(for: retryInterval)
+            case .unavailable:
+                if route.availability == .available {
+                    state.backOff(for: Self.linkRetryAfter)
+                }
+                return nil
+            }
         }
-        return raw.suggestion(from: .mac)
+        return nil
     }
 
-    /// When the Mac may be asked again.
-    private final class Backoff: Sendable {
-        private let retryAfter: Duration
-        private let until = Mutex<ContinuousClock.Instant?>(nil)
+    /// When the Mac may be asked again, and when this phone last gave up on a request.
+    private final class RetryState: Sendable {
+        private let now: @Sendable () -> ContinuousClock.Instant
+        private let times = Mutex<(until: ContinuousClock.Instant?, cancelled: ContinuousClock.Instant?)>((nil, nil))
 
-        init(retryAfter: Duration) {
-            self.retryAfter = retryAfter
+        init(now: @escaping @Sendable () -> ContinuousClock.Instant) {
+            self.now = now
         }
 
-        var isActive: Bool { until.withLock { $0.map { ContinuousClock.now < $0 } ?? false } }
+        var isBackingOff: Bool {
+            let instant = now()
+            return times.withLock { $0.until.map { instant < $0 } ?? false }
+        }
 
-        func start() {
-            until.withLock { $0 = ContinuousClock.now + retryAfter }
+        var followsOwnCancel: Bool {
+            let instant = now()
+            return times.withLock { $0.cancelled.map { instant - $0 < RoutedIdentityService.abandonedWindow } ?? false }
+        }
+
+        func backOff(for duration: Duration) {
+            let until = now() + duration
+            times.withLock { $0.until = until }
+        }
+
+        func cancelled() {
+            let instant = now()
+            times.withLock { $0.cancelled = instant }
         }
     }
 }
