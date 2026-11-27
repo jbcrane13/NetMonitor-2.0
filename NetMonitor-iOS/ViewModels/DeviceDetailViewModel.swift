@@ -39,6 +39,8 @@ final class DeviceDetailViewModel {
     let clock: @MainActor () -> Date
     /// Where grouping actions report a device coming back online (#619); nil reports nothing.
     let dispatcher: (any DeviceEventDispatcherProtocol)?
+    /// A probe's result is saved only if no path update or resume happened since it started (#628).
+    private let joinClock: NetworkJoinClock
     /// Suggestions, the override confirmation and the undo toast (#594 PR2).
     let grouping = DeviceGroupingState()
     private(set) var modelContext: ModelContext?
@@ -71,8 +73,10 @@ final class DeviceDetailViewModel {
         references: [any DeviceReferenceStore] = [NetworkEventService.shared],
         scanHistory: ScanHistory = ScanHistory(),
         clock: @escaping @MainActor () -> Date = Date.init,
-        dispatcher: (any DeviceEventDispatcherProtocol)? = nil
+        dispatcher: (any DeviceEventDispatcherProtocol)? = nil,
+        joinClock: NetworkJoinClock = .shared
     ) {
+        self.joinClock = joinClock
         self.dispatcher = dispatcher
         self.macLookupService = macLookupService
         self.nameResolver = nameResolver
@@ -151,9 +155,10 @@ final class DeviceDetailViewModel {
 
     /// The latest scan, as device detail matches rows against it. Under the UI-test fixture
     /// the dashboard lists fake devices; detail sees them too. The label sheet's duplicate-MAC
-    /// check uses the same list (#456).
+    /// check uses the same list (#456). A running scan's list counts only while no path update
+    /// happened since it started; otherwise the list from before it (#628, `observedDevices`).
     static func liveScan(_ service: any DeviceDiscoveryServiceProtocol = DeviceDiscoveryService.shared) -> [DiscoveredDevice] {
-        service.discoveredDevices + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
+        service.observedDevices + (UITestFakeDeviceFeed.suggestsIdentity ? UITestFakeDeviceFeed().devices : [])
     }
 
     // MARK: - Identity suggestion (#449)
@@ -218,6 +223,7 @@ final class DeviceDetailViewModel {
     /// (else the current one): both describe one interface.
     func enrichDevice(bonjourServices _: [BonjourService]) async {
         guard let device = probedMember?.row ?? current else { return }
+        let token = joinClock.token(for: device.networkProfileID)
         isLoading = true
         defer { isLoading = false }
 
@@ -239,7 +245,7 @@ final class DeviceDetailViewModel {
                 group.cancelAll()
                 return result.flatMap { $0 }
             }
-            if !Task.isCancelled {
+            if !Task.isCancelled, joinClock.isCurrent(token) {
                 device.vendor = vendor
             }
         }
@@ -261,7 +267,7 @@ final class DeviceDetailViewModel {
                 return result.flatMap { $0 }
             }
             // Only if the device is still at that address after the wait.
-            if !Task.isCancelled, probeAddress == ipAddress {
+            if !Task.isCancelled, joinClock.isCurrent(token), probeAddress == ipAddress {
                 device.resolvedHostname = hostname
             }
         }
@@ -272,6 +278,7 @@ final class DeviceDetailViewModel {
     /// Discover Bonjour services at ``probeAddress``; they are saved on the member probed.
     func discoverServices() async {
         guard let (device, deviceIP) = probedMember else { return }
+        let token = joinClock.token(for: device.networkProfileID)
         isDiscovering = true
         defer { isDiscovering = false }
 
@@ -329,7 +336,8 @@ final class DeviceDetailViewModel {
             }
         }
 
-        guard probeAddress == deviceIP, probedMember?.row === device else { return }
+        // Only if no path update happened since discovery started (#628).
+        guard joinClock.isCurrent(token), probeAddress == deviceIP, probedMember?.row === device else { return }
         device.discoveredServices = discoveredServiceNames
         startSuggestion()
     }
@@ -506,6 +514,7 @@ extension DeviceDetailViewModel {
     /// Scan common ports on the device, at ``probeAddress``.
     func scanPorts() async {
         guard let (device, address) = probedMember else { return }
+        let token = joinClock.token(for: device.networkProfileID)
         isScanning = true
         defer { isScanning = false }
 
@@ -516,7 +525,7 @@ extension DeviceDetailViewModel {
         }
 
         // A newer scan may have moved the device meanwhile: those ports are another device's.
-        guard probeAddress == address, probedMember?.row === device else { return }
+        guard joinClock.isCurrent(token), probeAddress == address, probedMember?.row === device else { return }
         device.openPorts = openPorts.sorted()
         startSuggestion()
     }

@@ -97,11 +97,21 @@ public struct PresenceSnapshot: Sendable, Equatable {
     public let now: Date
     public let policy: DeviceGracePolicy
     private let lastScans: [UUID?: Date]
+    /// Latencies the running scan measured, by row ID, shown before the scan saves (#628).
+    private var progressiveLatency: [UUID: Double] = [:]
 
     public init(lastScans: [UUID?: Date], now: Date, policy: DeviceGracePolicy = DeviceGracePolicy()) {
         self.lastScans = lastScans
         self.now = now
         self.policy = policy
+    }
+
+    /// The same snapshot showing `latencies` (by row ID) from a scan still running: the Mac's
+    /// progressive display keeps them in memory, and a scan dropped before it saves leaves none.
+    public func withProgressiveLatency(_ latencies: [UUID: Double]) -> PresenceSnapshot {
+        var copy = self
+        copy.progressiveLatency = latencies
+        return copy
     }
 
     /// When the network's last scan was reconciled; nil when it has none.
@@ -129,7 +139,7 @@ public struct PresenceSnapshot: Sendable, Equatable {
 
     /// The device's last latency, only while it is online: an old one is no news (#583).
     public func currentLatency(_ device: LocalDevice) -> Double? {
-        freshness(of: device).isOnline ? device.lastLatency : nil
+        freshness(of: device).isOnline ? progressiveLatency[device.id] ?? device.lastLatency : nil
     }
 
     public func isPast(_ device: LocalDevice) -> Bool {

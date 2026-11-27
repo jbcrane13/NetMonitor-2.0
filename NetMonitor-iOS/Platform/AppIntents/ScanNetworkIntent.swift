@@ -14,8 +14,15 @@ struct ScanNetworkIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ReturnsValue<Int> & ProvidesDialog {
         // The current network, so the devices are saved and listed under its ID (#582).
-        let (service, network) = await MainActor.run { (DeviceDiscoveryService.shared, CurrentNetwork.detected()) }
+        let (service, network, before) = await MainActor.run {
+            (DeviceDiscoveryService.shared, CurrentNetwork.detected(), DeviceDiscoveryService.shared.droppedScanCount)
+        }
         await service.scanNetwork(profile: network)
+        // Dropped because the network path changed while it ran (#628): its list is the old one.
+        let dropped = await MainActor.run { service.droppedScanCount != before }
+        guard !dropped else {
+            return .result(value: 0, dialog: "The network changed during the scan, so nothing was saved. Try again.")
+        }
         let count = await MainActor.run {
             Self.deviceCount(service.discoveredDevices, grouped: AppModelStore.sharedContainer().map(Self.groupedRows) ?? [])
         }

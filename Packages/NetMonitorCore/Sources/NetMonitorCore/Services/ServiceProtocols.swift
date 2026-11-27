@@ -163,6 +163,11 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     /// The connected Mac's answers for that scan's network while its inventory was live (#585):
     /// never part of the scan's devices; they refresh existing rows only (`ScanReconciler`).
     @MainActor var completedScanMacSightings: [DiscoveredDevice] { get }
+    /// The token that scan started with (#628); nil for a conformer that doesn't stamp scans.
+    @MainActor var completedScanToken: JoinToken? { get }
+    /// The devices a device-row write may use (#628): the running scan's list while no path update
+    /// or resume happened since it started, else the list shown before it started (a finished scan).
+    @MainActor var observedDevices: [DiscoveredDevice] { get }
     @MainActor func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice]
     func scanNetwork(subnet: String?) async
     func scanNetwork(profile: NetworkProfile?) async
@@ -175,6 +180,10 @@ public extension DeviceDiscoveryServiceProtocol {
     var completedScanDevices: [DiscoveredDevice] { discoveredDevices }
     /// For a conformer without a Mac: none.
     var completedScanMacSightings: [DiscoveredDevice] { [] }
+    /// For a conformer that doesn't stamp scans: none.
+    var completedScanToken: JoinToken? { nil }
+    /// For a conformer whose list only ever holds finished scans.
+    var observedDevices: [DiscoveredDevice] { discoveredDevices }
 }
 
 /// Protocol for default gateway detection.

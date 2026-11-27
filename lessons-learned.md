@@ -212,3 +212,8 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **The model restates a live measurement as presence.** It wrote "is answering now with 3 of 3 replies" and "the gateway responded in 2 ms". The filter drops respond/replied/replies sentences. When the app measured something, the fallback is "Here is what the app measured." above the app's own lines, not the stale-scan line.
 - **Live tools change which tool the model picks.** "Why is the internet slow tonight?" now calls networkStatus instead of flakyDevices. Rerun the whole question list after adding a tool.
 - **The macOS sidebar can start collapsed** (the window's saved state), so `sidebar_nav_*` isn't in the AX tree and the View menu has no Show Sidebar item. `axdrive resize 1400 900` and then `clickat main-AppWindow-1 113 26` (the toolbar toggle) opens it. A whole-window capture shows the real WAN, DNS and ISP: capture only with `capture-in`.
+
+## 2026-11-26 — Device rows across network changes (#628 PR A)
+- **On macOS 27.2, ARP and NDP link-layer addresses are visible to ad-hoc-signed apps but hidden from team-signed ones, sandboxed or not.** A probe or test build signed ad hoc sees MACs the shipped app never gets, so measure identity evidence in a team-signed build.
+- **`log` is a zsh builtin.** AX scripts that read the unified log must call `/usr/bin/log show`.
+- **A progressive write breaks a whole-scan guarantee.** The Mac's sparse merge saved latency mid-scan, so a scan dropped later still left a write; mid-scan results now stay in memory until the final, checked commit.

@@ -37,12 +37,19 @@ final class PlainRuleIOSViewModel {
     private let checkedPorts: [Int]
     /// Goes up with every request, so a port check that finishes after a newer one is dropped.
     private var generation = 0
+    /// A port check's result is saved on a row only if no path update happened while it ran (#628).
+    private let joinClock: NetworkJoinClock
+
+    /// Shown when the network changed while the port check ran: the draft isn't built on it.
+    static let networkChangedMessage = "The network changed while checking ports. Try again."
 
     init(
         parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared,
         probe: MonitoringTargetProbe = UITestBootstrap.ruleProbe ?? BackgroundTaskService.liveProbe,
-        checkedPorts: [Int] = DeviceTypeInferenceService.fingerprintPorts
+        checkedPorts: [Int] = DeviceTypeInferenceService.fingerprintPorts,
+        joinClock: NetworkJoinClock = .shared
     ) {
+        self.joinClock = joinClock
         composer = PlainRuleComposer(parser: parser, platform: .iOS)
         self.probe = probe
         self.checkedPorts = checkedPorts
@@ -206,8 +213,16 @@ final class PlainRuleIOSViewModel {
             // Discovery on iOS never records open ports, so a device a scan found has none: check
             // a few common ports now. This deliberately extends "a port the last scan found open"
             // (#572) to "a port found open now" (#578 review).
+            // The port found open is saved on the device's row only if no path update happened
+            // while the check ran (#628).
+            let token = joinClock.token(for: networkID)
             let found = await checkForOpenPort(on: draft.host)
             guard request == generation else { return }
+            guard joinClock.isCurrent(token) else {
+                refusal = Self.networkChangedMessage
+                scannedOnly = [:]
+                return
+            }
             guard let found else {
                 refusal = PlainRuleBuilder.cantCheckMessage(draft.name)
                 scannedOnly = [:]

@@ -21,6 +21,18 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     public private(set) var completedScanMacSightings: [DiscoveredDevice] = []
     /// The Mac's answers gathered by the running scan, published with it.
     private var pendingMacSightings: [DiscoveredDevice] = []
+    /// The token the last completed scan started with (#628).
+    public private(set) var completedScanToken: JoinToken?
+    /// Called on the main actor when a scan is dropped because the path changed while it ran, and
+    /// when a scan is published (#628): the app schedules or resets its replacement scan.
+    public var onScanDropped: (@MainActor () -> Void)?
+    /// Scans dropped so far because the path changed while they ran (#628).
+    public private(set) var droppedScanCount = 0
+    public var onScanPublished: (@MainActor () -> Void)?
+    /// The running scan's token, and the list shown before it started (#628).
+    private var runningToken: JoinToken?
+    private var listBeforeScan: [DiscoveredDevice] = []
+    private let joinClock: NetworkJoinClock
 
     // MARK: - Private scan filter / target types
 
@@ -57,8 +69,10 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
 
     public init(
         macConnectionService: (any MacConnectionServiceProtocol)? = nil,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        joinClock: NetworkJoinClock = .shared
     ) {
+        self.joinClock = joinClock
         self.macConnectionService = macConnectionService
         self.userDefaults = userDefaults
         loadCachedDevices()
@@ -159,7 +173,16 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         await task.value
     }
 
+    /// The devices a device-row write may use (#628): the running scan's list while its token is
+    /// current, else the list shown before it started, which a finished scan published.
+    public var observedDevices: [DiscoveredDevice] {
+        guard isScanning, runningToken != nil, !joinClock.isCurrent(runningToken) else { return discoveredDevices }
+        return listBeforeScan
+    }
+
     private func performScan(subnet: String? = nil, profile: NetworkProfile? = nil) async {
+        // The path the scan's device observations start on (#628).
+        let token = joinClock.token(for: profile?.id)
         let scanTarget: ScanTarget
         if let profile {
             scanTarget = makeScanTarget(profile: profile)
@@ -179,11 +202,14 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanProgress = 0
         scanPhase = .arpScan
         discoveredDevices = staleDevices
+        listBeforeScan = staleDevices
+        runningToken = token
         progressCoalescer = ScanProgressCoalescer()
 
         defer {
             isScanning = false
             scanPhase = .idle
+            runningToken = nil
         }
 
         // If paired with Mac, kick off its scan early (it runs in parallel)
@@ -258,12 +284,25 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         // Stopped during the companion merge or identity steps: not a finished scan, and its
         // engine may already hold a newer scan's devices (#582).
         guard !Task.isCancelled else { return }
-        publishCompletedScan(Self.finalDevices(scanned: sorted, previous: staleDevices), cacheKey: cacheKey)
+        finishScan(Self.finalDevices(scanned: sorted, previous: staleDevices), restoring: staleDevices, cacheKey: cacheKey, token: token)
+    }
+
+    /// Publishes a finished scan, unless a path update or resume happened since it started (#628):
+    /// then its devices may be another network's, so it is not published, cached or saved, and the
+    /// list goes back to `previous`. The check and the publish run in one main-actor block.
+    private func finishScan(_ result: [DiscoveredDevice], restoring previous: [DiscoveredDevice], cacheKey: String, token: JoinToken) {
+        guard joinClock.isCurrent(token) else {
+            discoveredDevices = previous
+            droppedScanCount += 1
+            onScanDropped?()
+            return
+        }
+        publishCompletedScan(result, cacheKey: cacheKey, token: token)
     }
 
     /// Publishes a scan that ran to the end. Only such a scan moves `lastScanDate` and
     /// `completedScanDevices`: a stopped one leaves a partial list (#582, #589).
-    private func publishCompletedScan(_ result: [DiscoveredDevice], cacheKey: String) {
+    private func publishCompletedScan(_ result: [DiscoveredDevice], cacheKey: String, token: JoinToken) {
         discoveredDevices = result
         cachedDevicesByProfileID[cacheKey] = result
         persistCachedDevices()
@@ -271,7 +310,9 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
         scanPhase = .done
         completedScanDevices = result
         completedScanMacSightings = pendingMacSightings
+        completedScanToken = token
         lastScanDate = Date()
+        onScanPublished?()
     }
 
     /// Identity after the Mac companion's devices are merged: the enrolled UniFi controller's

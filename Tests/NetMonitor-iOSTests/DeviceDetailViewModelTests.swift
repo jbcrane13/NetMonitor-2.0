@@ -166,6 +166,27 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.isScanning == false)
     }
 
+    /// #628: ports measured while the path changed may be another network's device, so they
+    /// aren't saved; the next scan with no path update is.
+    @Test func portsFoundAcrossAPathUpdateAreNotSaved() async {
+        let (changes, _) = AsyncStream<String>.makeStream()
+        let join = NetworkJoinClock(changes: changes)
+        join.generation.notePathUpdate()
+        let portScanner = MockPortScannerService()
+        portScanner.mockResults = [PortScanResult(port: 22, state: .open)]
+        let generation = join.generation
+        portScanner.duringScan = { generation.notePathUpdate() }
+        let viewModel = makeViewModel(portScanner: portScanner, joinClock: join)
+        viewModel.device = LocalDevice(ipAddress: "192.168.1.20", macAddress: "AA:BB", openPorts: [80])
+
+        await viewModel.scanPorts()
+        #expect(viewModel.device?.openPorts == [80])
+
+        portScanner.duringScan = nil
+        await viewModel.scanPorts()
+        #expect(viewModel.device?.openPorts == [22])
+    }
+
     /// PR #578 review: the refusal for a target with no known open port sends the user here, so
     /// the scan must probe ports like a printer's 9100 or it can never find one.
     @Test func scanPortsProbesEveryDeviceTypeRulePortAndSavesAPrinterPort() async {
@@ -439,7 +460,8 @@ extension DeviceDetailViewModelTests {
         bonjourService: any BonjourDiscoveryServiceProtocol = MockBonjourDiscoveryService(),
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = MockDeviceDiscoveryService(),
         insight: MockInsightService = MockInsightService(isAvailable: false),
-        suggestionDefaults: UserDefaults = UserDefaults(suiteName: "DeviceDetailViewModelTests.\(UUID().uuidString)") ?? UserDefaults()
+        suggestionDefaults: UserDefaults = UserDefaults(suiteName: "DeviceDetailViewModelTests.\(UUID().uuidString)") ?? UserDefaults(),
+        joinClock: NetworkJoinClock = .shared
     ) -> DeviceDetailViewModel {
         DeviceDetailViewModel(
             macLookupService: macLookupService,
@@ -447,7 +469,8 @@ extension DeviceDetailViewModelTests {
             portScanner: portScanner,
             bonjourService: bonjourService,
             deviceDiscoveryService: deviceDiscoveryService,
-            suggester: DeviceSuggester(service: insight, store: DeviceSuggestionStore(defaults: suggestionDefaults))
+            suggester: DeviceSuggester(service: insight, store: DeviceSuggestionStore(defaults: suggestionDefaults)),
+            joinClock: joinClock
         )
     }
 

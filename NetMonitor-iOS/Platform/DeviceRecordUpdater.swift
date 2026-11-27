@@ -103,9 +103,12 @@ final class DeviceRecordUpdater {
         }
         if !isScanning, let scanDate = discoveryService.lastScanDate, scanDate != capturedScanDate {
             capturedScanDate = scanDate
+            // The live network names a device the scan saved without one only while no path update
+            // or resume happened since that scan started (#628): otherwise the phone may have left it.
+            let stillOnScannedPath = discoveryService.completedScanToken.map { joinClock.isCurrent($0) } ?? true
             pending.append(CompletedScan(
                 date: scanDate, devices: discoveryService.completedScanDevices, macSightings: discoveryService.completedScanMacSightings,
-                network: currentNetworkProfileID(), reconciledAt: clock(), joinedAtStart: scanJoin
+                network: stillOnScannedPath ? currentNetworkProfileID() : nil, reconciledAt: clock(), joinedAtStart: scanJoin
             ))
             scanJoin = nil
             if pending.count > Self.maxPending {

@@ -2,6 +2,7 @@ import SwiftUI
 import NetMonitorCore
 import SwiftData
 import BackgroundTasks
+import UIKit
 
 @main
 struct NetmonitorApp: App {
@@ -13,6 +14,8 @@ struct NetmonitorApp: App {
     @State private var environment: AppEnvironment
     @State private var speedTestScheduler: ScheduledSpeedTestRunner?
     @State private var networkChangeMonitor: LocalNetworkChangeMonitor?
+    /// The replacement for a scan dropped because the path changed while it ran (#628).
+    @State private var replacementScans: ReplacementScans?
     /// Logs connectivity and device changes for the Timeline.
     @State private var eventListener: EventListenerService?
     /// Puts every finished scan into the saved device rows (#582).
@@ -117,6 +120,24 @@ struct NetmonitorApp: App {
         )
         model.start()
         macInventory = model
+    }
+
+    /// A scan dropped because the path changed while it ran (#628) gets one replacement once the
+    /// path is quiet, in the foreground only, at most `ReplacementScans.maxAttempts` per chain; a
+    /// published scan starts a new chain. Background tasks and intents just don't save it.
+    private func startReplacementScans() {
+        guard replacementScans == nil else { return }
+        let replacements = ReplacementScans(generation: NetworkJoinClock.shared.generation)
+        let discovery = DeviceDiscoveryService.shared
+        discovery.onScanDropped = { [replacements] in
+            guard UIApplication.shared.applicationState == .active else { return }
+            replacements.scanDropped {
+                guard UIApplication.shared.applicationState == .active else { return }
+                Task { await discovery.scanNetwork(profile: CurrentNetwork.detected()) }
+            }
+        }
+        discovery.onScanPublished = { [replacements] in replacements.reset() }
+        replacementScans = replacements
     }
 
     /// Starts keeping the saved device rows current after each scan, once (#582).
@@ -245,6 +266,7 @@ struct NetmonitorApp: App {
                         monitor.start()
                         networkChangeMonitor = monitor
                     }
+                    startReplacementScans()
                 }
                 .onChange(of: scenePhase) { previous, phase in
                     // A network change while the app was suspended may never reach the path

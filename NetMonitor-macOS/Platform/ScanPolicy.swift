@@ -7,6 +7,8 @@ enum ScanReason {
     case periodic
     case menuBar
     case companion
+    /// The one scan that replaces a scan dropped because the path changed while it ran (#628).
+    case replacement
     /// A scan the user asked for, of `network` or, with nil, the coordinator's current network.
     case user(NetworkProfile?)
 
@@ -19,6 +21,7 @@ enum ScanReason {
         case .periodic: "periodic"
         case .menuBar: "menuBar"
         case .companion: "companion"
+        case .replacement: "replacement"
         case .user: "user"
         }
     }
@@ -57,7 +60,7 @@ enum ScanPolicy {
         case .networkChanged:
             guard let local else { return .ignore }
             return isScanning ? .replace(local) : .start(local)
-        case .launch, .periodic, .menuBar, .companion:
+        case .launch, .periodic, .menuBar, .companion, .replacement:
             guard let local, !isScanning else { return .ignore }
             return .start(local)
         }

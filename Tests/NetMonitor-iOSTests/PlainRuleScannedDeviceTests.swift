@@ -118,6 +118,29 @@ struct PlainRuleScannedDeviceTests {
         #expect(model.targetDraft?.port == 22)
     }
 
+    /// #628: a port found open while the path changed may be another network's device: no row is
+    /// saved and no draft built; the user is told to try again.
+    @Test func aPortCheckAcrossAPathUpdateSavesNoRow() async throws {
+        let container = try makeContainer()
+        let (changes, _) = AsyncStream<String>.makeStream()
+        let join = NetworkJoinClock(changes: changes)
+        join.generation.notePathUpdate()
+        let generation = join.generation
+        let probe = MonitoringTargetProbe { _, _, _ in
+            generation.notePathUpdate()
+            return true
+        }
+        let model = PlainRuleIOSViewModel(
+            parser: FixedRuleIntentParser(answers: offline), probe: probe, checkedPorts: [22], joinClock: join
+        )
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [scannedNAS(openPorts: nil)], targets: [], networkID: home, isScanning: false,
+                           context: container.mainContext)
+        #expect(model.targetDraft == nil)
+        #expect(model.displayedOutcome == .message(PlainRuleIOSViewModel.networkChangedMessage))
+        #expect(try container.mainContext.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+    }
+
     private func scanned(_ name: String, at ip: String, mac: String?, openPorts: [Int]) -> DiscoveredDevice {
         DiscoveredDevice(
             ipAddress: ip, hostname: name, vendor: nil, macAddress: mac,

@@ -98,6 +98,15 @@ final class DeviceDiscoveryCoordinator {
     /// transition (E2) so progressive display fires exactly once per scan.
     private var didMergeAtEnrichmentTransition = false
 
+    /// Latencies the running scan measured at the discovery→enrichment transition, by row ID (#628):
+    /// shown through `presence()` and saved only by the final reconcile, so a scan dropped because
+    /// the path changed leaves no row write. Cleared when the scan ends.
+    private(set) var progressiveLatency: [UUID: Double] = [:]
+
+    /// The replacement for a scan dropped because the path changed while it ran (#628).
+    let replacementScans: ReplacementScans
+    private let joinClock: NetworkJoinClock
+
     /// Matches iOS `DeviceDiscoveryService.maxHostsPerScan` — a bound on how many
     /// addresses `hostAddresses(limit:)` enumerates for very large subnets.
     private static let maxHostsPerScan = 1024
@@ -137,8 +146,11 @@ final class DeviceDiscoveryCoordinator {
         clock: @escaping @MainActor () -> Date = Date.init,
         presenceClock: @escaping @MainActor () -> Date = Date.init,
         reconcilerFetch: @escaping @MainActor (ModelContext) throws -> [LocalDevice] = ScanReconciler.fetchAllRows,
-        dispatcher: any DeviceEventDispatcherProtocol
+        dispatcher: any DeviceEventDispatcherProtocol,
+        joinClock: NetworkJoinClock = .shared
     ) {
+        self.joinClock = joinClock
+        replacementScans = ReplacementScans(generation: joinClock.generation)
         self.modelContext = modelContext
         self.bonjourScanner = bonjourScanner
         self.nameResolver = nameResolver
@@ -181,7 +193,9 @@ final class DeviceDiscoveryCoordinator {
         let scanTime = readClock()
         // The join it runs under: it establishes the network for Ask's pings only if none happens
         // while it runs (#579).
-        let joinedAtStart = NetworkJoinClock.shared.scanStarted()
+        let joinedAtStart = joinClock.scanStarted()
+        // The path the scan's device observations start on (#628): checked before they're saved.
+        let token = joinClock.token(for: profileID)
         loadPersistedDevices(for: profileID)
 
         let context = makeScanContext()
@@ -208,7 +222,10 @@ final class DeviceDiscoveryCoordinator {
         let pipeline = pipelineFactory(inputs)
 
         scanTask = Task {
-            defer { isScanning = false }
+            defer {
+                isScanning = false
+                progressiveLatency = [:]
+            }
             do {
                 try Task.checkCancellation()
 
@@ -236,20 +253,20 @@ final class DeviceDiscoveryCoordinator {
                 let allDiscovered = Self.mapDiscoveredDevices(engineDevices)
                 // Rows and the Timeline move together: the reconcile that applies the scan delivers
                 // its events (#603); a scan it skipped (nothing answered) or couldn't save writes none.
-                let applied = reconcileScan(engineDevices, profileID: profileID, now: scanTime)
-                if applied {
-                    NetworkJoinClock.shared.scanReconciled(joinedAtStart: joinedAtStart, at: scanTime)
+                let commit = commitScan(engineDevices, profileID: profileID, now: scanTime, token: token)
+                if commit == .applied {
+                    joinClock.scanReconciled(joinedAtStart: joinedAtStart, at: scanTime)
                 }
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
                 lastScanTime = Date()
-                if applied {
+                if commit == .applied {
                     for handler in scanCompletedHandlers {
                         handler(profileID, allDiscovered.count)
                     }
                 }
 
-                if let profileID {
+                if let profileID, commit != .dropped {
                     updateProfileScanInfo(profileID: profileID, discovered: allDiscovered)
                 }
 
@@ -316,6 +333,10 @@ final class DeviceDiscoveryCoordinator {
     /// The launch scan fills the dashboard without waiting for Scan (#358).
     @discardableResult
     func rescan(_ reason: ScanReason) -> Bool {
+        // A scan the user asked for starts a new replacement chain (#628).
+        if case .user = reason {
+            replacementScans.reset()
+        }
         let decision = ScanPolicy.decide(
             reason,
             isScanning: isScanning,
@@ -355,6 +376,7 @@ final class DeviceDiscoveryCoordinator {
     }
 
     func stopScan() {
+        progressiveLatency = [:]
         cancelSuggestions()
         scanTask?.cancel()
         scanTask = nil
@@ -416,18 +438,49 @@ final class DeviceDiscoveryCoordinator {
     /// would match a row without one, a row saved without a network) and strand its notes.
     /// Status and `lastSeen` are left to the final pass, so a cancelled or failed scan never leaves
     /// an old row reading Online. Cached sightings change nothing.
+    ///
+    /// The latency is kept in memory (`progressiveLatency`, shown through `presence()`), never
+    /// written to the row (#628): the final reconcile saves it, and a scan dropped because the
+    /// path changed leaves nothing.
     func mergeSparseSnapshot(_ devices: [LocalDiscoveredDevice], profileID: UUID?) {
         let rowsByMAC = Dictionary(grouping: fetchDevices(for: profileID)) { DeviceMatcher.normalizedMAC($0.macAddress) ?? "" }
         var measured = Set<String>()
+        var latencies: [UUID: Double] = [:]
         for device in devices where !device.isCached {
             // One sighting per MAC: the first that answered.
             guard let mac = DeviceMatcher.normalizedMAC(device.macAddress), measured.insert(mac).inserted,
                   let latency = device.latency, let rows = rowsByMAC[mac], rows.count == 1
             else { continue }
-            rows[0].lastLatency = latency
+            latencies[rows[0].id] = latency
         }
-        saveContext("sparse scan devices")
+        progressiveLatency = latencies
         loadPersistedDevices(for: profileID)
+    }
+
+    /// What became of a finished scan (#628).
+    enum ScanCommit: Equatable {
+        case applied
+        /// Nothing answered, or the rows couldn't be saved.
+        case notApplied
+        /// A path update or resume invalidated the scan's token: nothing was saved, and one
+        /// replacement scan is scheduled (`ReplacementScans`).
+        case dropped
+    }
+
+    /// Saves a finished scan only if no path update or resume happened since it started (#628):
+    /// the token check and the reconcile run in one main-actor block, with no `await` between.
+    /// A dropped scan writes no row and schedules a replacement; an applied one starts a new chain.
+    func commitScan(_ scan: [DiscoveredDevice], profileID: UUID?, now: Date, token: JoinToken) -> ScanCommit {
+        guard joinClock.isCurrent(token) else {
+            Logger.discovery.notice("Scan dropped: the network path changed while it ran")
+            replacementScans.scanDropped { [weak self] in
+                _ = self?.rescan(.replacement)
+            }
+            return .dropped
+        }
+        guard reconcileScan(scan, profileID: profileID, now: now) else { return .notApplied }
+        replacementScans.reset()
+        return .applied
     }
 
     /// The final merge of a completed scan (#596): `ScanReconciler`, shared with the iPhone, keeps
@@ -594,7 +647,7 @@ final class DeviceDiscoveryCoordinator {
     func presence() -> PresenceSnapshot {
         _ = presenceRevision
         let now = max(presenceClock(), lastScanClockReading ?? .distantPast)
-        return scanHistory.presenceSnapshot(now: now, policy: gracePolicy)
+        return scanHistory.presenceSnapshot(now: now, policy: gracePolicy).withProgressiveLatency(progressiveLatency)
     }
 
     private func readClock() -> Date {

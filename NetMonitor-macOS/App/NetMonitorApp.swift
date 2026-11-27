@@ -509,6 +509,13 @@ enum UITestScanFixture {
     @MainActor
     static func nextScan() -> [DiscoveredDevice] {
         defer { scansRun += 1 }
+        #if DEBUG
+        // UITEST_SCAN_PATH_CHANGE=1: the network path changes while the first scan runs, so that
+        // scan is dropped and its replacement saves (#628).
+        if ProcessInfo.processInfo.environment["UITEST_SCAN_PATH_CHANGE"] == "1", scansRun == 0 {
+            NetworkJoinClock.shared.generation.advance()
+        }
+        #endif
         let drops = ProcessInfo.processInfo.environment["UITEST_SCAN_DROP_LAST"] == "1" && scansRun > 0
         let scan = drops ? devices.filter { $0.ipAddress != printerIP } : devices
         // With the seeded group, only its second interface answers (#594).

@@ -102,6 +102,39 @@ final class DeviceRecordUpdaterTests {
         #expect(join.establishedAt == nil)
     }
 
+    // MARK: - Join tokens (#628)
+
+    /// A device the scan saved without a network is filed under the live network only while no
+    /// path update happened since the scan started: after one, the phone may have left it.
+    @Test func aDeviceWithoutANetworkIsNotFiledUnderTheLiveNetworkAfterAPathUpdate() throws {
+        let (container, context) = try makeStore()
+        defer { withExtendedLifetime(container) {} }
+        let discovery = MockDeviceDiscoveryService()
+        let clock = Clock(start)
+        let (changes, _) = AsyncStream<String>.makeStream()
+        let join = NetworkJoinClock(changes: changes)
+        join.generation.notePathUpdate()
+        let updater = try DeviceRecordUpdater(
+            discoveryService: discovery, reconciler: makeReconciler(context), currentNetworkProfileID: { self.home },
+            clock: { clock.now }, joinClock: join
+        )
+        let unfiled = DiscoveredDevice(
+            ipAddress: "192.168.9.10", hostname: "host-0", vendor: nil, macAddress: "AA:00:00:00:09:00",
+            latency: 5, discoveredAt: start, source: .local, networkProfileID: nil
+        )
+
+        discovery.completedScanToken = join.token(for: nil)
+        join.generation.notePathUpdate()
+        finishScan([unfiled], on: discovery, updater: updater, clock: clock)
+        #expect(try rows(context).isEmpty)
+
+        // The next scan, with no path update since it started, is filed under the live network.
+        clock.now = start.addingTimeInterval(60)
+        discovery.completedScanToken = join.token(for: nil)
+        finishScan([unfiled], on: discovery, updater: updater, clock: clock)
+        #expect(try rows(context).map(\.networkProfileID) == [home])
+    }
+
     func rows(_ context: ModelContext) throws -> [LocalDevice] {
         try context.fetch(FetchDescriptor<LocalDevice>(sortBy: [SortDescriptor(\.ipAddress)]))
     }

@@ -75,7 +75,8 @@ struct PlainRuleSettingsSection: View {
             await viewModel.submit(
                 devices: devices,
                 // Devices scanned but never opened can be named too (#571).
-                scan: env?.deviceDiscovery.discoveredDevices ?? [],
+                // A running scan's list only while no path update happened since it started (#628).
+                scan: env?.deviceDiscovery.observedDevices ?? [],
                 targets: targets,
                 networkID: networkID,
                 isScanning: env?.deviceDiscovery.isScanning ?? false,

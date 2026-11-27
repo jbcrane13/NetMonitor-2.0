@@ -181,19 +181,33 @@ public extension AskLiveTools {
 ///
 /// A scan establishes the network only if no join happened while it ran: the apps take
 /// `scanStarted()` when a scan starts and pass it to `scanReconciled(joinedAtStart:at:)`.
+///
+/// Device observations (#628) take a `JoinToken` when they start and are saved to device rows only
+/// while `isCurrent` holds. Its `generation` counts every path update on the monitor's queue, not
+/// only a new key, and every resume.
 @MainActor
 public final class NetworkJoinClock {
     /// Started once at app launch (both apps touch it at startup).
-    public static let shared = NetworkJoinClock(changes: NetworkJoinClock.systemPathChanges())
+    public static let shared: NetworkJoinClock = {
+        let generation = JoinGeneration()
+        return NetworkJoinClock(changes: NetworkJoinClock.systemPathChanges(counting: generation), generation: generation)
+    }()
 
+    /// Path updates and resumes since launch (#628).
+    public let generation: JoinGeneration
     public private(set) var joinedAt: Date
     /// When the last scan that ran wholly since the join was reconciled; nil until one has.
     public private(set) var establishedAt: Date?
     private let now: @Sendable () -> Date
     private var task: Task<Void, Never>?
 
-    /// - Parameter changes: a key per path update; a new key is a new join.
-    public init(changes: AsyncStream<String>, now: @escaping @Sendable () -> Date = Date.init) {
+    /// - Parameters:
+    ///   - changes: a key per path update; a new key is a new join.
+    ///   - generation: the path-update count the same monitor advances (`systemPathChanges(counting:)`).
+    public init(
+        changes: AsyncStream<String>, generation: JoinGeneration = JoinGeneration(), now: @escaping @Sendable () -> Date = Date.init
+    ) {
+        self.generation = generation
         joinedAt = now()
         self.now = now
         task = Task { [weak self] in
@@ -212,7 +226,19 @@ public final class NetworkJoinClock {
     /// The app came back from the background or suspension: the network may have changed with
     /// the same path key, so it counts as a join.
     public func noteResume() {
+        generation.advance()
         join()
+    }
+
+    /// The token a device observation for `networkID` starts with (#628).
+    public func token(for networkID: UUID?) -> JoinToken {
+        JoinToken(generation: generation.value, networkID: networkID)
+    }
+
+    /// Whether no path update or resume happened since `token` was taken; false without one.
+    /// Check it in the same main-actor block, with no `await`, as the device-row write it guards.
+    public func isCurrent(_ token: JoinToken?) -> Bool {
+        token?.generation == generation.value
     }
 
     /// A scan is starting: the join it runs under, for `scanReconciled`.
@@ -232,11 +258,13 @@ public final class NetworkJoinClock {
         establishedAt = nil
     }
 
-    /// The system path's status, interfaces and gateways, one key per update.
-    nonisolated public static func systemPathChanges() -> AsyncStream<String> {
+    /// The system path's status, interfaces and gateways, one key per update. `counting` is
+    /// advanced on the monitor's queue before each update is yielded (#628).
+    nonisolated public static func systemPathChanges(counting generation: JoinGeneration? = nil) -> AsyncStream<String> {
         AsyncStream { continuation in
             let monitor = NWPathMonitor()
             monitor.pathUpdateHandler = { path in
+                generation?.notePathUpdate()
                 let interfaces = path.availableInterfaces.map { "\($0.type)-\($0.name)" }
                 let gateways = path.gateways.map { "\($0)" }
                 continuation.yield((["\(path.status)"] + interfaces + gateways).joined(separator: "|"))

@@ -128,8 +128,11 @@ final class MockPortScannerService: PortScannerServiceProtocol, @unchecked Senda
     private(set) var scannedPorts: [Int] = []
     /// Every host a scan was asked to probe, in order.
     private(set) var scannedHosts: [String] = []
+    /// Runs while a scan is under way, such as a path update (#628).
+    var duringScan: (() -> Void)?
 
     func scan(host: String, ports: [Int], timeout: TimeInterval) async -> AsyncStream<PortScanResult> {
+        duringScan?()
         scannedPorts = ports
         scannedHosts.append(host)
         let results = mockResults
@@ -273,6 +276,11 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
     /// running or stopped scan's progress); otherwise the two are the same.
     var completedDevices: [DiscoveredDevice]?
     var completedScanDevices: [DiscoveredDevice] { completedDevices ?? discoveredDevices }
+    /// The token the finished scan started with (#628); nil when a test doesn't stamp scans.
+    var completedScanToken: JoinToken?
+    /// The list a device-row write may use (#628); `discoveredDevices` unless a test sets one.
+    var observed: [DiscoveredDevice]?
+    var observedDevices: [DiscoveredDevice] { observed ?? discoveredDevices }
     var scanCallCount = 0
     var lastScannedSubnet: String? = nil
     var lastScannedProfile: NetMonitorCore.NetworkProfile? = nil

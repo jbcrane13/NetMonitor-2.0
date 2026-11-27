@@ -78,7 +78,8 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
     func makeCoordinator(
         _ context: ModelContext,
         clock: TestClock,
-        pipeline: (@Sendable (ScanPipelineInputs) -> ScanPipeline)? = nil
+        pipeline: (@Sendable (ScanPipelineInputs) -> ScanPipeline)? = nil,
+        joinClock: NetworkJoinClock = .shared
     ) -> DeviceDiscoveryCoordinator {
         return DeviceDiscoveryCoordinator(
             modelContext: context,
@@ -89,7 +90,8 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
             clock: { clock.now },
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: joinClock
         )
     }
 
@@ -274,7 +276,9 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
             profileID: home
         )
         #expect(coordinator.discoveredDevices.count == 1)
-        #expect(coordinator.discoveredDevices.first?.lastLatency == 9)
+        // Shown from memory, not written to the row, until the final reconcile (#628).
+        #expect(coordinator.progressiveLatency[row.id] == 9)
+        #expect(coordinator.discoveredDevices.first?.lastLatency == nil)
 
         coordinator.reconcileScan(
             [Self.device("10.0.0.5", nil, mac: mac, cached: true), Self.device("10.0.0.60", "tv", mac: mac, latency: 9)], profileID: home

@@ -50,6 +50,8 @@ Key types: `ScanEngine`, `ScanPipeline`, `ScanContext`, `ScanAccumulator`, `Conn
 
 `DeviceDiscoveryCoordinator.startScan()` runs: ARP → Bonjour → merge → name resolution → vendor lookup → quick port scan (27 ports: `QuickPortScanPhase.commonPorts`, the device fingerprint ports plus the security-rule ports) → device type inference → latency (3 pings) → final merge through Core `ScanReconciler` (shared with iOS: `PresenceMatch` picks the row, and a row goes offline only under `DeviceGracePolicy`, 3 missed scans and 15 minutes; #596). `DeviceTypeInferenceService` classifies unknown devices from hostname, services, ports and vendor.
 
+Device observations on both apps (scans, detail probes, a rule's port check) take a `JoinToken` from `NetworkJoinClock` when they start. They write to device rows only if no path update or resume invalidated it, checked in the same main-actor block as the write (#628). Mid-scan latency stays in memory (`progressiveLatency`), so a dropped scan writes nothing and gets one replacement scan (`ReplacementScans`, at most two per recovery chain). A change the OS reports after the check isn't caught.
+
 ## Platform Differences
 
 | Concern | macOS | iOS |
