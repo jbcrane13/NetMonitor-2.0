@@ -1,16 +1,7 @@
 import XCTest
 
 @MainActor
-final class MenuBarUITests: XCTestCase {
-    var app: XCUIApplication!
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-    }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
+final class MenuBarUITests: MacOSUITestCase {
 
     // MARK: - Menu Bar
 

@@ -10,7 +10,7 @@ final class MacOSToolSmokeTests: MacOSUITestCase {
         let element = app.buttons[button]
         requireExists(element, message: "\(button) should exist")
         XCTAssertTrue(element.isEnabled, "\(button) should be enabled")
-        element.tap()
+        element.click()
     }
 
     private func expectResult(_ elements: [XCUIElement], timeout: TimeInterval, _ message: String) {
@@ -119,9 +119,9 @@ final class MacOSToolSmokeTests: MacOSUITestCase {
 
     func test13_WiFiHeatmap() {
         navigateToSidebar("tools")
-        let card = app.otherElements["tools_card_wifi_heatmap"]
+        let card = ui("tools_card_wifi_heatmap").firstMatch
         requireExists(card, message: "WiFi Heatmap card should exist")
-        card.tap()
+        card.click()
         RunLoop.current.run(until: Date().addingTimeInterval(4))
         captureScreenshot(named: "13_WiFiHeatmap_open")
     }
