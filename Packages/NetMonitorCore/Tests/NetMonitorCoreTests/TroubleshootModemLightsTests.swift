@@ -158,6 +158,48 @@ struct TroubleshootModemLightsTests {
         #expect(!report.accepts(answer))
     }
 
+    @Test(arguments: [
+        // Paraphrases with no healthy word next to a subject, or wrapped in advice (#625 review).
+        "Your signal is weak, but the internet is up.",
+        "Your signal is weak. The modem has an internet connection.",
+        "Your signal is weak, and nothing is wrong with the modem.",
+        "Your signal is weak, though you are online.",
+        "Your signal is weak, so check the router, since your internet connection is fine.",
+        "Your signal is weak. There is no problem with your connection.",
+        "Your signal is weak; the modem isn't the cause."
+    ])
+    func aParaphraseThatDeniesTheRedLightIsDropped(answer: String) throws {
+        #expect(try !report(Self.outage, Self.redInternet).accepts(answer))
+    }
+
+    @Test(arguments: [
+        "Your Wi-Fi signal is weak. Restart the modem, and if the Internet light stays red, contact your provider.",
+        "Your signal is weak and the modem may be offline, since its Internet light reads as red.",
+        "Your Wi-Fi signal is weak, so the connection keeps dropping; move closer to the router."
+    ])
+    func answersThatKeepTheRedLightPass(answer: String) throws {
+        #expect(try report(Self.outage, Self.redInternet).accepts(answer))
+    }
+
+    static let unknownRed = panel([("POWER", .green), ("USB", .red)])
+
+    @Test(arguments: [
+        "Your signal is weak, but your internet connection is fine.",
+        "Your signal is weak, and the modem's lights look normal."
+    ])
+    func aLightThatNeedsALookIsNotDeniedEither(answer: String) throws {
+        let report = try report(Self.outage, Self.unknownRed)
+        #expect(report.top.kind == .weakSignal)
+        #expect(!report.accepts(answer))
+    }
+
+    @Test func whenALightThatNeedsALookIsTopAnAllClearIsDropped() throws {
+        let report = try report([Self.healthyRouter], Self.unknownRed)
+        #expect(report.top.kind == .modemCheck)
+        #expect(!report.accepts("Your modem is fine; no problem was found."))
+        #expect(report.accepts("A light on the modem the app doesn't know reads as red. Check what it means in the modem's guide."))
+    }
+
     @Test func anAnswerThatAgreesWithTheLightPasses() throws {
         #expect(try report(Self.outage, Self.redInternet)
             .accepts("Your Wi-Fi signal is weak, and the modem's Internet light reads as red, "
@@ -250,6 +292,30 @@ struct TroubleshootStateModemLightsTests {
         await state.useModemReading(TroubleshootModemLightsTests.redInternet)
         await state.useModemReading(ModemPanelReport(answer: ModemPanelAnswer(status: .unsupported, lights: [])))
         #expect(state.modemReading?.report == TroubleshootModemLightsTests.redInternet)
+    }
+
+    @Test func aReadingWhileTheFirstExplanationIsWrittenDiscardsIt() async {
+        let insight = MockInsightService()
+        let (state, _) = make(insight)
+        let run = Task { await state.choose(.slowOrUnstableInternet) }
+        await waitFor { state.isExplaining }
+        let reread = Task { await state.useModemReading(TroubleshootModemLightsTests.redInternet) }
+        await waitFor { insight.requests.count == 2 }
+        // The first answer, written without the lights, comes back late and is discarded.
+        insight.send(.finished(Self.denying), to: 0)
+        await run.value
+        #expect(state.explanation == nil)
+        insight.send(.finished(Self.agreeing), to: 1)
+        await reread.value
+        #expect(state.explanation == Self.agreeing)
+        #expect(!state.isExplaining)
+    }
+
+    private func waitFor(_ condition: () -> Bool) async {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !condition(), ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
     }
 
     @Test func aCancelledRunStillNamesTheLightButIsNotExplained() async {

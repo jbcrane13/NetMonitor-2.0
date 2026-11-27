@@ -5,7 +5,7 @@ public struct TroubleshootReport: Sendable, Equatable {
     public let request: InsightRequest
     /// The top-ranked finding, whose subject the answer must name.
     public let top: TroubleshootFinding
-    /// Findings the answer must not deny wherever they rank: a red modem light (#625). An answer
+    /// Findings the answer must not deny wherever they rank: the modem lights (#625). An answer
     /// about a weak signal must not add that the internet is fine.
     public var guards: [TroubleshootFinding] = []
 
@@ -16,7 +16,8 @@ public struct TroubleshootReport: Sendable, Equatable {
     public func accepts(_ answer: String) -> Bool {
         let text = answer.lowercased()
         guard TroubleshootReportBuilder.subjectWords(for: top).contains(where: text.contains) else { return false }
-        return !TroubleshootReportBuilder.denies(text, top: top) && !guards.contains { TroubleshootReportBuilder.denies(text, top: $0) }
+        return !TroubleshootReportBuilder.denies(text, top: top)
+            && !guards.contains { TroubleshootReportBuilder.denies(text, top: $0) || TroubleshootReportBuilder.clearsTheModem(text, light: $0) }
     }
 }
 
@@ -61,7 +62,7 @@ public enum TroubleshootReportBuilder {
                 kind: .summary
             ),
             top: top,
-            guards: findings.filter { $0.kind == .modemProblem }
+            guards: findings.filter { [.modemProblem, .modemCheck].contains($0.kind) }
         )
     }
 
@@ -151,6 +152,52 @@ public enum TroubleshootReportBuilder {
                 let following = range.upperBound < part.count ? part[range.upperBound] : ""
                 return before.contains("no") && ["problem", "problems", "issue", "issues"].contains(following)
             }
+        }
+    }
+
+    // MARK: - Modem lights (#625)
+
+    /// Words that put the modem or the internet in a clause.
+    static let modemSubjects: Set<String> = ["modem", "modems", "internet", "connection", "online", "light", "lights"]
+    /// Words that call the modem or the internet healthy.
+    static let modemHealthy: Set<String> = [
+        "fine", "good", "ok", "okay", "working", "works", "online", "connected", "normal", "healthy", "stable", "reachable", "green", "up"
+    ]
+    /// "start up", "set up": not a claim that the internet is up.
+    static let phrasalBeforeUp: Set<String> = ["start", "starts", "starting", "set", "boot", "boots", "booting", "back"]
+    /// Words that keep a fault in view: the fault itself, a negation, or advice to act on it.
+    static let modemFaultOrAdvice: Set<String> = [
+        "red", "amber", "orange", "yellow", "no", "not", "never", "without", "down", "offline", "fault", "faulty", "problem", "issue",
+        "lost", "losing", "fail", "failed", "failing", "outage", "broken", "trouble", "can't", "cannot", "isn't", "aren't", "doesn't",
+        "don't", "unable", "wrong", "weak", "slow", "unstable", "drops", "dropping", "poor",
+        "restart", "reboot", "contact", "call", "unplug", "reset", "check", "try", "wait", "see", "consult", "move", "guide"
+    ]
+
+    /// Whether `text` (lowercased) clears the modem while `light` (a modem finding) stands. Stricter
+    /// than `denies`, since a reader takes "the internet is fine" at its word: every clause that
+    /// names the modem, the internet, the connection or a light must keep a fault in view (name it,
+    /// negate, or advise), and must not call it healthy or say nothing is wrong. A false drop only
+    /// hides the text; the findings stay.
+    static func clearsTheModem(_ text: String, light: TroubleshootFinding) -> Bool {
+        let subjects = modemSubjects.union(light.lights.flatMap { tokens($0.name) })
+        let clauses = text.components(separatedBy: CharacterSet(charactersIn: ".;!?\n"))
+            .flatMap { $0.components(separatedBy: " but ") }
+            .map { tokens($0).map { $0.hasSuffix("'s") ? String($0.dropLast(2)) : $0 } }
+        return clauses.contains { words in
+            guard words.contains(where: subjects.contains) else { return false }
+            let line = words.joined(separator: " ")
+            let allClear = ["no problem", "no issue", "nothing wrong", "nothing is wrong", "isn't the", "not the", "is not the"]
+            if allClear.contains(where: line.contains) {
+                return true
+            }
+            for (index, word) in words.enumerated() where modemHealthy.contains(word) {
+                let previous = index > 0 ? words[index - 1] : ""
+                if negators.contains(previous) || previous == "isn't" || (word == "up" && phrasalBeforeUp.contains(previous)) {
+                    continue
+                }
+                return true
+            }
+            return !words.contains(where: modemFaultOrAdvice.contains)
         }
     }
 

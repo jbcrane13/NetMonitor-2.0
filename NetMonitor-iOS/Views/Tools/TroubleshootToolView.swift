@@ -337,7 +337,9 @@ struct TroubleshootToolView: View {
                         .foregroundStyle(Theme.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("Read from a photo at \(reading.readAt.formatted(date: .omitted, time: .shortened)). "
+                // The reading lasts as long as this screen, so an older one says its day.
+                let day: Date.FormatStyle.DateStyle = Calendar.current.isDateInToday(reading.readAt) ? .omitted : .abbreviated
+                Text("Read from a photo at \(reading.readAt.formatted(date: day, time: .shortened)). "
                     + "\(ModemPanelReport.blinkingNote). \(ModemPanelReport.whiteLightNote)")
                     .font(.caption2)
                     .foregroundStyle(Theme.Colors.textSecondary)
