@@ -281,6 +281,8 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
     /// The list a device-row write may use (#628); `discoveredDevices` unless a test sets one.
     var observed: [DiscoveredDevice]?
     var observedDevices: [DiscoveredDevice] { observed ?? discoveredDevices }
+    /// False to act as a running scan whose token went stale (#628).
+    var observationsAreCurrent = true
     var scanCallCount = 0
     var lastScannedSubnet: String? = nil
     var lastScannedProfile: NetMonitorCore.NetworkProfile? = nil

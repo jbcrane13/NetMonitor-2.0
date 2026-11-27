@@ -128,6 +128,13 @@ final class DeviceRecordUpdaterTests {
         finishScan([unfiled], on: discovery, updater: updater, clock: clock)
         #expect(try rows(context).isEmpty)
 
+        // Devin review on #633: the whole scan is dropped, devices that carry a network too.
+        clock.now = start.addingTimeInterval(30)
+        discovery.completedScanToken = join.token(for: home)
+        join.generation.notePathUpdate()
+        finishScan([device(1)], on: discovery, updater: updater, clock: clock)
+        #expect(try rows(context).isEmpty)
+
         // The next scan, with no path update since it started, is filed under the live network.
         clock.now = start.addingTimeInterval(60)
         discovery.completedScanToken = join.token(for: nil)

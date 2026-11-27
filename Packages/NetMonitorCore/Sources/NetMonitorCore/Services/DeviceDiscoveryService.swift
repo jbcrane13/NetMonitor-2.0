@@ -176,8 +176,12 @@ public final class DeviceDiscoveryService: DeviceDiscoveryServiceProtocol {
     /// The devices a device-row write may use (#628): the running scan's list while its token is
     /// current, else the list shown before it started, which a finished scan published.
     public var observedDevices: [DiscoveredDevice] {
-        guard isScanning, runningToken != nil, !joinClock.isCurrent(runningToken) else { return discoveredDevices }
-        return listBeforeScan
+        observationsAreCurrent ? discoveredDevices : listBeforeScan
+    }
+
+    /// False while a running scan's token is stale: its list may hold another network's devices.
+    public var observationsAreCurrent: Bool {
+        !isScanning || runningToken == nil || joinClock.isCurrent(runningToken)
     }
 
     private func performScan(subnet: String? = nil, profile: NetworkProfile? = nil) async {

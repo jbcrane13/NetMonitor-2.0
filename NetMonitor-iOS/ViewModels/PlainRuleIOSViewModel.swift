@@ -37,11 +37,13 @@ final class PlainRuleIOSViewModel {
     private let checkedPorts: [Int]
     /// Goes up with every request, so a port check that finishes after a newer one is dropped.
     private var generation = 0
-    /// A port check's result is saved on a row only if no path update happened while it ran (#628).
+    /// A draft's row is saved only if no path update happened since the request started (#628).
     private let joinClock: NetworkJoinClock
+    /// The path the current request started on, before the rule was parsed (#628).
+    private var requestToken: JoinToken?
 
-    /// Shown when the network changed while the port check ran: the draft isn't built on it.
-    static let networkChangedMessage = "The network changed while checking ports. Try again."
+    /// Shown when the network changed before a scanned device's row could be saved (#628).
+    static let networkChangedMessage = "The network changed before the device could be saved. Try again."
 
     init(
         parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared,
@@ -82,6 +84,7 @@ final class PlainRuleIOSViewModel {
     ) async {
         let devices = networkID.map { id in devices.filter { $0.networkProfileID == id } } ?? devices
         let scan = networkID.map { id in scan.filter { $0.networkProfileID == id } } ?? scan
+        requestToken = joinClock.token(for: networkID)
         self.scan = scan
         self.networkID = networkID
         self.context = context
@@ -213,16 +216,8 @@ final class PlainRuleIOSViewModel {
             // Discovery on iOS never records open ports, so a device a scan found has none: check
             // a few common ports now. This deliberately extends "a port the last scan found open"
             // (#572) to "a port found open now" (#578 review).
-            // The port found open is saved on the device's row only if no path update happened
-            // while the check ran (#628).
-            let token = joinClock.token(for: networkID)
             let found = await checkForOpenPort(on: draft.host)
             guard request == generation else { return }
-            guard joinClock.isCurrent(token) else {
-                refusal = Self.networkChangedMessage
-                scannedOnly = [:]
-                return
-            }
             guard let found else {
                 refusal = PlainRuleBuilder.cantCheckMessage(draft.name)
                 scannedOnly = [:]
@@ -232,8 +227,17 @@ final class PlainRuleIOSViewModel {
             draft.notes.insert(PlainRuleBuilder.foundNowNote(port: found, name: draft.name), at: min(1, draft.notes.count))
             remember([found], for: [draft.host])
         }
-        if let scanned = scannedOnly[draft.deviceID], let row = saveRow(for: scanned, openPort: draft.port) {
-            draft.deviceID = row.id
+        if let scanned = scannedOnly[draft.deviceID] {
+            // The scanned device and any port found open are this request's network's only if no
+            // path update happened since it started, before the rule was parsed (#628).
+            guard joinClock.isCurrent(requestToken) else {
+                refusal = Self.networkChangedMessage
+                scannedOnly = [:]
+                return
+            }
+            if let row = saveRow(for: scanned, openPort: draft.port) {
+                draft.deviceID = row.id
+            }
         }
         targetDraft = draft
         draftHost = draft.host

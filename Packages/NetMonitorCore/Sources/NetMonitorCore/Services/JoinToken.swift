@@ -94,8 +94,11 @@ public final class ReplacementScans {
         return true
     }
 
-    /// A scan saved, or the user started one: a new chain.
+    /// A scan saved, or the user started one: a new chain, and a replacement still waiting is no
+    /// longer needed.
     public func reset() {
+        pending?.cancel()
+        pending = nil
         attempts = 0
     }
 }

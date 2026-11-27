@@ -403,7 +403,10 @@ final class BackgroundTaskService {
         // `completedScanDevices` as its list. Its alerts come from the device events of the
         // reconcile that applied it, this one's or the foreground updater's, posted by the
         // device-event notifier (#603, #619); the task waits for them before it ends.
-        if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore {
+        // Only while no path update or resume happened since it started (#628), checked in the same
+        // main-actor block as the reconcile.
+        if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore,
+           NetworkJoinClock.shared.isCurrent(DeviceDiscoveryService.shared.completedScanToken) {
             reconcileSavedDevices(
                 DeviceDiscoveryService.shared.completedScanDevices, macSightings: DeviceDiscoveryService.shared.completedScanMacSightings,
                 scanDate: scanDate, network: network?.id

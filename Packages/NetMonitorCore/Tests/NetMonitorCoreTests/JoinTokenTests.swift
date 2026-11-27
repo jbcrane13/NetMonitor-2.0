@@ -163,6 +163,18 @@ struct ReplacementScansTests {
         #expect(started == 3)
     }
 
+    /// Devin review on #633: a scan that saves while a replacement waits makes it unneeded.
+    @Test func aResetCancelsAWaitingReplacement() async {
+        let generation = JoinGeneration()
+        let replacements = ReplacementScans(generation: generation) { _ in try? await Task.sleep(for: .seconds(30)) }
+        var started = 0
+        replacements.scanDropped { started += 1 }
+        replacements.reset()
+        await drain()
+        #expect(started == 0)
+        #expect(replacements.attempts == 0)
+    }
+
     @Test func dropsWhileOneIsPendingAreCoalesced() async {
         let generation = JoinGeneration()
         let gate = Gate()

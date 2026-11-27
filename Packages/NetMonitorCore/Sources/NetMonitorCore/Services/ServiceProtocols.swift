@@ -168,6 +168,8 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     /// The devices a device-row write may use (#628): the running scan's list while no path update
     /// or resume happened since it started, else the list shown before it started (a finished scan).
     @MainActor var observedDevices: [DiscoveredDevice] { get }
+    /// False while a running scan's token is stale (#628): what it lists may be another network's.
+    @MainActor var observationsAreCurrent: Bool { get }
     @MainActor func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice]
     func scanNetwork(subnet: String?) async
     func scanNetwork(profile: NetworkProfile?) async
@@ -184,6 +186,7 @@ public extension DeviceDiscoveryServiceProtocol {
     var completedScanToken: JoinToken? { nil }
     /// For a conformer whose list only ever holds finished scans.
     var observedDevices: [DiscoveredDevice] { discoveredDevices }
+    var observationsAreCurrent: Bool { true }
 }
 
 /// Protocol for default gateway detection.

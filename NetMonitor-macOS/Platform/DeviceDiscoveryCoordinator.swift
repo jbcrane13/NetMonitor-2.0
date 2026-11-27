@@ -473,8 +473,10 @@ final class DeviceDiscoveryCoordinator {
     func commitScan(_ scan: [DiscoveredDevice], profileID: UUID?, now: Date, token: JoinToken) -> ScanCommit {
         guard joinClock.isCurrent(token) else {
             Logger.discovery.notice("Scan dropped: the network path changed while it ran")
+            // A manual network is scanned again; the local network is re-read when it starts.
+            let manual = networkProfile.flatMap { $0.id == profileID && $0.discoveryMethod != .auto ? $0 : nil }
             replacementScans.scanDropped { [weak self] in
-                _ = self?.rescan(.replacement)
+                _ = self?.rescan(.replacement(manual: manual))
             }
             return .dropped
         }

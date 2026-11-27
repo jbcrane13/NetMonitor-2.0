@@ -114,6 +114,17 @@ final class DeviceDetailViewModel {
         let live = Self.liveScan(deviceDiscoveryService)
         let scanned = live.first { $0.ipAddress == ipAddress && (networkID == nil || $0.networkProfileID == networkID) }
         let network = networkID ?? scanned?.networkProfileID
+        // The tapped entry came from a running scan a path change invalidated (#628): it may be
+        // another network's device, so open the saved row it names, never make or move one.
+        guard scanned != nil || deviceDiscoveryService.observationsAreCurrent else {
+            let row = Self.existingRow(ipAddress: ipAddress, macAddress: macAddress, networkID: network, in: context)
+            openedMember = row
+            showDevice(of: row)
+            if row == nil {
+                error = Self.interruptedScanMessage
+            }
+            return
+        }
         let row = Self.savedRow(
             ipAddress: ipAddress,
             scanned: scanned,
@@ -135,6 +146,18 @@ final class DeviceDetailViewModel {
             return
         }
         Self.adopt(scanned, into: row)
+    }
+
+    /// Shown when the tapped device was seen only by a scan a network change interrupted (#628).
+    static let interruptedScanMessage = "The network changed during the scan that found this device. Scan again to open it."
+
+    /// The saved row on `networkID` with `macAddress`'s real MAC, else at `ipAddress`; read only.
+    static func existingRow(ipAddress: String, macAddress: String?, networkID: UUID?, in context: ModelContext) -> LocalDevice? {
+        let rows = ((try? context.fetch(FetchDescriptor<LocalDevice>())) ?? []).filter { $0.networkProfileID == networkID }
+        if let mac = DeviceMatcher.normalizedMAC(macAddress), let row = rows.first(where: { DeviceMatcher.normalizedMAC($0.macAddress) == mac }) {
+            return row
+        }
+        return rows.first { $0.ipAddress == ipAddress }
     }
 
     /// Merges what a scan knows into a saved row, as detail does when it opens: maker, model and

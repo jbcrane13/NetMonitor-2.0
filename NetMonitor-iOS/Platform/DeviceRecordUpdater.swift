@@ -40,6 +40,8 @@ final class DeviceRecordUpdater {
         let macSightings: [DiscoveredDevice]
         let network: UUID?
         let reconciledAt: Date
+        /// The path the scan started on (#628); nil for a conformer that doesn't stamp scans.
+        let token: JoinToken?
         /// The join the scan started under; nil when its start wasn't seen.
         let joinedAtStart: Date?
         var attempts = 0
@@ -103,12 +105,9 @@ final class DeviceRecordUpdater {
         }
         if !isScanning, let scanDate = discoveryService.lastScanDate, scanDate != capturedScanDate {
             capturedScanDate = scanDate
-            // The live network names a device the scan saved without one only while no path update
-            // or resume happened since that scan started (#628): otherwise the phone may have left it.
-            let stillOnScannedPath = discoveryService.completedScanToken.map { joinClock.isCurrent($0) } ?? true
             pending.append(CompletedScan(
                 date: scanDate, devices: discoveryService.completedScanDevices, macSightings: discoveryService.completedScanMacSightings,
-                network: stillOnScannedPath ? currentNetworkProfileID() : nil, reconciledAt: clock(), joinedAtStart: scanJoin
+                network: currentNetworkProfileID(), reconciledAt: clock(), token: discoveryService.completedScanToken, joinedAtStart: scanJoin
             ))
             scanJoin = nil
             if pending.count > Self.maxPending {
@@ -118,6 +117,14 @@ final class DeviceRecordUpdater {
         }
         while !pending.isEmpty {
             let scan = pending[0]
+            // A path update or resume since the scan started (#628): its devices, and the live network
+            // read for those without one, may not be that network's now. Checked right before the
+            // reconcile, in the same main-actor block, retries included.
+            if let token = scan.token, !joinClock.isCurrent(token) {
+                Logger.data.notice("Dropping a scan: the network path changed since it started")
+                pending.removeFirst()
+                continue
+            }
             if Self.reconcile(
                 scan.devices, macSightings: scan.macSightings, scanDate: scan.date, network: scan.network, with: reconciler, now: scan.reconciledAt
             ) {
