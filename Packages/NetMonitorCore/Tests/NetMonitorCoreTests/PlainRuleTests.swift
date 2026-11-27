@@ -71,6 +71,8 @@ struct PlainRuleTests {
         #expect(threshold(250, "NAS ping over 250 ms for 5 minutes") == 250)
         #expect(threshold(80, "If the Apple TV latency is above 80ms for half an hour, notify me") == 80)
         #expect(threshold(20000, "NAS latency over 20000 ms") == nil, "out of range")
+        #expect(threshold(250, "NAS latency exceeds 250.0 ms") == 250, "a zero fraction is the whole number")
+        #expect(threshold(250, "NAS latency exceeds 250.5 ms") == nil)
     }
 
     @Test("a duration over a day is dropped and flagged (#586)")

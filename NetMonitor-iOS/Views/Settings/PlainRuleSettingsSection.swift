@@ -21,8 +21,10 @@ struct PlainRuleSettingsSection: View {
         Section {
             if viewModel.isAvailable {
                 describeField
-                outcome
             }
+            // A draft stays to confirm or cancel even if the model goes away meanwhile: confirming
+            // needs no model.
+            outcome
             ForEach(targets) { target in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(target.name)

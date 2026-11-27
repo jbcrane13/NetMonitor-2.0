@@ -83,5 +83,7 @@ struct SymptomIntentTests {
         #expect(host("example.com", "Is example.com down?") == "example.com")
         #expect(host("example.com", "I can't open example.com.") == "example.com")
         #expect(host("github.com", "github.com won't open") == "github.com")
+        #expect(host("https://example.com/login", "https://example.com/login won't load") == "example.com", "a copied URL counts by its host")
+        #expect(host("https://ample.com/login", "https://example.com/login won't load") == nil)
     }
 }

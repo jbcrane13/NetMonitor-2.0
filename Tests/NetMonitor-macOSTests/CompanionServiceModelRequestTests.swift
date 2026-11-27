@@ -23,6 +23,14 @@ struct CompanionServiceModelRequestTests {
         return phone
     }
 
+    /// Waits until the Mac has handled every frame sent before now: frames on a link are handled
+    /// in order, so once a heartbeat sent after them reaches the handler, they have been too.
+    private static func drain(_ phone: TestCompanionPhone, _ mac: TestMac) async {
+        let before = mac.handled.filter { $0 == "heartbeat" }.count
+        phone.send(.heartbeat(HeartbeatPayload()))
+        _ = await poll { mac.handled.filter { $0 == "heartbeat" }.count > before }
+    }
+
     private static func modelResponse(_ phone: TestCompanionPhone, timeout: Duration = .seconds(3)) async -> ModelResponsePayload? {
         guard case .modelResponse(let response)? = await phone.message(timeout: timeout, where: {
             if case .modelResponse = $0 {
@@ -63,11 +71,11 @@ struct CompanionServiceModelRequestTests {
         phone.send(Self.modelRequest(id))
         #expect(await poll { await release.waiters == 1 })
         phone.send(Self.modelRequest(id))
-        try await Task.sleep(for: .milliseconds(300))
+        await Self.drain(phone, mac)
         #expect(await release.waiters == 1, "the duplicate never started")
         await release.open()
         #expect(await poll { mac.handled.contains("modelRequest") })
-        try await Task.sleep(for: .milliseconds(200))
+        await Self.drain(phone, mac)
         #expect(mac.handled.filter { $0 == "modelRequest" }.count == 1)
     }
 
@@ -82,7 +90,9 @@ struct CompanionServiceModelRequestTests {
         phone.send(Self.modelRequest(id))
         #expect(await poll { await pause.waiters > 0 })
         phone.send(.modelCancel(ModelCancelPayload(requestID: id)))
-        try await Task.sleep(for: .milliseconds(200))
+        // The heartbeat reaches the handler (which records it, then pauses) only after the cancel
+        // before it was handled.
+        await Self.drain(phone, mac)
         await pause.open()
         #expect(await Self.modelResponse(phone, timeout: .milliseconds(600)) == nil, "a cancelled request gets no reply")
         phone.send(Self.modelRequest(id))

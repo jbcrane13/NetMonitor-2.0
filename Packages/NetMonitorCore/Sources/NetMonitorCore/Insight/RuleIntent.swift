@@ -112,17 +112,21 @@ public struct RuleIntent: Sendable, Equatable {
     }
 
     /// Whole numbers in `text` that no time unit follows: in "over 250 ms for 5 minutes", 250.
+    /// A decimal counts only when its fraction is zero: "250.0 ms" is 250.
     static func thresholds(in text: String) -> Set<Int> {
         let tokens = SpokenDuration.tokens(text)
         var found: Set<Int> = []
-        for (index, token) in tokens.enumerated() where token.allSatisfy(\.isNumber) {
+        for (index, token) in tokens.enumerated() where token.first?.isNumber == true {
             let next = index + 1 < tokens.count ? tokens[index + 1] : nil
             if let next, SpokenDuration.isTimeUnit(next) {
                 continue
             }
-            if let value = Int(token) {
-                found.insert(value)
+            // "250.0" is 250; "250.5" is no whole number, so no threshold.
+            let parts = token.split(separator: ".", omittingEmptySubsequences: false)
+            guard parts.count <= 2, parts.dropFirst().allSatisfy({ $0.allSatisfy { $0 == "0" } }), let value = Int(parts[0]) else {
+                continue
             }
+            found.insert(value)
         }
         return found
     }

@@ -59,7 +59,7 @@ public struct SymptomIntent: Sendable, Equatable {
     /// - each copied phrase is kept only when every word of it is in `input`, so no device, place or
     ///   address originates from the model ("Netflix won't load" never becomes "netflix.com");
     /// - the host is kept only when it is a whole name in `input`: `ample.com` is not in
-    ///   "example.com won't load" (#586);
+    ///   "example.com won't load" (#586). A copied URL counts by its host;
     /// - an empty phrase means none.
     ///
     /// The answer may come from this device's model or the Mac's (#586): both get these checks.
@@ -75,9 +75,12 @@ public struct SymptomIntent: Sendable, Equatable {
         if kind == .deviceUnreachable {
             intent.devicePhrase = copied(devicePhrase)
         }
-        if kind == .websiteNotLoading, let host = host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-           !host.isEmpty, hostNames(in: input).contains(host) {
-            intent.host = host
+        // A copied URL counts by its host: "https://example.com/login" → "example.com".
+        if kind == .websiteNotLoading, let copied = host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !copied.isEmpty {
+            let host = TroubleshootState.hostName(copied) ?? copied
+            if hostNames(in: input).contains(host) {
+                intent.host = host
+            }
         }
         return intent
     }

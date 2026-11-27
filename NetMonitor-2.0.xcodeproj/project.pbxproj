@@ -611,6 +611,7 @@
 		DF6BC00231E6C72864EAEB70 /* TracerouteToolUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B066F0CD9CFC336ED86D3E /* TracerouteToolUITests.swift */; };
 		DFBBF93D85E9038D8B07E5EE /* EventListenerServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F566B193A0894428EF6E3382 /* EventListenerServiceTests.swift */; };
 		DFDE9EB7E6C9B9E7160E7108 /* MacInventoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E341ADAA34259EFA992ADC62 /* MacInventoryViews.swift */; };
+		E005B6754908CC650C70350A /* MacModelConsentViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28A071BD32F3F0011BFCC19A /* MacModelConsentViewModelTests.swift */; };
 		E0DA49BE8F96A250A83B3A14 /* PlainRuleIOSViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D7AAE0445651E59CC33832C /* PlainRuleIOSViewModel.swift */; };
 		E1BEA5BC9AE74891A115E05E /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EA4662449985A11EB4F4E7C /* DeepLinkRouter.swift */; };
 		E1D58C3DDD0809F181AF580F /* WorldPingToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 438C3AA19D5D1840BB273D64 /* WorldPingToolView.swift */; };
@@ -851,6 +852,7 @@
 		2746D96C15673D48AAA752C2 /* NetworkScanActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkScanActivity.swift; sourceTree = "<group>"; };
 		280555CE0EE7DAEEE8C2D0F4 /* UniFiSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniFiSettingsSection.swift; sourceTree = "<group>"; };
 		28840E366E12B65E3AAD7F2E /* ToolInputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolInputField.swift; sourceTree = "<group>"; };
+		28A071BD32F3F0011BFCC19A /* MacModelConsentViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacModelConsentViewModelTests.swift; sourceTree = "<group>"; };
 		2926D7C25A7E15A889609FFE /* FunctionalSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FunctionalSmokeTests.swift; sourceTree = "<group>"; };
 		294BE57FBA3FFA271BE7B9B5 /* MockURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLProtocol.swift; sourceTree = "<group>"; };
 		2A385E58594F43F7929CB055 /* DeviceDiscoveryCoordinatorSaveErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorSaveErrorTests.swift; sourceTree = "<group>"; };
@@ -2034,6 +2036,7 @@
 				6FD6C6F1D69669E8BECE28CF /* MacConnectionServiceReceiveBufferTests.swift */,
 				AAE65435D045DE3913F261E2 /* MacConnectionServiceTests.swift */,
 				6A8FE400541076FB53B41AB7 /* MacInventoryModelTests.swift */,
+				28A071BD32F3F0011BFCC19A /* MacModelConsentViewModelTests.swift */,
 				D2ED1CFE55D725FC49AECC6F /* ModemLightsViewModelTests.swift */,
 				00E1674589A71F5BF148C46E /* MonitoringTargetProbeTests.swift */,
 				4B552D58968F75459B0868D2 /* NetMonitor_iOSTests.swift */,
@@ -3154,6 +3157,7 @@
 				A8D65DDFD2B7DE5CBD3E95D8 /* MacConnectionServiceReceiveBufferTests.swift in Sources */,
 				FCA315A518D23CDA19CC8527 /* MacConnectionServiceTests.swift in Sources */,
 				EC5631DE32065AF3DC2633CC /* MacInventoryModelTests.swift in Sources */,
+				E005B6754908CC650C70350A /* MacModelConsentViewModelTests.swift in Sources */,
 				67A14F64E06F67AD2C5D5442 /* MockInsightService.swift in Sources */,
 				06BCBD8250060728E8A46DEE /* MockURLProtocol.swift in Sources */,
 				31AAD5D56FA81497B40F3236 /* ModemLightsViewModelTests.swift in Sources */,

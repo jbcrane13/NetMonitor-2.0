@@ -13,7 +13,7 @@ public final class PlainRuleComposer {
     public private(set) var answerSource: InsightSource?
 
     /// Shown when the Mac didn't answer: busy, gone, or too slow (#586).
-    public static let macUnavailableMessage = "Your Mac couldn't read this right now. Try again in a moment, or add the rule below."
+    public static let macUnavailableMessage = "Your Mac couldn't read this right now. Try again in a moment."
 
     private let parser: any RuleIntentParsing
     private let platform: RulePlatform

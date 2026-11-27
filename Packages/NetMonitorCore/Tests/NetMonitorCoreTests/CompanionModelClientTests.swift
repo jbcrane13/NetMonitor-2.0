@@ -79,16 +79,21 @@ struct CompanionModelClientTests {
         #expect(await result.value == .output(.rules(Self.rule)))
     }
 
-    @Test("a reply on another link, or for another schema, isn't used")
+    @Test("a reply on another link is ignored; one for another schema fails the request at once")
     func wrongLinkOrSchema() async throws {
-        let (client, link) = Self.makeClient(timeout: .milliseconds(300))
+        let (client, link) = Self.makeClient(timeout: .seconds(5))
         let linkID = UUID()
         client.received(heartbeat: Self.offering, onLink: linkID)
+        let started = ContinuousClock.now
         let result = Task { await client.request(.rules(text: "tell me if the NAS goes offline")) }
         let id = try #require(await Self.sentRequest(link))
+        // Another link's reply is ignored: the request is still pending.
         client.received(ModelResponsePayload(requestID: id, output: .rules(Self.rule)), onLink: UUID())
+        // A reply on its own link for another schema breaks the rules: the request fails at once,
+        // rather than waiting out its timeout for an answer this Mac won't give.
         client.received(ModelResponsePayload(requestID: id, output: .symptoms(SymptomIntentRaw(kind: "weakWiFi"))), onLink: linkID)
         #expect(await result.value == .unavailable)
+        #expect(ContinuousClock.now - started < .seconds(2))
     }
 
     @Test("busy is reported as busy; the phone can try again")
