@@ -432,8 +432,8 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
     // MARK: - Helpers
 
-    /// Open a pop-up picker, choose an option other than the current one, and
-    /// verify the picker shows it. The menu is read from the picker itself:
+    /// Open a pop-up picker, choose an option other than the current one,
+    /// verify the picker shows it, and put the original back. The menu is read from the picker itself:
     /// `app.menuItems` starts with the Apple menu in the menu bar.
     private func selectDifferentOption(in picker: XCUIElement) {
         let valueBefore = stringValue(picker)
@@ -454,5 +454,10 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
         XCTAssertEqual(stringValue(picker), chosen,
                        "\(picker) should show the option that was selected")
+
+        // Restore the original option: the ping count is saved in app settings.
+        picker.click()
+        requireExists(picker.menuItems[valueBefore], timeout: 3,
+                      message: "\(picker) should still offer '\(valueBefore)'").click()
     }
 }
