@@ -342,7 +342,10 @@ final class DashboardViewModel {
         // describes the old one, and scanning it would only find (and keep) its devices.
         refreshAvailableNetworks()
         let profile = activeNetwork
+        let dropped = deviceDiscoveryService.droppedScanCount
         await deviceDiscoveryService.scanNetwork(profile: profile)
+        // A scan dropped because its token went stale leaves no trace (#628).
+        guard deviceDiscoveryService.droppedScanCount == dropped else { return }
         updateScanMetadata(for: profile)
 
         let scoped = scopedDevices(from: deviceDiscoveryService.discoveredDevices)

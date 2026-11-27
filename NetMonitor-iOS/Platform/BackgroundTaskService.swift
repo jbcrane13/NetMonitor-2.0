@@ -406,11 +406,12 @@ final class BackgroundTaskService {
         // Only while no path update or resume happened since it started (#628), checked in the same
         // main-actor block as the reconcile.
         if let scanDate = DeviceDiscoveryService.shared.lastScanDate, scanDate != scanBefore,
-           NetworkJoinClock.shared.isCurrent(DeviceDiscoveryService.shared.completedScanToken) {
-            reconcileSavedDevices(
-                DeviceDiscoveryService.shared.completedScanDevices, macSightings: DeviceDiscoveryService.shared.completedScanMacSightings,
-                scanDate: scanDate, network: network?.id
-            )
+           NetworkJoinClock.shared.isCurrent(DeviceDiscoveryService.shared.completedScanToken),
+           reconcileSavedDevices(
+               DeviceDiscoveryService.shared.completedScanDevices, macSightings: DeviceDiscoveryService.shared.completedScanMacSightings,
+               scanDate: scanDate, network: network?.id
+           ) {
+            ScanRecovery.shared.scanSaved()
         }
         await deviceEventAlertsPosted()
     }
@@ -424,12 +425,13 @@ extension BackgroundTaskService {
     /// the app's own container, so the next look at a device shows this scan. A device that carries
     /// no network is `network`'s, the live network when the scan started; with none, nothing is
     /// saved. The foreground updater skips the same scan.
-    func reconcileSavedDevices(_ devices: [DiscoveredDevice], macSightings: [DiscoveredDevice] = [], scanDate: Date, network: UUID?) {
+    @discardableResult
+    func reconcileSavedDevices(_ devices: [DiscoveredDevice], macSightings: [DiscoveredDevice] = [], scanDate: Date, network: UUID?) -> Bool {
         guard let container = AppModelStore.sharedContainer() else {
             Self.logger.error("Failed to open the store to save scanned devices")
-            return
+            return false
         }
-        Self.reconcileAndPublish(
+        return Self.reconcileAndPublish(
             devices, macSightings: macSightings, scanDate: scanDate, network: network, in: container, dispatcher: DeviceEventDispatcher.shared
         )
     }

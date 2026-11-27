@@ -7,6 +7,30 @@ import Testing
 
 /// #628 PR A: a Mac scan is saved to device rows only if no path update or resume happened since
 /// it started; a dropped scan writes nothing and schedules one replacement.
+@MainActor
+private func waitUntil(timeout: Duration = .seconds(10), _ condition: () -> Bool) async {
+    let deadline = ContinuousClock.now + timeout
+    while !condition(), ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+}
+
+/// Answers one device and simulates a path update while the scan runs.
+private struct PathChangePhase: ScanPhase, Sendable {
+    let id: ScanPhaseID = "joinTokenPathChange"
+    let displayName = "Path change"
+    let weight: Double = 1.0
+    let generation: JoinGeneration
+
+    func execute(context: ScanContext, accumulator: ScanAccumulator, onProgress: @Sendable (Double) async -> Void) async {
+        await accumulator.upsert(DiscoveredDevice(
+            ipAddress: "10.0.0.30", hostname: "printer", vendor: nil, macAddress: nil, latency: 4, discoveredAt: Date(), source: .local
+        ))
+        generation.notePathUpdate()
+        await onProgress(1)
+    }
+}
+
 @Suite("DeviceDiscoveryCoordinator join tokens (#628)", .serialized)
 @MainActor
 struct DeviceDiscoveryCoordinatorJoinTokenTests {
@@ -63,11 +87,26 @@ struct DeviceDiscoveryCoordinatorJoinTokenTests {
 
         let commit = coordinator.commitScan(
             [DeviceDiscoveryCoordinatorReconcileTests.engine("10.0.0.21", "nas")], profileID: home,
-            now: Date(timeIntervalSince1970: 1_790_000_060), token: join.token(for: home)
+            now: Date(timeIntervalSince1970: 1_790_000_060), token: join.token(for: nil)
         )
         #expect(commit == .applied)
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
         #expect(coordinator.replacementScans.attempts == 0)
+    }
+
+    /// Lead review on #633: a token naming a network the Mac is no longer on (here, one its
+    /// manager doesn't know) is not current even without a path update.
+    @Test func aTokenForANetworkTheMacLeftDropsTheScan() throws {
+        let (container, context) = try base.makeStore()
+        _ = container
+        let join = makeJoinClock()
+        let coordinator = base.makeCoordinator(context, clock: TestClock(Date(timeIntervalSince1970: 1_790_000_000)), joinClock: join)
+        let commit = coordinator.commitScan(
+            [DeviceDiscoveryCoordinatorReconcileTests.engine("10.0.0.23", "tv")], profileID: home,
+            now: Date(timeIntervalSince1970: 1_790_000_060), token: join.token(for: home)
+        )
+        #expect(commit == .dropped)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
     }
 
     @Test func aResumeDropsTheScan() throws {
@@ -98,5 +137,43 @@ struct DeviceDiscoveryCoordinatorJoinTokenTests {
         #expect(row.lastLatency == nil)
         coordinator.stopScan()
         #expect(coordinator.progressiveLatency.isEmpty)
+    }
+
+    /// Lead review on #633: a dropped scan leaves no trace: no last scan time, no review-prompt
+    /// count, no profile scan info, no rows.
+    @Test func aDroppedScanLeavesNoTrace() async throws {
+        let (container, context) = try base.makeStore()
+        _ = container
+        let join = makeJoinClock()
+        let generation = join.generation
+        let defaults = try #require(UserDefaults(suiteName: "join-token-review-\(UUID().uuidString)"))
+        let coordinator = DeviceDiscoveryCoordinator(
+            modelContext: context,
+            bonjourScanner: BonjourDiscoveryService(),
+            networkProfileManager: NetworkProfileManager(userDefaults: InMemoryDefaults(), activeProfilesProvider: { [] }),
+            pipelineFactory: { _ in ScanPipeline(steps: [ScanPipeline.Step(phases: [PathChangePhase(generation: generation)], concurrent: false)]) },
+            portChecker: { _, _, _ in false },
+            reviewPrompt: ReviewPromptPolicy(defaults: defaults, requestReview: { false }),
+            scanHistory: .forTesting(),
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: join
+        )
+
+        coordinator.startScan()
+        await waitUntil { !coordinator.isScanning }
+        #expect(coordinator.lastScanTime == nil)
+        #expect(defaults.integer(forKey: "reviewPrompt_completedScanCount") == 0)
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+        #expect(coordinator.replacementScans.attempts == 1)
+        coordinator.stopScan()
+    }
+}
+
+@MainActor
+extension NetworkJoinClock {
+    /// A clock of the test's own (#628): the shared one counts this Mac's real path updates, which
+    /// would drop a test's scans at random.
+    static var forTests: NetworkJoinClock {
+        NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
     }
 }

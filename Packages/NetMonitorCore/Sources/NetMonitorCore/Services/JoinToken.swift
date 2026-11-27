@@ -9,6 +9,10 @@ import os
 public struct JoinToken: Sendable, Equatable {
     public let generation: UInt64
     public let networkID: UUID?
+
+    /// For results observed before this launch (a list cached on disk): never current, so they're
+    /// shown but never written to device rows.
+    public static let unverified = JoinToken(generation: .max, networkID: nil)
 }
 
 /// Counts path updates as the path monitor reports them (#628): written on the monitor's own queue,

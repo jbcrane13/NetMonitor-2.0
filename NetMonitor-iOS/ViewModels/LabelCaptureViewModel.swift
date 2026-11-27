@@ -34,6 +34,9 @@ final class LabelCaptureViewModel: PhotoReading {
     private let reader: LabelReader
     private let isScanning: @MainActor () -> Bool
     private let liveScan: @MainActor () -> [DiscoveredDevice]
+    /// The token `liveScan` was observed under (#628); nil for a list that isn't stamped.
+    private let liveScanToken: @MainActor () -> JoinToken?
+    private let joinClock: NetworkJoinClock
     private let testImage: @MainActor () -> CGImage?
     /// The device's primary row (#594): the maker, model and serial are written here.
     private var device: LocalDevice?
@@ -45,11 +48,15 @@ final class LabelCaptureViewModel: PhotoReading {
         reader: LabelReader = LabelCaptureViewModel.makeReader(),
         isScanning: @escaping @MainActor () -> Bool = { DeviceDiscoveryService.shared.isScanning },
         liveScan: @escaping @MainActor () -> [DiscoveredDevice] = { DeviceDetailViewModel.liveScan() },
+        liveScanToken: @escaping @MainActor () -> JoinToken? = { DeviceDiscoveryService.shared.discoveredDevicesToken },
+        joinClock: NetworkJoinClock = .shared,
         testImage: @escaping @MainActor () -> CGImage? = { UITestBootstrap.usesTestLabelImage ? UITestBootstrap.testLabelImage() : nil }
     ) {
         self.reader = reader
         self.isScanning = isScanning
         self.liveScan = liveScan
+        self.liveScanToken = liveScanToken
+        self.joinClock = joinClock
         self.testImage = testImage
     }
 
@@ -185,6 +192,12 @@ final class LabelCaptureViewModel: PhotoReading {
             // The owner's device, whichever interface has the MAC: its primary takes the fields.
             target = DeviceGroupResolver(rows: savedRows()).device(for: id)?.primary
         case let .scanned(ipAddress):
+            // A row is made from the scan only while the token it was observed under is current
+            // (#628), checked in this block, before the write. The review and its fields stay.
+            guard DeviceDetailViewModel.observationIsCurrent(liveScanToken(), on: joinClock) else {
+                saveError = Self.networkChangedMessage
+                return
+            }
             let network = scan(for: device)
             target = network.first { $0.ipAddress == ipAddress }.map { observed in
                 DeviceDetailViewModel.savedRow(
@@ -199,6 +212,9 @@ final class LabelCaptureViewModel: PhotoReading {
             phase = .savedToOther(name: DeviceGroupResolver(rows: savedRows()).device(for: target.id)?.displayName ?? target.displayName)
         }
     }
+
+    /// Shown when the scan that found the MAC's owner is no longer current (#628).
+    static let networkChangedMessage = "The network changed. Scan again to attach this to a device."
 
     func dismissSaveError() {
         saveError = nil

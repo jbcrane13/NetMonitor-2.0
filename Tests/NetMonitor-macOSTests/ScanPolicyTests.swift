@@ -136,7 +136,8 @@ struct ScanPolicyCoordinatorTests {
             networkProfileManager: manager,
             pipelineFactory: { _ in ScanPipeline(steps: [ScanPipeline.Step(phases: [HoldPolicyScanPhase()], concurrent: false)]) },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         return (coordinator, manager, container)
     }

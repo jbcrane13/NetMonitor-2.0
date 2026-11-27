@@ -83,12 +83,15 @@ final class DeviceRecordUpdaterTests {
             discoveryService: discovery, reconciler: makeReconciler(context), currentNetworkProfileID: { self.home },
             clock: { clock.now }, joinClock: join
         )
+        // One guard (#628): the scan's token, taken when it starts.
+        discovery.completedScanToken = join.token(for: nil)
         finishScan([device(0)], on: discovery, updater: updater, clock: clock)
         #expect(join.establishedAt == start)
 
         // A move during the next scan: it doesn't establish network B.
         discovery.isScanning = true
         updater.handleScanChange()
+        discovery.completedScanToken = join.token(for: nil)
         path.yield("satisfied|wifi-en0|network-b")
         let deadline = ContinuousClock.now + .seconds(5)
         while join.establishedAt != nil, ContinuousClock.now < deadline {
@@ -104,9 +107,9 @@ final class DeviceRecordUpdaterTests {
 
     // MARK: - Join tokens (#628)
 
-    /// A device the scan saved without a network is filed under the live network only while no
-    /// path update happened since the scan started: after one, the phone may have left it.
-    @Test func aDeviceWithoutANetworkIsNotFiledUnderTheLiveNetworkAfterAPathUpdate() throws {
+    /// A scan whose token went stale between publish and reconcile is dropped whole, devices with a
+    /// network of their own too, and a replacement is asked for (lead review on #633).
+    @Test func aScanInvalidatedBetweenPublishAndReconcileIsDroppedAndReplaced() throws {
         let (container, context) = try makeStore()
         defer { withExtendedLifetime(container) {} }
         let discovery = MockDeviceDiscoveryService()
@@ -114,9 +117,11 @@ final class DeviceRecordUpdaterTests {
         let (changes, _) = AsyncStream<String>.makeStream()
         let join = NetworkJoinClock(changes: changes)
         join.generation.notePathUpdate()
+        var drops = 0
+        var saves = 0
         let updater = try DeviceRecordUpdater(
             discoveryService: discovery, reconciler: makeReconciler(context), currentNetworkProfileID: { self.home },
-            clock: { clock.now }, joinClock: join
+            clock: { clock.now }, joinClock: join, onDropped: { drops += 1 }, onSaved: { _, _ in saves += 1 }
         )
         let unfiled = DiscoveredDevice(
             ipAddress: "192.168.9.10", hostname: "host-0", vendor: nil, macAddress: "AA:00:00:00:09:00",
@@ -127,6 +132,7 @@ final class DeviceRecordUpdaterTests {
         join.generation.notePathUpdate()
         finishScan([unfiled], on: discovery, updater: updater, clock: clock)
         #expect(try rows(context).isEmpty)
+        #expect(drops == 1)
 
         // Devin review on #633: the whole scan is dropped, devices that carry a network too.
         clock.now = start.addingTimeInterval(30)
@@ -134,12 +140,15 @@ final class DeviceRecordUpdaterTests {
         join.generation.notePathUpdate()
         finishScan([device(1)], on: discovery, updater: updater, clock: clock)
         #expect(try rows(context).isEmpty)
+        #expect(drops == 2)
+        #expect(saves == 0)
 
         // The next scan, with no path update since it started, is filed under the live network.
         clock.now = start.addingTimeInterval(60)
         discovery.completedScanToken = join.token(for: nil)
         finishScan([unfiled], on: discovery, updater: updater, clock: clock)
         #expect(try rows(context).map(\.networkProfileID) == [home])
+        #expect(saves == 1)
     }
 
     func rows(_ context: ModelContext) throws -> [LocalDevice] {

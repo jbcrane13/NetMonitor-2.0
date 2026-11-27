@@ -457,7 +457,8 @@ struct UITestScanFixtureTests {
             pipelineFactory: UITestScanFixture.pipelineFactory,
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         defer { coordinator.stopScan() }
         UITestScanFixture.recordBaseline(in: coordinator, profileID: networkID)
@@ -503,7 +504,8 @@ struct UITestScanFixtureTests {
             pipelineFactory: UITestScanFixture.pipelineFactory,
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         defer { coordinator.stopScan() }
         let events = NetworkEventService()

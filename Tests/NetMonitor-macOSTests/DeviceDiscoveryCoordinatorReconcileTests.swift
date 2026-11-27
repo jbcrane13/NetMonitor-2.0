@@ -79,7 +79,7 @@ struct DeviceDiscoveryCoordinatorReconcileTests {
         _ context: ModelContext,
         clock: TestClock,
         pipeline: (@Sendable (ScanPipelineInputs) -> ScanPipeline)? = nil,
-        joinClock: NetworkJoinClock = .shared
+        joinClock: NetworkJoinClock = .forTests
     ) -> DeviceDiscoveryCoordinator {
         return DeviceDiscoveryCoordinator(
             modelContext: context,

@@ -166,7 +166,10 @@ final class NetworkMapViewModel {
             return
         }
         let profile = activeNetwork
+        let dropped = deviceDiscoveryService.droppedScanCount
         await deviceDiscoveryService.scanNetwork(profile: profile)
+        // A scan dropped because its token went stale leaves no trace (#628).
+        guard deviceDiscoveryService.droppedScanCount == dropped else { return }
         updateScanMetadata(for: profile)
         reviewPrompt?.recordScanCompleted()
     }

@@ -187,9 +187,10 @@ struct DeviceDetailViewModelTests {
         #expect(viewModel.device?.openPorts == [22])
     }
 
-    /// #628 (Devin review on #633): a device listed only by a running scan a path change invalidated
-    /// opens no row: none is made or moved, and the user is told to scan again.
-    @Test func aDeviceFromAnInterruptedScanMakesNoRow() throws {
+    /// #628 (lead review on #633): a scan started on network A, then a path change. Opening a device
+    /// from its list inserts nothing and changes no saved row; the user is told to scan again. A
+    /// saved device it names opens read-only, and a user edit to it still saves.
+    @Test func aScanInvalidatedByAPathChangeWritesNothingFromDetailButEditsSave() throws {
         let schema = Schema([LocalDevice.self])
         let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: schema, configurations: [config])
@@ -197,19 +198,57 @@ struct DeviceDetailViewModelTests {
         let network = UUID()
         let saved = LocalDevice(ipAddress: "192.168.1.30", macAddress: "", hostname: "nas", networkProfileID: network)
         context.insert(saved)
+        try context.save()
+        let join = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
         let discovery = MockDeviceDiscoveryService()
-        discovery.observationsAreCurrent = false
-        let viewModel = makeViewModel(deviceDiscoveryService: discovery)
+        discovery.discoveredDevices = [
+            Self.scanned("192.168.1.30", mac: "00:1B:A9:00:00:30", vendor: "Brother", network: network),
+            Self.scanned("192.168.1.31", mac: "00:1B:A9:00:00:31", vendor: "Brother", network: network)
+        ]
+        discovery.discoveredDevicesToken = join.token(for: network)
+        join.noteResume()
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery, joinClock: join)
 
-        viewModel.loadDevice(ipAddress: "192.168.1.31", networkID: network, macAddress: "00:1B:A9:00:00:31", context: context)
+        viewModel.loadDevice(ipAddress: "192.168.1.31", networkID: network, context: context)
         #expect(viewModel.device == nil)
         #expect(viewModel.error == DeviceDetailViewModel.interruptedScanMessage)
         #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
 
-        // A saved device it names still opens, unchanged.
         viewModel.loadDevice(ipAddress: "192.168.1.30", networkID: network, context: context)
         #expect(viewModel.device?.id == saved.id)
-        #expect(saved.ipAddress == "192.168.1.30")
+        #expect(saved.macAddress.isEmpty)
+        #expect(saved.vendor == nil)
+
+        // A user edit is never blocked.
+        viewModel.device?.customName = "Backup NAS"
+        viewModel.saveContext()
+        let fresh = ModelContext(container)
+        #expect(try fresh.fetch(FetchDescriptor<LocalDevice>()).first?.customName == "Backup NAS")
+    }
+
+    /// The same list while its token is current: detail makes and fills the row as before.
+    @Test func aCurrentScanStillMakesTheRow() throws {
+        let schema = Schema([LocalDevice.self])
+        let config = ModelConfiguration(UUID().uuidString, schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = container.mainContext
+        let network = UUID()
+        let join = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
+        let discovery = MockDeviceDiscoveryService()
+        discovery.discoveredDevices = [Self.scanned("192.168.1.31", mac: "00:1B:A9:00:00:31", vendor: "Brother", network: network)]
+        discovery.discoveredDevicesToken = join.token(for: network)
+        let viewModel = makeViewModel(deviceDiscoveryService: discovery, joinClock: join)
+
+        viewModel.loadDevice(ipAddress: "192.168.1.31", networkID: network, context: context)
+        #expect(viewModel.device?.vendor == "Brother")
+        #expect(try context.fetch(FetchDescriptor<LocalDevice>()).count == 1)
+    }
+
+    private static func scanned(_ ip: String, mac: String, vendor: String, network: UUID) -> DiscoveredDevice {
+        DiscoveredDevice(
+            ipAddress: ip, hostname: nil, vendor: vendor, macAddress: mac, latency: 3, discoveredAt: Date(), source: .local,
+            networkProfileID: network
+        )
     }
 
     /// PR #578 review: the refusal for a target with no known open port sends the user here, so
@@ -486,7 +525,7 @@ extension DeviceDetailViewModelTests {
         deviceDiscoveryService: any DeviceDiscoveryServiceProtocol = MockDeviceDiscoveryService(),
         insight: MockInsightService = MockInsightService(isAvailable: false),
         suggestionDefaults: UserDefaults = UserDefaults(suiteName: "DeviceDetailViewModelTests.\(UUID().uuidString)") ?? UserDefaults(),
-        joinClock: NetworkJoinClock = .shared
+        joinClock: NetworkJoinClock = .forTests
     ) -> DeviceDetailViewModel {
         DeviceDetailViewModel(
             macLookupService: macLookupService,

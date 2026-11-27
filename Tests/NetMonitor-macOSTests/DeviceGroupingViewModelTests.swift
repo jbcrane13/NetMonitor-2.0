@@ -408,7 +408,8 @@ struct DeviceGroupingViewModelTests {
         let coordinator = DeviceDiscoveryCoordinator(
             modelContext: context, bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(userDefaults: InMemoryDefaults(), activeProfilesProvider: { [] }),
-            portChecker: { _, _, _ in false }, scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            portChecker: { _, _, _ in false }, scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         func scan() -> [DiscoveredDevice] {
             [("192.168.77.60", "02:00:00:77:00:60"), ("192.168.77.61", "02:00:00:77:00:61")].map { ip, mac in

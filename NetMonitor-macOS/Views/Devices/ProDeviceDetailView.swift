@@ -593,19 +593,26 @@ private extension ProDeviceDetailView {
 
     // MARK: - Live Enrichment
 
-    /// The row a probe started on, to save its result: only if it still exists and no path update or
-    /// resume happened since the probe started (#628), checked in the block that writes it.
+    /// The current member a probe measures, its ID and the token the probe starts with (#628);
+    /// nil without the coordinator, whose join clock the tokens come from.
+    private func startProbe() -> (member: LocalDevice, id: UUID, token: JoinToken)? {
+        guard let clock = coordinator?.joinClock else { return nil }
+        let member = projection.current
+        return (member, member.id, clock.token(for: member.networkProfileID))
+    }
+
+    /// The row a probe started on, to save its result: only if it still exists and its token is
+    /// still current (#628), checked in the block that writes it.
     private func rowToUpdate(_ id: UUID, startedWith token: JoinToken) -> LocalDevice? {
-        guard NetworkJoinClock.shared.isCurrent(token) else { return nil }
+        guard coordinator?.isCurrent(token) == true else { return nil }
         var descriptor = FetchDescriptor<LocalDevice>(predicate: #Predicate { $0.id == id })
         descriptor.fetchLimit = 1
         return (try? modelContext.fetch(descriptor))?.first
     }
 
     private func enrichLatency() async {
-        let currentMember = projection.current
-        let memberID = currentMember.id
-        let token = NetworkJoinClock.shared.token(for: currentMember.networkProfileID)
+        guard let probe = startProbe() else { return }
+        let (currentMember, memberID, token) = probe
         isLoadingLatency = true
         defer { isLoadingLatency = false }
 
@@ -622,11 +629,9 @@ private extension ProDeviceDetailView {
     }
 
     private func enrichVendor() async {
-        let currentMember = projection.current
-        guard !currentMember.macAddress.isEmpty,
-              currentMember.vendor == nil || currentMember.vendor?.isEmpty == true else { return }
-        let memberID = currentMember.id
-        let token = NetworkJoinClock.shared.token(for: currentMember.networkProfileID)
+        guard let probe = startProbe(), !probe.member.macAddress.isEmpty,
+              probe.member.vendor == nil || probe.member.vendor?.isEmpty == true else { return }
+        let (currentMember, memberID, token) = probe
         isLoadingVendor = true
         defer { isLoadingVendor = false }
 
@@ -639,10 +644,8 @@ private extension ProDeviceDetailView {
     }
 
     private func enrichHostname() async {
-        let currentMember = projection.current
-        guard currentMember.hostname == nil || currentMember.hostname?.isEmpty == true else { return }
-        let memberID = currentMember.id
-        let token = NetworkJoinClock.shared.token(for: currentMember.networkProfileID)
+        guard let probe = startProbe(), probe.member.hostname == nil || probe.member.hostname?.isEmpty == true else { return }
+        let (currentMember, memberID, token) = probe
         isLoadingHostname = true
         defer { isLoadingHostname = false }
 
@@ -655,10 +658,8 @@ private extension ProDeviceDetailView {
     }
 
     private func enrichPorts() async {
-        let currentMember = projection.current
-        guard currentMember.openPorts == nil || currentMember.openPorts?.isEmpty == true else { return }
-        let memberID = currentMember.id
-        let token = NetworkJoinClock.shared.token(for: currentMember.networkProfileID)
+        guard let probe = startProbe(), probe.member.openPorts == nil || probe.member.openPorts?.isEmpty == true else { return }
+        let (currentMember, memberID, token) = probe
         isLoadingPorts = true
         defer { isLoadingPorts = false }
 
@@ -681,10 +682,8 @@ private extension ProDeviceDetailView {
     }
 
     private func enrichBonjourServices() async {
-        let currentMember = projection.current
-        guard let bonjourScanner = coordinator?.bonjourScanner else { return }
-        let memberID = currentMember.id
-        let token = NetworkJoinClock.shared.token(for: currentMember.networkProfileID)
+        guard let bonjourScanner = coordinator?.bonjourScanner, let probe = startProbe() else { return }
+        let (currentMember, memberID, token) = probe
 
         let targetIP = currentMember.ipAddress
         let targetHostname = currentMember.hostname ?? currentMember.resolvedHostname ?? ""

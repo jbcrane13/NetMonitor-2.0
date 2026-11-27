@@ -278,11 +278,8 @@ final class MockDeviceDiscoveryService: DeviceDiscoveryServiceProtocol, @uncheck
     var completedScanDevices: [DiscoveredDevice] { completedDevices ?? discoveredDevices }
     /// The token the finished scan started with (#628); nil when a test doesn't stamp scans.
     var completedScanToken: JoinToken?
-    /// The list a device-row write may use (#628); `discoveredDevices` unless a test sets one.
-    var observed: [DiscoveredDevice]?
-    var observedDevices: [DiscoveredDevice] { observed ?? discoveredDevices }
-    /// False to act as a running scan whose token went stale (#628).
-    var observationsAreCurrent = true
+    /// The token `discoveredDevices` was observed under (#628); nil when a test doesn't stamp it.
+    var discoveredDevicesToken: JoinToken?
     var scanCallCount = 0
     var lastScannedSubnet: String? = nil
     var lastScannedProfile: NetMonitorCore.NetworkProfile? = nil
@@ -369,4 +366,13 @@ final class MockHeatmapService: HeatmapServiceProtocol, @unchecked Sendable {
     }
 
     func stopContinuousMeasurement() async {}
+}
+
+@MainActor
+extension NetworkJoinClock {
+    /// A clock of the test's own (#628): the shared one counts the host's real path updates, which
+    /// would refuse a test's writes at random.
+    static var forTests: NetworkJoinClock {
+        NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
+    }
 }

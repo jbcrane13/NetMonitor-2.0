@@ -28,7 +28,9 @@ struct PlainRuleScannedDeviceTests {
 
     /// `probe` answers the draft's port check; by default no port answers.
     private func viewModel(_ answers: [String: RuleIntent], probe: MockPortCheck = MockPortCheck(open: [:])) -> PlainRuleIOSViewModel {
-        PlainRuleIOSViewModel(parser: FixedRuleIntentParser(answers: answers), probe: probe.probe, checkedPorts: [22, 80, 443, 445, 631])
+        PlainRuleIOSViewModel(
+            parser: FixedRuleIntentParser(answers: answers), probe: probe.probe, checkedPorts: [22, 80, 443, 445, 631], joinClock: .forTests
+        )
     }
 
     private let offline = ["basement-nas down": RuleIntent(kind: .deviceOffline, device: "basement-nas")]
@@ -135,6 +137,24 @@ struct PlainRuleScannedDeviceTests {
         )
         model.text = "basement-nas down"
         await model.submit(devices: [], scan: [scannedNAS(openPorts: nil)], targets: [], networkID: home, isScanning: false,
+                           context: container.mainContext)
+        #expect(model.targetDraft == nil)
+        #expect(model.displayedOutcome == .message(PlainRuleIOSViewModel.networkChangedMessage))
+        #expect(try container.mainContext.fetch(FetchDescriptor<LocalDevice>()).isEmpty)
+    }
+
+    /// #628 (lead review on #633): the request keeps the token the scan was observed under, so a scan
+    /// a path change invalidated can't be saved as a row under a fresh one.
+    @Test func aScanFromBeforeAPathChangeSavesNoRow() async throws {
+        let container = try makeContainer()
+        let join = NetworkJoinClock(changes: AsyncStream<String>.makeStream().stream)
+        let scanToken = join.token(for: home)
+        join.noteResume()
+        let model = PlainRuleIOSViewModel(
+            parser: FixedRuleIntentParser(answers: offline), probe: MockPortCheck(open: [:]).probe, checkedPorts: [22], joinClock: join
+        )
+        model.text = "basement-nas down"
+        await model.submit(devices: [], scan: [scannedNAS()], scanToken: scanToken, targets: [], networkID: home, isScanning: false,
                            context: container.mainContext)
         #expect(model.targetDraft == nil)
         #expect(model.displayedOutcome == .message(PlainRuleIOSViewModel.networkChangedMessage))

@@ -39,11 +39,11 @@ final class PlainRuleIOSViewModel {
     private var generation = 0
     /// A draft's row is saved only if no path update happened since the request started (#628).
     private let joinClock: NetworkJoinClock
-    /// The path the current request started on, before the rule was parsed (#628).
+    /// The token the request's scan was observed under, else the path the request started on (#628).
     private var requestToken: JoinToken?
 
-    /// Shown when the network changed before a scanned device's row could be saved (#628).
-    static let networkChangedMessage = "The network changed before the device could be saved. Try again."
+    /// Shown when the scan or port check a scanned device's row would come from is no longer current (#628).
+    static let networkChangedMessage = "The network changed since the scan. Scan again, then try this rule again."
 
     init(
         parser: any RuleIntentParsing = UITestBootstrap.ruleParser ?? RuleIntentParser.shared,
@@ -77,6 +77,7 @@ final class PlainRuleIOSViewModel {
     func submit(
         devices: [LocalDevice],
         scan: [DiscoveredDevice] = [],
+        scanToken: JoinToken? = nil,
         targets: [MonitoringTarget],
         networkID: UUID?,
         isScanning: Bool,
@@ -84,7 +85,9 @@ final class PlainRuleIOSViewModel {
     ) async {
         let devices = networkID.map { id in devices.filter { $0.networkProfileID == id } } ?? devices
         let scan = networkID.map { id in scan.filter { $0.networkProfileID == id } } ?? scan
-        requestToken = joinClock.token(for: networkID)
+        // The scan's own token, never a fresh one, so a stale scan can't be saved as new (#628); a
+        // list that isn't stamped falls back to when the request started.
+        requestToken = scanToken ?? joinClock.token(for: nil)
         self.scan = scan
         self.networkID = networkID
         self.context = context

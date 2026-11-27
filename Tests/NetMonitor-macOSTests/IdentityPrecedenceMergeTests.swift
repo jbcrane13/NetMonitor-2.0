@@ -21,7 +21,8 @@ struct IdentityPrecedenceMergeTests {
             networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         return (container, container.mainContext, coordinator)
     }
@@ -203,7 +204,8 @@ struct ModelSuggestionMacTests {
             modelContext: context, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         let suggester = makeSuggester(MockInsightService(suggestion: Self.suggestion))
 
@@ -233,7 +235,8 @@ struct ModelSuggestionMacTests {
             modelContext: context, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         let service = MockInsightService(suggestion: Self.suggestion)
         let suggester = makeSuggester(service)
@@ -295,7 +298,8 @@ struct ModelSuggestionMacTests {
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             suggester: suggester,
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         return (container, coordinator, local.id)
     }
@@ -396,7 +400,8 @@ struct ModelSuggestionMacTests {
             modelContext: container.mainContext, bonjourScanner: BonjourDiscoveryService(), networkProfileManager: NetworkProfileManager(),
             pipelineFactory: { _ in ScanPipeline(steps: []) },
             scanHistory: .forTesting(),
-            dispatcher: DeviceEventDispatcher()
+            dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
         let device = LocalDevice(ipAddress: "192.168.1.17", macAddress: "", hostname: "box-17.lan")
         container.mainContext.insert(device)

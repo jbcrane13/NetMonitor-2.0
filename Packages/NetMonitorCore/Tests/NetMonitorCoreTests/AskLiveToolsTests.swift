@@ -657,8 +657,8 @@ struct NetworkJoinClockTests {
         let (changes, _) = AsyncStream<String>.makeStream()
         let clock = Clock()
         let join = NetworkJoinClock(changes: changes) { clock.now }
-        let start = join.scanStarted()
-        join.scanReconciled(joinedAtStart: start, at: Date(timeIntervalSince1970: 30))
+        let start = join.token(for: nil)
+        join.scanReconciled(start, at: Date(timeIntervalSince1970: 30))
         #expect(join.establishedAt == Date(timeIntervalSince1970: 30))
         clock.advance()
         join.noteResume()
@@ -672,15 +672,15 @@ struct NetworkJoinClockTests {
         let clock = Clock()
         let join = NetworkJoinClock(changes: changes) { clock.now }
         continuation.yield("satisfied|wifi-en0|network-a")
-        let start = join.scanStarted()
+        let start = join.token(for: nil)
         clock.advance()
         continuation.yield("satisfied|wifi-en0|network-b")
         await waitFor(Date(timeIntervalSince1970: 60), on: join)
-        join.scanReconciled(joinedAtStart: start, at: Date(timeIntervalSince1970: 90))
+        join.scanReconciled(start, at: Date(timeIntervalSince1970: 90))
         #expect(join.establishedAt == nil)
         // The next scan, all on B, does.
-        let next = join.scanStarted()
-        join.scanReconciled(joinedAtStart: next, at: Date(timeIntervalSince1970: 150))
+        let next = join.token(for: nil)
+        join.scanReconciled(next, at: Date(timeIntervalSince1970: 150))
         #expect(join.establishedAt == Date(timeIntervalSince1970: 150))
     }
 }

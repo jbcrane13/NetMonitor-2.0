@@ -188,7 +188,8 @@ struct DeviceDiscoveryCoordinatorTests {
             },
             portChecker: { _, _, _ in false },
             scanHistory: .forTesting(),
-            clock: { clock.now }, dispatcher: DeviceEventDispatcher()
+            clock: { clock.now }, dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
 
         coordinator.startScan()
@@ -265,7 +266,8 @@ struct DeviceDiscoveryCoordinatorTests {
                 ])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
 
         // `ConnectionBudget.shared` is process-global: earlier suites in the same test
@@ -296,7 +298,8 @@ struct DeviceDiscoveryCoordinatorTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
     }
 }
@@ -312,7 +315,8 @@ struct DeviceDiscoveryCoordinatorCachedTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
     }
 
@@ -396,7 +400,8 @@ struct CoordinatorUPnPDescriptionTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
     }
 
@@ -465,7 +470,8 @@ struct DeviceDiscoveryCoordinatorModelTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: NetworkProfileManager(),
-            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
     }
 
@@ -629,7 +635,8 @@ struct DeviceDiscoveryEnrichmentTests {
                 ])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
 
         coordinator.startScan()
@@ -689,7 +696,8 @@ struct DeviceDiscoveryEnrichmentTests {
                 ])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
 
         coordinator.startScan()
@@ -773,7 +781,8 @@ struct DeviceDiscoveryEnrichmentTests {
                 ])
             },
             portChecker: { _, _, _ in false },
-            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher()
+            scanHistory: .forTesting(), dispatcher: DeviceEventDispatcher(),
+            joinClock: .forTests
         )
 
         coordinator.startScan()

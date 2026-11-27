@@ -165,11 +165,12 @@ public protocol DeviceDiscoveryServiceProtocol: AnyObject, Sendable {
     @MainActor var completedScanMacSightings: [DiscoveredDevice] { get }
     /// The token that scan started with (#628); nil for a conformer that doesn't stamp scans.
     @MainActor var completedScanToken: JoinToken? { get }
-    /// The devices a device-row write may use (#628): the running scan's list while no path update
-    /// or resume happened since it started, else the list shown before it started (a finished scan).
-    @MainActor var observedDevices: [DiscoveredDevice] { get }
-    /// False while a running scan's token is stale (#628): what it lists may be another network's.
-    @MainActor var observationsAreCurrent: Bool { get }
+    /// The token `discoveredDevices` was observed under (#628); nil for a conformer that doesn't
+    /// stamp scans. A device-row write from the list checks it right before it writes.
+    @MainActor var discoveredDevicesToken: JoinToken? { get }
+    /// Scans dropped so far because their token went stale (#628): a caller compares it before and
+    /// after a scan so a dropped scan leaves no trace (no "last scanned", no count).
+    @MainActor var droppedScanCount: Int { get }
     @MainActor func cachedDevices(for profile: NetworkProfile?) -> [DiscoveredDevice]
     func scanNetwork(subnet: String?) async
     func scanNetwork(profile: NetworkProfile?) async
@@ -184,9 +185,10 @@ public extension DeviceDiscoveryServiceProtocol {
     var completedScanMacSightings: [DiscoveredDevice] { [] }
     /// For a conformer that doesn't stamp scans: none.
     var completedScanToken: JoinToken? { nil }
-    /// For a conformer whose list only ever holds finished scans.
-    var observedDevices: [DiscoveredDevice] { discoveredDevices }
-    var observationsAreCurrent: Bool { true }
+    /// For a conformer that doesn't stamp scans: none.
+    var discoveredDevicesToken: JoinToken? { nil }
+    /// For a conformer that never drops a scan: none.
+    var droppedScanCount: Int { 0 }
 }
 
 /// Protocol for default gateway detection.

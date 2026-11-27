@@ -105,7 +105,8 @@ final class DeviceDiscoveryCoordinator {
 
     /// The replacement for a scan dropped because the path changed while it ran (#628).
     let replacementScans: ReplacementScans
-    private let joinClock: NetworkJoinClock
+    /// Where device observations' tokens come from (#628); detail probes take theirs here too.
+    let joinClock: NetworkJoinClock
 
     /// Matches iOS `DeviceDiscoveryService.maxHostsPerScan` — a bound on how many
     /// addresses `hostAddresses(limit:)` enumerates for very large subnets.
@@ -193,9 +194,10 @@ final class DeviceDiscoveryCoordinator {
         let scanTime = readClock()
         // The join it runs under: it establishes the network for Ask's pings only if none happens
         // while it runs (#579).
-        let joinedAtStart = joinClock.scanStarted()
-        // The path the scan's device observations start on (#628): checked before they're saved.
-        let token = joinClock.token(for: profileID)
+        // The path the scan's observations start on (#628): checked right before they're saved, and
+        // a scan saved under it establishes the network for Ask's pings (#579). Its network is named
+        // only for the local network, checked against where the Mac is at commit.
+        let token = joinClock.token(for: networkProfileManager.localProfile?.id == profileID ? profileID : nil)
         loadPersistedDevices(for: profileID)
 
         let context = makeScanContext()
@@ -255,10 +257,12 @@ final class DeviceDiscoveryCoordinator {
                 // its events (#603); a scan it skipped (nothing answered) or couldn't save writes none.
                 let commit = commitScan(engineDevices, profileID: profileID, now: scanTime, token: token)
                 if commit == .applied {
-                    joinClock.scanReconciled(joinedAtStart: joinedAtStart, at: scanTime)
+                    joinClock.scanReconciled(token, at: scanTime, networkIsCurrent: networkProfileManager.observationNetworkIsCurrent)
                 }
                 Logger.discovery.notice("Scan finished: \(allDiscovered.count, privacy: .public) devices")
                 scanProgress = 1.0
+                // A dropped scan leaves no trace: no last scan time, no count, no review prompt (#628).
+                guard commit != .dropped else { return }
                 lastScanTime = Date()
                 if commit == .applied {
                     for handler in scanCompletedHandlers {
@@ -266,7 +270,7 @@ final class DeviceDiscoveryCoordinator {
                     }
                 }
 
-                if let profileID, commit != .dropped {
+                if let profileID {
                     updateProfileScanInfo(profileID: profileID, discovered: allDiscovered)
                 }
 
@@ -457,6 +461,12 @@ final class DeviceDiscoveryCoordinator {
         loadPersistedDevices(for: profileID)
     }
 
+    /// Whether an observation that started with `token` may still be saved (#628): no path update,
+    /// resume or join since, and its network still where the Mac is, by this coordinator's manager.
+    func isCurrent(_ token: JoinToken) -> Bool {
+        joinClock.isCurrent(token, networkIsCurrent: networkProfileManager.observationNetworkIsCurrent)
+    }
+
     /// What became of a finished scan (#628).
     enum ScanCommit: Equatable {
         case applied
@@ -471,7 +481,7 @@ final class DeviceDiscoveryCoordinator {
     /// the token check and the reconcile run in one main-actor block, with no `await` between.
     /// A dropped scan writes no row and schedules a replacement; an applied one starts a new chain.
     func commitScan(_ scan: [DiscoveredDevice], profileID: UUID?, now: Date, token: JoinToken) -> ScanCommit {
-        guard joinClock.isCurrent(token) else {
+        guard isCurrent(token) else {
             Logger.discovery.notice("Scan dropped: the network path changed while it ran")
             // A manual network is scanned again; the local network is re-read when it starts.
             let manual = networkProfile.flatMap { $0.id == profileID && $0.discoveryMethod != .auto ? $0 : nil }

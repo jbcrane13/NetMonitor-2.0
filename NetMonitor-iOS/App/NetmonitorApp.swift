@@ -14,8 +14,6 @@ struct NetmonitorApp: App {
     @State private var environment: AppEnvironment
     @State private var speedTestScheduler: ScheduledSpeedTestRunner?
     @State private var networkChangeMonitor: LocalNetworkChangeMonitor?
-    /// The replacement for a scan dropped because the path changed while it ran (#628).
-    @State private var replacementScans: ReplacementScans?
     /// Logs connectivity and device changes for the Timeline.
     @State private var eventListener: EventListenerService?
     /// Puts every finished scan into the saved device rows (#582).
@@ -122,22 +120,20 @@ struct NetmonitorApp: App {
         macInventory = model
     }
 
-    /// A scan dropped because the path changed while it ran (#628) gets one replacement once the
-    /// path is quiet, in the foreground only, at most `ReplacementScans.maxAttempts` per chain; a
-    /// published scan starts a new chain. Background tasks and intents just don't save it.
-    private func startReplacementScans() {
-        guard replacementScans == nil else { return }
-        let replacements = ReplacementScans(generation: NetworkJoinClock.shared.generation)
-        let discovery = DeviceDiscoveryService.shared
-        discovery.onScanDropped = { [replacements] in
-            guard UIApplication.shared.applicationState == .active else { return }
-            replacements.scanDropped {
-                guard UIApplication.shared.applicationState == .active else { return }
-                Task { await discovery.scanNetwork(profile: CurrentNetwork.detected()) }
-            }
+    /// #628: a dropped scan gets one replacement through `ScanRecovery`, and a token's network must
+    /// still be where the phone is (`networkIsCurrent`). Not under unit tests, whose clocks are their own.
+    private func startScanRecovery() {
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        NetworkJoinClock.shared.networkIsCurrent = { id in
+            NetworkProfileManager.observationNetworkIsCurrent(id)
+                // The UI-test discovery stamps its fixed network, the current one under the fixture.
+                || (UITestFakeDeviceFeed.isEnabled && id == UITestBootstrap.networkProfileID)
         }
-        discovery.onScanPublished = { [replacements] in replacements.reset() }
-        replacementScans = replacements
+        let discovery = environment.deviceDiscovery
+        ScanRecovery.shared.rescan = {
+            Task { await discovery.scanNetwork(profile: CurrentNetwork.detected()) }
+        }
+        DeviceDiscoveryService.shared.onScanDropped = { ScanRecovery.shared.scanDropped() }
     }
 
     /// Starts keeping the saved device rows current after each scan, once (#582).
@@ -153,7 +149,11 @@ struct NetmonitorApp: App {
             // network the phone has left (#589).
             currentNetworkProfileID: { CurrentNetwork.detected()?.id },
             clock: UITestBootstrap.scanClock ?? Date.init,
+            // A published scan whose token went stale before it was reconciled (#628).
+            onDropped: { ScanRecovery.shared.scanDropped() },
             onSaved: { [presence, sharedModelContainer] networks, devices in
+                // Rows were reconciled: a new replacement chain (#628).
+                ScanRecovery.shared.scanSaved()
                 presence.refresh()
                 // The dashboard count and the widget, from the saved devices this scan updated (#594).
                 SavedDeviceSummaryModel.shared.publish(
@@ -210,6 +210,8 @@ struct NetmonitorApp: App {
                     }
                     // Saved device rows follow every scan, in UI tests too (#582).
                     startDeviceRecordUpdater()
+                    // A dropped scan gets one replacement, in UI tests too (#628).
+                    startScanRecovery()
                     // After any UI-test reset of the scan history; then every minute (#583).
                     presence.refresh()
                     presence.startTicking()
@@ -266,7 +268,6 @@ struct NetmonitorApp: App {
                         monitor.start()
                         networkChangeMonitor = monitor
                     }
-                    startReplacementScans()
                 }
                 .onChange(of: scenePhase) { previous, phase in
                     // A network change while the app was suspended may never reach the path
