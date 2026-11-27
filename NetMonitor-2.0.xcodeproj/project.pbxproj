@@ -255,6 +255,7 @@
 		5B717313F69059A0EE708968 /* ExportPDFUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7966052F5A865065D57EED /* ExportPDFUITests.swift */; };
 		5B741E94E2272DCF651DA501 /* ShellCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8CC68CA1629217A3CE5A80F /* ShellCommandRunner.swift */; };
 		5B787473C223C0FCFF5A148D /* WiFiShortcutSetupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50F4C3C52B75ED936E81CA6E /* WiFiShortcutSetupTests.swift */; };
+		5B8BFF8FDCF25500BA76BA11 /* DeviceDiscoveryCoordinatorIdentityQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94A509C9AB17BFD1DA84AD2 /* DeviceDiscoveryCoordinatorIdentityQueueTests.swift */; };
 		5BA0F5A4D9C7E3031154A0C4 /* WakeOnLANToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E04C865578218E23F28F978 /* WakeOnLANToolView.swift */; };
 		5BFFF742FDB98D59453C5470 /* BackgroundTaskService+Health.swift in Sources */ = {isa = PBXBuildFile; fileRef = B50FDBE93FC4E09ECB21A8F4 /* BackgroundTaskService+Health.swift */; };
 		5C4DC08378E909CBA563CBFC /* ios-v2.4-pr1-default.store in Resources */ = {isa = PBXBuildFile; fileRef = D23672104EFE993CBF6C739B /* ios-v2.4-pr1-default.store */; };
@@ -1223,6 +1224,7 @@
 		A8B4635DD799E78E2C32767D /* WiFiHeatmapViewModelSaveLoadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiHeatmapViewModelSaveLoadTests.swift; sourceTree = "<group>"; };
 		A8B8513299797FF31C370525 /* PhoneInsight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneInsight.swift; sourceTree = "<group>"; };
 		A93FCD8E5A7FA84E3E062053 /* RoomPlanScanViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomPlanScanViewController.swift; sourceTree = "<group>"; };
+		A94A509C9AB17BFD1DA84AD2 /* DeviceDiscoveryCoordinatorIdentityQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorIdentityQueueTests.swift; sourceTree = "<group>"; };
 		A980FAAF1EB5E1BBEF24816A /* ICMPMonitorServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICMPMonitorServiceTests.swift; sourceTree = "<group>"; };
 		A9CB2F9032D1B7A94C87B962 /* TroubleshootToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TroubleshootToolView.swift; sourceTree = "<group>"; };
 		AAC70B725BCEFC1440388E60 /* DeviceDetailJoinTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDetailJoinTokenTests.swift; sourceTree = "<group>"; };
@@ -2512,6 +2514,7 @@
 				15F8F1960BEB3D161E3A289A /* DeviceDiscoveryCoordinatorExtendedTests.swift */,
 				AD009F26DFFECED8731E7A9F /* DeviceDiscoveryCoordinatorFixturePhases.swift */,
 				A242FEF3FDE1E77C8561270B /* DeviceDiscoveryCoordinatorFixtures.swift */,
+				A94A509C9AB17BFD1DA84AD2 /* DeviceDiscoveryCoordinatorIdentityQueueTests.swift */,
 				22D141FC33A430ECB32CC2C7 /* DeviceDiscoveryCoordinatorIdentityTests.swift */,
 				C717872A904CE8B18F6FA4FB /* DeviceDiscoveryCoordinatorJoinTokenTests.swift */,
 				82587ACE5E6C4E18385B83D9 /* DeviceDiscoveryCoordinatorLiveScanTests.swift */,
@@ -3492,6 +3495,7 @@
 				D69ACF03BC7EB5856A6BD012 /* DeviceDiscoveryCoordinatorExtendedTests.swift in Sources */,
 				3443609DD098615E0019DFFA /* DeviceDiscoveryCoordinatorFixturePhases.swift in Sources */,
 				C25F716B54CA12D16EFE75C8 /* DeviceDiscoveryCoordinatorFixtures.swift in Sources */,
+				5B8BFF8FDCF25500BA76BA11 /* DeviceDiscoveryCoordinatorIdentityQueueTests.swift in Sources */,
 				2597C5443040B5F88461A29B /* DeviceDiscoveryCoordinatorIdentityTests.swift in Sources */,
 				79FDF5C7417F38B19BB5DF88 /* DeviceDiscoveryCoordinatorJoinTokenTests.swift in Sources */,
 				5095FEFFA1501CF8B77D416B /* DeviceDiscoveryCoordinatorLiveScanTests.swift in Sources */,

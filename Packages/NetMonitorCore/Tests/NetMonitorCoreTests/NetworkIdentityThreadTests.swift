@@ -4,9 +4,9 @@ import Testing
 
 /// #645 review threads that were still live on 91fb40df.
 extension NetworkIdentityControllerTests {
-    /// A connection-only answer belongs to its connection: after a wake (a new generation, no
-    /// detection yet) it authorizes nothing, and detection runs.
-    @Test func aConnectionOnlyIdentificationDoesNotSurviveANewGeneration() throws {
+    /// A no-hint approval holds across a wake while the hint stays absent; a router appearing goes
+    /// by its own key (round 4 replaced the connection-only answer).
+    @Test func aNoHintApprovalSurvivesAWakeButNotARouter() throws {
         let (store, _, _) = try makeStore()
         let harness = Harness()
         harness.hint = .present(keyA)
@@ -23,12 +23,10 @@ extension NetworkIdentityControllerTests {
         _ = identity.resolveID(group: home, defaultID: siteA)
         try identity.answer(.thisConnection(siteA), to: #require(identity.question))
         #expect(identity.resolveID(group: home, defaultID: siteA) == siteA)
-        #expect(identity.authorizes(siteA))
-        let detections = harness.detections
-
         clock.noteResume()
+        #expect(identity.authorizes(siteA))
+        harness.hint = .present(keyB)
         #expect(!identity.authorizes(siteA))
-        #expect(harness.detections == detections + 1)
     }
 
     /// Automatic approvals (a new network's own key, a quiet bind) go through the same cap as answers.

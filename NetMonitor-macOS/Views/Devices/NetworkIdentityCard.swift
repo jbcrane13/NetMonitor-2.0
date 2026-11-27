@@ -36,6 +36,13 @@ struct NetworkIdentityCard: View {
             }
             if let question = identity.question {
                 questionCard(question)
+                if identity.isCheckingNetwork {
+                    Text("Checking the network… Answer again in a moment.")
+                        .font(.caption)
+                        .foregroundStyle(MacTheme.Colors.labelSecondary)
+                        .padding(.horizontal, 24)
+                        .accessibilityIdentifier("devices_identity_checking")
+                }
             }
         }
     }
@@ -68,14 +75,14 @@ struct NetworkIdentityCard: View {
         case .forgottenThisConnection(_, let options):
             card(
                 title: "Which network is this?",
-                detail: "This network can't be recognized automatically. Your answer holds for this connection only."
+                detail: "This network has no IPv6 router to recognize it by. Your answer is remembered for this network without one."
             ) {
                 ForEach(options, id: \.self) { option in
                     Button(label(option)) { identity.answer(.thisConnection(option), to: question) }
                         .accessibilityIdentifier("devices_identity_same_\(option.uuidString)")
                 }
-                Button("Somewhere else") { identity.answer(.somewhereElse, to: question) }
-                    .accessibilityIdentifier("devices_identity_elsewhere")
+                Button("New network") { identity.answer(.newNetwork, to: question) }
+                    .accessibilityIdentifier("devices_identity_new")
             }
         }
     }

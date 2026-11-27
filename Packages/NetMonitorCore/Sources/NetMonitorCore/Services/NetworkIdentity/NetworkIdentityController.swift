@@ -20,10 +20,8 @@ public final class NetworkIdentityController {
     public enum Answer: Equatable, Sendable {
         case newNetwork
         case same(UUID)
-        /// "Yes, this connection only", for a network with no hint whose evidence was forgotten.
+        /// One of the no-hint question's networks, remembered as the group's no-hint approval.
         case thisConnection(UUID)
-        /// "Somewhere else", for the same question: the group's "Not identified" bucket.
-        case somewhereElse
     }
 
     private enum State: Equatable {
@@ -80,6 +78,10 @@ public final class NetworkIdentityController {
         }
     }
 
+    /// An answer was clicked while the routing table couldn't be read: the question stays open, saying
+    /// "Checking the network…", until a read settles.
+    public private(set) var isCheckingNetwork = false
+
     /// The last identity write failed: nothing was lost, and `retrySave()` tries it again.
     public private(set) var saveFailed = false
     /// For tests: identifying with no probe and no detection asked for, which nothing would end.
@@ -108,6 +110,10 @@ public final class NetworkIdentityController {
                 // Ask doesn't ping as if on a network this one may not be (#627).
                 clock.withdrawEstablished()
             }
+            switch state {
+            case .held(let id, _), .identifying(let id, _, _): tentative[id] = clock.generation.value
+            default: break
+            }
             if case .identified = state {
                 identifiedGeneration = clock.generation.value
                 // Identified with nothing held: an earlier failed save no longer matters.
@@ -125,15 +131,15 @@ public final class NetworkIdentityController {
     @ObservationIgnored private var detectionPending = false
     /// The generation the network was identified under: a failed read keeps it only within that one.
     @ObservationIgnored private var identifiedGeneration: UInt64?
-    /// The network was identified by a connection-only answer, which holds for its generation only.
-    @ObservationIgnored private var identifiedByConnectionAnswer = false
     /// The last write conflicted with another copy of the app, for one automatic re-resolve.
     @ObservationIgnored private var lastWriteConflicted = false
     /// The running probe's identity and the token it started under: only it may end identifying.
     @ObservationIgnored private var probeID: UUID?
     @ObservationIgnored private var probeToken: JoinToken?
-    /// The generation the open question was asked under: a connection-only answer belongs to it.
-    @ObservationIgnored private var questionGeneration: UInt64?
+    /// The legacy probe couldn't run (nil): its kept question is probed once more on the next detection.
+    @ObservationIgnored private var legacyReprobeAllowed = false
+    /// Networks held or identifying, by the generation they were last tentative in.
+    @ObservationIgnored private var tentative: [UUID: UInt64] = [:]
     @ObservationIgnored private var pendingRetry: (@MainActor () -> Void)?
     @ObservationIgnored private var lastLoggedHintKind: String?
     @ObservationIgnored private let store: NetworkIdentityStore
@@ -218,6 +224,11 @@ public final class NetworkIdentityController {
             return defaultID
         }
         var hint = readHint(group.interface)
+        // Only a settled "no IPv6 router" uses the no-hint approval, never a failed read (#645).
+        let settledAbsent = hint == .absent
+        if hint != .failed, isCheckingNetwork {
+            isCheckingNetwork = false
+        }
         if hint == .failed {
             // Transient (#645): keep the network identified on this connection (this generation), and
             // read again; otherwise hold and read again.
@@ -247,21 +258,21 @@ public final class NetworkIdentityController {
            clock.isCurrent(probeToken) {
             return id
         }
-        let answer = store.contents.connectionAnswers.first {
-            $0.launchID == launchID && $0.generation == clock.generation.value && $0.group == group
-        }?.recordID
+        let noHintApproval = settledAbsent
+            ? store.contents.approvals.first { $0.group == group && $0.key == .noHint }?.recordID : nil
+        // A bucket is a candidate when it holds saved devices, or when they couldn't be counted.
         let occupied = Set(store.contents.records.filter { $0.group == group && $0.recordClass == .bucket }.map(\.id)
-            .filter { (describeOption?($0).savedDevices ?? 0) > 0 })
+            .filter { id in describeOption.map { $0(id).savedDevices > 0 || $0(id).countUnknown } ?? false })
         let resolution = NetworkIdentityResolver.resolve(
-            group: group, hint: hint, records: store.contents.records, approvals: store.contents.approvals, connectionAnswer: answer,
-            occupiedBuckets: occupied
+            group: group, hint: hint, records: store.contents.records, approvals: store.contents.approvals,
+            noHintApproval: noHintApproval, occupiedBuckets: occupied
         )
-        identifiedByConnectionAnswer = false
         switch resolution {
         case .use(let id):
-            identifiedByConnectionAnswer = id == answer
             if case .present(let key) = hint {
                 noteMatched(key, group: group)
+            } else if id == noHintApproval {
+                noteMatched(.noHint, group: group)
             }
             state = .identified(id, group, hint)
             return id
@@ -292,21 +303,21 @@ public final class NetworkIdentityController {
         case .ask(let question):
             // The same question already open: keep the card, asked again for this connection.
             if case .held(let tentative, question?) = state {
-                questionGeneration = clock.generation.value
                 return tentative
             }
             let tentative = Self.options(of: question).first ?? defaultID
-            questionGeneration = clock.generation.value
             state = .held(tentative, question)
             return tentative
         case .probeLegacy(let legacy, let key):
             // The probe already asked about this network and router: keep the question, probe nothing.
-            if case .held(let tentative, .isLegacy(group, key, legacy)?) = state {
-                questionGeneration = clock.generation.value
+            // A probe that couldn't run gets one more try.
+            if case .held(let tentative, .isLegacy(group, key, legacy)?) = state, !legacyReprobeAllowed {
                 return tentative
             }
+            let isReprobe = legacyReprobeAllowed
+            legacyReprobeAllowed = false
             state = .identifying(legacy, group, hint)
-            startProbe(legacy: legacy, group: group, key: key, hint: hint)
+            startProbe(legacy: legacy, group: group, key: key, hint: hint, isReprobe: isReprobe)
             return legacy
         case .damaged:
             Self.logger.error("An approval points at a missing or unbound network: paused")
@@ -322,7 +333,7 @@ public final class NetworkIdentityController {
         return taken ? store.newID() : defaultID
     }
 
-    private func startProbe(legacy: UUID, group: NetworkGroup, key: RouterKey, hint: RouterHintStatus) {
+    private func startProbe(legacy: UUID, group: NetworkGroup, key: RouterKey, hint: RouterHintStatus, isReprobe: Bool = false) {
         probeTask?.cancel()
         let id = UUID()
         let token = clock.token(for: nil)
@@ -359,7 +370,7 @@ public final class NetworkIdentityController {
                 }, retry: detectAgain)
                 state = bound ? .identified(legacy, group, hint) : .held(legacy, nil)
             } else {
-                questionGeneration = clock.generation.value
+                legacyReprobeAllowed = clear == nil && !isReprobe
                 state = .held(legacy, .isLegacy(group: group, key: key, record: legacy))
             }
         }
@@ -380,12 +391,6 @@ public final class NetworkIdentityController {
     public func authorizes(_ networkID: UUID) -> Bool {
         guard case .identified(let id, let group, let hint) = state, id == networkID else { return false }
         // A connection-only answer holds for its connection: a wake or path update since asks again.
-        if identifiedByConnectionAnswer, identifiedGeneration != clock.generation.value {
-            Self.logger.notice("A connection-only answer's connection ended: identifying again")
-            state = .held(id, nil)
-            detectAgain()
-            return false
-        }
         let now = readHint(group.interface)
         // An unreadable routing table is transient within the generation it was identified under (#645).
         guard now == hint || (now == .failed && identifiedGeneration == clock.generation.value) else {
@@ -468,9 +473,15 @@ extension NetworkIdentityController {
         // The router must still be the one the question is about, as for a quiet bind (#645): an
         // answer about a router the Mac has left approves nothing, and identification runs again.
         let now = readHint(question.group.interface)
+        // An unreadable routing table loses nothing: the question stays, "Checking the network…".
+        if now == .failed {
+            isCheckingNetwork = true
+            scheduleDetection()
+            return
+        }
         let stillHere = switch question {
         case .whichNetwork(_, let key, _), .isLegacy(_, let key, _): now == .present(key)
-        case .forgottenThisConnection: now == .absent || now == .failed
+        case .forgottenThisConnection: now == .absent
         }
         guard stillHere else {
             Self.logger.notice("The router changed with the question open: identifying again")
@@ -495,24 +506,19 @@ extension NetworkIdentityController {
                 Self.approve(key, group: group, on: id, now: self.now(), in: &contents)
             }, retry: retry)
         case (.forgottenThisConnection(let group, let options), .thisConnection(let id)) where options.contains(id):
-            // A connection-only answer belongs to the connection the question was asked on.
-            guard let generation = questionGeneration, generation == clock.generation.value else {
-                detectAgain()
-                return
-            }
-            recorded = write({ contents in self.answerForThisConnection(id, group: group, generation: generation, in: &contents) }, retry: retry)
-        case (.forgottenThisConnection(let group, _), .somewhereElse):
-            guard let generation = questionGeneration, generation == clock.generation.value else {
-                detectAgain()
-                return
-            }
-            let existing = store.contents.records.first { $0.group == group && $0.recordClass == .bucket }?.id
-            let bucket = existing ?? store.newID()
+            // Remembered as the group's no-hint approval (#645 round 4), so it isn't asked again. A
+            // bucket stays a bucket.
             recorded = write({ contents in
-                if existing == nil {
-                    contents.records.append(IdentityRecord(id: bucket, group: group, recordClass: .bucket))
+                if let index = contents.records.firstIndex(where: { $0.id == id }), contents.records[index].recordClass != .bucket {
+                    contents.records[index].recordClass = .bound
                 }
-                self.answerForThisConnection(bucket, group: group, generation: generation, in: &contents)
+                Self.approve(.noHint, group: group, on: id, now: self.now(), in: &contents)
+            }, retry: retry)
+        case (.forgottenThisConnection(let group, _), .newNetwork):
+            let id = store.newID()
+            recorded = write({ contents in
+                contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
+                Self.approve(.noHint, group: group, on: id, now: self.now(), in: &contents)
             }, retry: retry)
         default:
             return
@@ -529,13 +535,6 @@ extension NetworkIdentityController {
         case .whichNetwork(_, _, let options), .forgottenThisConnection(_, let options): options
         case .isLegacy(_, _, let record): [record]
         }
-    }
-
-    private func answerForThisConnection(
-        _ id: UUID, group: NetworkGroup, generation: UInt64, in contents: inout NetworkIdentityStore.Contents
-    ) {
-        contents.connectionAnswers.removeAll { $0.launchID != launchID || $0.group == group }
-        contents.connectionAnswers.append(ConnectionAnswer(launchID: launchID, generation: generation, group: group, recordID: id))
     }
 
     /// Approves `key` on `id`, evicting the least recently matched approvals past the limits; a
@@ -585,5 +584,19 @@ extension NetworkIdentityController {
                 contents.approvals[index].lastMatched = time
             }
         }
+    }
+}
+
+// MARK: - Tentative networks
+
+extension NetworkIdentityController {
+    /// Whether `id` was only tentative on this connection (held or identifying in this generation)
+    /// and isn't the identified network now: a scan must never commit under it (#645 round 4).
+    public func wasOnlyTentative(_ id: UUID) -> Bool {
+        guard tentative[id] == clock.generation.value else { return false }
+        if case .identified(id, _, _) = state {
+            return false
+        }
+        return true
     }
 }

@@ -117,9 +117,10 @@ final class DeviceDiscoveryCoordinator {
     var isProbing = false
     /// The latest identification probe's run: only it ends the run (the Bonjour browser, `isProbing`).
     var probeRun = 0
-    /// The scan refused while identifying, replayed as asked when identification ends: a user's scan
-    /// of a manual network stays that network's (#645).
-    var queuedScan: ScanReason?
+    /// A manual network's scan asked for while the probe ran: it runs, for that network, when the probe ends (#645).
+    var queuedManual: NetworkProfile?
+    /// The local network's scan asked for while identifying: it runs, under the identified ID, once settled.
+    var localScanQueued = false
     /// The routed IPv4 gateway, for the identification probe's site anchor.
     let gatewayIP: @MainActor () -> String?
 
@@ -225,6 +226,7 @@ final class DeviceDiscoveryCoordinator {
             defer {
                 isScanning = false
                 progressiveLatency = [:]
+                Task { @MainActor [weak self] in self?.runQueuedScanIfFree() }
             }
             do {
                 try Task.checkCancellation()
@@ -357,6 +359,7 @@ final class DeviceDiscoveryCoordinator {
             Logger.discovery.notice("Scan skipped (\(name, privacy: .public)): \(why, privacy: .public)")
             return false
         case .start(let profile):
+            noteScanStarting(profile)
             Logger.discovery.notice("Scan started (\(name, privacy: .public))")
             if let profile {
                 scanNetwork(profile, countsTowardReviewPrompt: counts)
@@ -365,6 +368,7 @@ final class DeviceDiscoveryCoordinator {
             }
         case .replace(let profile):
             // A scan of the old network would only probe addresses that aren't there any more (#359).
+            noteScanStarting(profile)
             Logger.discovery.notice("Scan replaced (\(name, privacy: .public))")
             stopScan()
             scanNetwork(profile, countsTowardReviewPrompt: counts)
@@ -495,7 +499,7 @@ final class DeviceDiscoveryCoordinator {
             return .dropped
         }
         // Which same-subnet network this is must be settled, and its router unchanged (#628 PR B).
-        if let identity, let profileID, profileID == networkProfileManager.localProfile?.id, !identity.authorizes(profileID) {
+        if identityHolds(profileID) {
             Logger.discovery.notice("Scan not saved: which network this is isn't settled")
             return .held
         }

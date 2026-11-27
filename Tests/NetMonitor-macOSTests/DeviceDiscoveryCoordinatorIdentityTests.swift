@@ -12,7 +12,7 @@ import Testing
 struct DeviceDiscoveryCoordinatorIdentityTests {
     let keyA = RouterKey(["aaaa"])
     let keyB = RouterKey(["bbbb"])
-    private let base = DeviceDiscoveryCoordinatorReconcileTests()
+    let base = DeviceDiscoveryCoordinatorReconcileTests()
 
     final class Box: @unchecked Sendable {
         var hint: RouterHintStatus = .absent
@@ -24,6 +24,8 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         var scans = 0
         /// What the fixture's controller-inventory phase (UniFi's ID) adds: names for answering addresses.
         var inventory: [DiscoveredDevice] = []
+        /// The last pipeline's inputs, to call its Bonjour stop.
+        var lastInputs: ScanPipelineInputs?
 
         @MainActor
         func scan() async -> [DiscoveredDevice] {
@@ -83,7 +85,7 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         var local: UUID { manager.localProfile?.id ?? UUID() }
     }
 
-    private func setUp(_ box: Box, legacy: [String: UUID] = [:]) throws -> Setup {
+    func setUp(_ box: Box, legacy: [String: UUID] = [:]) throws -> Setup {
         let (container, context) = try base.makeStore()
         let live = NetworkProfile(
             interfaceName: "en0", ipAddress: "192.168.1.10",
@@ -101,7 +103,8 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
             modelContext: context,
             bonjourScanner: BonjourDiscoveryService(),
             networkProfileManager: manager,
-            pipelineFactory: { _ in
+            pipelineFactory: { inputs in
+                devices.lastInputs = inputs
                 let phase = FixturePhase(devices: { await devices.scan() })
                 let inventory = InventoryPhase(devices: { await MainActor.run { devices.inventory } })
                 return ScanPipeline(steps: [
@@ -275,53 +278,6 @@ struct DeviceDiscoveryCoordinatorIdentityTests {
         #expect(setup.identity.authorizes(legacy))
         await waitUntil { setup.coordinator.lastScanTime(for: legacy) != nil }
         #expect(setup.coordinator.lastScanTime(for: legacy) != nil)
-    }
-
-    /// A path update overtakes the probe: the newer probe owns the Bonjour browser and the result, and
-    /// once the network is identified exactly one scan runs and is saved (#645).
-    @Test func aPathUpdateDuringTheProbeLeadsToExactlyOneSavedScan() async throws {
-        let box = Box()
-        let legacy = UUID()
-        box.hint = .present(keyA)
-        box.holds = true
-        let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
-        await waitUntil { box.gates.count == 1 }
-        setup.join.generation.advance()
-        setup.manager.detectLocalNetwork()
-        await waitUntil { box.gates.count == 2 }
-        #expect(setup.coordinator.isIdentifyingNetwork)
-        // A scan asked for meanwhile is refused, then runs once identification ends.
-        #expect(!setup.coordinator.rescan(.networkChanged))
-        // The obsolete probe finishes first: it must not end the newer one's run (its Bonjour browser).
-        box.gates.removeFirst().resume()
-        for _ in 0 ..< 50 {
-            await Task.yield()
-        }
-        #expect(setup.coordinator.isProbing, "the newer probe still owns the run")
-        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("192.168.1.20", "office-printer")]
-        box.release()
-        await waitUntil { setup.coordinator.lastScanTime(for: legacy) != nil }
-        #expect(setup.identity.authorizes(legacy))
-        await waitUntil(timeout: .milliseconds(500)) { box.scans > 3 }
-        #expect(box.scans == 3, "two probes and one scan")
-        #expect(!setup.coordinator.isIdentifyingNetwork)
-    }
-
-    /// #645 verification item 6: a user's scan of a manual network asked for during identification
-    /// runs for that network afterwards, not as a scan of the local one.
-    @Test func aManualNetworkScanAskedForDuringIdentificationRunsForThatNetwork() async throws {
-        let box = Box()
-        let legacy = UUID()
-        box.hint = .present(keyA)
-        box.holds = true
-        let setup = try setUp(box, legacy: ["en0|192.168.1.0/24": legacy])
-        let lab = try #require(setup.manager.addProfile(gateway: "10.0.0.1", subnet: "10.0.0.0/24", name: "Lab"))
-        await waitUntil { box.gates.count == 1 }
-        #expect(!setup.coordinator.rescan(.user(lab)))
-        box.devices = [DeviceDiscoveryCoordinatorReconcileTests.engine("10.0.0.20", "lab-printer")]
-        box.release()
-        await waitUntil { setup.coordinator.lastScanTime(for: lab.id) != nil }
-        #expect(setup.coordinator.lastScanTime(for: lab.id) != nil, "the lab was scanned")
     }
 
     /// An option is named by what it holds, never by the generated name alone (#645).

@@ -24,6 +24,12 @@ public struct RouterKey: Hashable, Codable, Sendable {
 
 /// The router hint as read when a network is identified (#628). Unauthenticated: a cloned router
 /// address is indistinguishable.
+public extension RouterKey {
+    /// A group's "no IPv6 router" evidence (#645 round 4): the approval an answer given with the hint
+    /// settled absent stores, so the question isn't repeated. Never a real digest (those are hex).
+    static let noHint = RouterKey(["no-ipv6-router"])
+}
+
 public enum RouterHintStatus: Equatable, Sendable {
     /// No identifying IPv6 default router on the interface (an IPv4-only network, or `fe80::1`).
     case absent
@@ -103,7 +109,11 @@ public struct IdentityOptionSummary: Equatable, Sendable {
     /// A name the user gave the network; nil when it has only the generated one.
     public var name: String?
 
-    public init(savedDevices: Int = 0, lastScanned: Date? = nil, name: String? = nil) {
+    /// The saved devices couldn't be counted (a fetch error): treat the network as holding some.
+    public var countUnknown: Bool
+
+    public init(savedDevices: Int = 0, lastScanned: Date? = nil, name: String? = nil, countUnknown: Bool = false) {
+        self.countUnknown = countUnknown
         self.savedDevices = savedDevices
         self.lastScanned = lastScanned
         self.name = name

@@ -46,11 +46,11 @@ struct NetworkIdentityResolverTests {
     }
 
     private func resolve(
-        _ hint: RouterHintStatus, _ records: [IdentityRecord], approvals: [IdentityApproval] = [], connectionAnswer: UUID? = nil,
+        _ hint: RouterHintStatus, _ records: [IdentityRecord], approvals: [IdentityApproval] = [], noHintApproval: UUID? = nil,
         occupiedBuckets: Set<UUID> = []
     ) -> IdentityResolution {
         NetworkIdentityResolver.resolve(
-            group: home, hint: hint, records: records, approvals: approvals, connectionAnswer: connectionAnswer,
+            group: home, hint: hint, records: records, approvals: approvals, noHintApproval: noHintApproval,
             occupiedBuckets: occupiedBuckets
         )
     }
@@ -64,9 +64,10 @@ struct NetworkIdentityResolverTests {
         #expect(resolve(.failed, [forgotten]) == .ask(.forgottenThisConnection(group: home, options: [forgotten.id])))
     }
 
-    @Test func aConnectionOnlyAnswerIsUsedForItsConnection() {
+    /// The group's no-hint approval (the controller passes it only when the hint is settled absent).
+    @Test func theNoHintApprovalIsUsedWithoutAHint() {
         let forgotten = record(.forgotten)
-        #expect(resolve(.absent, [forgotten], connectionAnswer: forgotten.id) == .use(forgotten.id))
+        #expect(resolve(.absent, [forgotten], noHintApproval: forgotten.id) == .use(forgotten.id))
     }
 
     @Test func withoutAHintTheLegacyRecordIsUsedWhenNothingIsBound() {

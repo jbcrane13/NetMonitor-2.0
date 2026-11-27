@@ -8,18 +8,19 @@ public enum NetworkIdentityResolver {
     /// - Parameters:
     ///   - records: the known networks, any group; only `group`'s are considered.
     ///   - approvals: every approval; only `group`'s are considered.
-    ///   - connectionAnswer: the network a connection-only answer chose for this launch and generation.
+    ///   - noHintApproval: the group's `(group, noHint)` approval, passed only when the hint is settled
+    ///     absent (never on a failed read).
     ///   - occupiedBuckets: buckets with saved rows, which could be this network too.
     public static func resolve(
-        group: NetworkGroup, hint: RouterHintStatus, records: [IdentityRecord], approvals: [IdentityApproval], connectionAnswer: UUID?,
+        group: NetworkGroup, hint: RouterHintStatus, records: [IdentityRecord], approvals: [IdentityApproval], noHintApproval: UUID? = nil,
         occupiedBuckets: Set<UUID> = []
     ) -> IdentityResolution {
         let mine = records.filter { $0.group == group }
         func ids(_ cls: IdentityRecordClass) -> [UUID] { mine.filter { $0.recordClass == cls }.map(\.id) }
         switch hint {
         case .absent, .failed:
-            if let connectionAnswer, mine.contains(where: { $0.id == connectionAnswer }) {
-                return .use(connectionAnswer)
+            if let noHintApproval, mine.contains(where: { $0.id == noHintApproval }) {
+                return .use(noHintApproval)
             }
             // An IPv6 drop never empties a bound network (#645), but a bound network wins only when
             // nothing else could be this one: a legacy or forgotten network, or a bucket with saved

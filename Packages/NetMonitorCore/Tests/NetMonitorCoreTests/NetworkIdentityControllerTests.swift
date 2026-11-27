@@ -205,13 +205,14 @@ struct NetworkIdentityControllerTests {
         #expect(!identity.authorizes(legacy))
     }
 
-    @Test func aConnectionOnlyAnswerHoldsForItsLaunchAndGenerationOnly() throws {
+    /// #645 round 4 (lead decision): a no-hint answer persists as the group's `(group, noHint)`
+    /// approval, across a relaunch and a path update, so the question isn't repeated.
+    @Test func aNoHintAnswerPersistsAcrossRelaunchAndPathUpdates() throws {
         let (store, dir, defaults) = try makeStore()
         let harness = Harness()
         harness.hint = .present(keyA)
         let clock = NetworkJoinClock.forIdentityTests
-        let launch = UUID()
-        let identity = makeController(store, harness, clock: clock, launchID: launch)
+        let identity = makeController(store, harness, clock: clock)
         let siteA = identity.resolveID(group: home, defaultID: UUID())
         try store.update { contents in
             contents.approvals.removeAll()
@@ -225,18 +226,17 @@ struct NetworkIdentityControllerTests {
         #expect(question == .forgottenThisConnection(group: home, options: [siteA]))
 
         identity.answer(.thisConnection(siteA), to: question)
+        #expect(store.contents.approvals.contains(IdentityApproval(group: home, key: .noHint, recordID: siteA)))
         #expect(identity.resolveID(group: home, defaultID: siteA) == siteA)
         #expect(identity.authorizes(siteA))
 
-        // Another launch, same generation number: asked again.
         let reopened = NetworkIdentityStore(directory: dir, defaults: defaults, legacyNetworks: { [:] }, reservedIDs: { [] })
         let relaunched = makeController(reopened, harness, clock: clock)
-        _ = relaunched.resolveID(group: home, defaultID: siteA)
-        #expect(relaunched.question == question)
-        // The same launch after a path update: asked again.
+        #expect(relaunched.resolveID(group: home, defaultID: siteA) == siteA)
+        #expect(relaunched.question == nil)
         clock.generation.advance()
-        _ = identity.resolveID(group: home, defaultID: siteA)
-        #expect(identity.question == question)
+        #expect(identity.resolveID(group: home, defaultID: siteA) == siteA)
+        #expect(identity.question == nil)
     }
 
     @Test func settlingAfterAHoldTellsTheOwnerOnceAndALaunchIdentificationDoesNot() throws {

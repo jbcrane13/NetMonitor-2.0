@@ -32,47 +32,78 @@ extension DeviceDiscoveryCoordinator {
         )
     }
 
-    /// Connects a new `identity`: one scan once a held network settles (the scan refused meanwhile,
-    /// as asked, else the local network's), and option summaries for its questions.
+    /// Connects a new `identity`: the local network's scan once a held network settles, and option
+    /// summaries for its questions.
     func wireIdentity() {
         identity?.onSettled = { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                let queued = self.queuedScan
-                self.queuedScan = nil
-                self.rescan(queued ?? .identified)
+                self.localScanQueued = true
+                self.runQueuedScanIfFree()
             }
         }
         identity?.describeOption = { [weak self] id in self?.identityOptionSummary(for: id) ?? IdentityOptionSummary() }
     }
 
-    /// While identifying, refuses a scan and remembers it, a user's scan of a manual network winning
-    /// over a local one. True when refused.
+    /// While identifying, refuses a scan and remembers it (#645 round 4):
+    /// - a manual network's scan waits only for the probe (it shares the Bonjour browser), and runs
+    ///   for that network when the probe ends; the local network's question doesn't hold it;
+    /// - any scan of the local network runs once it's identified, under the identified ID, never
+    ///   under the tentative one it was asked for. True when refused.
     func queueWhileIdentifying(_ reason: ScanReason) -> Bool {
-        guard isIdentifyingNetwork else { return false }
-        Logger.discovery.notice("Scan queued (\(reason.logLabel, privacy: .public)): identifying which network this is")
-        if queuedScan?.manualNetwork == nil || reason.manualNetwork != nil {
-            queuedScan = reason
+        if let manual = reason.manualNetwork {
+            guard isProbing else { return false }
+            queuedManual = manual
+        } else {
+            guard isIdentifyingNetwork else { return false }
+            localScanQueued = true
         }
+        Logger.discovery.notice("Scan queued (\(reason.logLabel, privacy: .public)): identifying which network this is")
         return true
     }
 
-    /// Ends probe `run` if it's still the latest: an obsolete probe ends nothing. Then runs a scan
-    /// refused meanwhile, unless identification continues or holds the network: both scan when it
-    /// settles (`onSettled`).
+    /// A scan of `profile` (nil: the local network) is starting: what was queued for it is done.
+    func noteScanStarting(_ profile: NetworkProfile?) {
+        if let profile, profile.id == queuedManual?.id {
+            queuedManual = nil
+        }
+        if profile == nil || profile?.id == networkProfileManager.localProfile?.id {
+            localScanQueued = false
+        }
+    }
+
+    /// Runs what was queued once the coordinator is free: a manual network's scan when no probe runs,
+    /// then (`includingLocal`) the local network's once it's identified. The local one is started only
+    /// by settling or by the scan before it ending, so it runs once.
+    func runQueuedScanIfFree(includingLocal: Bool = true) {
+        guard !isScanning, !isProbing else { return }
+        if let manual = queuedManual {
+            queuedManual = nil
+            rescan(.user(manual))
+        } else if includingLocal, localScanQueued, identity?.isIdentifying != true, identity?.heldNetworkIDs.isEmpty != false {
+            localScanQueued = false
+            rescan(.identified)
+        }
+    }
+
+    /// Whether identification holds a scan for `profileID` (#628 PR B, #645 round 4): the local
+    /// network until it's identified with its router unchanged, and any network that was only
+    /// tentative for this connection, so nothing commits under an ID never identified here.
+    func identityHolds(_ profileID: UUID?) -> Bool {
+        guard let identity, let profileID else { return false }
+        if profileID == networkProfileManager.localProfile?.id {
+            return !identity.authorizes(profileID)
+        }
+        return identity.wasOnlyTentative(profileID)
+    }
+
+    /// Ends probe `run` if it's still the latest: an obsolete probe ends nothing. Then runs what was
+    /// queued, as far as identification allows.
     private func endProbeRun(_ run: Int) {
         guard run == probeRun else { return }
         isProbing = false
         bonjourScanner.stopDiscovery()
-        guard queuedScan != nil, identity?.isIdentifying != true else { return }
-        Task { @MainActor [weak self] in
-            // A manual network's scan runs now; a local one waits while the network is held (it scans
-            // when it settles).
-            guard let self, let queued = queuedScan, !isIdentifyingNetwork,
-                  queued.manualNetwork != nil || identity?.heldNetworkIDs.isEmpty != false else { return }
-            queuedScan = nil
-            rescan(queued)
-        }
+        Task { @MainActor [weak self] in self?.runQueuedScanIfFree(includingLocal: false) }
     }
 
     /// Whether identification is under way, so a scan asked for now is refused and one follows it.

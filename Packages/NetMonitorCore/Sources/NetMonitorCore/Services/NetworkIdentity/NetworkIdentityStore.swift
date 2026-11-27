@@ -113,7 +113,7 @@ public final class NetworkIdentityStore {
             return
         }
         if let data = try? Data(contentsOf: fileURL) {
-            if let decoded = try? JSONDecoder().decode(Contents.self, from: data), decoded.schemaVersion > Self.schemaVersion {
+            if Self.isNewer(data) {
                 Self.logger.notice("Network identity file is from a newer build: paused for this launch")
                 state = .newer
             } else if let decoded = try? JSONDecoder().decode(Contents.self, from: data), (try? validate(decoded)) != nil {
@@ -131,6 +131,15 @@ public final class NetworkIdentityStore {
             return
         }
         migrate()
+    }
+
+    /// Whether `data` is a newer build's file, read from its `schemaVersion` alone: a newer shape may
+    /// not decode as this build's contents at all.
+    private static func isNewer(_ data: Data) -> Bool {
+        struct Header: Decodable {
+            let schemaVersion: Int
+        }
+        return ((try? JSONDecoder().decode(Header.self, from: data))?.schemaVersion ?? 0) > schemaVersion
     }
 
     /// The file can't be used: keep it as it is, copy it for diagnosis, and stay damaged across launches.
@@ -173,12 +182,19 @@ public final class NetworkIdentityStore {
             sources += known.sorted { $0.id.uuidString < $1.id.uuidString }
         }
         for (key, id) in sources {
-            // "interface|subnet", or "interface|subnet|class" from the known index.
+            // "interface|subnet", or "interface|subnet|class" from the known index, whose class wins:
+            // a forgotten network stays forgotten even when the v1 map has it too.
             let parts = key.split(separator: "|").map(String.init)
-            guard parts.count >= 2, !records.contains(where: { $0.id == id }) else { continue }
-            let recordClass: IdentityRecordClass = parts.count > 2 && parts[2] == IdentityRecordClass.forgotten.rawValue
-                ? .forgotten : .legacyUnverified
-            records.append(IdentityRecord(id: id, group: NetworkGroup(interface: parts[0], subnet: parts[1]), recordClass: recordClass))
+            guard parts.count >= 2 else { continue }
+            let forgotten = parts.count > 2 && parts[2] == IdentityRecordClass.forgotten.rawValue
+            if let index = records.firstIndex(where: { $0.id == id }) {
+                if forgotten {
+                    records[index].recordClass = .forgotten
+                }
+                continue
+            }
+            let group = NetworkGroup(interface: parts[0], subnet: parts[1])
+            records.append(IdentityRecord(id: id, group: group, recordClass: forgotten ? .forgotten : .legacyUnverified))
         }
         let revision = max(1, defaults.integer(forKey: Self.revisionKey) + 1)
         return Contents(
@@ -219,17 +235,29 @@ public final class NetworkIdentityStore {
         var attempts = 0
         while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
             attempts += 1
-            guard errno == EWOULDBLOCK, attempts < 20 else { throw Conflict() }
+            guard errno == EWOULDBLOCK else {
+                // Not another holder but a lock error: reload what's there, so a retry starts from it.
+                reloadQuietly()
+                throw Conflict()
+            }
+            guard attempts < 20 else { throw Conflict() }
             usleep(25000)
         }
         return try body()
+    }
+
+    /// Reloads the file if it's this build's and valid; leaves everything as it is otherwise.
+    private func reloadQuietly() {
+        guard let data = try? Data(contentsOf: fileURL), !Self.isNewer(data),
+              let disk = try? JSONDecoder().decode(Contents.self, from: data), (try? validate(disk)) != nil else { return }
+        contents = disk
     }
 
     /// Throws `Conflict`, after reloading, if the file's revision isn't the one this copy last read
     /// or wrote; pauses if what's there now can't be used.
     private func reloadIfChangedElsewhere() throws {
         guard let data = try? Data(contentsOf: fileURL) else { return }
-        if let disk = try? JSONDecoder().decode(Contents.self, from: data), disk.schemaVersion > Self.schemaVersion {
+        if Self.isNewer(data) {
             state = .newer
             throw Paused()
         }
@@ -291,8 +319,10 @@ public final class NetworkIdentityStore {
         for approval in contents.approvals {
             guard keys.insert("\(approval.group.interface)|\(approval.group.subnet)|\(approval.key.digests.joined(separator: ","))").inserted
             else { throw fail("duplicate (group, key) approval") }
+            // A bucket may hold the group's no-hint approval (#645 round 4); any other approval is a bound record's.
             guard let record = contents.records.first(where: { $0.id == approval.recordID }), record.group == approval.group,
-                  record.recordClass == .bound else { throw fail("approval for a missing, foreign or unbound record") }
+                  record.recordClass == .bound || (approval.key == .noHint && record.recordClass == .bucket)
+            else { throw fail("approval for a missing, foreign or unbound record") }
         }
         for record in contents.records where record.recordClass == .bound {
             guard contents.approvals.contains(where: { $0.recordID == record.id }) else { throw fail("bound record without an approval") }

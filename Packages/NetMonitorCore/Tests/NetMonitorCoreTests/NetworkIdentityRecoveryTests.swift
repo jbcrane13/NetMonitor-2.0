@@ -81,13 +81,13 @@ extension NetworkIdentityControllerTests {
         #expect(identity.authorizes(legacy))
     }
 
-    /// #645: a connection-only answer belongs to the connection its question was asked on.
-    @Test func aConnectionOnlyAnswerAfterAPathUpdateIsRejected() throws {
+    /// A no-hint answer is given only while the hint is settled absent: if a router appeared with the
+    /// card open, the answer stores nothing and identification runs again.
+    @Test func aNoHintAnswerAfterARouterAppearedIsRejected() throws {
         let (store, _, _) = try makeStore()
         let harness = Harness()
         harness.hint = .present(keyA)
-        let clock = NetworkJoinClock.forIdentityTests
-        let identity = makeController(store, harness, clock: clock)
+        let identity = makeController(store, harness)
         let siteA = identity.resolveID(group: home, defaultID: UUID())
         try store.update { contents in
             contents.approvals.removeAll()
@@ -98,12 +98,10 @@ extension NetworkIdentityControllerTests {
         harness.hint = .absent
         _ = identity.resolveID(group: home, defaultID: siteA)
         let question = try #require(identity.question)
-        clock.generation.advance()
+        harness.hint = .present(keyB)
         identity.answer(.thisConnection(siteA), to: question)
-        #expect(store.contents.connectionAnswers.isEmpty)
+        #expect(!store.contents.approvals.contains { $0.key == .noHint })
         #expect(harness.detections == 1)
-        _ = identity.resolveID(group: home, defaultID: siteA)
-        #expect(identity.question == question, "the new connection is asked on its own")
         #expect(!identity.authorizes(siteA))
     }
 
