@@ -134,6 +134,7 @@ struct WiFiHeatmapView: View {
             Text(viewModel.errorMessage ?? "")
         }
         .onDisappear { viewModel.onDisappear() }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen_heatmap")
     }
 
