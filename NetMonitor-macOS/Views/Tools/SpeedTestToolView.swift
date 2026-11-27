@@ -280,6 +280,8 @@ struct SpeedTestToolView: View {
             }
             .accessibilityIdentifier("speedTest_label_server")
         }
+        // Keeps the four labels' identifiers on macOS 27.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("speedTest_section_results")
     }
 
