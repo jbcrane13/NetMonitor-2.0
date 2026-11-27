@@ -4,18 +4,31 @@ import Foundation
 /// measured values it rests on. Shown word for word; the model only words an explanation of it.
 public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
     /// In rank order: local causes first, since a weak signal or a lossy router link also makes
-    /// DNS, websites and speed tests look bad.
+    /// DNS, websites and speed tests look bad. A red modem light (#625) comes next: a modem without
+    /// internet explains failed lookups, silent sites and slow speed tests, but not a weak signal
+    /// measured on this device, nor a device on the local network that doesn't answer.
     public enum Kind: String, Sendable, CaseIterable, Comparable {
         case weakSignal
         case gatewayLoss
         case unstableRouterLink
+        case deviceOffline
+        /// A known modem light reads as red, from a photo read in this session.
+        case modemProblem
         case dnsFailed
         case dnsSlow
-        case deviceOffline
         case siteNotAnswering
         case ispSlow
         /// Every check finished and nothing passed a threshold.
         case noProblem
+        /// A modem light is amber, a red phone light, a light the app doesn't know is red or amber,
+        /// or a red light this run contradicts: worth a look, never the most likely cause, and
+        /// listed under "No problem found" when the checks were within limits (#629 review).
+        case modemCheck
+
+        /// A finding from the modem-light photo rather than a measurement (#625).
+        public var isModem: Bool {
+            self == .modemProblem || self == .modemCheck
+        }
 
         public static func < (lhs: Kind, rhs: Kind) -> Bool {
             (allCases.firstIndex(of: lhs) ?? 0) < (allCases.firstIndex(of: rhs) ?? 0)
@@ -29,6 +42,8 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
     public let nextStep: String
     /// The device name, website or looked-up name a finding is about.
     public var subject: String?
+    /// For a modem finding: this run reached the internet, so a red Internet light was likely misread.
+    public var reachedInternet = false
 
     public var id: String { kind.rawValue + (subject.map { ":" + $0 } ?? "") }
 }
@@ -44,6 +59,8 @@ public struct TroubleshootFinding: Equatable, Sendable, Identifiable {
 /// | device offline or asleep | the device answered no ping and no known port, while the router answered with under 5% loss. With the router unmeasured, the device "isn't answering" and the router is named as unverified. A device whose known-port check didn't finish is not a finding |
 /// | website not answering | port 443 didn't answer and the site's name resolved or its lookup measured nothing, while the router is healthy or unmeasured (then named as unverified) |
 /// | slower than usual | download under 25% of the last saved speed test |
+/// | a modem light reads as red | a known light other than Phone reads red in this session's current photo (#625), and for an Internet-type light, the run didn't reach the internet |
+/// | a modem light needs a look | a known light is amber, Phone is red, an unknown light is red or amber, or a red Internet-type light while the run reached the internet; listed after the all-clear |
 /// | no problem found | the script finished, measured something, and nothing above fired |
 ///
 /// A step that couldn't measure (no signal reading, no router address, no saved speed test,
@@ -59,9 +76,10 @@ public enum TroubleshootRules {
 
     /// The findings for `results`, ranked. `completed` is whether the whole script ran: a cancelled
     /// or stopped run names what it measured but never says no problem was found. `unprobedHosts`
-    /// are the addresses whose port check was planned but didn't finish.
+    /// are the addresses whose port check was planned but didn't finish. `modem` is the modem-light
+    /// reading taken in this session, if any (#625).
     public static func findings(
-        for results: [TroubleshootResult], completed: Bool, unprobedHosts: Set<String> = []
+        for results: [TroubleshootResult], completed: Bool, unprobedHosts: Set<String> = [], modem: ModemPanelReport? = nil
     ) -> [TroubleshootFinding] {
         let gateway = pings(in: results).first { $0.target == .gateway }
         let gatewayHealthy = gateway.map { $0.received > 0 && $0.lossPercent < gatewayLossPercent } ?? false
@@ -73,6 +91,9 @@ public enum TroubleshootRules {
                 + silentSites(in: results, routerUnverified: unverified)
         }
         findings += ispSlowness(in: results)
+        let lights = modem.map { modemFindings($0, reachedInternet: reachedInternet(results)) } ?? []
+        // A light worth a look doesn't stop the all-clear for what was measured; a red one does.
+        findings += lights.filter { $0.kind == .modemProblem }
         // An all-clear needs something measured, and says when some steps couldn't measure.
         let unmeasured = results.filter(\.isUnmeasured).count
         if findings.isEmpty, completed, unmeasured < results.count {
@@ -85,6 +106,7 @@ public enum TroubleshootRules {
                 nextStep: "If the problem continues, it may be with the app, website or device you were using."
             ))
         }
+        findings += lights.filter { $0.kind == .modemCheck }
         return findings.sorted { $0.kind < $1.kind }
     }
 

@@ -22,9 +22,10 @@ public struct TroubleshootReport: Sendable, Equatable {
 /// prompt, so the model can't pair a value with the wrong check.
 public enum TroubleshootReportBuilder {
     /// The report for `findings` (ranked, as `TroubleshootRules` returns them), or nil when there
-    /// is nothing to explain.
+    /// is nothing to explain, or when a modem light is among them: no model wording then (#629
+    /// review), since a check on its text can't stop it contradicting the lights. See `appSummary`.
     public static func report(for kind: SymptomKind, findings: [TroubleshootFinding]) -> TroubleshootReport? {
-        guard let top = findings.first else { return nil }
+        guard let top = findings.first, !findings.contains(where: \.kind.isModem) else { return nil }
         let subject = "Troubleshooting check: \(kind.title)"
         if top.kind == .noProblem {
             return TroubleshootReport(
@@ -59,6 +60,23 @@ public enum TroubleshootReportBuilder {
         )
     }
 
+    /// The app's own summary of a run with a modem finding (#629 review): the most likely cause,
+    /// then each modem finding, each with its fixed next step. Nil without a modem finding.
+    public static func appSummary(for findings: [TroubleshootFinding]) -> String? {
+        guard findings.contains(where: \.kind.isModem) else { return nil }
+        // A light worth a look is never the lead (#629 review).
+        let lead = findings.first { $0.kind != .modemCheck }
+        var lines: [String] = []
+        if let lead {
+            lines.append(lead.kind == .noProblem ? "No problem found in the checks." : "Most likely cause: \(lead.title). Next step: \(lead.nextStep)")
+        }
+        for finding in findings where finding.kind.isModem && finding.id != lead?.id {
+            let label = lines.isEmpty ? "" : finding.kind == .modemCheck ? "Also worth a look: " : "Also: "
+            lines.append("\(label)\(finding.title). Next step: \(finding.nextStep)")
+        }
+        return lines.joined(separator: " ")
+    }
+
     // MARK: - Denials (#451 review)
 
     /// Words that say a finding's subject is fine, checked only near the subject. Deliberately no
@@ -74,7 +92,8 @@ public enum TroubleshootReportBuilder {
         case .dnsFailed, .dnsSlow: ["fine", "fast", "quick", "normal", "healthy"]
         case .deviceOffline, .siteNotAnswering: ["connected", "online", "awake", "reachable", "responding", "answering", "up", "working"]
         case .ispSlow: ["fine", "normal", "fast", "usual"]
-        case .noProblem: []
+        // Never sent to the model (`report(for:findings:)`).
+        case .modemProblem, .modemCheck, .noProblem: []
         }
     }
 
@@ -165,6 +184,7 @@ public enum TroubleshootReportBuilder {
         case .dnsFailed, .dnsSlow: ["dns"]
         case .deviceOffline, .siteNotAnswering: [finding.subject?.lowercased()].compactMap(\.self)
         case .ispSlow: ["slower", "speed", "slow"]
+        case .modemProblem, .modemCheck: ["modem"]
         case .noProblem:
             ["no problem", "no issue", "any problem", "any issue", "nothing wrong", "didn't find", "did not find", "found nothing", "without finding"]
         }

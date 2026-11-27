@@ -6,10 +6,15 @@ import SwiftUI
 /// shown as read with the app's meaning; the on-device model only reads labels and colours, and
 /// writes nothing the user sees.
 struct ModemLightsView: View {
-    @State private var viewModel = ModemLightsViewModel()
+    @State private var viewModel: ModemLightsViewModel
     @State private var photoItem: PhotosPickerItem?
     @State private var showsCamera = false
     @Environment(\.dismiss) private var dismiss
+
+    /// - Parameter onReading: Gets each reading, for the Troubleshoot session's findings (#625).
+    init(onReading: @escaping @MainActor (ModemPanelReport) -> Void = { _ in }) {
+        _viewModel = State(initialValue: ModemLightsViewModel(onReading: onReading))
+    }
 
     var body: some View {
         NavigationStack {

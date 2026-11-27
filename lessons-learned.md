@@ -202,6 +202,12 @@ Project-specific notes for agents. Global lessons live in `~/.claude/lessons-lea
 - **A router's WAN light is the link to the modem, not the provider line** (review): green WAN stays green during an outage, so it gets its own cautious meaning instead of the DSL/broadband one.
 - **`#if canImport(FoundationModels)` doesn't protect OS 27 API from Xcode 26,** which has the framework without `Attachment`, `.vision` or count guides. Guard such files with `&& compiler(>=6.4)` as well. CI's Xcode 16.4 has no FoundationModels, so CI can't catch this.
 
+## 2026-11-26 — Modem lights in the troubleshooter's findings (#625)
+- **Word checks can't keep model text faithful to a reading; don't ask the model when the reading matters (lead, #629 review).** Two rounds of guards (deny-word windows, then "every clause about the modem must keep the fault in view") still passed "it does not indicate a fault", "It is harmless and can be ignored." and "Call your provider to cancel your service.", and dropped faithful answers. With a modem finding the app now writes the summary from the findings' fixed next steps. This repeats #626's lesson one level up.
+- **A photo reading is evidence about one moment on one network.** Kept for the screen's lifetime, an old red light blamed a later run after the modem restarted. A reading now counts only on its network (saved network plus path changes) and for 30 minutes, then shows as history.
+- **A reading that arrives after a run makes the run's explanation stale.** The modem button is enabled once a run finishes, so a new reading re-ranks the findings and replaces the explanation.
+- **`swift test --filter` matches test identifiers (`Type/function`), not `@Suite` display names.** A filter on the display name runs nothing and only warns "No matching test cases were run", which looks like a pass in a grep for failures.
+
 ## 2026-11-26 — Ask's live tools (#579)
 - **The model restates a live measurement as presence.** It wrote "is answering now with 3 of 3 replies" and "the gateway responded in 2 ms". The filter drops respond/replied/replies sentences. When the app measured something, the fallback is "Here is what the app measured." above the app's own lines, not the stale-scan line.
 - **Live tools change which tool the model picks.** "Why is the internet slow tonight?" now calls networkStatus instead of flakyDevices. Rerun the whole question list after adding a tool.

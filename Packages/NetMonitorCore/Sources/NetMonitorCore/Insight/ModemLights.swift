@@ -183,6 +183,11 @@ public struct ModemLightMeaning: Sendable, Equatable {
     /// Derived from an off reading, which is only ever a check: the probe read lit white lights on a
     /// light case as off (lead decision on #558, option A).
     public var readsAsOff = false
+
+    /// Amber, or a red phone light: worth a look, not a fault. An off reading is a check of its own.
+    public var needsALook: Bool {
+        severity == .attention && !readsAsOff
+    }
 }
 
 /// One light as read, with the app's meaning when it knows the label and the colour (#558).
@@ -215,6 +220,12 @@ public struct ModemLightVerdict: Sendable, Equatable, Identifiable {
             meaning = match.flatMap { Self.meaning(kind: $0.kind, qualifier: $0.qualifier, color: color) }
             note = nil
         }
+    }
+
+    /// The app's name for the light, with its port or band: "Internet", "Ethernet 2". Nil for a
+    /// label the app doesn't know. Built from the table, never from the model-read label's text.
+    public var name: String? {
+        ModemLightKind.match(label).map { $0.kind.name + ($0.qualifier.map { " " + $0 } ?? "") }
     }
 
     /// The light as read: "USB: green", "INTERNET: colour not clear", "LAN 2: reads as off". A
@@ -361,15 +372,37 @@ public struct ModemPanelReport: Sendable, Equatable {
         return notices
     }
 
+    /// Lights the app doesn't know, lit red or amber: never behind an all-clear.
+    public var unknownColoured: [ModemLightVerdict] {
+        verdicts.filter { $0.kind == nil && ($0.color == .red || $0.color == .amber) }
+    }
+
+    /// Whether the headline is the all-clear, "No light shows a problem": some light has a meaning,
+    /// and none is red, amber, read as off, or an unknown light lit red or amber. The troubleshooter
+    /// uses the same rule (#625), so the sheet and the findings can't disagree.
+    public var isAllClear: Bool {
+        let meanings = verdicts.compactMap(\.meaning)
+        return !meanings.isEmpty && unknownColoured.isEmpty && meanings.allSatisfy { $0.severity == .normal }
+    }
+
+    /// Under an all-normal reading in Troubleshoot (#625): normal lights prove nothing.
+    public static let looksNormalNote = "They look normal; that alone doesn't show the internet is working."
+
+    /// The all-clear, with every known light read clearly and every light kept: the troubleshooter
+    /// adds `looksNormalNote` (#625). Never proof the connection works.
+    public var looksNormal: Bool {
+        isAllClear && notices.isEmpty && !verdicts.contains { $0.kind != nil && $0.meaning == nil }
+    }
+
     /// One line over the lights, worst first. It says "No light shows a problem" only when no
-    /// light is red, amber, read as off, or an unknown light lit red or amber; known lights without
-    /// a verdict are counted too, so nothing hides behind an all-clear.
+    /// light is red, amber, read as off, or an unknown light lit red or amber (`isAllClear`); known
+    /// lights without a verdict are counted too, so nothing hides behind an all-clear.
     public var headline: String {
         let meanings = verdicts.compactMap(\.meaning)
         let problems = meanings.count(where: { $0.severity == .problem })
         let off = meanings.count(where: \.readsAsOff)
-        let attention = meanings.count(where: { $0.severity == .attention && !$0.readsAsOff })
-        let unknownColoured = verdicts.filter { $0.kind == nil && ($0.color == .red || $0.color == .amber) }
+        let attention = meanings.count(where: \.needsALook)
+        let unknownColoured = unknownColoured
         let unclear = verdicts.count(where: { $0.kind != nil && $0.meaning == nil })
         var parts: [String] = []
         if problems > 0 {
@@ -387,8 +420,10 @@ public struct ModemPanelReport: Sendable, Equatable {
         if attention > 0 {
             parts.append(attention == 1 ? "1 light needs a look." : "\(attention) lights need a look.")
         }
-        if parts.isEmpty {
-            parts.append(meanings.isEmpty ? "The app doesn't know these lights." : "No light shows a problem.")
+        if isAllClear {
+            parts.append("No light shows a problem.")
+        } else if parts.isEmpty {
+            parts.append("The app doesn't know these lights.")
         }
         if unclear > 0 {
             parts.append(unclear == 1 ? "1 known light wasn't clear in the photo." : "\(unclear) known lights weren't clear in the photo.")
