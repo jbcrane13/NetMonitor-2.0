@@ -194,6 +194,7 @@ struct HeldPresenceTests {
         #expect(held.accessibilityText(row).hasPrefix("Not checked: which network is this?"))
         let device = try #require(DeviceGroups.project([row]).first)
         #expect(held.statusText(device).hasPrefix("Not checked: which network is this?"))
+        #expect(held.stateLabel(device) == "Not checked: which network is this?")
         #expect(presence.statusText(row).hasPrefix("Online"))
     }
 }

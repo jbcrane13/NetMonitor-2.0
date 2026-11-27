@@ -40,8 +40,24 @@ enum MacNetworkIdentity {
             if environment["XCTestConfigurationFilePath"] != nil || arguments.contains("--in-memory-store") {
                 return throwaway("netmonitor-testhost-identity-\(ProcessInfo.processInfo.processIdentifier)", testHostSuite)
             }
-            return Location(directory: URL.applicationSupportDirectory.appending(path: "NetMonitor", directoryHint: .isDirectory), defaults: .standard)
+            let support = URL.applicationSupportDirectory.appending(path: "NetMonitor", directoryHint: .isDirectory)
+            return Location(directory: support, defaults: .standard)
         }
+    }
+
+    /// The network-change monitor, made after identification is attached.
+    final class WatcherRef {
+        weak var watcher: LocalNetworkChangeMonitor?
+    }
+
+    /// Attaches identification for the app: detection it asks for runs through the network-change
+    /// monitor, set on the returned reference once it exists, so a new ID is announced like a join.
+    static func attachDetectingThroughWatcher(
+        _ store: NetworkIdentityStore, discovery: DeviceDiscoveryCoordinator, profileManager: NetworkProfileManager
+    ) -> WatcherRef {
+        let ref = WatcherRef()
+        attach(store: store, discovery: discovery, profileManager: profileManager) { ref.watcher?.checkNow() }
+        return ref
     }
 
     /// Opens the store. Call it before the profile manager first detects: the first launch migrates

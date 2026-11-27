@@ -15,11 +15,35 @@ enum UITestIdentityFixture {
         #endif
     }
 
+    /// The fixture's local network, so the question names it and never the Mac's real network.
+    nonisolated static let network = NetworkProfile(
+        interfaceName: "en0", ipAddress: "192.168.77.10",
+        network: NetworkUtilities.IPv4Network(
+            networkAddress: 0xC0A8_4D00, broadcastAddress: 0xC0A8_4DFF, interfaceAddress: 0xC0A8_4D0A, netmask: 0xFFFF_FF00
+        ),
+        connectionType: .wifi, displayName: "Home office"
+    )
+
+    /// The profile manager's live networks: the fixture's with `UITEST_IDENTITY=ask`.
+    static var activeProfilesProvider: @Sendable () -> [NetworkProfile] {
+        guard asks else { return NetworkProfileManager.detectActiveProfiles }
+        let fixture = network
+        return { [fixture] }
+    }
+
     static let homeKey = RouterKey(["uitest-home-router"])
     static let awayKey = RouterKey(["uitest-away-router"])
 
     static func readHint(_: String) -> RouterHintStatus {
         asks ? .present(awayKey) : .absent
+    }
+
+    /// Attaches identification for a UI-test launch, seeded as requested.
+    static func attach(_ store: NetworkIdentityStore, discovery: DeviceDiscoveryCoordinator, profileManager: NetworkProfileManager) {
+        seedIfRequested(store, local: profileManager.localProfile)
+        MacNetworkIdentity.attach(store: store, discovery: discovery, profileManager: profileManager, readHint: readHint) { [weak profileManager] in
+            profileManager?.detectLocalNetwork()
+        }
     }
 
     /// Records the local network as identified by `homeKey`.

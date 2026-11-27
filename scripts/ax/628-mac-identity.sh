@@ -1,0 +1,70 @@
+#!/bin/zsh
+# #628 PR B user flow (macOS AX procedure; XCUITest is blocked on mini-pro-1).
+# Launches a Debug build with UI-test arguments and UITEST_IDENTITY=ask: the fixture's local network
+# ("Home office", 192.168.77.0/24) was identified by one router, and the Mac now sees another on the
+# same subnet. The Devices screen must ask "Which network is this?", show the seeded device as
+# history ("Not checked: which network is this?"), and save nothing from a scan. Answering "Same as
+# Home office" settles it: one scan runs and saves the fixture's printer, shown Online.
+# Everything is fixture data in a throwaway store and defaults suite: no real network, no saved
+# preferences. Never touches an installed /Applications copy: it drives only the process it started.
+# Usage: scripts/ax/628-mac-identity.sh <Debug NetMonitor-macOS.app> <out-dir>
+set -euo pipefail
+APP=$1
+OUT=$2
+mkdir -p "$OUT"
+rm -f "$OUT"/628b-*.png(N)
+AX=$OUT/axdrive
+swiftc -O "${0:A:h}/axdrive.swift" -o "$AX" 2>/dev/null
+
+UITEST_IDENTITY=ask \
+  "$APP/Contents/MacOS/NetMonitor-macOS" --uitesting --in-memory-store --reset-history-files --seed-test-device \
+  > "$OUT/app.log" 2>&1 &
+PID=$!
+trap 'kill $PID 2>/dev/null || true' EXIT
+export AX_PID=$PID
+START=$(date '+%Y-%m-%d %H:%M:%S')
+
+fail() { echo "FAIL: $1"; exit 1; }
+expect() { [[ $1 == $2* ]] || fail "$3 (got: $1)"; }
+
+TITLE=devices_identity_title
+NEW=devices_identity_new
+SEED=devices_card_192.168.77.77
+PRINTER=devices_card_192.168.77.20
+
+expect "$("$AX" wait networkDetail_section_devices 40)" found "the dashboard never appeared"
+if [[ "$("$AX" wait sidebar_nav_devices 3)" != found* ]]; then
+  "$AX" resize 1400 900 > /dev/null
+  "$AX" clickat main-AppWindow-1 113 26 > /dev/null
+  expect "$("$AX" wait sidebar_nav_devices 5)" found "the sidebar never opened"
+fi
+"$AX" click sidebar_nav_devices > /dev/null
+
+# 1. The question, and the saved device as history.
+# macOS 27 doesn't expose the card's own identifier: its title and buttons carry theirs.
+expect "$("$AX" wait $TITLE 15)" found "the question never showed"
+expect "$("$AX" value $TITLE)" "Which network is this?" "the card doesn't ask which network this is"
+expect "$("$AX" wait $SEED 10)" found "the seeded device's card never showed"
+expect "$("$AX" textin $SEED "Not checked: which network is this?" 5)" "found text" "the saved device isn't shown as history"
+"$AX" capture-union "$OUT/628b-1-question-history.png" devices_identity_card $SEED
+
+# 2. A scan while it's open saves nothing.
+"$AX" menu "Scan Network"
+expect "$("$AX" wait $PRINTER 3)" TIMEOUT "a scan saved the printer while the question was open"
+expect "$("$AX" textin $SEED "Not checked: which network is this?" 2)" "found text" "the saved device stopped reading as history"
+
+# 3. The answer: same network. One scan runs and saves the printer.
+expect "$("$AX" pressin main-AppWindow-1 "Same as Home office")" pressed "couldn't answer the question"
+expect "$("$AX" gone $TITLE 10)" gone "the question stayed after the answer"
+expect "$("$AX" wait $PRINTER 15)" found "no scan saved the printer after the answer"
+expect "$("$AX" textin $PRINTER Online 5)" "found text" "the printer's card doesn't say Online"
+expect "$("$AX" notextin $SEED "Not checked: which network is this?" 5)" "no text" "the saved device still reads as history"
+"$AX" capture-union "$OUT/628b-2-answered.png" $SEED $PRINTER
+
+LOGS=$(/usr/bin/log show --start "$START" --predicate "processIdentifier == $PID AND category == 'discovery'" --style compact 2>/dev/null)
+HELD=$(print -r -- "$LOGS" | grep -c "which network this is isn't settled" || true)
+SETTLED=$(print -r -- "$LOGS" | grep -c "Scan started (identified)" || true)
+[[ $HELD -ge 1 ]] || fail "expected the held scan in the app's log (got $HELD)"
+[[ $SETTLED -eq 1 ]] || fail "expected one scan once identified (got $SETTLED)"
+echo "log: $HELD held scan(s), $SETTLED scan once identified"
+echo PASS

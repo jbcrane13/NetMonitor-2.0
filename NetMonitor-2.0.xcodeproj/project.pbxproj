@@ -284,6 +284,7 @@
 		657E6DB2A02F9590E7B6CD85 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B457231CB1313AA1022A2F1 /* TimelineViewModel.swift */; };
 		65FEC46E6897CEC8AA8B8D0A /* ShellCommandRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD6EC88007BD40A5D73D72C1 /* ShellCommandRunnerTests.swift */; };
 		662112E8EFF96F36EA1845C3 /* TargetAlertSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFB0833130BA6A90208D0613 /* TargetAlertSettingsTests.swift */; };
+		665A22ACBC68B2C551819F84 /* NetMonitorApp+Identity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01BB4D1CF311D741F5C93F0C /* NetMonitorApp+Identity.swift */; };
 		66F112259910FB35EB8DCA3A /* MacInventoryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 540EA25702B3CDFF14AE59A8 /* MacInventoryUITests.swift */; };
 		66F46E106BDFE2F3537F7871 /* ConnectivityMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5CD4C3C6894A893EDE6003C /* ConnectivityMonitor.swift */; };
 		6702198645885A973FB2BCCF /* UITestHeatmapAdvisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEAF9A5DA25499A909D51F9B /* UITestHeatmapAdvisor.swift */; };
@@ -764,6 +765,7 @@
 		01149AB97A44B19B28D5A95C /* DeviceDiscoveryCoordinatorErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceDiscoveryCoordinatorErrorTests.swift; sourceTree = "<group>"; };
 		0138DA96DCE3DA14CABE4F90 /* IdentityPrecedenceMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityPrecedenceMergeTests.swift; sourceTree = "<group>"; };
 		016F16F5B8551E19BA9B89C0 /* NetMonitorCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NetMonitorCore; path = Packages/NetMonitorCore; sourceTree = SOURCE_ROOT; };
+		01BB4D1CF311D741F5C93F0C /* NetMonitorApp+Identity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NetMonitorApp+Identity.swift"; sourceTree = "<group>"; };
 		01E6AFDD85C2E113081B9646 /* TargetManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TargetManagerTests.swift; sourceTree = "<group>"; };
 		0203A45AF57DA6D9B5EDF5F5 /* ISPLookupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISPLookupServiceTests.swift; sourceTree = "<group>"; };
 		02A2AA1B3D6772A984C97A02 /* LiquidGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlass.swift; sourceTree = "<group>"; };
@@ -2429,6 +2431,7 @@
 			isa = PBXGroup;
 			children = (
 				756B774BD29446B68DEA41E3 /* NetMonitorApp.swift */,
+				01BB4D1CF311D741F5C93F0C /* NetMonitorApp+Identity.swift */,
 				8DC17DE5CD86E7BCC4467BAC /* NetMonitorApp+JoinClock.swift */,
 				EA2FB79A16ADB85CC5B45664 /* SchemaV1.swift */,
 				FA267E28ED78FF7DAB435732 /* SchemaV2.swift */,
@@ -3053,6 +3056,7 @@
 				B5C58E5DC1825BD6609D274B /* MiniSparklineView.swift in Sources */,
 				301CC08213317321977AB139 /* MonitoringSession.swift in Sources */,
 				D656FAED2994985E6492A7F0 /* MonitoringSettingsView.swift in Sources */,
+				665A22ACBC68B2C551819F84 /* NetMonitorApp+Identity.swift in Sources */,
 				6CE863FFBC2B277D07F90291 /* NetMonitorApp+JoinClock.swift in Sources */,
 				68D9A9FF7937E73FE6F19BAF /* NetMonitorApp.swift in Sources */,
 				63F108907D50D0C8CFB4B9FC /* NetworkChangeRescan.swift in Sources */,

@@ -56,6 +56,24 @@ struct NetworkIdentityControllerTests {
         #expect(store.contents.approvals == [IdentityApproval(group: home, key: keyA, recordID: today)])
     }
 
+    /// Today's ID is the network's own: its saved rows and profile use it, and must keep doing so.
+    @Test func aNetworkKeepsTodaysIDThoughItsRowsReserveIt() throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "identity-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let defaults = try #require(UserDefaults(suiteName: "identity-\(UUID().uuidString)"))
+        let today = UUID()
+        let store = NetworkIdentityStore(directory: dir, defaults: defaults, legacyNetworks: { [:] }, reservedIDs: { [today] })
+        let harness = Harness()
+        harness.hint = .present(keyA)
+        #expect(makeController(store, harness).resolveID(group: home, defaultID: today) == today)
+        harness.hint = .absent
+        let other = NetworkGroup(interface: "en1", subnet: "10.0.0.0/24")
+        let bucketToday = UUID()
+        let bucketStore = NetworkIdentityStore(
+            directory: dir.appending(path: "b"), defaults: defaults, legacyNetworks: { [:] }, reservedIDs: { [bucketToday] }
+        )
+        #expect(makeController(bucketStore, harness).resolveID(group: other, defaultID: bucketToday) == bucketToday)
+    }
+
     @Test func anApprovedRouterIsThatNetwork() throws {
         let (store, _, _) = try makeStore()
         let harness = Harness()
@@ -288,7 +306,9 @@ struct ProfileManagerIdentityHookTests {
         let defaults = try #require(UserDefaults(suiteName: "identity-hook-\(UUID().uuidString)"))
         let live = NetworkProfile(
             interfaceName: "en0", ipAddress: "192.168.1.10",
-            network: NetworkUtilities.IPv4Network(networkAddress: 0xC0A8_0100, broadcastAddress: 0xC0A8_01FF, interfaceAddress: 0xC0A8_010A, netmask: 0xFFFF_FF00),
+            network: NetworkUtilities.IPv4Network(
+                networkAddress: 0xC0A8_0100, broadcastAddress: 0xC0A8_01FF, interfaceAddress: 0xC0A8_010A, netmask: 0xFFFF_FF00
+            ),
             connectionType: .wifi
         )
         let manager = NetworkProfileManager(userDefaults: defaults, activeProfilesProvider: { [live] })

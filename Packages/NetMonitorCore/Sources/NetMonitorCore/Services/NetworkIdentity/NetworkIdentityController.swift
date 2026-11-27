@@ -128,13 +128,13 @@ public final class NetworkIdentityController {
                 state = .identified(existing, group, hint)
                 return existing
             }
-            let id = store.newID(preferring: defaultID)
+            let id = ownID(defaultID)
             let bucket = IdentityRecord(id: id, group: group, recordClass: .bucket)
             guard write({ $0.records.append(bucket) }, holding: defaultID) else { return defaultID }
             state = .identified(id, group, hint)
             return id
         case .create(let key):
-            let id = store.newID(preferring: defaultID)
+            let id = ownID(defaultID)
             guard write({ contents in
                 contents.records.append(IdentityRecord(id: id, group: group, recordClass: .bound))
                 contents.approvals.append(IdentityApproval(group: group, key: key, recordID: id))
@@ -154,6 +154,13 @@ public final class NetworkIdentityController {
             state = .paused(defaultID)
             return defaultID
         }
+    }
+
+    /// The ID a network new to identification goes by: today's, its saved rows' and profile's, unless
+    /// another identity record already uses it; otherwise a fresh one that nothing uses.
+    private func ownID(_ defaultID: UUID) -> UUID {
+        let taken = store.contents.records.contains { $0.id == defaultID } || store.contents.legacyIDs.contains(defaultID)
+        return taken ? store.newID(preferring: nil) : defaultID
     }
 
     private func startProbe(legacy: UUID, group: NetworkGroup, key: RouterKey, hint: RouterHintStatus) {
@@ -298,17 +305,19 @@ public final class NetworkIdentityController {
         }
     }
 
+    /// Publishes the state, assigning only what changed: observers re-render on every assignment,
+    /// and detection runs from paths a render can reach.
     private func publish() {
-        switch state {
-        case .idle, .identified:
-            question = nil
-            heldNetworkIDs = []
-        case .identifying(let id, _, _), .paused(let id):
-            question = nil
-            heldNetworkIDs = [id]
-        case .held(let id, let question):
-            self.question = question
-            heldNetworkIDs = [id]
+        let next: (IdentityQuestion?, Set<UUID>) = switch state {
+        case .idle, .identified: (nil, [])
+        case .identifying(let id, _, _), .paused(let id): (nil, [id])
+        case .held(let id, let question): (question, [id])
+        }
+        if question != next.0 {
+            question = next.0
+        }
+        if heldNetworkIDs != next.1 {
+            heldNetworkIDs = next.1
         }
     }
 }

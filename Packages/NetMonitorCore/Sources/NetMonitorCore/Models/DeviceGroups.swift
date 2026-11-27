@@ -375,6 +375,12 @@ public extension PresenceSnapshot {
         PresenceFreshness.relativeText(since: device.lastSeen, now: now)
     }
 
+    /// "Online", or "Not checked: which network is this?" while the device's network is held (#628 PR B).
+    func stateLabel(_ device: DeviceProjection) -> String {
+        let state = freshness(of: device)
+        return heldText(state.label, state: state, network: device.primary.networkProfileID)
+    }
+
     func statusText(_ device: DeviceProjection) -> String {
         let state = freshness(of: device)
         return heldText("\(state.label) · \(lastSeenText(device))", state: state, network: device.primary.networkProfileID)

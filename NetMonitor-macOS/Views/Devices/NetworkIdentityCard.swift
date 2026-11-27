@@ -15,7 +15,8 @@ struct NetworkIdentityCard: View {
         if identity.isDamaged {
             card(
                 title: "Network recognition is paused",
-                detail: "Its saved file couldn't be read, so devices aren't saved. Starting over keeps your devices and asks again which network this is."
+                detail: "Its saved file couldn't be read, so devices aren't saved. "
+                    + "Starting over keeps your devices and asks again which network this is."
             ) {
                 Button("Start over") { identity.startOver() }
                     .accessibilityIdentifier("devices_identity_startOver")
@@ -66,31 +67,24 @@ struct NetworkIdentityCard: View {
     }
 
     private func card(title: String, detail: String, @ViewBuilder actions: () -> some View) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "questionmark.circle")
-                .font(.title3)
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: "questionmark.circle")
+                .font(.headline)
+                .accessibilityIdentifier("devices_identity_title")
+            Text(detail)
+                .font(.callout)
                 .foregroundStyle(MacTheme.Colors.labelSecondary)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.headline)
-                    .accessibilityIdentifier("devices_identity_title")
-                Text(detail)
-                    .font(.callout)
-                    .foregroundStyle(MacTheme.Colors.labelSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 8) {
-                    actions()
-                }
-                .controlSize(.small)
+            HStack(spacing: 8) {
+                actions()
             }
-            Spacer(minLength: 0)
+            .controlSize(.small)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(MacTheme.Colors.chartSurfaceShallow)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .background(MacTheme.Colors.chartSurfaceShallow, in: RoundedRectangle(cornerRadius: 10))
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        // Its own container keeps the title's and buttons' identifiers from the screen's.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("devices_identity_card")
     }
