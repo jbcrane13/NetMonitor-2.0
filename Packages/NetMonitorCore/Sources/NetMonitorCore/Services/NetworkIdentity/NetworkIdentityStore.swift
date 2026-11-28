@@ -247,6 +247,22 @@ public final class NetworkIdentityStore {
         return try body()
     }
 
+    /// Whether the file changed on disk since this copy read or wrote it (another copy of the app),
+    /// reloading it if so: a newer build's file pauses (round 7). Cheap: the file is small.
+    public func reloadIfChangedOnDisk() -> Bool {
+        guard state == .ready, let data = try? Data(contentsOf: fileURL) else { return false }
+        if Self.isNewer(data) {
+            state = .newer
+            return true
+        }
+        struct Revision: Decodable {
+            let revision: Int
+        }
+        guard let disk = try? JSONDecoder().decode(Revision.self, from: data), disk.revision != contents.revision else { return false }
+        reloadQuietly()
+        return true
+    }
+
     /// Reloads the file if it's this build's and valid; leaves everything as it is otherwise.
     private func reloadQuietly() {
         guard let data = try? Data(contentsOf: fileURL), !Self.isNewer(data),
@@ -278,6 +294,21 @@ public final class NetworkIdentityStore {
     public func startOver() throws {
         guard state == .damaged else { throw Paused() }
         try withFileLock {
+            // Under the lock, what's there now (round 7): a newer build's file is refused; a valid file
+            // another copy repaired is loaded rather than rebuilt over.
+            if let data = try? Data(contentsOf: fileURL) {
+                if Self.isNewer(data) {
+                    state = .newer
+                    throw Paused()
+                }
+                if let disk = try? JSONDecoder().decode(Contents.self, from: data), (try? validate(disk)) != nil {
+                    contents = disk
+                    defaults.removeObject(forKey: Self.damagedKey)
+                    defaults.set(true, forKey: Self.markerKey)
+                    state = .ready
+                    return
+                }
+            }
             let rebuilt = migration(includingKnown: true)
             try persist(rebuilt)
             contents = rebuilt
