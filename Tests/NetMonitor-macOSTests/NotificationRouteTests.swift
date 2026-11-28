@@ -31,6 +31,13 @@ struct NotificationRouteTests {
         #expect(NotificationRoute.route(category: "SOMETHING_ELSE", userInfo: [:]) == nil)
     }
 
+    @Test("The identity question's route opens the Devices list (#645)")
+    func devicesRoute() {
+        let found = NotificationRouter.selection(for: .devices, devices: [], localNetworkID: UUID())
+        #expect(found.section == .section(.devices))
+        #expect(found.device == nil)
+    }
+
     @Test("A device route selects the device on the alert's network; otherwise the local dashboard")
     func selection() {
         let local = UUID(), home = UUID(), office = UUID()

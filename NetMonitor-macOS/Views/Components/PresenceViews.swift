@@ -60,7 +60,7 @@ struct PresenceStatusLabel: View {
         let freshness = presence.freshness(of: device)
         HStack(spacing: 4) {
             PresenceDot(freshness: freshness)
-            Text(showsLastSeen ? presence.statusText(device) : freshness.label)
+            Text(showsLastSeen ? presence.statusText(device) : presence.stateLabel(device))
                 .font(font)
                 .foregroundStyle(freshness == .online ? MacTheme.Colors.success : MacTheme.Colors.labelSecondary)
                 .lineLimit(1)

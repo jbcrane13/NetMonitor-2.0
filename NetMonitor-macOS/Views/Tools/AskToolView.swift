@@ -22,7 +22,8 @@ struct AskToolView: View {
 
     private var state: AskState { viewModel.state }
     private var networkProfileID: UUID? { profileManager?.localProfile?.id ?? profileManager?.activeProfile?.id }
-    private var lastScan: Date? { coordinator?.lastScanTime(for: networkProfileID) }
+    /// Through the held snapshot: a network identification holds has no current scan (#645).
+    private var lastScan: Date? { coordinator?.presentedLastScan(for: networkProfileID) }
 
     /// What the state reads when a question is asked: a rename or a scan changes it.
     private struct InputsKey: Equatable {

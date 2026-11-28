@@ -43,6 +43,13 @@ A completed scan's rows are kept current by Core `ScanReconciler`, the iPhone's 
 
 `mergeSparseSnapshot`, at the enrichment transition, only records a fresh latency for the saved row with the device's own real MAC, in memory (`progressiveLatency`, shown through `presence()`); the final pass saves it, so a scan dropped because the path changed writes nothing (#628). It makes no rows, and leaves status and `lastSeen` to the final pass. New devices appear at the final pass; on macOS 27 (no MACs) they already did. The coordinator's clock is read once per scan for the sparse merge, the reconcile and the change tracker. Online counts, the menu bar and the companion's `isOnline` count only `.online`.
 
+### Network identity (#628 PR B, #645)
+Which same-subnet network the Mac is on comes from the IPv6 default router's link-local address (Core `NetworkIdentity/`). `MacNetworkIdentity` wires Core's `NetworkIdentityController` into the profile manager (`localNetworkIdentity`) and the coordinator (`identity`, `DeviceDiscoveryCoordinator+Identity.swift`):
+- **The held commit:** `commitScan` returns `.held`, saving nothing and scheduling no replacement, unless `identity.authorizes(profileID)`. That call re-reads the router hint, so a change with no path update holds the rows at once and asks for one detection. Detail probes go through `mayWrite(token)`.
+- **Held rows are history:** `presence()` applies `withHeld(identity.heldNetworkIDs)`. Every device-row reader goes through it: Ask's `presentedLastScan(for:)`, the Change Brief's counts, the menu bar, alerts and the companion.
+- **No scan while identifying:** `rescan` refuses a scan, and one runs (`ScanReason.identified`) once the network settles. The identification probe (`identificationProbe(legacy:)`) scans with its own sink and never writes.
+- **The store:** `network-identity.json` in Application Support. Each update holds a `flock` and checks the file's revision, so two copies of the app never drop each other's identities. Under `--uitesting` and the unit-test host it's a throwaway (`MacNetworkIdentity.Location`).
+
 ### Shell Command Pattern
 ```swift
 // ShellCommandRunner is an actor

@@ -187,7 +187,7 @@ struct NetMonitorApp: App {
         let tcpService = TCPMonitorService()
         let bonjourScanner = BonjourDiscoveryService()
         let wakeOnLanService = WakeOnLANService()
-        let profileManager = NetworkProfileManager()
+        let (profileManager, identityStore) = Self.makeProfileManager(context: context, uiTesting: false)
         networkProfileManager = profileManager
 
         if monitoringSession == nil {
@@ -213,6 +213,8 @@ struct NetMonitorApp: App {
                 dispatcher: DeviceEventDispatcher.shared
             )
             deviceDiscovery = discovery
+            // Which same-subnet network this is, before anything reads the local network (#628 PR B).
+            let watcherRef = MacNetworkIdentity.attachDetectingThroughWatcher(identityStore, discovery: discovery, profileManager: profileManager)
             // Network events and app-scope connectivity, before the first scan (#491).
             let recorder = MacEventRecorder()
             recorder.attach(to: discovery)
@@ -241,6 +243,7 @@ struct NetMonitorApp: App {
                 connectivity.run(for: local)
             }
             watcher.start()
+            watcherRef.watcher = watcher
             networkChangeWatcher = watcher
             // Rescan at the user's chosen scan frequency while the app runs (#392).
             let scheduler = PeriodicScanScheduler.rescanning(discovery)
@@ -327,7 +330,7 @@ struct NetMonitorApp: App {
         let httpService = HTTPMonitorService()
         let icmpService = ICMPMonitorService()
         let tcpService = TCPMonitorService()
-        let profileManager = NetworkProfileManager(userDefaults: NetworkProfileDefaults.launchDefaults)
+        let (profileManager, identityStore) = Self.makeProfileManager(context: context, uiTesting: true)
         networkProfileManager = profileManager
         monitoringSession = MonitoringSession(
             modelContext: context,
@@ -348,6 +351,7 @@ struct NetMonitorApp: App {
             dispatcher: DeviceEventDispatcher.shared
         )
         deviceDiscovery = discovery
+        Self.attachUITestIdentity(identityStore, discovery: discovery, profileManager: profileManager)
         // Settings > Companion over in-memory credentials; the listener stays off, so a UI-test
         // launch never opens the companion port (#590).
         if companionService == nil {

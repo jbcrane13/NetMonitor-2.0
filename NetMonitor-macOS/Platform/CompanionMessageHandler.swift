@@ -308,13 +308,13 @@ final class CompanionMessageHandler {
 
         case .scanDevices:
             let wasScanning = deviceDiscovery.isScanning
+            let identifying = deviceDiscovery.isIdentifyingNetwork
             let started = deviceDiscovery.rescan(.companion)
-            // A scan already running still answers the request; no local network means no scan.
-            return .toolResult(ToolResultPayload(
-                tool: "deviceScan",
-                success: started || wasScanning,
-                result: started ? "Scan started" : wasScanning ? "Scan already running" : "Not connected to a local network"
-            ))
+            // A scan already running still answers the request; no local network means no scan. While
+            // the Mac identifies which network this is, a scan follows identification (#645).
+            let result = started ? "Scan started" : wasScanning ? "Scan already running"
+                : identifying ? "Identifying which network this is: a scan follows" : "Not connected to a local network"
+            return .toolResult(ToolResultPayload(tool: "deviceScan", success: started || wasScanning || identifying, result: result))
 
         case .refreshTargets:
             return generateTargetList()

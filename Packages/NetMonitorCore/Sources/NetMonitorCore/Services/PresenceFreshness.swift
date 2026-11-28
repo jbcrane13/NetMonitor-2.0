@@ -99,6 +99,8 @@ public struct PresenceSnapshot: Sendable, Equatable {
     private let lastScans: [UUID?: Date]
     /// Latencies the running scan measured, by row ID, shown before the scan saves (#628).
     private var progressiveLatency: [UUID: Double] = [:]
+    /// Networks the Mac can't yet tell it is on (#628 PR B): their saved rows read as history.
+    private var held: Set<UUID> = []
 
     public init(lastScans: [UUID?: Date], now: Date, policy: DeviceGracePolicy = DeviceGracePolicy()) {
         self.lastScans = lastScans
@@ -114,9 +116,22 @@ public struct PresenceSnapshot: Sendable, Equatable {
         return copy
     }
 
-    /// When the network's last scan was reconciled; nil when it has none.
+    /// The same snapshot with `networks` held (#628 PR B): while the Mac can't tell whether it is on
+    /// one of them, its recent scan isn't read as current, so its saved rows read as history.
+    public func withHeld(_ networks: Set<UUID>) -> PresenceSnapshot {
+        var copy = self
+        copy.held = networks
+        return copy
+    }
+
+    /// Whether `network` is held: its rows are shown as history ("Not checked: which network is this?").
+    public func isHeld(_ network: UUID?) -> Bool {
+        network.map(held.contains) ?? false
+    }
+
+    /// When the network's last scan was reconciled; nil when it has none, or while it is held.
     public func lastScan(for network: UUID?) -> Date? {
-        lastScans[network]
+        isHeld(network) ? nil : lastScans[network]
     }
 
     /// Whether the network was checked recently: its last scan is within the grace interval.
@@ -158,11 +173,22 @@ public struct PresenceSnapshot: Sendable, Equatable {
 
     /// "Online · Last seen 5 min ago": the visible status line.
     public func statusText(_ device: LocalDevice) -> String {
-        PresenceFreshness.statusText(freshness(of: device), lastSeen: device.lastSeen, now: now)
+        let text = PresenceFreshness.statusText(freshness(of: device), lastSeen: device.lastSeen, now: now)
+        return heldText(text, state: freshness(of: device), network: device.networkProfileID)
+    }
+
+    /// What a held network's saved rows read (#628 PR B), in place of their state.
+    public static let heldLabel = "Not checked: which network is this?"
+
+    /// `text` with its state label replaced while `network` is held by identification.
+    func heldText(_ text: String, state: PresenceFreshness, network: UUID?) -> String {
+        guard let network, isHeld(network), text.hasPrefix(state.label) else { return text }
+        return Self.heldLabel + text.dropFirst(state.label.count)
     }
 
     /// "Online, last seen 5 min ago": what VoiceOver says for a row's presence, once.
     public func accessibilityText(_ device: LocalDevice) -> String {
-        PresenceFreshness.accessibilityText(freshness(of: device), lastSeen: device.lastSeen, now: now)
+        let text = PresenceFreshness.accessibilityText(freshness(of: device), lastSeen: device.lastSeen, now: now)
+        return heldText(text, state: freshness(of: device), network: device.networkProfileID)
     }
 }

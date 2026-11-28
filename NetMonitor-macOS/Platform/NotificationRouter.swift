@@ -8,6 +8,8 @@ enum NotificationRoute: Equatable, Sendable {
     case targets
     /// The Devices list with this device selected, on its own network when known.
     case device(ipAddress: String, networkID: UUID?)
+    /// The Devices list, where "Which network is this?" is answered (#645).
+    case devices
 
     /// The route for a delivered alert, from its category and payload. Nil for an alert with
     /// nowhere to go.
@@ -57,6 +59,9 @@ final class NotificationRouter {
     static func selection(for route: NotificationRoute, devices: [LocalDevice], localNetworkID: UUID?)
         -> (section: SidebarSelection?, device: UUID?) {
         let dashboard: SidebarSelection? = localNetworkID.map { .network($0) }
+        if route == .devices {
+            return (.section(.devices), nil)
+        }
         guard case let .device(ip, networkID) = route else { return (dashboard, nil) }
         let atAddress = DeviceGroups.project(devices).filter { device in device.members.contains { $0.ipAddress == ip } }
         let device = networkID.flatMap { id in atAddress.first { $0.primary.networkProfileID == id } }

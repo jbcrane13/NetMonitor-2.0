@@ -83,6 +83,25 @@ struct ChangeBriefMacViewModelTests {
         #expect(request.facts.suffix(2) == ["Devices found by the last scan: 1", "Saved devices not found by the last scan: 1"])
     }
 
+    /// #628 PR B: while the Mac can't tell which network this is, its saved rows are history: the
+    /// brief claims nothing about what the last scan found.
+    @Test func aHeldNetworkIsNotCountedAsFound() async throws {
+        let rows = [LocalDevice(ipAddress: "192.168.77.20", macAddress: "00:1B:A9:77:00:20", status: .online, networkProfileID: home)]
+        let insight = MockInsightService()
+        let viewModel = makeViewModel(insight)
+        logJoin("uitest-printer", profileID: home)
+        let held = PresenceSnapshot(lastScans: [home: Date()], now: Date()).withHeld([home])
+
+        let task = Task { await viewModel.refresh(devices: rows, networkProfileID: home, presence: held, isScanning: false) }
+        await waitUntil { !insight.requests.isEmpty }
+        insight.send(.finished(Self.answer), to: 0)
+        await task.value
+
+        let request = try #require(insight.requests.first)
+        #expect(!request.facts.contains { $0.hasPrefix("Devices found by the last scan") })
+        #expect(!request.facts.contains { $0.hasPrefix("Saved devices not found") })
+    }
+
     /// #583: a device unseen for a month is a past device, not one the last scan didn't find.
     @Test func pastDevicesAreNotCountedAsNotFound() async throws {
         let old = LocalDevice(ipAddress: "192.168.77.22", macAddress: "00:1B:A9:77:00:22", status: .offline, networkProfileID: home)

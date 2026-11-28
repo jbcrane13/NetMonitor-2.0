@@ -27,6 +27,10 @@ public final class NetworkProfileManager {
 
     private let userDefaults: UserDefaults
     private let activeProfilesProvider: @Sendable () -> [NetworkProfile]
+    /// Which same-subnet network the detected local network is (#628 PR B): given its group and the
+    /// ID it had before identification (the v1 map's), the ID it goes by. Set on the Mac by
+    /// `NetworkIdentityController`; nil keeps the v1 ID (the iPhone).
+    @ObservationIgnored public var localNetworkIdentity: (@MainActor (NetworkGroup, UUID) -> UUID)?
 
     nonisolated private static let storageKey = "netmonitor.networkProfiles"
 
@@ -237,7 +241,10 @@ public final class NetworkProfileManager {
         detected.discoveryMethod = .auto
         // Each network the device joins gets its own id, so devices found on one network
         // are never listed, merged or cached under another one on the same interface.
-        let networkID = resolveLocalNetworkID(for: detected)
+        var networkID = resolveLocalNetworkID(for: detected)
+        if let localNetworkIdentity {
+            networkID = localNetworkIdentity(NetworkGroup(interface: detected.interfaceName, subnet: detected.subnet), networkID)
+        }
         if networkID != detected.id {
             detected = detected.withID(networkID)
         }
@@ -481,7 +488,21 @@ extension NetworkProfileManager {
     // MARK: - Per-network ids
 
     /// "interface|subnet" → profile id, for every local network this device has been on.
-    private static let knownLocalNetworksKey = "netmonitor.knownLocalNetworkIDs"
+    nonisolated private static let knownLocalNetworksKey = "netmonitor.knownLocalNetworkIDs"
+
+    /// The v1 map, "interface|subnet" → network ID: what identification migrates from (#628 PR B). Like
+    /// `resolveLocalNetworkID`, it's seeded with the local profile saved before the map existed (#645).
+    nonisolated public static func knownLocalNetworkIDs(in userDefaults: UserDefaults = .standard) -> [String: UUID] {
+        var known = (userDefaults.dictionary(forKey: knownLocalNetworksKey) as? [String: String] ?? [:])
+            .compactMapValues(UUID.init(uuidString:))
+        for profile in savedProfiles(in: userDefaults) where profile.isLocal && profile.discoveryMethod == .auto {
+            let key = localNetworkKey(interface: profile.interfaceName, subnet: profile.subnet)
+            if known[key] == nil, !known.values.contains(profile.id) {
+                known[key] = profile.id
+            }
+        }
+        return known
+    }
 
     nonisolated static func localNetworkKey(interface: String, subnet: String) -> String {
         "\(interface)|\(subnet)"

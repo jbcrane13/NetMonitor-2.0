@@ -155,6 +155,11 @@ struct NetworkDevicesPanel: View {
             .padding(.top, 12)
             .padding(.bottom, 8)
 
+            // Which network is this? (#645): answered in the full Devices view.
+            if let identity = coordinator?.identity {
+                NetworkIdentityBanner(identity: identity, screen: "dashboard", networkID: networkProfileID) { showFullDevicesView = true }
+            }
+
             // Search bar
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
