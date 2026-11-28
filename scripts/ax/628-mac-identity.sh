@@ -119,7 +119,11 @@ expect "$("$AX" wait networkDetail_section_devices 40)" found "the dashboard nev
 open_sidebar
 "$AX" click sidebar_nav_devices > /dev/null
 expect "$("$AX" wait devices_identity_button_reidentify 20)" found "no way to correct the no-hint answer"
+"$AX" capture-union "$OUT/628b-4-not-this-network.png" devices_identity_reidentify_text devices_identity_button_reidentify $SEED
 expect "$("$AX" press devices_identity_button_reidentify)" pressed "couldn't press Not this network?"
 expect "$("$AX" wait $TITLE 15)" found "the question didn't come back"
 expect "$("$AX" value $TITLE)" "Which network is this?" "the card doesn't ask which network this is"
+# The network the Mac shows stays held while it asks: its saved rows read as history.
+expect "$("$AX" textin $SEED "Not checked: which network is this?" 5)" "found text" "the shown network's rows aren't history while it asks"
+"$AX" capture-union "$OUT/628b-5-asked-again.png" $TITLE devices_identity_detail $NEW $SEED
 echo PASS

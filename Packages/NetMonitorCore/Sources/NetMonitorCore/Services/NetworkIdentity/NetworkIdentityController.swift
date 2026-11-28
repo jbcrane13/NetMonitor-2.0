@@ -366,7 +366,10 @@ public final class NetworkIdentityController {
                 self.tentative[tentative] = clock.generation.value
                 return tentative
             }
-            let tentative = Self.options(of: question).first ?? defaultID
+            // The network the Mac shows meanwhile: the detected one when it's an option, so its rows
+            // read as history and its name stays on it; else the first option.
+            let options = Self.options(of: question)
+            let tentative = options.contains(defaultID) ? defaultID : options.first ?? defaultID
             state = .held(tentative, question)
             return tentative
         case .probeLegacy(let legacy, let key):

@@ -40,6 +40,7 @@ struct NetworkIdentityCard: View {
                     Text("Recognized by your earlier answer (no IPv6 router).")
                         .font(.caption)
                         .foregroundStyle(MacTheme.Colors.labelSecondary)
+                        .accessibilityIdentifier("devices_identity_reidentify_text")
                     Button("Not this network?") { identity.reidentifyWithoutHint() }
                         .controlSize(.small)
                         .accessibilityIdentifier("devices_identity_button_reidentify")

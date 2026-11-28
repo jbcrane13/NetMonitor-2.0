@@ -129,3 +129,25 @@ extension NetworkIdentityControllerTests {
         #expect(store.contents.approvals.contains(IdentityApproval(group: home, key: .noHint, recordID: legacy)))
     }
 }
+
+extension NetworkIdentityControllerTests {
+    /// Found by the AX flow (round 6): while a question is open, the network the Mac shows stays the
+    /// detected one when it's among the options, so its rows read as history and its name stays on it.
+    @Test func anOpenQuestionHoldsTheDetectedNetworkWhenItIsAnOption() throws {
+        let legacy = UUID()
+        let (store, _, _) = try makeStore(legacy: ["en0|192.168.1.0/24": legacy])
+        let other = UUID()
+        try store.update { contents in
+            contents.records.append(IdentityRecord(id: other, group: home, recordClass: .bound))
+            contents.approvals.append(IdentityApproval(group: home, key: keyB, recordID: other))
+        }
+        let harness = Harness()
+        harness.hint = .absent
+        let identity = makeController(store, harness)
+        _ = identity.resolveID(group: home, defaultID: legacy)
+        harness.settle()
+        #expect(identity.resolveID(group: home, defaultID: legacy) == legacy)
+        #expect(identity.question == .forgottenThisConnection(group: home, options: [other, legacy]))
+        #expect(identity.heldNetworkIDs == [legacy])
+    }
+}
