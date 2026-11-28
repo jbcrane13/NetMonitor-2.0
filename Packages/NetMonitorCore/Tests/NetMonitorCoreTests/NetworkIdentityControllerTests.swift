@@ -17,6 +17,8 @@ struct NetworkIdentityControllerTests {
         var probes = 0
         var probeGate: CheckedContinuation<Void, Never>?
         var holdsProbe = false
+        /// Run on each hint read, in order: another copy of the app writing between reads.
+        var onRead: [() throws -> Void] = []
         /// What each network holds, for `describeOption`; nil leaves it unset.
         var summaries: [UUID: IdentityOptionSummary]?
         /// The controller's clock, advanced by hand (the no-hint settle window).
@@ -41,7 +43,12 @@ struct NetworkIdentityControllerTests {
     ) -> NetworkIdentityController {
         let controller = NetworkIdentityController(
             store: store, clock: clock,
-            readHint: { _ in harness.hint },
+            readHint: { _ in
+                if !harness.onRead.isEmpty {
+                    try? harness.onRead.removeFirst()()
+                }
+                return harness.hint
+            },
             probe: { _, _ in
                 harness.probes += 1
                 if harness.holdsProbe {

@@ -77,6 +77,8 @@ public final class NetworkIdentityStore {
     public private(set) var state: State
 
     private let fileURL: URL
+    /// This copy has read or written the file, so its absence is news.
+    private var hasFile = false
     private let lockURL: URL
     private let directory: URL
     private let defaults: UserDefaults
@@ -119,6 +121,7 @@ public final class NetworkIdentityStore {
                 state = .newer
             } else if let decoded = try? JSONDecoder().decode(Contents.self, from: data), (try? validate(decoded)) != nil {
                 contents = decoded
+                hasFile = true
                 state = .ready
                 defaults.set(true, forKey: Self.markerKey)
             } else {
@@ -249,18 +252,47 @@ public final class NetworkIdentityStore {
 
     /// Whether the file changed on disk since this copy read or wrote it (another copy of the app),
     /// reloading it if so: a newer build's file pauses (round 7). Cheap: the file is small.
-    public func reloadIfChangedOnDisk() -> Bool {
-        guard state == .ready, let data = try? Data(contentsOf: fileURL) else { return false }
+    /// What the commit-time check found (round 8): it fails closed.
+    public enum DiskCheck: Equatable, Sendable {
+        case unchanged
+        /// Reloaded, or paused (`.newer`, `.damaged`): identify again before saving anything.
+        case changed
+        /// The file can't be read, or its header can't be decoded: hold, retry once, then damaged.
+        case unreadable
+    }
+
+    public func reloadIfChangedOnDisk() -> DiskCheck {
+        guard state == .ready else { return .changed }
+        guard let data = try? Data(contentsOf: fileURL) else {
+            // A file this copy never had is no news; one that vanished or can't be read is.
+            return FileManager.default.fileExists(atPath: fileURL.path) || hasFile ? .unreadable : .unchanged
+        }
         if Self.isNewer(data) {
             state = .newer
-            return true
+            return .changed
         }
         struct Revision: Decodable {
             let revision: Int
         }
-        guard let disk = try? JSONDecoder().decode(Revision.self, from: data), disk.revision != contents.revision else { return false }
-        reloadQuietly()
-        return true
+        guard let header = try? JSONDecoder().decode(Revision.self, from: data) else { return .unreadable }
+        guard header.revision != contents.revision else { return .unchanged }
+        // Another revision: publish it if valid, or move to the damaged state (with its recovery
+        // card), never report a reload that was rejected.
+        if let disk = try? JSONDecoder().decode(Contents.self, from: data), (try? validate(disk)) != nil {
+            contents = disk
+        } else {
+            quarantine(data)
+        }
+        return .changed
+    }
+
+    /// Moves to the damaged state, keeping the file (an unreadable file seen twice at commit, round 8).
+    public func pauseAsDamaged() {
+        if let data = try? Data(contentsOf: fileURL) {
+            quarantine(data)
+        } else {
+            markDamaged()
+        }
     }
 
     /// Reloads the file if it's this build's and valid; leaves everything as it is otherwise.
@@ -333,6 +365,7 @@ public final class NetworkIdentityStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         try write(encoder.encode(contents), fileURL)
+        hasFile = true
         defaults.set(contents.revision, forKey: Self.revisionKey)
         var known = defaults.dictionary(forKey: Self.knownNetworksKey) as? [String: String] ?? [:]
         for record in contents.records {

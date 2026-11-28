@@ -67,17 +67,6 @@ public final class NetworkIdentityController {
         return false
     }
 
-    /// Describes the open question's options again (`describeOption`), when what they hold may have
-    /// changed since it was asked: the card calls it as it appears.
-    public func refreshOptionSummaries() {
-        let summaries = Dictionary(
-            (question.map(Self.options(of:)) ?? []).map { ($0, describeOption?($0) ?? IdentityOptionSummary()) }
-        ) { first, _ in first }
-        if optionSummaries != summaries {
-            optionSummaries = summaries
-        }
-    }
-
     /// An answer was clicked while the routing table couldn't be read: the question stays open, saying
     /// "Checking the network…", until a read settles.
     public private(set) var isCheckingNetwork = false
@@ -90,14 +79,6 @@ public final class NetworkIdentityController {
             return probeTask == nil && !detectionPending
         }
         return false
-    }
-
-    /// Tries the failed write again, against what the store holds now.
-    public func retrySave() {
-        let retry = pendingRetry
-        pendingRetry = nil
-        saveFailed = false
-        retry?()
     }
 
     /// The running identification probe, for tests.
@@ -141,6 +122,8 @@ public final class NetworkIdentityController {
     @ObservationIgnored private var identifiedGeneration: UInt64?
     /// The last write conflicted with another copy of the app, for one automatic re-resolve.
     @ObservationIgnored private var lastWriteConflicted = false
+    /// Commit-time checks in a row that found the file unreadable (round 8).
+    @ObservationIgnored private var unreadableChecks = 0
     /// The running probe's identity and the token it started under: only it may end identifying.
     @ObservationIgnored private var probeID: UUID?
     @ObservationIgnored private var probeToken: JoinToken?
@@ -149,9 +132,9 @@ public final class NetworkIdentityController {
     /// Networks held or identifying, by the generation they were last tentative in.
     @ObservationIgnored private var tentative: [UUID: UInt64] = [:]
     /// Since when, in which generation, "no IPv6 router" has been read without a break.
-    @ObservationIgnored private var absentSince: (generation: UInt64, at: Date)?
+    @ObservationIgnored var absentSince: (generation: UInt64, at: Date)?
     /// Since when failed reads have been counting as "no IPv6 router" (their own settle window).
-    @ObservationIgnored private var failedAbsentSince: (generation: UInt64, at: Date)?
+    @ObservationIgnored var failedAbsentSince: (generation: UInt64, at: Date)?
     /// The generation `failedHintReads` counts in: a new one starts the count again (round 7).
     @ObservationIgnored private var failedReadsGeneration: UInt64?
     /// The current identification came from the group's no-hint approval.
@@ -164,7 +147,7 @@ public final class NetworkIdentityController {
     @ObservationIgnored private var pendingRetry: (@MainActor () -> Void)?
     @ObservationIgnored private var lastLoggedHintKind: String?
     @ObservationIgnored private let store: NetworkIdentityStore
-    @ObservationIgnored private let clock: NetworkJoinClock
+    @ObservationIgnored let clock: NetworkJoinClock
     @ObservationIgnored private let readHint: @MainActor (String) -> RouterHintStatus
     @ObservationIgnored private let probe: @MainActor (UUID, NetworkGroup) async -> Bool?
     @ObservationIgnored private let requestDetection: @MainActor () -> Void
@@ -181,7 +164,7 @@ public final class NetworkIdentityController {
     public static let failedHintRetries = 3
     @ObservationIgnored private var failedHintReads = 0
     @ObservationIgnored private let retryDelay: Duration
-    @ObservationIgnored private let now: () -> Date
+    @ObservationIgnored let now: () -> Date
 
     /// Approvals kept per network, and in all; the least recently matched goes first.
     public static let approvalsPerNetwork = 8
@@ -213,18 +196,6 @@ public final class NetworkIdentityController {
         syncStoreState()
     }
 
-    /// Publishes the store's state (damaged, newer) where the card can observe it.
-    private func syncStoreState() {
-        let damaged = store.state == .damaged
-        if isDamaged != damaged {
-            isDamaged = damaged
-        }
-        let newer = store.state == .newer
-        if needsNewerBuild != newer {
-            needsNewerBuild = newer
-        }
-    }
-
     // MARK: - Detection
 
     /// The ID the local network in `group` goes by now; `defaultID` is the one it had before
@@ -235,7 +206,12 @@ public final class NetworkIdentityController {
         if lastWriteConflicted {
             lastWriteConflicted = false
             let again = resolve(group: group, defaultID: defaultID)
-            lastWriteConflicted = false
+            // A second conflict (round 8): hold, and resolve again later; never a stale identification.
+            if lastWriteConflicted {
+                lastWriteConflicted = false
+                state = .held(again, nil)
+                scheduleDetection()
+            }
             return again
         }
         return id
@@ -356,6 +332,11 @@ public final class NetworkIdentityController {
                 noteMatched(key, group: group)
             } else if id == noHintApproval {
                 noteMatched(.noHint, group: group)
+            }
+            // A conflicted match stamp never publishes an identification: the resolution may be stale.
+            if lastWriteConflicted {
+                state = .held(id, nil)
+                return id
             }
             state = .identified(id, group, hint)
             return id
@@ -572,31 +553,6 @@ extension NetworkIdentityController {
         return summary.savedDevices > 0 || summary.countUnknown || summary.name != nil
     }
 
-    /// Notes a read: "no IPv6 router" read without a break since the generation's first such read.
-    /// Settled once that's lasted `noHintSettleWindow`; `remaining` until then.
-    func noteAbsence(_ hint: RouterHintStatus) -> (isAbsent: Bool, settled: Bool, remaining: TimeInterval) {
-        guard hint == .absent else {
-            absentSince = nil
-            return (false, false, 0)
-        }
-        let generation = clock.generation.value
-        if absentSince?.generation != generation {
-            absentSince = (generation, now())
-        }
-        let elapsed = now().timeIntervalSince(absentSince?.at ?? now())
-        return (true, elapsed >= Self.noHintSettleWindow, max(0, Self.noHintSettleWindow - elapsed))
-    }
-
-    /// Failed reads counting as no hint: settled once that's lasted the window in this generation.
-    func noteConvertedAbsence() -> (settled: Bool, remaining: TimeInterval) {
-        let generation = clock.generation.value
-        if failedAbsentSince?.generation != generation {
-            failedAbsentSince = (generation, now())
-        }
-        let elapsed = now().timeIntervalSince(failedAbsentSince?.at ?? now())
-        return (elapsed >= Self.noHintSettleWindow, max(0, Self.noHintSettleWindow - elapsed))
-    }
-
     /// "Not this network?" (#645 round 5): clears the group's no-hint approval and asks again.
     public func reidentifyWithoutHint() {
         guard case .identified(let id, let group, _) = state, identifiedByNoHint else { return }
@@ -668,11 +624,27 @@ extension NetworkIdentityController {
         let now = readHint(group.interface)
         // An unreadable routing table is transient within the generation it was identified under (#645).
         // Another copy of the app changed the file since: re-resolve before anything is saved (round 7).
-        if store.reloadIfChangedOnDisk() {
+        switch store.reloadIfChangedOnDisk() {
+        case .unchanged:
+            unreadableChecks = 0
+        case .changed:
             Self.logger.notice("Network identity changed in another copy: identifying again")
+            unreadableChecks = 0
             syncStoreState()
             state = .held(id, nil)
             detectAgain()
+            return false
+        case .unreadable:
+            // Fail closed (round 8): hold; retry once on the next detection, then the damaged state.
+            unreadableChecks += 1
+            state = .held(id, nil)
+            if unreadableChecks > 1 {
+                Self.logger.error("Network identity file unreadable at commit twice: paused")
+                store.pauseAsDamaged()
+                syncStoreState()
+            } else {
+                detectAgain()
+            }
             return false
         }
         // A failed read keeps only a network identified by its router, within its generation.
@@ -753,6 +725,41 @@ extension NetworkIdentityController {
                 legacyReprobeAllowed = clear == nil && !isReprobe
                 state = .held(legacy, .isLegacy(group: group, key: key, record: legacy))
             }
+        }
+    }
+}
+
+// MARK: - Published helpers
+
+extension NetworkIdentityController {
+    /// Describes the open question's options again (`describeOption`), when what they hold may have
+    /// changed since it was asked: the card calls it as it appears.
+    public func refreshOptionSummaries() {
+        let summaries = Dictionary(
+            (question.map(Self.options(of:)) ?? []).map { ($0, describeOption?($0) ?? IdentityOptionSummary()) }
+        ) { first, _ in first }
+        if optionSummaries != summaries {
+            optionSummaries = summaries
+        }
+    }
+
+    /// Tries the failed write again, against what the store holds now.
+    public func retrySave() {
+        let retry = pendingRetry
+        pendingRetry = nil
+        saveFailed = false
+        retry?()
+    }
+
+    /// Publishes the store's state (damaged, newer) where the card can observe it.
+    private func syncStoreState() {
+        let damaged = store.state == .damaged
+        if isDamaged != damaged {
+            isDamaged = damaged
+        }
+        let newer = store.state == .newer
+        if needsNewerBuild != newer {
+            needsNewerBuild = newer
         }
     }
 }
