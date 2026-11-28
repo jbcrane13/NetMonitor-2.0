@@ -1,24 +1,12 @@
 import XCTest
 
 @MainActor
-final class WakeOnLanToolUITests: XCTestCase {
-    var app: XCUIApplication!
+final class WakeOnLanToolUITests: MacOSUITestCase {
 
     override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Tools
-        let sidebar = app.descendants(matching: .any)["sidebar_tools"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-        // Open Wake on LAN tool
-        let card = app.otherElements["tools_card_wake_on_lan"]
-        XCTAssertTrue(card.waitForExistence(timeout: 3))
-        card.tap()
+        try super.setUpWithError()
+        openTool(cardID: "tools_card_wake_on_lan", sheetElement: "wol_button_close")
     }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Element Existence
 
@@ -51,14 +39,13 @@ final class WakeOnLanToolUITests: XCTestCase {
     }
 
     func testCloseButtonDismissesSheet() {
-        app.buttons["wol_button_close"].tap()
-        XCTAssertTrue(app.otherElements["tools_card_wake_on_lan"].waitForExistence(timeout: 3))
+        closeTool(closeButtonID: "wol_button_close", cardID: "tools_card_wake_on_lan")
     }
 
     func testTypeMACAddress() {
         let macField = app.textFields["wol_textfield_mac"]
         XCTAssertTrue(macField.waitForExistence(timeout: 3))
-        macField.tap()
+        macField.click()
         macField.typeText("AA:BB:CC:DD:EE:FF")
 
         // Send button should become enabled with a valid MAC
@@ -81,22 +68,16 @@ final class WakeOnLanToolUITests: XCTestCase {
     func testSendPacketProducesResultLabel() {
         let macField = app.textFields["wol_textfield_mac"]
         XCTAssertTrue(macField.waitForExistence(timeout: 3))
-        macField.tap()
+        macField.click()
         macField.typeText("AA:BB:CC:DD:EE:FF")
 
-        app.buttons["wol_button_send"].tap()
+        app.buttons["wol_button_send"].click()
 
-        let success = app.descendants(matching: .any)["wol_label_result"]
-        let failure = app.descendants(matching: .any)["wol_label_error"]
-
-        let deadline = Date().addingTimeInterval(10)
-        while Date() < deadline {
-            if success.exists || failure.exists { break }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
+        let success = ui("wol_label_result").firstMatch
+        let failure = ui("wol_label_error").firstMatch
 
         XCTAssertTrue(
-            success.exists || failure.exists,
+            waitForEither([success, failure], timeout: 10),
             "Wake on LAN should render a result or error label after sending packet"
         )
     }

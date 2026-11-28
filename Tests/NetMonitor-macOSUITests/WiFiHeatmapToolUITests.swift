@@ -5,24 +5,30 @@ final class WiFiHeatmapToolUITests: MacOSUITestCase {
 
     private func openHeatmap() {
         navigateToSidebar("tools")
-        let card = app.otherElements["tools_card_wifi_heatmap"]
+        let card = ui("tools_card_wifi_heatmap").firstMatch
         requireExists(card, timeout: 5, message: "Wi-Fi Heatmap card should exist in tools grid")
-        card.tap()
-        requireExists(ui("screen_heatmap"), timeout: 5, message: "Heatmap screen should appear")
+        card.click()
+        requireExists(ui("screen_heatmap").firstMatch, timeout: 5, message: "Heatmap screen should appear")
+    }
+
+    /// The sidebar opens in Survey mode; the visualization controls are under Analyze.
+    private func showAnalyzeSidebar() {
+        let analyze = app.radioButtons["Analyze"]
+        requireExists(analyze, message: "Sidebar mode picker should offer Analyze").click()
     }
 
     // MARK: - Screen & Navigation
 
     func testHeatmapCardExistsInToolsGrid() {
         navigateToSidebar("tools")
-        let card = ui("tools_card_wifi_heatmap")
+        let card = ui("tools_card_wifi_heatmap").firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 5), "Wi-Fi Heatmap card should exist in tools grid")
         captureScreenshot(named: "Heatmap_CardInGrid")
     }
 
     func testHeatmapScreenOpens() {
         openHeatmap()
-        requireExists(ui("screen_heatmap"), message: "Heatmap screen should be visible")
+        requireExists(ui("screen_heatmap").firstMatch, message: "Heatmap screen should be visible")
         captureScreenshot(named: "Heatmap_Screen")
     }
 
@@ -49,50 +55,40 @@ final class WiFiHeatmapToolUITests: MacOSUITestCase {
 
     func testSaveButtonExists() {
         openHeatmap()
-        let saveButton = ui("heatmap_button_save")
-        if saveButton.waitForExistence(timeout: 5) {
-            XCTAssertTrue(saveButton.exists, "Save button should exist")
-        }
+        requireExists(ui("heatmap_button_save").firstMatch, message: "Save button should exist")
     }
 
     func testExportButtonExists() {
         openHeatmap()
-        let exportButton = ui("heatmap_button_export")
-        if exportButton.waitForExistence(timeout: 5) {
-            XCTAssertTrue(exportButton.exists, "Export button should exist")
-        }
+        requireExists(ui("heatmap_button_export").firstMatch, message: "Export button should exist")
     }
 
     func testUndoButtonExists() {
         openHeatmap()
-        let undoButton = ui("heatmap_button_undo")
-        if undoButton.waitForExistence(timeout: 5) {
-            XCTAssertTrue(undoButton.exists, "Undo button should exist")
-        }
+        requireExists(ui("heatmap_button_undo").firstMatch, message: "Undo button should exist")
     }
 
     // MARK: - Sidebar
 
     func testSidebarToggleExists() {
         openHeatmap()
-        let sidebarButton = ui("heatmap_button_sidebar")
-        if sidebarButton.waitForExistence(timeout: 5) {
-            XCTAssertTrue(sidebarButton.exists, "Sidebar toggle should exist")
-            captureScreenshot(named: "Heatmap_SidebarToggle")
-        }
+        requireExists(ui("heatmap_button_sidebar").firstMatch, message: "Sidebar toggle should exist")
+        captureScreenshot(named: "Heatmap_SidebarToggle")
     }
 
+    /// The sidebar is open when the heatmap opens; the toolbar toggle hides it and brings it back.
     func testSidebarOpens() {
         openHeatmap()
-        let sidebarButton = ui("heatmap_button_sidebar")
-        guard sidebarButton.waitForExistence(timeout: 5) else { return }
-        sidebarButton.tap()
+        let sidebar = ui("screen_heatmapSidebar").firstMatch
+        requireExists(sidebar, message: "Heatmap sidebar should be visible when the heatmap opens")
 
-        let sidebar = ui("screen_heatmapSidebar")
-        if sidebar.waitForExistence(timeout: 5) {
-            requireExists(sidebar, message: "Heatmap sidebar should appear")
-            captureScreenshot(named: "Heatmap_Sidebar")
-        }
+        let sidebarButton = requireExists(ui("heatmap_button_sidebar").firstMatch, message: "Sidebar toggle should exist")
+        sidebarButton.click()
+        XCTAssertTrue(waitForDisappearance(sidebar), "Sidebar toggle should hide the sidebar")
+
+        sidebarButton.click()
+        requireExists(sidebar, message: "Heatmap sidebar should appear")
+        captureScreenshot(named: "Heatmap_Sidebar")
     }
 
     // MARK: - Sidebar Controls
@@ -101,11 +97,6 @@ final class WiFiHeatmapToolUITests: MacOSUITestCase {
         openHeatmap()
         let startSurvey = ui("heatmap_button_startSurvey")
         let stopSurvey = ui("heatmap_button_stopSurvey")
-        // Survey controls may be in the sidebar
-        let sidebarButton = ui("heatmap_button_sidebar")
-        if sidebarButton.waitForExistence(timeout: 3) {
-            sidebarButton.tap()
-        }
         XCTAssertTrue(
             waitForEither([startSurvey, stopSurvey], timeout: 5),
             "Start or stop survey button should exist"
@@ -115,49 +106,29 @@ final class WiFiHeatmapToolUITests: MacOSUITestCase {
 
     func testVisualizationPickerExists() {
         openHeatmap()
-        let sidebarButton = ui("heatmap_button_sidebar")
-        if sidebarButton.waitForExistence(timeout: 3) {
-            sidebarButton.tap()
-        }
-        let vizPicker = ui("heatmap_picker_visualization")
-        if vizPicker.waitForExistence(timeout: 5) {
-            XCTAssertTrue(vizPicker.exists, "Visualization picker should exist in sidebar")
-        }
+        showAnalyzeSidebar()
+        requireExists(ui("heatmap_picker_visualization").firstMatch,
+                      message: "Visualization picker should exist in sidebar")
     }
 
     func testColorSchemePickerExists() {
         openHeatmap()
-        let sidebarButton = ui("heatmap_button_sidebar")
-        if sidebarButton.waitForExistence(timeout: 3) {
-            sidebarButton.tap()
-        }
-        let colorPicker = ui("heatmap_picker_colorScheme")
-        if colorPicker.waitForExistence(timeout: 5) {
-            XCTAssertTrue(colorPicker.exists, "Color scheme picker should exist in sidebar")
-        }
+        showAnalyzeSidebar()
+        requireExists(ui("heatmap_picker_colorScheme").firstMatch,
+                      message: "Color scheme picker should exist in sidebar")
     }
 
     func testLiveSignalCardExists() {
         openHeatmap()
-        let sidebarButton = ui("heatmap_button_sidebar")
-        if sidebarButton.waitForExistence(timeout: 3) {
-            sidebarButton.tap()
-        }
-        let signalCard = ui("heatmap_card_liveSignal")
-        if signalCard.waitForExistence(timeout: 5) {
-            XCTAssertTrue(signalCard.exists, "Live signal card should exist in sidebar")
-            captureScreenshot(named: "Heatmap_LiveSignal")
-        }
+        requireExists(ui("heatmap_card_liveSignal").firstMatch, message: "Live signal card should exist in sidebar")
+        captureScreenshot(named: "Heatmap_LiveSignal")
     }
 
     // MARK: - Calibration
 
     func testCalibrateButtonExists() {
         openHeatmap()
-        let calibrateButton = ui("heatmap_button_calibrate")
-        if calibrateButton.waitForExistence(timeout: 5) {
-            XCTAssertTrue(calibrateButton.exists, "Calibrate button should exist")
-        }
+        requireExists(ui("heatmap_button_calibrate").firstMatch, message: "Calibrate button should exist")
     }
 
     // MARK: - Visualization Picker

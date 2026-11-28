@@ -1,24 +1,12 @@
 import XCTest
 
 @MainActor
-final class BonjourBrowserToolUITests: XCTestCase {
-    var app: XCUIApplication!
+final class BonjourBrowserToolUITests: MacOSUITestCase {
 
     override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Tools
-        let sidebar = app.descendants(matching: .any)["sidebar_tools"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-        // Open Bonjour Browser tool
-        let card = app.otherElements["tools_card_bonjour_browser"]
-        XCTAssertTrue(card.waitForExistence(timeout: 3))
-        card.tap()
+        try super.setUpWithError()
+        openTool(cardID: "tools_card_bonjour_browser", sheetElement: "bonjour_button_close")
     }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Element Existence
 
@@ -33,18 +21,16 @@ final class BonjourBrowserToolUITests: XCTestCase {
     // MARK: - Interactions
 
     func testCloseButtonDismissesSheet() {
-        let closeButton = app.buttons["bonjour_button_close"]
-        XCTAssertTrue(closeButton.waitForExistence(timeout: 3))
-        closeButton.tap()
-        XCTAssertTrue(app.otherElements["tools_card_bonjour_browser"].waitForExistence(timeout: 3))
+        closeTool(closeButtonID: "bonjour_button_close", cardID: "tools_card_bonjour_browser")
     }
 
     func testRefreshButtonBecomesEnabled() {
         let refreshButton = app.buttons["bonjour_button_refresh"]
         XCTAssertTrue(refreshButton.waitForExistence(timeout: 3))
-        // Wait for initial scan to complete, then refresh should be enabled
-        let enabled = refreshButton.waitForExistence(timeout: 15)
-        XCTAssertTrue(enabled)
+        // The initial scan stops itself after 10 seconds, then Refresh is enabled again.
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: refreshButton)
+        XCTAssertEqual(XCTWaiter().wait(for: [enabled], timeout: 15), .completed,
+                       "Refresh should be enabled once the initial scan finishes")
     }
 
     func testAutoScanOnOpen() {

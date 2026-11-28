@@ -44,31 +44,29 @@ final class SSLCertificateMonitorUITests: MacOSUITestCase {
     func testSSLMonitorWatchListTabShowsSection() {
         openSSLMonitor()
 
-        let watchListSegment = app.segmentedControls.buttons.matching(
+        // The segmented picker is a RadioGroup on macOS 27.
+        let watchListSegment = app.radioGroups["sslMonitor_picker_view"].radioButtons.matching(
             NSPredicate(format: "label BEGINSWITH 'Watch List'")
         ).firstMatch
+        requireExists(watchListSegment, message: "Watch List segment should exist").click()
 
-        if watchListSegment.waitForExistence(timeout: 5) {
-            watchListSegment.click()
-
-            XCTAssertTrue(
-                waitForEither([
-                    app.descendants(matching: .any)["sslMonitor_label_watchlistEmpty"],
-                    app.descendants(matching: .any).matching(
-                        NSPredicate(format: "identifier BEGINSWITH 'sslMonitor_row_'")
-                    ).firstMatch
-                ], timeout: 5),
-                "Watch list should show empty state or rows"
-            )
-        }
+        XCTAssertTrue(
+            waitForEither([
+                ui("sslMonitor_label_watchlistEmpty").firstMatch,
+                app.descendants(matching: .any).matching(
+                    NSPredicate(format: "identifier BEGINSWITH 'sslMonitor_row_'")
+                ).firstMatch
+            ], timeout: 5),
+            "Watch list should show empty state or rows"
+        )
     }
 
     // MARK: - Helpers
 
     private func openSSLMonitor() {
-        let card = app.descendants(matching: .any)["tools_card_ssl_monitor"]
-        scrollToElement(card)
-        requireExists(card, timeout: 8, message: "SSL Monitor tool card should exist in tools grid").tap()
+        navigateToSidebar("tools")
+        let card = ui("tools_card_ssl_monitor").firstMatch
+        requireExists(card, timeout: 8, message: "SSL Monitor tool card should exist in tools grid").click()
 
         requireExists(
             app.descendants(matching: .any)["sslMonitor_textfield_domain"],
@@ -76,14 +74,4 @@ final class SSLCertificateMonitorUITests: MacOSUITestCase {
             message: "SSL Monitor sheet should open"
         )
     }
-
-    private func scrollToElement(_ element: XCUIElement, maxScrolls: Int = 5) {
-        guard !element.exists else { return }
-        let scroll = app.scrollViews.firstMatch
-        for _ in 0..<maxScrolls {
-            if element.exists { return }
-            scroll.swipeUp()
-        }
-    }
-
 }

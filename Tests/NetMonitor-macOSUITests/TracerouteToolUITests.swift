@@ -7,6 +7,11 @@ final class TracerouteToolUITests: MacOSUITestCase {
         openTool(cardID: "tools_card_traceroute", sheetElement: "traceroute_textfield_host")
     }
 
+    /// The texts of the rendered hop rows.
+    private var hopTexts: XCUIElementQuery {
+        app.staticTexts.matching(identifier: "traceroute_section_hops")
+    }
+
     // MARK: - Element Existence
 
     func testHostFieldExists() {
@@ -34,6 +39,8 @@ final class TracerouteToolUITests: MacOSUITestCase {
 
     func testRunButtonDisabledWhenHostEmpty() {
         openTraceroute()
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["traceroute_textfield_host"])
         let runButton = requireExists(app.buttons["traceroute_button_run"], message: "Run button should exist")
         XCTAssertFalse(runButton.isEnabled, "Run button should be disabled without host input")
     }
@@ -49,11 +56,7 @@ final class TracerouteToolUITests: MacOSUITestCase {
 
     func testCloseButtonDismissesSheet() {
         openTraceroute()
-        app.buttons["traceroute_button_close"].tap()
-        requireExists(
-            app.otherElements["tools_card_traceroute"],
-            message: "Tool card should reappear after closing sheet"
-        )
+        closeTool(closeButtonID: "traceroute_button_close", cardID: "tools_card_traceroute")
     }
 
     // MARK: - Trace Execution
@@ -61,12 +64,12 @@ final class TracerouteToolUITests: MacOSUITestCase {
     func testTypeHostAndTrace() {
         openTraceroute()
         clearAndTypeText("1.1.1.1", into: app.textFields["traceroute_textfield_host"])
-        app.buttons["traceroute_button_run"].tap()
+        app.buttons["traceroute_button_run"].click()
 
-        // Verify real hop rows appear — every `TracerouteHop` renders with
-        // identifier `traceroute_row_<hopNumber>`. Hop #1 (first upstream gateway)
-        // should arrive first.
-        let firstHop = ui("traceroute_row_1")
+        // Verify real hop rows appear. The list's `traceroute_section_hops` id replaces each
+        // row's `traceroute_row_<hopNumber>` in the tree, so find hop #1 (the first upstream
+        // gateway) by its hop number.
+        let firstHop = hopTexts.matching(NSPredicate(format: "value MATCHES %@", "\\s*1\\s*")).firstMatch
         XCTAssertTrue(
             firstHop.waitForExistence(timeout: 20),
             "Traceroute should render hop #1 when tracing 1.1.1.1"
@@ -77,7 +80,7 @@ final class TracerouteToolUITests: MacOSUITestCase {
     func testTracerouteShowsResults() {
         openTraceroute()
         clearAndTypeText("8.8.8.8", into: app.textFields["traceroute_textfield_host"])
-        app.buttons["traceroute_button_run"].tap()
+        app.buttons["traceroute_button_run"].click()
 
         // After the trace completes, the Clear button appears only when
         // `!hops.isEmpty && !isRunning` — proving hops were recorded.
@@ -87,11 +90,9 @@ final class TracerouteToolUITests: MacOSUITestCase {
             "Clear button should appear after traceroute produces hop data"
         )
 
-        let anyHop = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'traceroute_row_'"))
         XCTAssertGreaterThan(
-            anyHop.count, 0,
-            "Traceroute should render at least one traceroute_row_* hop result"
+            hopTexts.count, 0,
+            "Traceroute should render at least one hop result"
         )
         captureScreenshot(named: "Traceroute_Results")
     }
