@@ -57,6 +57,8 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
     func testToolsDisablePrimaryActionForEmptyInput() {
         for tool in emptyInputCases {
             openTool(cardID: tool.cardID, sheetElement: tool.anchorField)
+            // The field is prefilled with the last-used target, so empty it first.
+            clearText(in: app.textFields[tool.anchorField])
 
             let button = requireExists(
                 app.buttons[tool.actionButton],
@@ -116,7 +118,7 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
         )
         XCTAssertTrue(calcButton.isEnabled,
                       "Calculate should be enabled once non-empty input is present")
-        calcButton.tap()
+        calcButton.click()
 
         let errorCard = ui("subnetCalc_card_error")
         XCTAssertTrue(errorCard.waitForExistence(timeout: 5),
@@ -131,7 +133,7 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
             app.buttons["subnetCalc_button_clear"],
             message: "Clear button should appear once an error exists"
         )
-        clearButton.tap()
+        clearButton.click()
 
         XCTAssertTrue(waitForDisappearance(errorCard, timeout: 3),
                       "Error card should disappear after Clear")
@@ -141,7 +143,7 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
         // And entering a valid CIDR afterwards now produces the results section.
         clearAndTypeText("192.168.1.0/24",
                          into: app.textFields["subnetCalc_textfield_cidr"])
-        app.buttons["subnetCalc_button_calculate"].tap()
+        app.buttons["subnetCalc_button_calculate"].click()
         XCTAssertTrue(ui("subnetCalc_section_results").waitForExistence(timeout: 5),
                       "Results section should render after recovering from error")
 
@@ -157,42 +159,33 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
     /// three controls: `notifyTargetDown`, `notifyTargetRecovery`, and
     /// `latencyThreshold`. Disabling the parent toggle must propagate.
     func testDisablingNotificationsDisablesDependentControls() {
-        // Tap the Settings sidebar row directly (actual ID is
-        // `sidebar_nav_settings` — the `navigateToSidebar` helper's
-        // `sidebar_\(section)` form does not currently match).
-        let settingsRow = ui("sidebar_nav_settings")
-        requireExists(settingsRow, timeout: 5,
-                      message: "sidebar_nav_settings should exist")
-        settingsRow.tap()
-        requireExists(ui("contentView_nav_settings"), timeout: 5,
-                      message: "Settings container should mount")
+        navigateToSidebar("settings")
 
         // Try clicking multiple variants of the Notifications tab row.
         let tabCandidates: [XCUIElement] = [
-            ui("settings_tab_Notifications"),
-            ui("settings_tab_notifications"),
+            ui("settings_tab_Notifications").firstMatch,
             app.staticTexts["Notifications"],
             app.outlines.staticTexts["Notifications"]
         ]
         for candidate in tabCandidates where candidate.waitForExistence(timeout: 2) {
-            candidate.tap()
+            candidate.click()
             break
         }
 
         let parentToggle = requireExists(
-            app.checkBoxes["settings_toggle_notificationsEnabled"], timeout: 5,
+            app.switches["settings_toggle_notificationsEnabled"], timeout: 5,
             message: "Notifications enabled toggle should exist"
         )
 
         // Make sure the parent toggle is ON so dependents are in the enabled
         // baseline we can then compare against.
-        if (parentToggle.value as? String) == "0" {
-            parentToggle.tap()
+        if stringValue(parentToggle) == "0" {
+            parentToggle.click()
         }
 
         let dependents: [XCUIElement] = [
-            app.checkBoxes["settings_toggle_notifyTargetDown"],
-            app.checkBoxes["settings_toggle_notifyTargetRecovery"],
+            app.switches["settings_toggle_notifyTargetDown"],
+            app.switches["settings_toggle_notifyTargetRecovery"],
             app.sliders["settings_slider_latencyThreshold"]
         ]
         for dependent in dependents {
@@ -203,7 +196,7 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
         }
 
         // Flip parent OFF and verify each dependent disables.
-        parentToggle.tap()
+        parentToggle.click()
 
         for dependent in dependents {
             let disabledPredicate = NSPredicate(format: "isEnabled == false")
@@ -215,19 +208,19 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
 
         // Restore parent to avoid leaving UserDefaults in a surprising state
         // for a following test case that relies on notifications being on.
-        parentToggle.tap()
+        parentToggle.click()
     }
 
     // MARK: - Sidebar: re-select same section is idempotent
 
     func testReselectingSameSidebarSectionKeepsContentMounted() {
-        let devicesRow = ui("sidebar_nav_devices")
-        let container = ui("contentView_nav_devices")
-        let marker = ui("devices_textfield_search")
+        let devicesRow = ui("sidebar_nav_devices").firstMatch
+        let container = ui("contentView_nav_devices").firstMatch
+        let marker = ui("devices_textfield_search").firstMatch
 
         XCTAssertTrue(devicesRow.waitForExistence(timeout: 5),
                       "Devices sidebar row should exist")
-        devicesRow.tap()
+        devicesRow.click()
 
         XCTAssertTrue(container.waitForExistence(timeout: 5),
                       "Devices container should mount on first selection")
@@ -237,7 +230,7 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
         // Tap the same row again. The container + content marker should
         // still be present — tapping the currently-selected row must NOT
         // unmount or swap the detail pane.
-        devicesRow.tap()
+        devicesRow.click()
 
         XCTAssertTrue(container.exists,
                       "Devices container should remain after re-selecting the same row")
@@ -245,7 +238,7 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
                       "Devices search field should remain after re-selecting the same row")
 
         // Tap a third time for good measure.
-        devicesRow.tap()
+        devicesRow.click()
         XCTAssertTrue(marker.exists,
                       "Devices content should still be stable after repeated re-selection")
     }
@@ -253,32 +246,32 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
     // MARK: - Sidebar: rapid-fire switches settle on the last selection
 
     func testRapidSidebarSwitchesSettleOnFinalSelection() {
-        let devicesRow = ui("sidebar_nav_devices")
-        let toolsRow = ui("sidebar_nav_tools")
-        let settingsRow = ui("sidebar_nav_settings")
+        let devicesRow = ui("sidebar_nav_devices").firstMatch
+        let toolsRow = ui("sidebar_nav_tools").firstMatch
+        let settingsRow = ui("sidebar_nav_settings").firstMatch
 
         XCTAssertTrue(devicesRow.waitForExistence(timeout: 5))
         XCTAssertTrue(toolsRow.waitForExistence(timeout: 5))
         XCTAssertTrue(settingsRow.waitForExistence(timeout: 5))
 
         // Rapidly hop between sections without waiting for settle.
-        devicesRow.tap()
-        toolsRow.tap()
-        devicesRow.tap()
-        settingsRow.tap()
-        toolsRow.tap()
-        settingsRow.tap()
+        devicesRow.click()
+        toolsRow.click()
+        devicesRow.click()
+        settingsRow.click()
+        toolsRow.click()
+        settingsRow.click()
 
         // Final selection should be Settings — verify the pane and its
         // unique content marker land.
-        XCTAssertTrue(ui("contentView_nav_settings").waitForExistence(timeout: 5),
+        XCTAssertTrue(ui("contentView_nav_settings").firstMatch.waitForExistence(timeout: 5),
                       "Settings container should be visible after rapid switching")
         XCTAssertTrue(ui("settings_nav_sidebar").waitForExistence(timeout: 5),
                       "Settings tab sidebar should render as final state")
 
         // And content from intermediate selections should have unmounted —
         // otherwise the detail pane is stacking every selection.
-        XCTAssertFalse(ui("contentView_nav_devices").exists,
+        XCTAssertFalse(ui("contentView_nav_devices").firstMatch.exists,
                        "Devices pane must not persist after switching to settings")
         XCTAssertFalse(ui("tools_section_diagnostics").exists,
                        "Tools content must not persist after switching to settings")
@@ -298,13 +291,13 @@ final class EdgeCasesAndErrorStatesUITests: MacOSUITestCase {
                       "Main window should appear after relaunch")
 
         // Navigate to Devices (identifier is `sidebar_nav_devices`).
-        let devicesRow = ui("sidebar_nav_devices")
+        let devicesRow = ui("sidebar_nav_devices").firstMatch
         requireExists(devicesRow, timeout: 5,
                       message: "sidebar_nav_devices should exist")
-        devicesRow.tap()
+        devicesRow.click()
 
         let seededIP = "192.168.77.77"
-        let card = ui("devices_card_\(seededIP)")
+        let card = ui("devices_card_\(seededIP)").firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10),
                       "Seeded device card should appear before opening menu")
 

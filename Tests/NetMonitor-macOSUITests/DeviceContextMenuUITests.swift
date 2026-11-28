@@ -9,11 +9,14 @@ import XCTest
 /// launch flag so a deterministic device is present before the menu is
 /// opened.
 @MainActor
-final class DeviceContextMenuUITests: XCTestCase {
-    private var app: XCUIApplication!
-
+final class DeviceContextMenuUITests: MacOSUITestCase {
     private let seededIP = "192.168.77.77"
 
+    /// The card's id is stamped onto its icon and labels on macOS 27, so match the first.
+    private var card: XCUIElement { ui("devices_card_\(seededIP)").firstMatch }
+
+    /// Launches with `--seed-test-device`, which `MacOSUITestCase` has no hook for,
+    /// so this replaces the base launch instead of launching twice.
     override func setUpWithError() throws {
         continueAfterFailure = false
         app = XCUIApplication()
@@ -24,34 +27,23 @@ final class DeviceContextMenuUITests: XCTestCase {
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10),
                       "App main window should appear after launch")
 
-        // Navigate to Devices list.
-        let sidebarItem = app.descendants(matching: .any)["sidebar_devices"]
-        XCTAssertTrue(sidebarItem.waitForExistence(timeout: 5),
-                      "Devices sidebar item should exist")
-        sidebarItem.tap()
+        navigateToSidebar("devices")
 
         // Wait for the seeded card to appear — seeding runs ~1s after launch.
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.waitForExistence(timeout: 10),
                       "Seeded device card should appear before tests run")
-    }
-
-    override func tearDownWithError() throws {
-        app?.terminate()
-        app = nil
     }
 
     // MARK: - Menu opens with expected items
 
     func testContextMenuOpensWithAllActions() {
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.waitForExistence(timeout: 5))
         card.rightClick()
 
         // SwiftUI context menu buttons surface either as menuItems or
         // buttons on macOS depending on representation — accept either.
         XCTAssertTrue(
-            waitForAny(
+            waitForEither(
                 [
                     app.menuItems["devices_menu_copyIP"],
                     app.buttons["devices_menu_copyIP"]
@@ -61,7 +53,7 @@ final class DeviceContextMenuUITests: XCTestCase {
             "Copy IP menu item should be present after right-click"
         )
         XCTAssertTrue(
-            waitForAny(
+            waitForEither(
                 [
                     app.menuItems["devices_menu_ping"],
                     app.buttons["devices_menu_ping"]
@@ -71,7 +63,7 @@ final class DeviceContextMenuUITests: XCTestCase {
             "Ping Device menu item should be present"
         )
         XCTAssertTrue(
-            waitForAny(
+            waitForEither(
                 [
                     app.menuItems["devices_menu_portScan"],
                     app.buttons["devices_menu_portScan"]
@@ -81,7 +73,7 @@ final class DeviceContextMenuUITests: XCTestCase {
             "Scan Ports menu item should be present"
         )
         XCTAssertTrue(
-            waitForAny(
+            waitForEither(
                 [
                     app.menuItems["devices_menu_remove"],
                     app.buttons["devices_menu_remove"]
@@ -95,46 +87,30 @@ final class DeviceContextMenuUITests: XCTestCase {
         app.typeKey(.escape, modifierFlags: [])
     }
 
-    // MARK: - Ping action triggers ping sheet with device IP pre-filled
+    // MARK: - Ping action opens the ping sheet for the device
 
     func testPingActionOpensPingSheet() {
         openContextMenu()
         tapMenuItem("devices_menu_ping")
 
-        let sheet = app.descendants(matching: .any)["devices_section_pingSheet"]
+        let sheet = ui("devices_section_pingSheet").firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 5),
                       "Ping sheet should appear after tapping Ping Device menu item")
 
-        // Verify the ping host field is pre-filled with the device IP
-        let hostField = app.textFields["ping_textfield_host"]
-        if hostField.waitForExistence(timeout: 5) {
-            let hostValue = hostField.value as? String ?? ""
-            XCTAssertTrue(!hostValue.isEmpty,
-                          "Ping host field should be pre-filled with device IP, got: '\(hostValue)'")
-            XCTAssertTrue(hostValue == seededIP || hostValue.contains("192.168"),
-                          "Ping host field should contain the device IP (\(seededIP)), got: '\(hostValue)'")
-        }
+        assertSheetShowsSeededTarget("Ping sheet")
     }
 
-    // MARK: - Scan Ports action triggers port scan sheet with device IP pre-filled
+    // MARK: - Scan Ports action opens the port scan sheet for the device
 
     func testScanPortsActionOpensPortScanSheet() {
         openContextMenu()
         tapMenuItem("devices_menu_portScan")
 
-        let sheet = app.descendants(matching: .any)["devices_section_portScanSheet"]
+        let sheet = ui("devices_section_portScanSheet").firstMatch
         XCTAssertTrue(sheet.waitForExistence(timeout: 5),
                       "Port scan sheet should appear after tapping Scan Ports menu item")
 
-        // Verify the port scan host field is pre-filled with the device IP
-        let hostField = app.textFields["portScan_textfield_host"]
-        if hostField.waitForExistence(timeout: 5) {
-            let hostValue = hostField.value as? String ?? ""
-            XCTAssertTrue(!hostValue.isEmpty,
-                          "Port scan host field should be pre-filled with device IP, got: '\(hostValue)'")
-            XCTAssertTrue(hostValue == seededIP || hostValue.contains("192.168"),
-                          "Port scan host field should contain the device IP (\(seededIP)), got: '\(hostValue)'")
-        }
+        assertSheetShowsSeededTarget("Port scan sheet")
     }
 
     // MARK: - Copy IP action copies device IP to clipboard
@@ -145,7 +121,6 @@ final class DeviceContextMenuUITests: XCTestCase {
 
         // After copying IP, verify the device card still exists (no unexpected navigation)
         // and the menu has dismissed (card is hittable again)
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.waitForExistence(timeout: 3),
                       "Device card should still exist after Copy IP action")
 
@@ -158,7 +133,6 @@ final class DeviceContextMenuUITests: XCTestCase {
     // MARK: - Remove action removes the device from the list
 
     func testRemoveActionDeletesDeviceCard() {
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.exists, "Seeded card should exist before removal")
 
         openContextMenu()
@@ -173,8 +147,19 @@ final class DeviceContextMenuUITests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// The device sheets have no host field; they name their device as
+    /// "Target: <ip>". The card behind the sheet shows the IP too, so look
+    /// inside the sheet. A Text reports its string as its value on macOS 27.
+    private func assertSheetShowsSeededTarget(_ name: String) {
+        let sheetTexts = app.sheets.firstMatch.staticTexts
+        for text in ["Target:", seededIP] {
+            let match = sheetTexts.matching(NSPredicate(format: "value == %@ OR label == %@", text, text)).firstMatch
+            XCTAssertTrue(match.waitForExistence(timeout: 5),
+                          "\(name) should show '\(text)' for the device it was opened on")
+        }
+    }
+
     private func openContextMenu() {
-        let card = app.descendants(matching: .any)["devices_card_\(seededIP)"]
         XCTAssertTrue(card.waitForExistence(timeout: 5),
                       "Seeded card should exist before right-click")
         card.rightClick()
@@ -186,21 +171,12 @@ final class DeviceContextMenuUITests: XCTestCase {
     private func tapMenuItem(_ identifier: String) {
         let menuItem = app.menuItems[identifier]
         if menuItem.waitForExistence(timeout: 3), menuItem.isHittable {
-            menuItem.tap()
+            menuItem.click()
             return
         }
         let button = app.buttons[identifier]
         XCTAssertTrue(button.waitForExistence(timeout: 3),
                       "Menu entry \(identifier) should be findable as menuItem or button")
-        button.tap()
-    }
-
-    private func waitForAny(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if elements.contains(where: { $0.exists }) { return true }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        return false
+        button.click()
     }
 }

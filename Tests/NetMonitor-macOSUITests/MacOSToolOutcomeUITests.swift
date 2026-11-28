@@ -14,6 +14,8 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
     func testPingValidationRunAndCloseOutcome() {
         openTool(cardID: "tools_card_ping", sheetElement: "ping_textfield_host")
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["ping_textfield_host"])
 
         let runButton = requireExists(
             app.buttons["ping_button_run"],
@@ -24,7 +26,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         clearAndTypeText("127.0.0.1", into: app.textFields["ping_textfield_host"])
         XCTAssertTrue(runButton.isEnabled, "Run should be enabled after entering host")
 
-        runButton.tap()
+        runButton.click()
 
         // Verify RESULT DATA appears. The chart only renders once ≥2 successful
         // pings arrive, and the Clear button only renders when results exist,
@@ -37,9 +39,9 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
             "Ping should produce chart or clearable result output against 127.0.0.1"
         )
 
-        // Tap again to stop if still running.
-        if runButton.exists && runButton.isEnabled {
-            runButton.tap()
+        // Click again to stop if still running (the button reads "Stop" then).
+        if runButton.exists && runButton.label == "Stop" {
+            runButton.click()
         }
 
         closeTool(closeButtonID: "ping_button_close", cardID: "tools_card_ping")
@@ -54,27 +56,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
         XCTAssertTrue(countPicker.isEnabled, "Count picker should be interactive")
 
-        // Verify picker actually changes value — tap to open menu, select an option
-        let valueBefore = countPicker.value as? String ?? ""
-        countPicker.tap()
-
-        // Menu items should appear — select a different option if available
-        if app.menuItems.firstMatch.waitForExistence(timeout: 3) {
-            // Pick a menu item different from current
-            let menuItems = app.menuItems.allElementsBoundByIndex
-            if let differentItem = menuItems.first(where: { ($0.label != valueBefore) && $0.isEnabled }) {
-                differentItem.tap()
-                let valueAfter = countPicker.value as? String ?? ""
-                // Value should have changed after selecting a different option
-                XCTAssertTrue(valueAfter != valueBefore || !valueAfter.isEmpty,
-                              "Ping count picker value should update after selecting a different option")
-            } else {
-                // All items same — just pick the first
-                app.menuItems.firstMatch.tap()
-            }
-        } else {
-            app.typeKey(.escape, modifierFlags: [])
-        }
+        selectDifferentOption(in: countPicker)
 
         closeTool(closeButtonID: "ping_button_close", cardID: "tools_card_ping")
     }
@@ -83,6 +65,8 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
     func testTracerouteValidationRunAndCloseOutcome() {
         openTool(cardID: "tools_card_traceroute", sheetElement: "traceroute_textfield_host")
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["traceroute_textfield_host"])
 
         let runButton = requireExists(
             app.buttons["traceroute_button_run"],
@@ -93,18 +77,19 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         clearAndTypeText("1.1.1.1", into: app.textFields["traceroute_textfield_host"])
         XCTAssertTrue(runButton.isEnabled, "Run should be enabled after entering host")
 
-        runButton.tap()
+        runButton.click()
 
         // Verify at least one hop row is rendered — the service streams hops as
-        // they arrive, so `traceroute_row_1` appearing proves real data landed
-        // in the results area (not just a state flip).
+        // they arrive. Each hop row carries `traceroute_section_hops` (the ForEach's
+        // id replaces the row's own `traceroute_row_<n>`), so its appearance proves
+        // real data landed in the results area (not just a state flip).
         XCTAssertTrue(
-            ui("traceroute_row_1").waitForExistence(timeout: 25),
-            "Traceroute should render at least hop #1 against 1.1.1.1"
+            ui("traceroute_section_hops").firstMatch.waitForExistence(timeout: 25),
+            "Traceroute should render at least one hop row against 1.1.1.1"
         )
 
-        if runButton.exists && runButton.isEnabled {
-            runButton.tap()
+        if runButton.exists && runButton.label == "Stop" {
+            runButton.click()
         }
 
         closeTool(closeButtonID: "traceroute_button_close", cardID: "tools_card_traceroute")
@@ -119,23 +104,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
         XCTAssertTrue(hopsPicker.isEnabled, "Hops picker should be interactive")
 
-        // Verify picker actually changes value
-        let valueBefore = hopsPicker.value as? String ?? ""
-        hopsPicker.tap()
-
-        if app.menuItems.firstMatch.waitForExistence(timeout: 3) {
-            let menuItems = app.menuItems.allElementsBoundByIndex
-            if let differentItem = menuItems.first(where: { ($0.label != valueBefore) && $0.isEnabled }) {
-                differentItem.tap()
-                let valueAfter = hopsPicker.value as? String ?? ""
-                XCTAssertTrue(valueAfter != valueBefore || !valueAfter.isEmpty,
-                              "Hops picker value should update after selecting a different option")
-            } else {
-                app.menuItems.firstMatch.tap()
-            }
-        } else {
-            app.typeKey(.escape, modifierFlags: [])
-        }
+        selectDifferentOption(in: hopsPicker)
 
         closeTool(closeButtonID: "traceroute_button_close", cardID: "tools_card_traceroute")
     }
@@ -144,6 +113,8 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
     func testPortScannerValidationRunAndCloseOutcome() {
         openTool(cardID: "tools_card_port_scanner", sheetElement: "portScan_textfield_host")
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["portScan_textfield_host"])
 
         let scanButton = requireExists(
             app.buttons["portScan_button_scan"],
@@ -154,7 +125,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         clearAndTypeText("127.0.0.1", into: app.textFields["portScan_textfield_host"])
         XCTAssertTrue(scanButton.isEnabled, "Scan should be enabled after entering host")
 
-        scanButton.tap()
+        scanButton.click()
 
         // After the scan completes, the Clear button appears only when `results`
         // is non-empty — verifying the scan actually populated rows. The default
@@ -177,23 +148,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
         XCTAssertTrue(presetPicker.isEnabled, "Preset picker should be interactive")
 
-        // Verify picker actually changes value
-        let valueBefore = presetPicker.value as? String ?? ""
-        presetPicker.tap()
-
-        if app.menuItems.firstMatch.waitForExistence(timeout: 3) {
-            let menuItems = app.menuItems.allElementsBoundByIndex
-            if let differentItem = menuItems.first(where: { ($0.label != valueBefore) && $0.isEnabled }) {
-                differentItem.tap()
-                let valueAfter = presetPicker.value as? String ?? ""
-                XCTAssertTrue(valueAfter != valueBefore || !valueAfter.isEmpty,
-                              "Port scanner preset picker value should update after selecting a different option")
-            } else {
-                app.menuItems.firstMatch.tap()
-            }
-        } else {
-            app.typeKey(.escape, modifierFlags: [])
-        }
+        selectDifferentOption(in: presetPicker)
 
         closeTool(closeButtonID: "portScan_button_close", cardID: "tools_card_port_scanner")
     }
@@ -202,6 +157,8 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
     func testDNSLookupValidationRunClearAndCloseOutcome() {
         openTool(cardID: "tools_card_dns_lookup", sheetElement: "dns_textfield_hostname")
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["dns_textfield_hostname"])
 
         let lookupButton = requireExists(
             app.buttons["dns_button_lookup"],
@@ -212,7 +169,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["dns_textfield_hostname"])
         XCTAssertTrue(lookupButton.isEnabled, "Lookup should be enabled after entering hostname")
 
-        lookupButton.tap()
+        lookupButton.click()
 
         // The results ForEach carries `dns_section_results` and is wrapped in
         // `if !results.isEmpty`. Its appearance proves real records rendered.
@@ -224,7 +181,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
         let clearButton = app.buttons["dns_button_clear"]
         XCTAssertTrue(clearButton.exists, "Clear button should be visible once DNS results exist")
-        clearButton.tap()
+        clearButton.click()
         XCTAssertTrue(
             waitForDisappearance(clearButton, timeout: 5),
             "Clear button should disappear after clearing DNS results"
@@ -246,23 +203,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
         XCTAssertTrue(typePicker.isEnabled, "Record type picker should be interactive")
 
-        // Verify picker actually changes value — select a different record type
-        let valueBefore = typePicker.value as? String ?? ""
-        typePicker.tap()
-
-        if app.menuItems.firstMatch.waitForExistence(timeout: 3) {
-            let menuItems = app.menuItems.allElementsBoundByIndex
-            if let differentItem = menuItems.first(where: { ($0.label != valueBefore) && $0.isEnabled }) {
-                differentItem.tap()
-                let valueAfter = typePicker.value as? String ?? ""
-                XCTAssertTrue(valueAfter != valueBefore || !valueAfter.isEmpty,
-                              "DNS record type picker value should update after selecting a different type")
-            } else {
-                app.menuItems.firstMatch.tap()
-            }
-        } else {
-            app.typeKey(.escape, modifierFlags: [])
-        }
+        selectDifferentOption(in: typePicker)
 
         closeTool(closeButtonID: "dns_button_close", cardID: "tools_card_dns_lookup")
     }
@@ -271,6 +212,8 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
 
     func testWHOISValidationRunClearAndCloseOutcome() {
         openTool(cardID: "tools_card_whois", sheetElement: "whois_textfield_domain")
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["whois_textfield_domain"])
 
         let lookupButton = requireExists(
             app.buttons["whois_button_lookup"],
@@ -281,12 +224,12 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         clearAndTypeText("example.com", into: app.textFields["whois_textfield_domain"])
         XCTAssertTrue(lookupButton.isEnabled, "Lookup should be enabled after entering domain")
 
-        lookupButton.tap()
+        lookupButton.click()
 
         // `whois_picker_viewmode` is gated on `result != nil`, and
         // `whois_section_parsed` only renders when the parsed result view is
         // visible — so either proves real WHOIS data returned.
-        let viewModePicker = app.segmentedControls["whois_picker_viewmode"]
+        let viewModePicker = ui("whois_picker_viewmode").firstMatch
         let parsedSection = ui("whois_section_parsed")
         let clearButton = app.buttons["whois_button_clear"]
         XCTAssertTrue(
@@ -295,7 +238,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
 
         if clearButton.exists {
-            clearButton.tap()
+            clearButton.click()
             XCTAssertTrue(
                 waitForDisappearance(clearButton, timeout: 5),
                 "Clear button should disappear after clearing WHOIS results"
@@ -321,7 +264,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         XCTAssertTrue(startButton.isEnabled, "Start button should be enabled")
 
         requireExists(
-            app.segmentedControls["speedTest_picker_duration"],
+            app.radioGroups["speedTest_picker_duration"],
             message: "Duration picker should exist"
         )
 
@@ -329,7 +272,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         // latency/download/upload/server labels. They remain present across
         // idle/running/complete states; here we just verify they render at all
         // after the test enters the running phase.
-        startButton.tap()
+        startButton.click()
 
         let stopButton = app.buttons["speedTest_button_stop"]
         XCTAssertTrue(
@@ -338,28 +281,28 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         )
 
         requireExists(
-            ui("speedTest_section_results"),
+            ui("speedTest_section_results").firstMatch,
             timeout: 5,
             message: "Speed test results section should render with live data fields"
         )
         requireExists(
-            ui("speedTest_label_latency"),
+            ui("speedTest_label_latency").firstMatch,
             message: "Latency label should be rendered in speed test results"
         )
         requireExists(
-            ui("speedTest_label_download"),
+            ui("speedTest_label_download").firstMatch,
             message: "Download label should be rendered in speed test results"
         )
         requireExists(
-            ui("speedTest_label_upload"),
+            ui("speedTest_label_upload").firstMatch,
             message: "Upload label should be rendered in speed test results"
         )
         requireExists(
-            ui("speedTest_label_server"),
+            ui("speedTest_label_server").firstMatch,
             message: "Server label should be rendered in speed test results"
         )
 
-        stopButton.tap()
+        stopButton.click()
 
         XCTAssertTrue(
             app.buttons["speedTest_button_start"].waitForExistence(timeout: 8),
@@ -373,26 +316,27 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         openTool(cardID: "tools_card_speed_test", sheetElement: "speedTest_button_start")
 
         let picker = requireExists(
-            app.segmentedControls["speedTest_picker_duration"],
+            app.radioGroups["speedTest_picker_duration"],
             message: "Duration picker should exist"
         )
-        XCTAssertEqual(picker.buttons.count, 3, "Duration picker should have 3 segments (5s, 10s, 30s)")
+        // A segmented picker is a RadioGroup of RadioButtons on macOS 27.
+        let segments = picker.radioButtons
+        XCTAssertEqual(segments.count, 3, "Duration picker should have 3 segments (5s, 10s, 30s)")
 
-        // Verify segment selection actually changes state — tap a different segment
-        if picker.buttons.count >= 2 {
-            let secondSegment = picker.buttons.element(boundBy: 1)
-            secondSegment.tap()
-
-            // The tapped segment should now be selected
-            let isSelected = secondSegment.isSelected
-                || (secondSegment.value as? String == "1")
-            XCTAssertTrue(isSelected,
-                          "Second duration segment should be selected after tapping it")
-
-            // Tap back to the first segment to restore
-            let firstSegment = picker.buttons.element(boundBy: 0)
-            firstSegment.tap()
+        // Verify segment selection actually changes state — click a segment that is not selected
+        let all = segments.allElementsBoundByIndex
+        guard let selected = all.first(where: { stringValue($0) == "1" }),
+              let other = all.last(where: { stringValue($0) != "1" }) else {
+            return XCTFail("Duration picker should have one selected and one unselected segment")
         }
+        other.click()
+        XCTAssertEqual(stringValue(other), "1",
+                       "A duration segment should be selected after clicking it")
+        XCTAssertEqual(stringValue(selected), "0",
+                       "The previous duration segment should be deselected")
+
+        // Restore the original selection
+        selected.click()
 
         closeTool(closeButtonID: "speedTest_button_close", cardID: "tools_card_speed_test")
     }
@@ -411,7 +355,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         clearAndTypeText("AA:BB:CC:DD:EE:FF", into: app.textFields["wol_textfield_mac"])
         XCTAssertTrue(sendButton.isEnabled, "Send should be enabled for valid MAC")
 
-        sendButton.tap()
+        sendButton.click()
 
         // After sending, the send button should remain visible (success/failure shown inline).
         requireExists(sendButton, timeout: 10,
@@ -456,7 +400,7 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
             refreshButton.waitForExistence(timeout: 10),
             "Refresh button should become available"
         )
-        refreshButton.tap()
+        refreshButton.click()
 
         // After refresh, verify the results area is present — either service rows
         // appeared or the refresh at least completed without error (close button
@@ -471,17 +415,49 @@ final class MacOSToolOutcomeUITests: MacOSUITestCase {
         // Verify the Bonjour results area has content structure
         let hasContentStructure = waitForEither([
             app.tables.firstMatch,
-            app.staticTexts.matching(
+            app.descendants(matching: .any).matching(
                 NSPredicate(format: "identifier BEGINSWITH 'bonjour_row_'")
             ).firstMatch,
             ui("bonjour_label_empty"),
             app.staticTexts.matching(
-                NSPredicate(format: "label CONTAINS[c] 'No services' OR label CONTAINS[c] 'No results'")
+                NSPredicate(format: "label CONTAINS[c] 'No services' OR label CONTAINS[c] 'No results'"
+                    + " OR value CONTAINS[c] 'No services'")
             ).firstMatch
         ], timeout: 5)
         XCTAssertTrue(hasContentStructure,
                       "Bonjour browser should show service list or empty state after refresh")
 
         closeTool(closeButtonID: "bonjour_button_close", cardID: "tools_card_bonjour_browser")
+    }
+
+    // MARK: - Helpers
+
+    /// Open a pop-up picker, choose an option other than the current one,
+    /// verify the picker shows it, and put the original back. The menu is read from the picker itself:
+    /// `app.menuItems` starts with the Apple menu in the menu bar.
+    private func selectDifferentOption(in picker: XCUIElement) {
+        let valueBefore = stringValue(picker)
+        picker.click()
+
+        let options = picker.menuItems
+        XCTAssertTrue(options.firstMatch.waitForExistence(timeout: 3),
+                      "\(picker) should open its menu")
+        let name: (XCUIElement) -> String = { $0.title.isEmpty ? $0.label : $0.title }
+        guard let other = options.allElementsBoundByIndex.first(where: {
+            $0.isEnabled && !name($0).isEmpty && name($0) != valueBefore
+        }) else {
+            app.typeKey(.escape, modifierFlags: [])
+            return XCTFail("\(picker) should offer an option other than '\(valueBefore)'")
+        }
+        let chosen = name(other)
+        other.click()
+
+        XCTAssertEqual(stringValue(picker), chosen,
+                       "\(picker) should show the option that was selected")
+
+        // Restore the original option: the ping count is saved in app settings.
+        picker.click()
+        requireExists(picker.menuItems[valueBefore], timeout: 3,
+                      message: "\(picker) should still offer '\(valueBefore)'").click()
     }
 }
