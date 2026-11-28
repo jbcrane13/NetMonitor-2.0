@@ -174,6 +174,7 @@ final class ToolsViewUITests: MacOSUITestCase {
         XCTAssertTrue(waitForDisappearance(closeButton), "Sheet should close")
         requireExists(ui("tools_card_ping").firstMatch, timeout: 5,
                       message: "Ping card should reappear after closing sheet")
+        captureScreenshot(named: "ToolsView_AfterClose")
     }
 
     func testToolCardOpenAndCloseRoundTrip() {

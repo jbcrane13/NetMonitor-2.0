@@ -41,7 +41,7 @@ SwiftUI views for the macOS app. The main window uses `NavigationSplitView` with
 - Service dependencies injected via `@Environment` (set up in `NetMonitorApp.swift`)
 - SwiftData: use `@Query` for reactive fetching; `@Environment(\.modelContext)` for writes
 - macOS uses standard system appearance — no liquid glass theme; use `List`, `GroupBox`, `Form`
-- Tool sheets presented via `.sheet(isPresented:)` from `ToolsView`
+- Tools open in the detail pane (`selection = .tool(tool)` from `ToolsView`); Close and Back return to the Tools grid
 
 ### Testing
 ```bash

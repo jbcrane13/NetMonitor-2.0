@@ -4,7 +4,7 @@
 # NetMonitor-macOS/Views/Tools
 
 ## Purpose
-Network diagnostic tool views for macOS. Each tool is presented as a sheet from `ToolsView`. Tools share the same functional design as iOS but use macOS-native layout (no liquid glass theme).
+Network diagnostic tool views for macOS. Each tool opens in the main window's detail pane: `ToolsView` sets `selection = .tool(tool)` and `ContentView.toolView(for:)` shows it. Tools share the same functional design as iOS but use macOS-native layout (no liquid glass theme).
 
 ## Key Files
 
@@ -27,7 +27,8 @@ Network diagnostic tool views for macOS. Each tool is presented as a sheet from 
 ## For AI Agents
 
 ### macOS Tool Pattern
-- Tools are sheets — always wrap in `ToolSheetContainer` for consistent chrome
+- Tools fill the detail pane — always wrap in `ToolSheetContainer` for consistent chrome; its Close calls the `closeTool` environment action (back to the Tools grid, #545)
+- Exceptions: Wi-Fi Heatmap (`../Heatmap/WiFiHeatmapView.swift`) and Timeline (`../TimelineView.swift`) are full-pane views without `ToolSheetContainer`, so they have no Close button; the toolbar Back button (`contentView_button_back`) is their only way back to the Tools grid
 - Service protocols from `NetMonitorCore` are injected via `@Environment`
 - Use `Table` (macOS 13+) for result lists with sortable columns where appropriate
 - Input validation: disable the run button until input is non-empty and valid

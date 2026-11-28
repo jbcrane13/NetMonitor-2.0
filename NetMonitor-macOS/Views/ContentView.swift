@@ -184,6 +184,11 @@ struct ContentView: View {
         }
     }
 
+    /// Back and a tool's Close both return to the Tools grid (#545).
+    private func returnToTools() {
+        selectedSection = .section(.tools)
+    }
+
     private func toolView(for tool: NetworkTool) -> some View {
         Group {
             switch tool {
@@ -207,10 +212,11 @@ struct ContentView: View {
             case .ask: AskToolView()
             }
         }
+        .environment(\.closeTool) { returnToTools() }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button {
-                    selectedSection = .section(.tools)
+                    returnToTools()
                 } label: {
                     Label("Back", systemImage: "chevron.left")
                 }
