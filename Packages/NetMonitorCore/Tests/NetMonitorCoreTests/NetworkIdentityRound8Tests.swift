@@ -82,3 +82,21 @@ extension NetworkIdentityControllerTests {
         #expect(setup.identity.isDamaged)
     }
 }
+
+extension NetworkIdentityStoreTests {
+    /// Codex stop review on round 8: a store that recovered by loading a file another copy repaired
+    /// knows a file exists, so the file vanishing afterwards is unreadable, never "unchanged".
+    @Test func aFileVanishingAfterRecoveryIsUnreadable() throws {
+        let env = try makeEnvironment()
+        _ = store(env)
+        let url = env.dir.appending(path: NetworkIdentityStore.fileName)
+        try Data("not json".utf8).write(to: url)
+        let first = store(env)
+        let second = store(env)
+        try second.startOver()
+        try first.startOver()
+        #expect(first.state == .ready)
+        try FileManager.default.removeItem(at: url)
+        #expect(first.reloadIfChangedOnDisk() == .unreadable)
+    }
+}

@@ -77,8 +77,6 @@ public final class NetworkIdentityStore {
     public private(set) var state: State
 
     private let fileURL: URL
-    /// This copy has read or written the file, so its absence is news.
-    private var hasFile = false
     private let lockURL: URL
     private let directory: URL
     private let defaults: UserDefaults
@@ -121,7 +119,6 @@ public final class NetworkIdentityStore {
                 state = .newer
             } else if let decoded = try? JSONDecoder().decode(Contents.self, from: data), (try? validate(decoded)) != nil {
                 contents = decoded
-                hasFile = true
                 state = .ready
                 defaults.set(true, forKey: Self.markerKey)
             } else {
@@ -263,10 +260,9 @@ public final class NetworkIdentityStore {
 
     public func reloadIfChangedOnDisk() -> DiskCheck {
         guard state == .ready else { return .changed }
-        guard let data = try? Data(contentsOf: fileURL) else {
-            // A file this copy never had is no news; one that vanished or can't be read is.
-            return FileManager.default.fileExists(atPath: fileURL.path) || hasFile ? .unreadable : .unchanged
-        }
+        // A ready store has always read or written the file (migration writes it before going ready,
+        // every load reads it), so a file that vanished or can't be read is news: fail closed.
+        guard let data = try? Data(contentsOf: fileURL) else { return .unreadable }
         if Self.isNewer(data) {
             state = .newer
             return .changed
@@ -365,7 +361,6 @@ public final class NetworkIdentityStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         try write(encoder.encode(contents), fileURL)
-        hasFile = true
         defaults.set(contents.revision, forKey: Self.revisionKey)
         var known = defaults.dictionary(forKey: Self.knownNetworksKey) as? [String: String] ?? [:]
         for record in contents.records {
