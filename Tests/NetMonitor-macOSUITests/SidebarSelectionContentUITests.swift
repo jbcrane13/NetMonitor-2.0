@@ -54,11 +54,12 @@ final class SidebarSelectionContentUITests: MacOSUITestCase {
     /// Tap a sidebar row and wait for the detail container to appear.
     private func selectSidebar(_ identifier: String, expectingContainer containerID: String,
                                file: StaticString = #filePath, line: UInt = #line) {
-        let row = ui(identifier)
+        // The row's id is stamped onto its icon and label on macOS 27, so match the first.
+        let row = ui(identifier).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5),
                       "Sidebar row \(identifier) should exist",
                       file: file, line: line)
-        row.tap()
+        row.click()
         XCTAssertTrue(ui(containerID).waitForExistence(timeout: 5),
                       "Detail container \(containerID) should appear after selecting \(identifier)",
                       file: file, line: line)
@@ -71,7 +72,9 @@ final class SidebarSelectionContentUITests: MacOSUITestCase {
                                   file: StaticString = #filePath, line: UInt = #line) {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if !ui(identifier).exists { return }
+            if !ui(identifier).exists {
+                return
+            }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
         XCTFail("Expected \(identifier) to disappear after sidebar change, still present after \(timeout)s",
@@ -201,7 +204,7 @@ final class SidebarSelectionContentUITests: MacOSUITestCase {
         assertDisappears(DetailID.networkContainer)
 
         // Now select the network row and expect the network detail to mount.
-        networkRows.firstMatch.tap()
+        networkRows.firstMatch.click()
 
         XCTAssertTrue(ui(DetailID.networkContainer).waitForExistence(timeout: 5),
                       "Network detail container should appear after selecting a network row")

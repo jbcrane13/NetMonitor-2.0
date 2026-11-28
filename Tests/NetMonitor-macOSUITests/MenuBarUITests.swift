@@ -1,23 +1,14 @@
 import XCTest
 
 @MainActor
-final class MenuBarUITests: XCTestCase {
-    var app: XCUIApplication!
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-    }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
+final class MenuBarUITests: MacOSUITestCase {
 
     // MARK: - Menu Bar
 
-    /// Menu bar popover is not directly accessible via XCUITest in most cases
-    /// because it lives outside the main window hierarchy. These tests verify
-    /// that the app launches and the main window is functional, which is a
-    /// prerequisite for the menu bar controller to initialize.
+    /// The menu bar popover lives outside the main window hierarchy, and a
+    /// `--uitesting` launch does not create the menu bar controller. These tests
+    /// only check that the app launches with a main window and that the app's
+    /// main menu (File, View, Window) is there and enabled.
 
     func testAppLaunchesSuccessfully() {
         XCTAssertTrue(app.windows.count > 0, "App should have at least one window")

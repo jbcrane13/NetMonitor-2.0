@@ -4,18 +4,29 @@ import XCTest
 ///
 /// Tests verify **outcomes** of sidebar interactions: content area updates,
 /// network detail loading, and keyboard shortcut navigation.
-/// Existing tests in SidebarNavigationUITests are NOT modified.
 @MainActor
 final class SidebarFunctionalUITests: MacOSUITestCase {
+
+    /// The first network's sidebar row. Its dashboard replaced the Dashboard section
+    /// (9704f2d0) and is what the app opens on (b8e467ae).
+    private var networkRow: XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'sidebar_row_network'")
+        ).firstMatch
+    }
 
     // MARK: - 1. Click Each Sidebar Section -> Verify Content Area Updates
 
     func testSidebarDashboardSectionUpdatesContent() {
-        let sidebar = app.descendants(matching: .any)["sidebar_dashboard"]
+        // Leave the launch dashboard first so the selection is what brings it back.
+        navigateToSidebar("tools")
+        XCTAssertTrue(waitForDisappearance(ui("contentView_nav_network").firstMatch),
+                      "Dashboard should leave the detail pane when Tools is selected")
+        let sidebar = networkRow
         requireExists(sidebar, timeout: 5, message: "Dashboard sidebar item should exist")
-        sidebar.tap()
+        sidebar.click()
 
-        let detailPane = app.otherElements["detail_dashboard"]
+        let detailPane = ui("contentView_nav_network").firstMatch
         requireExists(detailPane, timeout: 5,
                       message: "Dashboard detail pane should appear after clicking sidebar")
 
@@ -24,10 +35,10 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
             app.staticTexts.matching(
                 NSPredicate(format: "identifier BEGINSWITH 'dashboard_'")
             ).firstMatch,
-            app.otherElements.matching(
+            app.descendants(matching: .any).matching(
                 NSPredicate(format: "identifier BEGINSWITH 'networkDetail_'")
             ).firstMatch,
-            app.staticTexts["dashboard_healthGauge_score"]
+            app.staticTexts["healthGauge_label_score"]
         ], timeout: 5)
         XCTAssertTrue(hasContent,
                       "Dashboard detail pane should have visible content, not just a container")
@@ -35,6 +46,7 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
         captureScreenshot(named: "Sidebar_Dashboard")
     }
 
+    // Blocked on #546: the Targets section was removed in c82f8b17.
     func testSidebarTargetsSectionUpdatesContent() {
         let sidebar = app.descendants(matching: .any)["sidebar_targets"]
         requireExists(sidebar, timeout: 5, message: "Targets sidebar item should exist")
@@ -60,11 +72,11 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     }
 
     func testSidebarDevicesSectionUpdatesContent() {
-        let sidebar = app.descendants(matching: .any)["sidebar_nav_devices"]
+        let sidebar = ui("sidebar_nav_devices").firstMatch
         requireExists(sidebar, timeout: 5, message: "Devices sidebar item should exist")
-        sidebar.tap()
+        sidebar.click()
 
-        let detailPane = app.otherElements["detail_devices"]
+        let detailPane = ui("contentView_nav_devices").firstMatch
         requireExists(detailPane, timeout: 5,
                       message: "Devices detail pane should appear after clicking sidebar")
 
@@ -85,17 +97,17 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     }
 
     func testSidebarToolsSectionUpdatesContent() {
-        let sidebar = app.descendants(matching: .any)["sidebar_nav_tools"]
+        let sidebar = ui("sidebar_nav_tools").firstMatch
         requireExists(sidebar, timeout: 5, message: "Tools sidebar item should exist")
-        sidebar.tap()
+        sidebar.click()
 
-        let detailPane = app.otherElements["detail_tools"]
+        let detailPane = ui("contentView_nav_tools").firstMatch
         requireExists(detailPane, timeout: 5,
                       message: "Tools detail pane should appear after clicking sidebar")
 
         // Verify tools has functional content (tool cards)
-        let hasToolCards = app.otherElements.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'tool_card_'")
+        let hasToolCards = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'tools_card_'")
         ).firstMatch.waitForExistence(timeout: 5)
             || app.staticTexts.matching(
                 NSPredicate(format: "label CONTAINS[c] 'Diagnostics'")
@@ -111,16 +123,16 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     }
 
     func testSidebarSettingsSectionUpdatesContent() {
-        let sidebar = app.descendants(matching: .any)["sidebar_nav_settings"]
+        let sidebar = ui("sidebar_nav_settings").firstMatch
         requireExists(sidebar, timeout: 5, message: "Settings sidebar item should exist")
-        sidebar.tap()
+        sidebar.click()
 
-        let detailPane = app.otherElements["detail_settings"]
+        let detailPane = ui("contentView_nav_settings").firstMatch
         requireExists(detailPane, timeout: 5,
                       message: "Settings detail pane should appear after clicking sidebar")
 
         // Verify settings has tabs
-        let hasSettingsTabs = app.staticTexts["settings_tab_general"].waitForExistence(timeout: 3)
+        let hasSettingsTabs = app.staticTexts["settings_tab_General"].waitForExistence(timeout: 3)
             || app.staticTexts.matching(
                 NSPredicate(format: "label CONTAINS[c] 'General'")
             ).firstMatch.waitForExistence(timeout: 3)
@@ -136,17 +148,17 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     func testClickNetworkInSidebarLoadsNetworkDetail() {
         // Look for network items in the sidebar
         let networkItems = app.outlines.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'sidebar_network_'")
+            NSPredicate(format: "identifier BEGINSWITH 'sidebar_row_network'")
         )
 
         if networkItems.firstMatch.waitForExistence(timeout: 5) {
-            networkItems.firstMatch.tap()
+            networkItems.firstMatch.click()
 
             // Network detail should load
             let detailLoaded = waitForEither([
-                app.otherElements["detail_network"],
-                app.otherElements["network_detail_panel_devices"],
-                app.otherElements["network_detail_row_activity"]
+                ui("contentView_nav_network").firstMatch,
+                ui("networkDetail_section_devices").firstMatch,
+                ui("networkDetail_card_latency").firstMatch
             ], timeout: 8)
 
             XCTAssertTrue(detailLoaded,
@@ -154,8 +166,8 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
 
             captureScreenshot(named: "Sidebar_NetworkDetail")
         } else {
-            // No networks in sidebar — check if detail_network auto-loaded
-            if app.otherElements["detail_network"].waitForExistence(timeout: 3) {
+            // No networks in sidebar — check if contentView_nav_network auto-loaded
+            if ui("contentView_nav_network").firstMatch.waitForExistence(timeout: 3) {
                 // Auto-selected network is fine
                 captureScreenshot(named: "Sidebar_AutoSelectedNetwork")
             }
@@ -165,13 +177,12 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     // MARK: - 3. Keyboard Shortcut Cmd+1 through Cmd+4 -> Verify Navigation
 
     func testKeyboardShortcutCmd1NavigatesToFirstSection() {
-        // Cmd+1 should navigate to first section (usually Dashboard or Network)
+        // Cmd+1 should navigate to the network dashboard
         app.typeKey("1", modifierFlags: .command)
 
         // Wait a moment for navigation
         let navigated = waitForEither([
-            app.otherElements["detail_dashboard"],
-            app.otherElements["detail_network"]
+            ui("contentView_nav_network").firstMatch
         ], timeout: 5)
 
         XCTAssertTrue(navigated || app.windows.firstMatch.exists,
@@ -183,11 +194,10 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     func testKeyboardShortcutCmd2NavigatesToSecondSection() {
         app.typeKey("2", modifierFlags: .command)
 
-        // Second section varies — could be targets, devices, or tools
+        // Second section varies — could be devices or the network dashboard
         let navigated = waitForEither([
-            app.otherElements["detail_targets"],
-            app.otherElements["detail_devices"],
-            app.otherElements["detail_network"]
+            ui("contentView_nav_devices").firstMatch,
+            ui("contentView_nav_network").firstMatch
         ], timeout: 5)
 
         XCTAssertTrue(navigated || app.windows.firstMatch.exists,
@@ -200,9 +210,8 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
         app.typeKey("3", modifierFlags: .command)
 
         let navigated = waitForEither([
-            app.otherElements["detail_devices"],
-            app.otherElements["detail_tools"],
-            app.otherElements["detail_targets"]
+            ui("contentView_nav_devices").firstMatch,
+            ui("contentView_nav_tools").firstMatch
         ], timeout: 5)
 
         XCTAssertTrue(navigated || app.windows.firstMatch.exists,
@@ -215,9 +224,9 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
         app.typeKey("4", modifierFlags: .command)
 
         let navigated = waitForEither([
-            app.otherElements["detail_tools"],
-            app.otherElements["detail_settings"],
-            app.otherElements["detail_devices"]
+            ui("contentView_nav_tools").firstMatch,
+            ui("contentView_nav_settings").firstMatch,
+            ui("contentView_nav_devices").firstMatch
         ], timeout: 5)
 
         XCTAssertTrue(navigated || app.windows.firstMatch.exists,
@@ -230,23 +239,26 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
 
     func testFullSidebarCycleVerifiesContentUpdates() {
         let sections: [(sidebar: String, detail: String)] = [
-            ("sidebar_dashboard", "detail_dashboard"),
-            ("sidebar_targets", "detail_targets"),
-            ("sidebar_nav_devices", "detail_devices"),
-            ("sidebar_nav_tools", "detail_tools"),
-            ("sidebar_nav_settings", "detail_settings")
+            ("sidebar_nav_devices", "contentView_nav_devices"),
+            ("sidebar_nav_tools", "contentView_nav_tools"),
+            ("sidebar_nav_settings", "contentView_nav_settings")
         ]
 
         for (sidebarID, detailID) in sections {
-            let sidebarItem = app.descendants(matching: .any)[sidebarID]
+            let sidebarItem = ui(sidebarID).firstMatch
             guard sidebarItem.waitForExistence(timeout: 3) else { continue }
 
-            sidebarItem.tap()
+            sidebarItem.click()
 
-            let detailPane = app.otherElements[detailID]
+            let detailPane = ui(detailID).firstMatch
             XCTAssertTrue(detailPane.waitForExistence(timeout: 5),
                          "\(detailID) should appear after clicking \(sidebarID)")
         }
+
+        // End on the network dashboard, which replaced the Dashboard section (9704f2d0).
+        networkRow.click()
+        XCTAssertTrue(ui("contentView_nav_network").firstMatch.waitForExistence(timeout: 5),
+                      "contentView_nav_network should appear after clicking the network row")
 
         captureScreenshot(named: "Sidebar_FullCycle")
     }
@@ -256,12 +268,12 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     func testSidebarSwitchingPreservesToolsState() {
         // Navigate to tools
         navigateToSidebar("tools")
-        let toolsPane = app.otherElements["detail_tools"]
+        let toolsPane = ui("contentView_nav_tools").firstMatch
         requireExists(toolsPane, timeout: 5, message: "Tools detail should appear")
 
         // Switch to settings
         navigateToSidebar("settings")
-        requireExists(app.otherElements["detail_settings"], timeout: 5,
+        requireExists(ui("contentView_nav_settings").firstMatch, timeout: 5,
                       message: "Settings should appear")
 
         // Return to tools — should still be the tools pane
@@ -276,8 +288,7 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
 
     func testCmdRTriggersRescan() {
         // Ensure we're on a network detail or dashboard
-        let hasDetail = app.otherElements["detail_network"].waitForExistence(timeout: 3)
-            || app.otherElements["detail_dashboard"].waitForExistence(timeout: 3)
+        let hasDetail = ui("contentView_nav_network").firstMatch.waitForExistence(timeout: 3)
 
         guard hasDetail else { return }
 
@@ -306,7 +317,7 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
 
         // Quick jump sheet should appear
         let quickJump = waitForEither([
-            ui("quickJump_sheet"),
+            ui("quickJump_textfield_search"),
             app.sheets.firstMatch,
             app.popovers.firstMatch,
             app.textFields.matching(
@@ -326,11 +337,10 @@ final class SidebarFunctionalUITests: MacOSUITestCase {
     // MARK: - 8. Default Selection is Dashboard or Network
 
     func testDefaultSelectionShowsContent() {
-        // On launch, either dashboard or network detail should be visible
+        // On launch, the network dashboard (or Tools) should be visible
         let hasDefaultContent = waitForEither([
-            app.otherElements["detail_dashboard"],
-            app.otherElements["detail_network"],
-            app.otherElements["detail_tools"]
+            ui("contentView_nav_network").firstMatch,
+            ui("contentView_nav_tools").firstMatch
         ], timeout: 8)
 
         XCTAssertTrue(hasDefaultContent,
