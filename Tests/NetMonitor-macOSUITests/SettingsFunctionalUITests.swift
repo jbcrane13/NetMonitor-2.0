@@ -16,24 +16,24 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     // MARK: - 1. Click Settings Tab -> Verify Tab Content Loads
 
     func testGeneralTabLoadsContent() {
-        let tab = app.staticTexts["settings_tab_general"]
+        let tab = app.staticTexts["settings_tab_General"]
         requireExists(tab, timeout: 3, message: "General tab should exist")
-        tab.tap()
+        tab.click()
 
         // Verify General tab has its controls
         let hasControls = waitForEither([
-            app.checkBoxes["settings_toggle_launchAtLogin"],
-            app.checkBoxes["settings_toggle_showInMenuBar"],
-            app.checkBoxes["settings_toggle_showInDock"]
+            app.switches["settings_toggle_launchAtLogin"],
+            app.switches["settings_toggle_showInMenuBar"],
+            app.switches["settings_toggle_showInDock"]
         ], timeout: 5)
 
         XCTAssertTrue(hasControls,
                      "General tab should show launch/menu bar/dock checkboxes")
 
         // Verify at least one checkbox is interactive (not just present)
-        if let checkbox = [app.checkBoxes["settings_toggle_launchAtLogin"],
-                           app.checkBoxes["settings_toggle_showInMenuBar"],
-                           app.checkBoxes["settings_toggle_showInDock"]]
+        if let checkbox = [app.switches["settings_toggle_launchAtLogin"],
+                           app.switches["settings_toggle_showInMenuBar"],
+                           app.switches["settings_toggle_showInDock"]]
             .first(where: { $0.exists }) {
             XCTAssertTrue(checkbox.isEnabled,
                           "General tab checkbox should be interactive, not just visible")
@@ -43,14 +43,14 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     }
 
     func testMonitoringTabLoadsContent() {
-        let tab = app.staticTexts["settings_tab_monitoring"]
+        let tab = app.staticTexts["settings_tab_Monitoring"]
         requireExists(tab, timeout: 3, message: "Monitoring tab should exist")
-        tab.tap()
+        tab.click()
 
         let hasControls = waitForEither([
             app.popUpButtons["settings_picker_defaultInterval"],
             app.popUpButtons["settings_picker_defaultTimeout"],
-            app.checkBoxes["settings_toggle_retryEnabled"]
+            app.switches["settings_toggle_retryEnabled"]
         ], timeout: 5)
 
         XCTAssertTrue(hasControls,
@@ -63,8 +63,8 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
             XCTAssertTrue(picker.isEnabled,
                           "Monitoring tab picker should be interactive, not just visible")
         }
-        if app.checkBoxes["settings_toggle_retryEnabled"].exists {
-            XCTAssertTrue(app.checkBoxes["settings_toggle_retryEnabled"].isEnabled,
+        if app.switches["settings_toggle_retryEnabled"].exists {
+            XCTAssertTrue(app.switches["settings_toggle_retryEnabled"].isEnabled,
                           "Retry enabled checkbox should be interactive")
         }
 
@@ -72,13 +72,13 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     }
 
     func testNotificationsTabLoadsContent() {
-        let tab = app.staticTexts["settings_tab_notifications"]
+        let tab = app.staticTexts["settings_tab_Notifications"]
         requireExists(tab, timeout: 3, message: "Notifications tab should exist")
-        tab.tap()
+        tab.click()
 
         let hasControls = waitForEither([
-            app.checkBoxes["settings_toggle_notificationsEnabled"],
-            app.checkBoxes["settings_toggle_notifyTargetDown"],
+            app.switches["settings_toggle_notificationsEnabled"],
+            app.switches["settings_toggle_notifyTargetDown"],
             app.sliders["settings_slider_latencyThreshold"]
         ], timeout: 5)
 
@@ -86,26 +86,29 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
                      "Notifications tab should show notification checkboxes or latency slider")
 
         // Verify at least one control is interactive
-        if app.checkBoxes["settings_toggle_notificationsEnabled"].exists {
-            XCTAssertTrue(app.checkBoxes["settings_toggle_notificationsEnabled"].isEnabled,
+        if app.switches["settings_toggle_notificationsEnabled"].exists {
+            XCTAssertTrue(app.switches["settings_toggle_notificationsEnabled"].isEnabled,
                           "Notifications enabled checkbox should be interactive")
         }
-        if app.sliders["settings_slider_latencyThreshold"].exists {
-            XCTAssertTrue(app.sliders["settings_slider_latencyThreshold"].isEnabled,
-                          "Latency threshold slider should be interactive")
+        // The slider is disabled while notifications are off (NotificationSettingsView).
+        let notifications = app.switches["settings_toggle_notificationsEnabled"]
+        if app.sliders["settings_slider_latencyThreshold"].exists, notifications.exists {
+            XCTAssertEqual(app.sliders["settings_slider_latencyThreshold"].isEnabled,
+                           stringValue(notifications) == "1",
+                           "Latency threshold slider should be enabled only while notifications are on")
         }
 
         captureScreenshot(named: "MacSettings_NotificationsTab")
     }
 
     func testNetworkTabLoadsContent() {
-        let tab = app.staticTexts["settings_tab_network"]
+        let tab = app.staticTexts["settings_tab_Network"]
         requireExists(tab, timeout: 3, message: "Network tab should exist")
-        tab.tap()
+        tab.click()
 
         let hasControls = waitForEither([
             app.popUpButtons["settings_picker_preferredInterface"],
-            app.checkBoxes["settings_toggle_useSystemProxy"]
+            app.switches["settings_toggle_useSystemProxy"]
         ], timeout: 5)
 
         XCTAssertTrue(hasControls,
@@ -115,9 +118,9 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     }
 
     func testDataTabLoadsContent() {
-        let tab = app.staticTexts["settings_tab_data"]
+        let tab = app.staticTexts["settings_tab_Data"]
         requireExists(tab, timeout: 3, message: "Data tab should exist")
-        tab.tap()
+        tab.click()
 
         let hasControls = waitForEither([
             app.popUpButtons["settings_picker_historyRetention"],
@@ -132,14 +135,14 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     }
 
     func testAppearanceTabLoadsContent() {
-        let tab = app.staticTexts["settings_tab_appearance"]
+        let tab = app.staticTexts["settings_tab_Appearance"]
         requireExists(tab, timeout: 3, message: "Appearance tab should exist")
-        tab.tap()
+        tab.click()
 
         let hasControls = waitForEither([
-            app.buttons["settings_color_cyan"],
-            app.buttons["settings_color_blue"],
-            app.checkBoxes["settings_toggle_compactMode"]
+            app.buttons["appearance_button_colorcyan"],
+            app.buttons["appearance_button_colorblue"],
+            app.switches["settings_toggle_compactMode"]
         ], timeout: 5)
 
         XCTAssertTrue(hasControls,
@@ -149,11 +152,11 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     }
 
     func testCompanionTabLoadsContent() {
-        let tab = app.staticTexts["settings_tab_companion"]
+        let tab = app.staticTexts["settings_tab_Companion"]
         requireExists(tab, timeout: 3, message: "Companion tab should exist")
-        tab.tap()
+        tab.click()
 
-        let hasControls = app.checkBoxes["settings_toggle_companionEnabled"]
+        let hasControls = app.switches["settings_toggle_companionEnabled"]
             .waitForExistence(timeout: 5)
 
         XCTAssertTrue(hasControls,
@@ -165,44 +168,44 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     // MARK: - 2. Change Preference -> Verify It Persists
 
     func testShowInDockCheckboxPersistsAcrossTabSwitch() {
-        app.staticTexts["settings_tab_general"].tap()
+        app.staticTexts["settings_tab_General"].click()
 
         let showInDock = requireExists(
-            app.checkBoxes["settings_toggle_showInDock"], timeout: 3,
+            app.switches["settings_toggle_showInDock"], timeout: 3,
             message: "Show in Dock checkbox should exist"
         )
 
-        let valueBefore = showInDock.value as? String ?? ""
-        showInDock.tap()
-        let valueAfter = showInDock.value as? String ?? ""
+        let valueBefore = stringValue(showInDock)
+        showInDock.click()
+        let valueAfter = stringValue(showInDock)
 
         // Value should have changed
         if valueBefore != valueAfter {
             // Switch to another tab and back
-            app.staticTexts["settings_tab_monitoring"].tap()
+            app.staticTexts["settings_tab_Monitoring"].click()
             requireExists(app.popUpButtons["settings_picker_defaultInterval"], timeout: 3,
                          message: "Monitoring tab should load")
 
-            app.staticTexts["settings_tab_general"].tap()
+            app.staticTexts["settings_tab_General"].click()
 
             let showInDockAfterReturn = requireExists(
-                app.checkBoxes["settings_toggle_showInDock"], timeout: 3,
+                app.switches["settings_toggle_showInDock"], timeout: 3,
                 message: "Show in Dock should exist after returning to General tab"
             )
 
-            let persistedValue = showInDockAfterReturn.value as? String ?? ""
+            let persistedValue = stringValue(showInDockAfterReturn)
             XCTAssertEqual(valueAfter, persistedValue,
                           "Show in Dock state should persist across tab switches")
 
             // Restore original state
-            showInDockAfterReturn.tap()
+            showInDockAfterReturn.click()
         }
 
         captureScreenshot(named: "MacSettings_DockPersistence")
     }
 
     func testNotificationSliderPersistsValue() {
-        app.staticTexts["settings_tab_notifications"].tap()
+        app.staticTexts["settings_tab_Notifications"].click()
 
         let slider = app.sliders["settings_slider_latencyThreshold"]
         guard slider.waitForExistence(timeout: 3) else { return }
@@ -216,10 +219,10 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         let valueAfterAdjust = slider.normalizedSliderPosition
 
         // Switch tabs and return
-        app.staticTexts["settings_tab_general"].tap()
-        _ = app.checkBoxes["settings_toggle_launchAtLogin"].waitForExistence(timeout: 3)
+        app.staticTexts["settings_tab_General"].click()
+        _ = app.switches["settings_toggle_launchAtLogin"].waitForExistence(timeout: 3)
 
-        app.staticTexts["settings_tab_notifications"].tap()
+        app.staticTexts["settings_tab_Notifications"].click()
         let sliderAfterReturn = app.sliders["settings_slider_latencyThreshold"]
         guard sliderAfterReturn.waitForExistence(timeout: 3) else { return }
 
@@ -240,21 +243,21 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     // MARK: - 3. Accent Color Selection Changes UI
 
     func testAccentColorSelectionIsInteractive() {
-        app.staticTexts["settings_tab_appearance"].tap()
+        app.staticTexts["settings_tab_Appearance"].click()
 
         let cyanButton = requireExists(
-            app.buttons["settings_color_cyan"], timeout: 3,
+            app.buttons["appearance_button_colorcyan"], timeout: 3,
             message: "Cyan color button should exist"
         )
 
         // Click cyan — verify it's still present and interactive
-        cyanButton.tap()
+        cyanButton.click()
         XCTAssertTrue(cyanButton.exists, "Cyan button should still exist after color selection")
 
         // Click blue — verify selection changes
-        let blueButton = app.buttons["settings_color_blue"]
+        let blueButton = app.buttons["appearance_button_colorblue"]
         guard blueButton.waitForExistence(timeout: 3) else { return }
-        blueButton.tap()
+        blueButton.click()
 
         // Blue should now be the active selection; cyan should no longer be selected
         // Both buttons should still be present (UI didn't crash)
@@ -262,11 +265,11 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         XCTAssertTrue(blueButton.exists, "Blue button should still exist after color selection")
 
         // Verify the color change persists by switching tabs and back
-        app.staticTexts["settings_tab_general"].tap()
-        _ = app.checkBoxes["settings_toggle_launchAtLogin"].waitForExistence(timeout: 3)
-        app.staticTexts["settings_tab_appearance"].tap()
+        app.staticTexts["settings_tab_General"].click()
+        _ = app.switches["settings_toggle_launchAtLogin"].waitForExistence(timeout: 3)
+        app.staticTexts["settings_tab_Appearance"].click()
 
-        let blueButtonAfterReturn = app.buttons["settings_color_blue"]
+        let blueButtonAfterReturn = app.buttons["appearance_button_colorblue"]
         XCTAssertTrue(blueButtonAfterReturn.waitForExistence(timeout: 3),
                       "Blue color button should persist after tab round-trip")
 
@@ -276,7 +279,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     // MARK: - 4. Clear Data Confirmation Flow
 
     func testClearDataShowsConfirmationAndCanBeCancelled() {
-        app.staticTexts["settings_tab_data"].tap()
+        app.staticTexts["settings_tab_Data"].click()
 
         let clearButton = requireExists(
             app.buttons["settings_button_clearData"], timeout: 3,
@@ -284,7 +287,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         )
         XCTAssertTrue(clearButton.isEnabled, "Clear data button should be enabled")
 
-        clearButton.tap()
+        clearButton.click()
 
         // Confirmation dialog/alert should appear
         let appeared = waitForEither(
@@ -296,18 +299,18 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
 
         // Dismiss without clearing
         let dismissCandidates = [
-            app.buttons["Cancel"],
-            app.buttons["cancel"],
+            app.windows.buttons["Cancel"].firstMatch,
+            app.windows.buttons["cancel"].firstMatch,
             app.buttons["Don't Clear"],
             app.sheets.firstMatch.buttons.firstMatch
         ]
         for candidate in dismissCandidates where candidate.exists {
-            candidate.tap()
+            candidate.click()
             break
         }
 
         // Settings should still be visible
-        requireExists(app.otherElements["detail_settings"], timeout: 3,
+        requireExists(ui("contentView_nav_settings").firstMatch, timeout: 3,
                       message: "Settings detail should remain after cancelling Clear Data")
 
         captureScreenshot(named: "MacSettings_ClearDataConfirm")
@@ -316,7 +319,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     // MARK: - 5. Monitoring Picker Interaction
 
     func testMonitoringIntervalPickerIsInteractive() {
-        app.staticTexts["settings_tab_monitoring"].tap()
+        app.staticTexts["settings_tab_Monitoring"].click()
 
         let picker = requireExists(
             app.popUpButtons["settings_picker_defaultInterval"], timeout: 3,
@@ -327,7 +330,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
                      "Default interval picker should be enabled and interactive")
 
         // Click the picker to verify it opens
-        picker.tap()
+        picker.click()
 
         // Menu items should appear
         let hasMenuItems = app.menuItems.firstMatch.waitForExistence(timeout: 3)
@@ -335,7 +338,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         if hasMenuItems {
             // Select an option
             let firstItem = app.menuItems.firstMatch
-            firstItem.tap()
+            firstItem.click()
 
             // Picker should still be present after selection
             requireExists(picker, timeout: 3,
@@ -351,20 +354,20 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     // MARK: - 6. Compact Mode Toggle
 
     func testCompactModeToggleChangesState() {
-        app.staticTexts["settings_tab_appearance"].tap()
+        app.staticTexts["settings_tab_Appearance"].click()
 
-        let compactToggle = app.checkBoxes["settings_toggle_compactMode"]
+        let compactToggle = app.switches["settings_toggle_compactMode"]
         guard compactToggle.waitForExistence(timeout: 3) else { return }
 
-        let valueBefore = compactToggle.value as? String ?? ""
-        compactToggle.tap()
-        let valueAfter = compactToggle.value as? String ?? ""
+        let valueBefore = stringValue(compactToggle)
+        compactToggle.click()
+        let valueAfter = stringValue(compactToggle)
 
         XCTAssertNotEqual(valueBefore, valueAfter,
                          "Compact mode checkbox should change state after clicking")
 
         // Restore
-        compactToggle.tap()
+        compactToggle.click()
 
         captureScreenshot(named: "MacSettings_CompactMode")
     }
@@ -373,25 +376,25 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
 
     func testAllTabsAccessibleInSequence() {
         let tabs = [
-            ("settings_tab_general", "General"),
-            ("settings_tab_monitoring", "Monitoring"),
-            ("settings_tab_notifications", "Notifications"),
-            ("settings_tab_network", "Network"),
-            ("settings_tab_data", "Data"),
-            ("settings_tab_appearance", "Appearance"),
-            ("settings_tab_companion", "Companion")
+            ("settings_tab_General", "General"),
+            ("settings_tab_Monitoring", "Monitoring"),
+            ("settings_tab_Notifications", "Notifications"),
+            ("settings_tab_Network", "Network"),
+            ("settings_tab_Data", "Data"),
+            ("settings_tab_Appearance", "Appearance"),
+            ("settings_tab_Companion", "Companion")
         ]
 
         for (tabID, tabName) in tabs {
             let tab = app.staticTexts[tabID]
             XCTAssertTrue(tab.waitForExistence(timeout: 3),
                          "\(tabName) tab should exist in settings")
-            tab.tap()
+            tab.click()
         }
 
         // Return to General to complete round-trip
-        app.staticTexts["settings_tab_general"].tap()
-        requireExists(app.checkBoxes["settings_toggle_launchAtLogin"], timeout: 3,
+        app.staticTexts["settings_tab_General"].click()
+        requireExists(app.switches["settings_toggle_launchAtLogin"], timeout: 3,
                       message: "General tab content should load after full round-trip")
 
         captureScreenshot(named: "MacSettings_AllTabs")
@@ -400,7 +403,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     // MARK: - 8. Export Button is Functional
 
     func testExportButtonIsFunctional() {
-        app.staticTexts["settings_tab_data"].tap()
+        app.staticTexts["settings_tab_Data"].click()
 
         let exportButton = app.buttons["settings_button_export"]
         guard exportButton.waitForExistence(timeout: 3) else { return }
@@ -408,7 +411,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         XCTAssertTrue(exportButton.isEnabled,
                      "Export button should be enabled on Data tab")
 
-        exportButton.tap()
+        exportButton.click()
 
         // Should open save dialog or show export options
         let hasResponse = waitForEither([
@@ -423,7 +426,7 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
         }
 
         // Settings should remain visible
-        requireExists(app.otherElements["detail_settings"], timeout: 3,
+        requireExists(ui("contentView_nav_settings").firstMatch, timeout: 3,
                       message: "Settings should remain visible after export interaction")
 
         captureScreenshot(named: "MacSettings_Export")
@@ -432,20 +435,20 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     // MARK: - 9. Retry Enabled Toggle
 
     func testRetryEnabledToggleChangesState() {
-        app.staticTexts["settings_tab_monitoring"].tap()
+        app.staticTexts["settings_tab_Monitoring"].click()
 
-        let retryToggle = app.checkBoxes["settings_toggle_retryEnabled"]
+        let retryToggle = app.switches["settings_toggle_retryEnabled"]
         guard retryToggle.waitForExistence(timeout: 3) else { return }
 
-        let valueBefore = retryToggle.value as? String ?? ""
-        retryToggle.tap()
-        let valueAfter = retryToggle.value as? String ?? ""
+        let valueBefore = stringValue(retryToggle)
+        retryToggle.click()
+        let valueAfter = stringValue(retryToggle)
 
         XCTAssertNotEqual(valueBefore, valueAfter,
                          "Retry enabled checkbox should change state after clicking")
 
         // Restore
-        retryToggle.tap()
+        retryToggle.click()
 
         captureScreenshot(named: "MacSettings_RetryToggle")
     }
@@ -453,14 +456,14 @@ final class SettingsFunctionalUITests: MacOSUITestCase {
     // MARK: - 10. Companion Toggle and Port Field
 
     func testCompanionToggleRevealsPortField() {
-        app.staticTexts["settings_tab_companion"].tap()
+        app.staticTexts["settings_tab_Companion"].click()
 
-        let companionToggle = app.checkBoxes["settings_toggle_companionEnabled"]
+        let companionToggle = app.switches["settings_toggle_companionEnabled"]
         guard companionToggle.waitForExistence(timeout: 3) else { return }
 
         // If companion is off, turn it on
-        if (companionToggle.value as? String) == "0" {
-            companionToggle.tap()
+        if stringValue(companionToggle) == "0" {
+            companionToggle.click()
         }
 
         // Port field should be visible when companion is enabled

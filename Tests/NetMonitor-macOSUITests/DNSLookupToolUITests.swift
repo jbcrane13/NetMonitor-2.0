@@ -34,6 +34,8 @@ final class DNSLookupToolUITests: MacOSUITestCase {
 
     func testLookupButtonDisabledWhenHostEmpty() {
         openDNSLookup()
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["dns_textfield_hostname"])
         let lookupButton = requireExists(app.buttons["dns_button_lookup"], message: "Lookup button should exist")
         XCTAssertFalse(lookupButton.isEnabled, "Lookup button should be disabled without hostname")
     }
@@ -49,9 +51,10 @@ final class DNSLookupToolUITests: MacOSUITestCase {
 
     func testCloseButtonDismissesSheet() {
         openDNSLookup()
-        app.buttons["dns_button_close"].tap()
+        app.buttons["dns_button_close"].click()
+        XCTAssertTrue(waitForDisappearance(app.buttons["dns_button_close"]), "Sheet should close")
         requireExists(
-            app.otherElements["tools_card_dns_lookup"],
+            ui("tools_card_dns_lookup").firstMatch,
             message: "Tool card should reappear after closing sheet"
         )
     }
@@ -61,7 +64,7 @@ final class DNSLookupToolUITests: MacOSUITestCase {
     func testPerformDNSLookup() {
         openDNSLookup()
         clearAndTypeText("example.com", into: app.textFields["dns_textfield_hostname"])
-        app.buttons["dns_button_lookup"].tap()
+        app.buttons["dns_button_lookup"].click()
 
         // Verify real result DATA appears — `dns_section_results` is attached
         // to the ForEach that iterates records, so it only exists when the
@@ -83,7 +86,7 @@ final class DNSLookupToolUITests: MacOSUITestCase {
     func testClearButtonRemovesResults() {
         openDNSLookup()
         clearAndTypeText("example.com", into: app.textFields["dns_textfield_hostname"])
-        app.buttons["dns_button_lookup"].tap()
+        app.buttons["dns_button_lookup"].click()
 
         let resultsSection = ui("dns_section_results")
         XCTAssertTrue(
@@ -93,7 +96,7 @@ final class DNSLookupToolUITests: MacOSUITestCase {
 
         let clearButton = app.buttons["dns_button_clear"]
         XCTAssertTrue(clearButton.exists, "Clear button should be present alongside results")
-        clearButton.tap()
+        clearButton.click()
 
         XCTAssertTrue(
             waitForDisappearance(clearButton, timeout: 3),
@@ -108,13 +111,13 @@ final class DNSLookupToolUITests: MacOSUITestCase {
     func testRecordTypePickerInteraction() {
         openDNSLookup()
         let picker = requireExists(app.popUpButtons["dns_picker_type"], message: "Record type picker should exist")
-        picker.tap()
+        picker.click()
 
         let recordTypes = ["AAAA", "MX", "TXT", "CNAME", "NS"]
         for recordType in recordTypes {
             let option = app.menuItems[recordType]
             if option.waitForExistence(timeout: 2) {
-                option.tap()
+                option.click()
                 break
             }
         }

@@ -1,24 +1,15 @@
 import XCTest
 
 @MainActor
-final class WHOISToolUITests: XCTestCase {
-    var app: XCUIApplication!
+final class WHOISToolUITests: MacOSUITestCase {
 
     override func setUpWithError() throws {
-        continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        // Navigate to Tools
-        let sidebar = app.descendants(matching: .any)["sidebar_tools"]
-        XCTAssertTrue(sidebar.waitForExistence(timeout: 5))
-        sidebar.tap()
-        // Open WHOIS tool
-        let card = app.otherElements["tools_card_whois"]
-        XCTAssertTrue(card.waitForExistence(timeout: 3))
-        card.tap()
+        try super.setUpWithError()
+        navigateToSidebar("tools")
+        let card = ui("tools_card_whois").firstMatch
+        requireExists(card, timeout: 3, message: "WHOIS tool card should exist")
+        card.click()
     }
-
-    // tearDownWithError: handled by MacOSUITestCase (terminates app + nils ref)
 
     // MARK: - Element Existence
 
@@ -37,6 +28,8 @@ final class WHOISToolUITests: XCTestCase {
     // MARK: - Interactions
 
     func testLookupButtonDisabledWhenDomainEmpty() {
+        // The field is prefilled with the last-used target, so empty it first.
+        clearText(in: app.textFields["whois_textfield_domain"])
         let lookupButton = app.buttons["whois_button_lookup"]
         XCTAssertTrue(lookupButton.waitForExistence(timeout: 3))
         XCTAssertFalse(lookupButton.isEnabled)
@@ -45,44 +38,43 @@ final class WHOISToolUITests: XCTestCase {
     func testLookupButtonEnabledAfterTypingDomain() {
         let domainField = app.textFields["whois_textfield_domain"]
         XCTAssertTrue(domainField.waitForExistence(timeout: 3))
-        domainField.tap()
-        domainField.typeText("example.com")
+        clearAndTypeText("example.com", into: domainField)
 
         XCTAssertTrue(app.buttons["whois_button_lookup"].isEnabled)
     }
 
     func testCloseButtonDismissesSheet() {
-        app.buttons["whois_button_close"].tap()
-        XCTAssertTrue(app.otherElements["tools_card_whois"].waitForExistence(timeout: 3))
+        app.buttons["whois_button_close"].click()
+        XCTAssertTrue(waitForDisappearance(app.buttons["whois_button_close"]), "Sheet should close")
+        XCTAssertTrue(ui("tools_card_whois").firstMatch.waitForExistence(timeout: 3))
     }
 
     func testPerformWHOISLookup() {
         let domainField = app.textFields["whois_textfield_domain"]
         XCTAssertTrue(domainField.waitForExistence(timeout: 3))
-        domainField.tap()
-        domainField.typeText("example.com")
+        clearAndTypeText("example.com", into: domainField)
 
-        app.buttons["whois_button_lookup"].tap()
+        app.buttons["whois_button_lookup"].click()
 
         // Verify parsed result DATA renders — `whois_picker_viewmode` is gated
         // on `result != nil`, and `whois_section_parsed` is the parsed view
         // container. Either appearing proves the WHOIS service returned data.
-        let viewModePicker = app.segmentedControls["whois_picker_viewmode"]
+        let viewModePicker = ui("whois_picker_viewmode").firstMatch
         let parsedSection = app.descendants(matching: .any)["whois_section_parsed"]
         XCTAssertTrue(
             viewModePicker.waitForExistence(timeout: 35)
                 || parsedSection.waitForExistence(timeout: 5),
             "WHOIS should render parsed result data for example.com"
         )
+        captureScreenshot(named: "WHOIS_Result")
     }
 
     func testClearButtonAfterLookup() {
         let domainField = app.textFields["whois_textfield_domain"]
         XCTAssertTrue(domainField.waitForExistence(timeout: 3))
-        domainField.tap()
-        domainField.typeText("example.com")
+        clearAndTypeText("example.com", into: domainField)
 
-        app.buttons["whois_button_lookup"].tap()
+        app.buttons["whois_button_lookup"].click()
 
         let clearButton = app.buttons["whois_button_clear"]
         XCTAssertTrue(
@@ -91,13 +83,13 @@ final class WHOISToolUITests: XCTestCase {
         )
 
         // Verify that result-only elements go with it
-        let viewModePicker = app.segmentedControls["whois_picker_viewmode"]
+        let viewModePicker = ui("whois_picker_viewmode").firstMatch
         XCTAssertTrue(
             viewModePicker.exists,
             "View mode picker should be present alongside results"
         )
 
-        clearButton.tap()
+        clearButton.click()
 
         XCTAssertFalse(clearButton.waitForExistence(timeout: 2))
         XCTAssertFalse(

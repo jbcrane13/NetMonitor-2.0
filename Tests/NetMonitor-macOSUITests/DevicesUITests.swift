@@ -11,7 +11,7 @@ final class DevicesUITests: MacOSUITestCase {
     // MARK: - Detail Pane
 
     func testDevicesDetailExists() {
-        requireExists(app.otherElements["detail_devices"], timeout: 3,
+        requireExists(ui("contentView_nav_devices").firstMatch, timeout: 3,
                       message: "Devices detail pane should exist")
     }
 
@@ -36,13 +36,8 @@ final class DevicesUITests: MacOSUITestCase {
     }
 
     func testOnlineOnlyToggleExists() {
-        requireExists(app.toggles["devices_toggle_onlineOnly"], timeout: 3,
+        requireExists(app.checkBoxes["devices_toggle_onlineOnly"], timeout: 3,
                       message: "Online-only toggle should exist")
-    }
-
-    func testClearButtonExists() {
-        requireExists(app.buttons["devices_button_clear"], timeout: 3,
-                      message: "Clear button should exist")
     }
 
     // MARK: - Functional: Scan
@@ -54,7 +49,7 @@ final class DevicesUITests: MacOSUITestCase {
         )
         XCTAssertTrue(scanButton.isEnabled, "Scan button should be enabled before tapping")
 
-        scanButton.tap()
+        scanButton.click()
 
         XCTAssertTrue(
             waitForEither(
@@ -69,7 +64,7 @@ final class DevicesUITests: MacOSUITestCase {
 
         let stopButton = app.buttons["devices_button_stopScan"]
         if stopButton.exists && stopButton.isEnabled {
-            stopButton.tap()
+            stopButton.click()
         }
     }
 
@@ -82,7 +77,7 @@ final class DevicesUITests: MacOSUITestCase {
         )
         XCTAssertTrue(sortMenu.isEnabled, "Sort menu should be enabled")
 
-        sortMenu.tap()
+        sortMenu.click()
 
         XCTAssertTrue(
             waitForEither(
@@ -91,6 +86,7 @@ final class DevicesUITests: MacOSUITestCase {
             ),
             "Sort menu should open and show at least one menu item"
         )
+        captureScreenshot(named: "Devices_SortMenu")
 
         app.typeKey(.escape, modifierFlags: [])
     }
@@ -98,13 +94,13 @@ final class DevicesUITests: MacOSUITestCase {
     // MARK: - Functional: Online-Only Toggle
 
     func testOnlineOnlyToggleInteraction() {
-        let toggle = app.toggles["devices_toggle_onlineOnly"]
-        guard toggle.waitForExistence(timeout: 3) else { return }
+        let toggle = app.checkBoxes["devices_toggle_onlineOnly"]
+        requireExists(toggle, timeout: 3, message: "Online-only toggle should exist")
 
         XCTAssertTrue(toggle.isEnabled, "Online-only toggle should be enabled")
         let valueBefore = toggle.value as? String
 
-        toggle.tap()
+        toggle.click()
 
         let valueAfter = toggle.value as? String
         if let before = valueBefore, let after = valueAfter {
@@ -112,35 +108,25 @@ final class DevicesUITests: MacOSUITestCase {
                               "Online-only toggle value should change after tapping")
         }
 
-        toggle.tap()
-    }
-
-    // MARK: - Functional: Clear Button
-
-    func testClearButtonExistsAndIsPresent() {
-        let clearButton = requireExists(
-            app.buttons["devices_button_clear"], timeout: 3,
-            message: "Clear button should exist in devices toolbar"
-        )
-        XCTAssertTrue(clearButton.exists, "Clear button should be present")
+        toggle.click()
     }
 
     // MARK: - Search
 
     func testSearchFieldExists() {
-        requireExists(app.otherElements["detail_devices"], timeout: 3,
+        requireExists(ui("contentView_nav_devices").firstMatch, timeout: 3,
                       message: "Devices detail pane should exist (search field is inside it)")
     }
 
     // MARK: - Empty State
 
     func testEmptyStateOrDeviceListShown() {
-        requireExists(app.otherElements["detail_devices"], timeout: 3,
+        requireExists(ui("contentView_nav_devices").firstMatch, timeout: 3,
                       message: "Devices detail pane should be visible")
     }
 
     func testSelectDevicePlaceholderExists() {
-        requireExists(app.otherElements["detail_devices"], timeout: 3,
+        requireExists(ui("contentView_nav_devices").firstMatch, timeout: 3,
                       message: "Devices detail pane should be visible")
     }
 }

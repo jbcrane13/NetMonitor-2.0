@@ -171,12 +171,15 @@ struct ContentView: View {
         switch section {
         case .devices:
             DevicesView()
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("contentView_nav_devices")
         case .tools:
             ToolsView(selection: $selectedSection)
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("contentView_nav_tools")
         case .settings:
             SettingsView()
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("contentView_nav_settings")
         }
     }
